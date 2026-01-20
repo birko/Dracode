@@ -32,7 +32,8 @@ namespace DraCode.Agent.Agents
                 new WriteFile(),
                 new SearchCode(),
                 new RunCommand(),
-                new DisplayText()
+                new DisplayText(),
+                new AskUser()
             ];
         }
 
