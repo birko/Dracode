@@ -82,14 +82,14 @@ export OPENAI_API_KEY="sk-your-api-key"
 
 ### Supported Providers
 
-| Provider | Configuration | Models |
-|----------|--------------|--------|
-| **OpenAI** | `OPENAI_API_KEY` | gpt-4o, gpt-4, gpt-3.5-turbo |
-| **Claude** | `ANTHROPIC_API_KEY` | claude-3-5-sonnet, claude-3-5-haiku |
-| **Gemini** | `GEMINI_API_KEY` | gemini-2.0-flash-exp |
-| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` | Custom deployments |
-| **Ollama** | None (local) | llama3.2, mistral, etc. |
-| **GitHub Copilot** | `GITHUB_CLIENT_ID` (OAuth) | gpt-4o, gpt-4-turbo |
+| Provider | Configuration | Models | Setup Guide |
+|----------|--------------|--------|-------------|
+| **OpenAI** | `OPENAI_API_KEY` | gpt-4o, gpt-4, gpt-3.5-turbo | - |
+| **Claude** | `ANTHROPIC_API_KEY` | claude-3-5-sonnet, claude-3-5-haiku | [Setup Guide](DraCode/CLAUDE_SETUP.md) |
+| **Gemini** | `GEMINI_API_KEY` | gemini-2.0-flash-exp | [Setup Guide](DraCode/GEMINI_SETUP.md) |
+| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` | Custom deployments | [Setup Guide](DraCode/AZURE_OPENAI_SETUP.md) |
+| **Ollama** | None (local) | llama3.2, mistral, codellama | [Setup Guide](DraCode/OLLAMA_SETUP.md) |
+| **GitHub Copilot** | `GITHUB_CLIENT_ID` (OAuth) | gpt-4o, gpt-4-turbo | [Setup Guide](DraCode/GITHUB_OAUTH_SETUP.md) |
 
 ## 🎯 Usage
 
@@ -163,11 +163,45 @@ dotnet run -- --provider=gemini --quiet --task="Fix bug in auth.cs,Update docs,C
 dotnet run -- --task="Generate API documentation for all public methods"
 ```
 
-## 🔐 GitHub Copilot OAuth Setup
+## 🔐 Provider Setup Guides
 
-For GitHub Copilot provider, see [GITHUB_OAUTH_SETUP.md](DraCode/GITHUB_OAUTH_SETUP.md) for detailed OAuth configuration instructions.
+### Claude (Anthropic)
+See [CLAUDE_SETUP.md](DraCode/CLAUDE_SETUP.md) for detailed setup instructions.
 
-Quick setup:
+**Quick setup:**
+1. Get API key from https://console.anthropic.com/
+2. Set `ANTHROPIC_API_KEY` environment variable
+3. Run with `--provider=claude`
+
+### Google Gemini
+See [GEMINI_SETUP.md](DraCode/GEMINI_SETUP.md) for detailed setup instructions.
+
+**Quick setup:**
+1. Get API key from https://makersuite.google.com/app/apikey
+2. Set `GEMINI_API_KEY` environment variable
+3. Run with `--provider=gemini`
+
+### Azure OpenAI
+See [AZURE_OPENAI_SETUP.md](DraCode/AZURE_OPENAI_SETUP.md) for detailed setup instructions.
+
+**Quick setup:**
+1. Create Azure OpenAI resource in Azure Portal
+2. Deploy a model (e.g., gpt-4o)
+3. Set `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY` environment variables
+4. Run with `--provider=azureopenai`
+
+### Ollama (Local Models)
+See [OLLAMA_SETUP.md](DraCode/OLLAMA_SETUP.md) for detailed setup instructions.
+
+**Quick setup:**
+1. Install Ollama from https://ollama.com/
+2. Download a model: `ollama pull llama3.2`
+3. Run with `--provider=ollama` (no API key needed!)
+
+### GitHub Copilot
+See [GITHUB_OAUTH_SETUP.md](DraCode/GITHUB_OAUTH_SETUP.md) for detailed OAuth configuration instructions.
+
+**Quick setup:**
 1. Create GitHub OAuth App at https://github.com/settings/developers
 2. Enable Device Flow
 3. Set `GITHUB_CLIENT_ID` environment variable
@@ -176,6 +210,11 @@ Quick setup:
 ## 📚 Documentation
 
 - **[CLI Options Guide](DraCode/CLI_OPTIONS.md)** - Complete command-line reference
+- **[Claude Setup Guide](DraCode/CLAUDE_SETUP.md)** - Anthropic Claude configuration
+- **[Gemini Setup Guide](DraCode/GEMINI_SETUP.md)** - Google Gemini configuration
+- **[Azure OpenAI Setup](DraCode/AZURE_OPENAI_SETUP.md)** - Azure OpenAI Service configuration
+- **[Ollama Setup Guide](DraCode/OLLAMA_SETUP.md)** - Local models with Ollama
+- **[GitHub Copilot Setup](DraCode/GITHUB_OAUTH_SETUP.md)** - OAuth configuration
 - **[Technical Specification](TECHNICAL_SPECIFICATION.md)** - Comprehensive technical documentation
 - **[Architecture Specification](ARCHITECTURE_SPECIFICATION.md)** - System architecture and design
 - **[Implementation Plan](IMPLEMENTATION_PLAN.md)** - Development roadmap and guidelines
