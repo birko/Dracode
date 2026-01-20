@@ -67,6 +67,29 @@ namespace DraCode.Agent.LLMs.Providers
                 {
                     parts.Add(new { text = textContent });
                 }
+                else if (message.Content is IEnumerable<ContentBlock> blocks)
+                {
+                    // Handle ContentBlock objects from assistant or parsed responses
+                    foreach (var block in blocks)
+                    {
+                        if (block.Type == "text" && !string.IsNullOrEmpty(block.Text))
+                        {
+                            parts.Add(new { text = block.Text });
+                        }
+                        else if (block.Type == "tool_use" && block.Name != null)
+                        {
+                            // Gemini represents tool calls as functionCall parts
+                            parts.Add(new
+                            {
+                                functionCall = new
+                                {
+                                    name = block.Name,
+                                    args = block.Input ?? new Dictionary<string, object>()
+                                }
+                            });
+                        }
+                    }
+                }
                 else if (message.Content is List<object> contentList)
                 {
                     // Tool results from agent
@@ -91,8 +114,39 @@ namespace DraCode.Agent.LLMs.Providers
                         }
                         else
                         {
-                            // Fallback: convert to string
-                            parts.Add(new { text = item?.ToString() ?? string.Empty });
+                            // Check if it's an anonymous object with type property
+                            var itemType = item.GetType();
+                            var typeProp = itemType.GetProperty("type");
+                            
+                            if (typeProp != null)
+                            {
+                                var typeValue = typeProp.GetValue(item)?.ToString();
+                                if (typeValue == "tool_result")
+                                {
+                                    var toolUseIdProp = itemType.GetProperty("tool_use_id");
+                                    var contentProp = itemType.GetProperty("content");
+                                    
+                                    if (toolUseIdProp != null && contentProp != null)
+                                    {
+                                        var toolUseId = toolUseIdProp.GetValue(item)?.ToString();
+                                        var resultContent = contentProp.GetValue(item)?.ToString();
+                                        
+                                        parts.Add(new
+                                        {
+                                            functionResponse = new
+                                            {
+                                                name = toolUseId,
+                                                response = new { result = resultContent }
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Fallback: convert to string
+                                parts.Add(new { text = item?.ToString() ?? string.Empty });
+                            }
                         }
                     }
                 }

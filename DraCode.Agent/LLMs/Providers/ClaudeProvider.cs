@@ -54,14 +54,48 @@ namespace DraCode.Agent.LLMs.Providers
 
         protected override bool IsConfigured() => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_model);
 
-        private static object BuildRequestPayload(IEnumerable<Message> messages, IEnumerable<Tool> tools, string systemPrompt, string model) => new
+        private static object BuildRequestPayload(IEnumerable<Message> messages, IEnumerable<Tool> tools, string systemPrompt, string model)
         {
-            model,
-            max_tokens = 4096,
-            system = systemPrompt,
-            messages,
-            tools = tools.Select(t => new { name = t.Name, description = t.Description, input_schema = t.InputSchema }).ToList()
-        };
+            var claudeMessages = messages.Select(m =>
+            {
+                object content = m.Content ?? "";
+                
+                // If content is a list of ContentBlocks, convert to Claude format
+                if (m.Content is IEnumerable<ContentBlock> blocks)
+                {
+                    var contentList = new List<Dictionary<string, object?>>();
+                    foreach (var b in blocks)
+                    {
+                        var dict = new Dictionary<string, object?> { { "type", b.Type } };
+                        
+                        if (b.Type == "text")
+                        {
+                            dict["text"] = b.Text;
+                        }
+                        else if (b.Type == "tool_use")
+                        {
+                            dict["id"] = b.Id;
+                            dict["name"] = b.Name;
+                            dict["input"] = b.Input;
+                        }
+                        
+                        contentList.Add(dict);
+                    }
+                    content = contentList;
+                }
+                
+                return new { role = m.Role, content };
+            }).ToList();
+            
+            return new
+            {
+                model,
+                max_tokens = 4096,
+                system = systemPrompt,
+                messages = claudeMessages,
+                tools = tools.Select(t => new { name = t.Name, description = t.Description, input_schema = t.InputSchema }).ToList()
+            };
+        }
 
         private static LlmResponse ParseResponse(string responseJson)
         {

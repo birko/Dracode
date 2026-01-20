@@ -15,7 +15,81 @@ namespace DraCode.Agent.LLMs.Providers
         protected static List<object> BuildOpenAiStyleMessages(IEnumerable<Message> messages, string systemPrompt)
         {
             var list = new List<object> { new { role = "system", content = systemPrompt } };
-            list.AddRange(messages.Select(m => new { role = m.Role, content = m.Content }));
+            foreach (var m in messages)
+            {
+                object? content = m.Content ?? "";
+                
+                // If content is a list of ContentBlocks, convert to OpenAI format
+                if (m.Content is IEnumerable<ContentBlock> blocks)
+                {
+                    var blocksList = blocks.ToList();
+                    var textBlocks = blocksList.Where(b => b.Type?.ToLowerInvariant() == "text").ToList();
+                    var toolUseBlocks = blocksList.Where(b => b.Type?.ToLowerInvariant() == "tool_use").ToList();
+                    
+                    // For assistant messages with tool_use blocks, convert to OpenAI tool_calls format
+                    if (m.Role == "assistant" && toolUseBlocks.Any())
+                    {
+                        var textContent = textBlocks.Any() && !string.IsNullOrEmpty(textBlocks[0].Text) 
+                            ? textBlocks[0].Text 
+                            : null;
+                        
+                        var toolCalls = toolUseBlocks.Select(b => new
+                        {
+                            id = b.Id,
+                            type = "function",
+                            function = new
+                            {
+                                name = b.Name,
+                                arguments = System.Text.Json.JsonSerializer.Serialize(b.Input ?? new Dictionary<string, object>())
+                            }
+                        }).ToList();
+                        
+                        list.Add(new { role = m.Role, content = textContent, tool_calls = toolCalls });
+                        continue;
+                    }
+                    
+                    // For text-only blocks, extract text
+                    if (textBlocks.Any())
+                    {
+                        content = textBlocks.Count == 1 ? textBlocks[0].Text : 
+                            string.Join("\n", textBlocks.Select(b => b.Text));
+                    }
+                    else
+                    {
+                        content = "";
+                    }
+                }
+                // If content is a list of objects (tool results from user), convert to OpenAI format
+                else if (m.Content is IEnumerable<object> objs && objs.Any())
+                {
+                    var objsList = objs.ToList();
+                    var firstObj = objsList.First();
+                    var firstObjType = firstObj.GetType();
+                    
+                    // Check if these are tool_result objects
+                    if (firstObjType.GetProperty("type") != null)
+                    {
+                        // For OpenAI, tool results should be individual messages with role="tool"
+                        foreach (var obj in objsList)
+                        {
+                            var objType = obj.GetType();
+                            var toolCallIdProp = objType.GetProperty("tool_use_id");
+                            var contentProp = objType.GetProperty("content");
+                            
+                            if (toolCallIdProp != null && contentProp != null)
+                            {
+                                var toolCallId = toolCallIdProp.GetValue(obj)?.ToString();
+                                var toolContent = contentProp.GetValue(obj)?.ToString() ?? "";
+                                
+                                list.Add(new { role = "tool", tool_call_id = toolCallId, content = toolContent });
+                            }
+                        }
+                        continue;
+                    }
+                }
+                
+                list.Add(new { role = m.Role, content });
+            }
             return list;
         }
 
