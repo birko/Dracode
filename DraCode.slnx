@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DraCode.Agent/DraCode.Agent.csproj" />
+  <Project Path="DraCode/DraCode.csproj" />
+</Solution>
