@@ -56,9 +56,7 @@ namespace DraCode.Agent.LLMs.Providers
             }
         }
 
-        private bool IsConfigured() => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_deployment);
-
-        private static LlmResponse NotConfigured() => new() { StopReason = "NotConfigured", Content = [] };
+        protected override bool IsConfigured() => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_deployment);
 
         
     }

@@ -95,5 +95,12 @@ namespace DraCode.Agent.LLMs.Providers
 
             return _currentToken != null;
         }
+
+        protected override bool IsConfigured()
+        {
+            // For OAuth-based providers, we check if we can get a valid token
+            // This is a synchronous check, actual authentication happens in SendMessageAsync
+            return !string.IsNullOrWhiteSpace(_model);
+        }
     }
 }

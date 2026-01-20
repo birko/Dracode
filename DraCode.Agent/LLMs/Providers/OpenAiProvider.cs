@@ -56,7 +56,7 @@ namespace DraCode.Agent.LLMs.Providers
             }
         }
 
-        private bool IsConfigured()
+        protected override bool IsConfigured()
             => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_model);
 
         private static List<object> BuildMessages(IEnumerable<Message> messages, string systemPrompt)

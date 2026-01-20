@@ -57,8 +57,7 @@ namespace DraCode.Agent.LLMs.Providers
             }
         }
 
-        private bool IsConfigured() => !string.IsNullOrWhiteSpace(_model);
-        private static LlmResponse NotConfigured() => new() { StopReason = "NotConfigured", Content = [] };
+        protected override bool IsConfigured() => !string.IsNullOrWhiteSpace(_model);
 
         private static List<object> BuildMessages(IEnumerable<Message> messages, string systemPrompt)
         {

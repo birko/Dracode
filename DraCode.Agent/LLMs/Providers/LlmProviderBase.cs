@@ -9,6 +9,9 @@ namespace DraCode.Agent.LLMs.Providers
 
         public abstract Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt);
 
+        // Abstract method that each provider implements based on their configuration needs
+        protected abstract bool IsConfigured();
+
         protected static List<object> BuildOpenAiStyleMessages(IEnumerable<Message> messages, string systemPrompt)
         {
             var list = new List<object> { new { role = "system", content = systemPrompt } };

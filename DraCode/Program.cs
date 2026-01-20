@@ -22,20 +22,6 @@ static bool GetBool(JsonElement parent, string name, bool fallback = true)
     return fallback;
 }
 
-static Dictionary<string, string> GetSectionDict(JsonElement parent, string name)
-{
-    var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-    if (parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(name, out var section) && section.ValueKind == JsonValueKind.Object)
-    {
-        foreach (var prop in section.EnumerateObject())
-        {
-            var val = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() : prop.Value.ToString();
-            dict[prop.Name] = val ?? string.Empty;
-        }
-    }
-    return dict;
-}
-
 // Prefer local debug settings if present, allow explicit override via APPSETTINGS_PATH
 var explicitPath = Environment.GetEnvironmentVariable("APPSETTINGS_PATH");
 var localPath = Path.Combine(AppContext.BaseDirectory, "appsettings.local.json");

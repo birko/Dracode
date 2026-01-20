@@ -4,14 +4,14 @@ using System.Text.Json;
 
 namespace DraCode.Agent.LLMs.Providers
 {
-    public class GeminiProvider : ILlmProvider
+    public class GeminiProvider : LlmProviderBase
     {
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
         private readonly string _model;
         private readonly string? _baseUrl;
 
-        public string Name => "Gemini";
+        public override string Name => "Gemini";
 
         public GeminiProvider(string apiKey, string model = "gemini-2.0-flash-exp", string baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/")
         {
@@ -21,7 +21,7 @@ namespace DraCode.Agent.LLMs.Providers
             _baseUrl = baseUrl;
         }
 
-        public async Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        public override async Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
         {
             if (!IsConfigured()) return NotConfigured();
 
@@ -51,9 +51,7 @@ namespace DraCode.Agent.LLMs.Providers
             }
         }
 
-        private bool IsConfigured() => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_model);
-
-        private static LlmResponse NotConfigured() => new() { StopReason = "NotConfigured", Content = [] };
+        protected override bool IsConfigured() => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_model);
 
         private static object BuildRequestPayload(IEnumerable<Message> messages, IEnumerable<Tool> tools, string systemPrompt)
         {
