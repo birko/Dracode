@@ -25,11 +25,13 @@ DraCode is an AI-powered coding agent CLI that enables autonomous code manipulat
 
 ### 1.2 Key Capabilities
 - **Multi-Provider LLM Support**: Seamless integration with 6+ LLM providers
+- **Multi-Task Execution**: Sequential execution of multiple tasks with fresh agent instances
 - **Tool-Based Architecture**: Extensible system for adding new capabilities
 - **Interactive CLI**: Modern, colorful interface with Spectre.Console
 - **OAuth Integration**: Secure GitHub Copilot authentication
 - **Provider Selection**: Interactive menu for choosing AI providers
 - **Sandboxed Execution**: All operations restricted to workspace
+- **Batch Processing**: Comma-separated tasks or interactive multi-task input
 
 ### 1.3 Technology Stack
 - **Language**: C# 14.0
@@ -101,7 +103,17 @@ User Input
     ▼
 ┌─────────────────┐
 │  Program.cs     │──► Provider Selection Menu
-│  Entry Point    │──► Configuration Loading
+│  Entry Point    │──► Verbose Output Selection
+│                 │──► Task Input (Single/Multiple)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Task Loop      │──► For each task:
+│  (Sequential)   │    - Create new Agent instance
+│                 │    - Execute task
+│                 │    - Track progress
+│                 │    - Handle errors
 └────────┬────────┘
          │
          ▼
@@ -128,6 +140,58 @@ User Input
 │  - Parse Response│   │  - Validate Path │
 └──────────────────┘   └──────────────────┘
 ```
+
+### 2.3 Multi-Task Execution Flow
+
+DraCode supports executing multiple tasks sequentially, with each task getting a fresh agent instance for context isolation.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Task Queue: ["Task 1", "Task 2", "Task 3"]            │
+└──────────────────┬──────────────────────────────────────┘
+                   │
+     ┌─────────────┴──────────────┐
+     │                            │
+     ▼                            ▼
+┌──────────────┐          ┌──────────────┐
+│  For i=1..N  │          │  Progress    │
+│  Task Loop   │──────────│  Tracking    │
+└──────┬───────┘          └──────────────┘
+       │
+       ▼
+┌──────────────────────────────────┐
+│  Create New Agent Instance       │  ◄─── Fresh context
+│  AgentFactory.Create(...)        │        for each task
+└──────────┬───────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────┐
+│  Execute Task                    │
+│  await agent.RunAsync(task)      │
+└──────────┬───────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────┐
+│  Handle Result                   │
+│  - Success: ✓ Task N completed   │
+│  - Failure: ✗ Task N failed      │
+└──────────┬───────────────────────┘
+           │
+           ▼
+     Next Task or Complete
+```
+
+**Key Features**:
+- **Context Isolation**: Each task gets a new agent with empty conversation history
+- **Error Handling**: Failures in one task don't stop subsequent tasks
+- **Progress Tracking**: Shows "Task N/Total" for each execution
+- **Status Reporting**: Individual success/failure status per task
+- **Batch Processing**: Supports comma-separated tasks or interactive input
+
+**Task Input Methods**:
+1. Command-line comma-separated: `--task="Task 1,Task 2,Task 3"`
+2. Interactive multi-line input: Prompts for tasks until empty line
+3. Configuration array: `"Tasks": ["Task 1", "Task 2"]`
 
 ---
 
@@ -661,7 +725,7 @@ Priority (highest to lowest):
     "Provider": "openai",           // Default provider
     "WorkingDirectory": "./",        // Sandbox directory
     "Verbose": true,                 // Enable detailed output
-    "TaskPrompt": "",                // Default task (optional)
+    "Tasks": [],                     // List of tasks to execute (optional)
     "Providers": {
       "openai": {
         "type": "openai",

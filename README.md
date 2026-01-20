@@ -5,6 +5,7 @@
 ## 🚀 Features
 
 - **Multi-Provider LLM Support**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot
+- **Multi-Task Execution**: Define and execute multiple tasks sequentially with fresh agent instances
 - **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
 - **Verbose Mode Control**: Toggle between detailed execution info or clean minimal output
 - **Autonomous Agent System**: Multi-turn conversations with iterative problem solving
@@ -56,7 +57,7 @@ Edit `DraCode/appsettings.local.json`:
     "Provider": "openai",
     "WorkingDirectory": "./workspace",
     "Verbose": true,
-    "TaskPrompt": "",
+    "Tasks": [],
     "Providers": {
       "openai": {
         "apiKey": "sk-your-api-key-here",
@@ -95,7 +96,11 @@ export OPENAI_API_KEY="sk-your-api-key"
 ### Basic Usage
 
 ```bash
+# Single task
 dotnet run --project DraCode -- --provider=openai --task="Create a hello world C# program"
+
+# Multiple tasks (comma-separated)
+dotnet run --project DraCode -- --provider=openai --task="Create main.cs,Add logging,Run tests"
 ```
 
 ### Interactive Mode
@@ -105,13 +110,30 @@ dotnet run --project DraCode
 # Interactive menus will guide you through:
 # 1. Provider selection (if multiple configured)
 # 2. Verbose output preference
-# 3. Task prompt input
+# 3. Multi-task input (one per line, empty line to finish)
 ```
 
 ### Task from File
 
 ```bash
 dotnet run --project DraCode -- --task="path/to/task.txt"
+```
+
+### Multi-Task Configuration
+
+You can define multiple tasks in `appsettings.json`:
+
+```json
+{
+  "Agent": {
+    "Tasks": [
+      "Create project structure",
+      "Implement core functionality",
+      "Add unit tests",
+      "Generate documentation"
+    ]
+  }
+}
 ```
 
 ### Verbose Output Control
@@ -131,13 +153,13 @@ dotnet run -- --task="Your task"
 ### Examples
 
 ```bash
-# Refactor code with detailed output
-dotnet run -- --provider=claude --verbose --task="Refactor Program.cs to use dependency injection"
+# Multiple tasks with detailed output
+dotnet run -- --provider=claude --verbose --task="Create utils.cs,Add tests,Run build"
 
-# Run tests quietly
-dotnet run -- --provider=gemini --quiet --task="Run all unit tests and fix any failures"
+# Batch processing quietly
+dotnet run -- --provider=gemini --quiet --task="Fix bug in auth.cs,Update docs,Commit changes"
 
-# Generate documentation with interactive selection
+# Interactive multi-task workflow
 dotnet run -- --task="Generate API documentation for all public methods"
 ```
 

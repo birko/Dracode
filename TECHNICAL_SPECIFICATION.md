@@ -87,28 +87,45 @@ Supports 6 LLM providers with unified interface:
 - **Ollama** (Local models - Llama, Mistral, etc.)
 - **GitHub Copilot** (with OAuth device flow)
 
-#### 3.1.2 Autonomous Agent System
+#### 3.1.2 Multi-Task Execution System
+- **Sequential Execution:** Execute multiple tasks in order
+- **Context Isolation:** Each task gets a fresh agent instance
+- **Progress Tracking:** Visual progress indicators (Task N/Total)
+- **Error Handling:** Failures don't stop subsequent tasks
+- **Batch Processing:** Comma-separated or interactive multi-line input
+- **Configuration Support:** Define tasks in JSON array
+
+#### 3.1.3 Autonomous Agent System
 - **Conversational Loop:** Multi-turn conversation with LLM
 - **Tool Calling:** LLM can invoke tools to perform actions
 - **Iterative Execution:** Max 10 iterations per task (configurable)
 - **Self-directed:** Agent decides which tools to use and when
 
-#### 3.1.3 Tool System
-Five built-in tools for code manipulation:
+#### 3.1.4 Tool System
+Seven built-in tools for code manipulation:
 
 1. **list_files** - Directory listing with recursive option
 2. **read_file** - Read file contents
 3. **write_file** - Create/overwrite files with directory creation
 4. **search_code** - Regex/text search with line numbers
 5. **run_command** - Execute shell commands with timeout
+6. **ask_user** - Interactive prompts during execution
+7. **display_text** - Formatted text output with panels
 
-#### 3.1.4 GitHub Copilot OAuth Integration
+#### 3.1.5 GitHub Copilot OAuth Integration
 - **Device Flow Authentication:** Browser-based OAuth flow
 - **Token Management:** Automatic refresh and persistence
 - **Token Storage:** Secure file-based storage in user directory
 - **Expiration Handling:** Auto-refresh before expiration
 
-#### 3.1.5 Configuration System
+#### 3.1.6 Interactive CLI UI
+- **Provider Selection Menu:** Visual menu for choosing LLM providers
+- **Verbose Mode Selection:** Toggle between detailed/quiet output
+- **Multi-Task Input:** Interactive prompt for multiple tasks
+- **Formatted Output:** Spectre.Console panels, rules, and colors
+- **Progress Indicators:** Visual feedback for task execution
+
+#### 3.1.7 Configuration System
 - **JSON Configuration:** appsettings.json (defaults) + appsettings.local.json (overrides)
 - **Environment Variables:** Override config values via environment
 - **CLI Arguments:** Runtime provider and task selection
@@ -187,7 +204,7 @@ public class TokenInfo
     "Provider": "string",           // Default provider name
     "WorkingDirectory": "string",   // Default workspace path
     "Verbose": boolean,             // Enable detailed logging
-    "TaskPrompt": "string",         // Default task or path to task file
+    "Tasks": ["string"],            // Array of tasks to execute sequentially
     "Providers": {
       "providername": {
         "type": "string",           // Provider type identifier
@@ -767,7 +784,9 @@ FUNCTION LoadConfiguration():
         IF arg.StartsWith("--provider="):
             baseConfig.Agent.Provider = arg.Substring(11)
         IF arg.StartsWith("--task="):
-            baseConfig.Agent.TaskPrompt = arg.Substring(7)
+            // Parse comma-separated tasks
+            tasks = arg.Substring(7).Split(',')
+            baseConfig.Agent.Tasks.AddRange(tasks)
     
     RETURN baseConfig
 ```
@@ -1219,7 +1238,7 @@ dotnet publish -c Release -r win-x64 --self-contained
     "Provider": "openai",
     "WorkingDirectory": "./workspace",
     "Verbose": true,
-    "TaskPrompt": "",
+    "Tasks": [],
     "Providers": {
       "openai": {
         "apiKey": "sk-...",
@@ -1237,7 +1256,7 @@ dotnet publish -c Release -r win-x64 --self-contained
     "Provider": "claude",
     "WorkingDirectory": "./workspace",
     "Verbose": true,
-    "TaskPrompt": "",
+    "Tasks": [],
     "Providers": {
       "openai": {
         "apiKey": "${OPENAI_API_KEY}",

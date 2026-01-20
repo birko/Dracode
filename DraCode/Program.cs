@@ -39,7 +39,25 @@ var agentEl = root.TryGetProperty("Agent", out var a) ? a : default;
 string provider = GetString(agentEl, "Provider", "openai");
 string workingDirectory = GetString(agentEl, "WorkingDirectory", Environment.CurrentDirectory);
 bool verbose = GetBool(agentEl, "Verbose", true);
-string taskPrompt = GetString(agentEl, "TaskPrompt", "");
+
+// Read tasks from config (can be single string or array)
+var tasks = new List<string>();
+if (agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("Tasks", out var tasksEl))
+{
+    if (tasksEl.ValueKind == JsonValueKind.Array)
+    {
+        foreach (var task in tasksEl.EnumerateArray())
+        {
+            var taskStr = task.ValueKind == JsonValueKind.String ? task.GetString() : task.ToString();
+            if (!string.IsNullOrWhiteSpace(taskStr)) tasks.Add(taskStr);
+        }
+    }
+    else if (tasksEl.ValueKind == JsonValueKind.String)
+    {
+        var taskStr = tasksEl.GetString();
+        if (!string.IsNullOrWhiteSpace(taskStr)) tasks.Add(taskStr);
+    }
+}
 
 // Check if provider or verbose was set via command-line
 bool providerSetViaArgs = false;
@@ -53,7 +71,19 @@ foreach (var arg in Environment.GetCommandLineArgs())
     }
     else if (arg.StartsWith("--task=", StringComparison.OrdinalIgnoreCase))
     {
-        taskPrompt = arg["--task=".Length..];
+        var task = arg["--task=".Length..];
+        if (!string.IsNullOrWhiteSpace(task))
+        {
+            // Support comma-separated tasks
+            if (task.Contains(','))
+            {
+                tasks.AddRange(task.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
+            else
+            {
+                tasks.Add(task);
+            }
+        }
     }
     else if (arg.StartsWith("--verbose=", StringComparison.OrdinalIgnoreCase))
     {
@@ -160,7 +190,6 @@ foreach (var kv in providerConfig.ToList())
     if (!string.IsNullOrWhiteSpace(envVal)) providerConfig[kv.Key] = envVal;
 }
 var type = providerConfig.TryGetValue("type", out string? value) ? value : "openai";
-var agent = AgentFactory.Create(type, workingDirectory, verbose, providerConfig);
 
 // Display nice banner
 AnsiConsole.Clear();
@@ -176,23 +205,30 @@ var infoTable = new Table()
     .AddColumn(new TableColumn("[bold white]Value[/]").LeftAligned());
 
 infoTable.AddRow("[cyan]Provider[/]", $"[yellow]{Markup.Escape(provider)}[/]");
-infoTable.AddRow("[cyan]Model[/]", $"[yellow]{Markup.Escape(agent.ProviderName)}[/]");
+infoTable.AddRow("[cyan]Type[/]", $"[yellow]{Markup.Escape(type)}[/]");
 infoTable.AddRow("[cyan]Working Directory[/]", $"[dim]{Markup.Escape(workingDirectory)}[/]");
 infoTable.AddRow("[cyan]Verbose[/]", verbose ? "[green]Yes[/]" : "[red]No[/]");
 
 AnsiConsole.Write(infoTable);
 AnsiConsole.WriteLine();
 
-// If no task prompt is provided via config or CLI, request user input
-if (string.IsNullOrWhiteSpace(taskPrompt))
+// If no tasks are provided via config or CLI, request user input
+if (tasks.Count == 0)
 {
-    taskPrompt = AnsiConsole.Ask<string>("[bold green]Enter task prompt:[/]");
+    AnsiConsole.MarkupLine("[bold cyan]Enter tasks (one per line, empty line to finish):[/]");
+    while (true)
+    {
+        var task = AnsiConsole.Ask<string>($"[green]Task {tasks.Count + 1}:[/]", "");
+        if (string.IsNullOrWhiteSpace(task)) break;
+        tasks.Add(task);
+    }
 }
 
-// If task prompt looks like a file path, read its contents
-if (!string.IsNullOrWhiteSpace(taskPrompt))
+// Process each task with file path resolution
+var resolvedTasks = new List<string>();
+foreach (var task in tasks)
 {
-    var candidate = taskPrompt.Trim();
+    var candidate = task.Trim();
     if ((candidate.StartsWith("\"") && candidate.EndsWith("\"")) || (candidate.StartsWith("'") && candidate.EndsWith("'")))
         candidate = candidate[1..^1];
 
@@ -211,29 +247,65 @@ if (!string.IsNullOrWhiteSpace(taskPrompt))
     {
         try
         {
-            taskPrompt = File.ReadAllText(filePath);
+            var fileContent = File.ReadAllText(filePath);
+            resolvedTasks.Add(fileContent);
             AnsiConsole.MarkupLine($"[dim]📄 Loaded task from file: {Markup.Escape(filePath)}[/]");
         }
         catch (Exception ex)
         {
             AnsiConsole.MarkupLine($"[red]❌ Failed to read task file '{Markup.Escape(filePath)}': {Markup.Escape(ex.Message)}[/]");
+            resolvedTasks.Add(task); // Use original task as fallback
         }
+    }
+    else
+    {
+        resolvedTasks.Add(task);
     }
 }
 
-if (!string.IsNullOrWhiteSpace(taskPrompt))
+// Execute all tasks
+if (resolvedTasks.Count > 0)
 {
     AnsiConsole.WriteLine();
-    AnsiConsole.Write(new Rule("[bold green]Starting Task Execution[/]")
+    AnsiConsole.Write(new Rule($"[bold green]Starting Execution of {resolvedTasks.Count} Task{(resolvedTasks.Count > 1 ? "s" : "")}[/]")
     {
         Justification = Justify.Left
     });
     AnsiConsole.WriteLine();
     
-    await agent.RunAsync(taskPrompt);
+    for (int i = 0; i < resolvedTasks.Count; i++)
+    {
+        var taskNumber = i + 1;
+        var currentTask = resolvedTasks[i];
+        
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule($"[bold yellow]Task {taskNumber}/{resolvedTasks.Count}[/]")
+        {
+            Justification = Justify.Left
+        });
+        AnsiConsole.WriteLine();
+        
+        // Show task preview
+        var preview = currentTask.Length > 100 ? currentTask.Substring(0, 100) + "..." : currentTask;
+        AnsiConsole.MarkupLine($"[dim]📝 {Markup.Escape(preview)}[/]");
+        AnsiConsole.WriteLine();
+        
+        // Create new agent instance for this task
+        var agent = AgentFactory.Create(type, workingDirectory, verbose, providerConfig);
+        
+        try
+        {
+            await agent.RunAsync(currentTask);
+            AnsiConsole.MarkupLine($"[green]✓ Task {taskNumber} completed successfully[/]");
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]✗ Task {taskNumber} failed: {Markup.Escape(ex.Message)}[/]");
+        }
+    }
     
     AnsiConsole.WriteLine();
-    AnsiConsole.Write(new Rule("[bold green]Task Complete[/]")
+    AnsiConsole.Write(new Rule($"[bold green]All Tasks Complete ({resolvedTasks.Count}/{resolvedTasks.Count})[/]")
     {
         Justification = Justify.Left
     });

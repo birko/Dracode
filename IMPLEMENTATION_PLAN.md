@@ -24,6 +24,10 @@
 #### ✅ Completed Features
 - [x] Multi-provider LLM support (6 providers)
 - [x] Tool system with 7 tools
+- [x] **Multi-task execution with context isolation**
+- [x] **Interactive multi-task input (one per line)**
+- [x] **Comma-separated task parsing**
+- [x] **Progress tracking (Task N/Total)**
 - [x] Interactive provider selection menu
 - [x] Spectre.Console UI integration
 - [x] GitHub Copilot OAuth integration
@@ -36,6 +40,7 @@
 - [x] Ask user interactive prompts
 - [x] Display text with formatting
 - [x] Error handling and recovery
+- [x] **Verbose mode selection UI**
 
 #### 🚧 In Progress
 - [ ] Unit test coverage
@@ -74,6 +79,7 @@
 | **1.0** | Jan 2026 | Initial release, basic agent, 3 LLM providers |
 | **1.5** | Jan 2026 | Added GitHub Copilot, OAuth, 2 more tools |
 | **2.0** | Jan 2026 | Spectre.Console UI, provider selection menu, message format fixes |
+| **2.1** | Jan 2026 | **Multi-task execution, verbose mode UI, batch processing** |
 | **2.5** | Feb 2026 (Planned) | Streaming, unit tests, improved error handling |
 | **3.0** | Mar 2026 (Planned) | Custom agents, plugin system, web UI |
 
@@ -198,7 +204,25 @@
 
 **Duration**: 3 days
 
-### Phase 6: Testing & Stability (🚧 In Progress)
+### Phase 6: Multi-Task Execution (✅ Complete)
+
+**Goal**: Support sequential execution of multiple tasks with context isolation
+
+**Tasks**:
+- [x] Refactor task input from single string to List<string>
+- [x] Add comma-separated task parsing
+- [x] Implement interactive multi-task input loop
+- [x] Add task execution loop with progress tracking
+- [x] Create new agent instance per task for isolation
+- [x] Add visual progress indicators (Task N/Total)
+- [x] Implement error handling per task
+- [x] Update configuration to use Tasks array
+- [x] Add verbose mode interactive selection
+- [x] Update documentation (README, CLI_OPTIONS, specs)
+
+**Duration**: 1 day
+
+### Phase 7: Testing & Stability (🚧 In Progress)
 
 **Goal**: Comprehensive test coverage and stability
 
@@ -209,10 +233,11 @@
 - [ ] Integration tests with mock LLMs
 - [ ] Load testing
 - [ ] Error scenario testing
+- [ ] Multi-task execution tests
 
 **Duration**: 3 weeks (Estimated)
 
-### Phase 7: Advanced Features (📋 Planned)
+### Phase 8: Advanced Features (📋 Planned)
 
 **Goal**: Streaming, plugins, and custom agents
 

@@ -63,7 +63,10 @@ dotnet run -- --verbose          # Will ask for provider and task
     "Provider": "openai",
     "Verbose": true,
     "WorkingDirectory": "./",
-    "TaskPrompt": "",
+    "Tasks": [
+      "Create project structure",
+      "Implement core functionality"
+    ],
     "Providers": {
       "openai": {
         "type": "openai",
@@ -85,6 +88,8 @@ dotnet run -- --verbose          # Will ask for provider and task
 2. **Environment variables**
 3. **appsettings.local.json**
 4. **appsettings.json** (lowest priority)
+
+**Note**: Tasks can be defined in config and additional tasks can be added via command-line. All tasks will be executed sequentially.
 
 ## Interactive UI
 
@@ -123,12 +128,16 @@ Enable verbose output?
 When no `--task` argument is provided:
 
 ```
-Enter task prompt: _
+Enter tasks (one per line, empty line to finish):
+Task 1: Create main.cs
+Task 2: Add unit tests
+Task 3: _
 ```
 
 - Type your task description
-- Press Enter to submit
-- Can also provide a file path to read task from file
+- Press Enter to submit and add another task
+- Press Enter on empty line to finish and start execution
+- Each task will be executed sequentially with a new agent instance
 
 ## Verbose Mode Differences
 
@@ -170,12 +179,21 @@ Shows:
 ```bash
 # Just run without arguments - UI will guide you
 dotnet run
+# Enter multiple tasks interactively
 ```
 
-### Quick Task (Power User)
+### Single Task (Quick)
 ```bash
 # Everything specified, no prompts
 dotnet run -- --provider=claude --quiet --task="Add unit tests to Calculator.cs"
+```
+
+### Multiple Tasks (Batch Processing)
+```bash
+# Comma-separated tasks
+dotnet run -- --provider=openai --verbose --task="Create config.json,Add validation,Write docs"
+
+# All tasks executed sequentially with fresh agent instances
 ```
 
 ### Debugging Mode
@@ -190,11 +208,21 @@ dotnet run -- --verbose --task="Fix the bug in Auth.cs"
 dotnet run -- --provider=githubcopilot --task="refactor-plan.md"
 ```
 
+### Multi-Task Workflow
+```bash
+# Define tasks in config, execute all
+# appsettings.json:
+# "Tasks": ["Setup", "Build", "Test", "Deploy"]
+dotnet run
+```
+
 ## Tips
 
 1. **First-time users**: Run without arguments to see interactive UI
 2. **Power users**: Use `--provider=X --quiet --task="Y"` for fast execution
-3. **Debugging**: Always use `--verbose` to see detailed execution
-4. **CI/CD**: Use explicit arguments to avoid interactive prompts
-5. **Default provider**: Set in config file to skip provider selection
-6. **Multiple providers**: Leave provider unset to see selection menu
+3. **Batch processing**: Use comma-separated tasks for sequential execution
+4. **Debugging**: Always use `--verbose` to see detailed execution
+5. **CI/CD**: Use explicit arguments to avoid interactive prompts
+6. **Default provider**: Set in config file to skip provider selection
+7. **Multiple providers**: Leave provider unset to see selection menu
+8. **Fresh context**: Each task gets its own agent instance for isolation
