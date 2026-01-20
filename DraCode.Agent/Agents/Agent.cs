@@ -1,5 +1,6 @@
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
+using Spectre.Console;
 using System.Text.Json;
 
 namespace DraCode.Agent.Agents
@@ -54,16 +55,24 @@ namespace DraCode.Agent.Agents
             {
                 if (_verbose)
                 {
-                    Console.WriteLine($"\n{'='.ToString().PadRight(60, '=')}");
-                    Console.WriteLine($"ITERATION {iteration}");
-                    Console.WriteLine($"{'='.ToString().PadRight(60, '=')}");
+                    AnsiConsole.Write(new Rule($"[bold cyan]ITERATION {iteration}[/]")
+                    {
+                        Justification = Justify.Left
+                    });
                 }
 
                 var response = await _llmProvider.SendMessageAsync(conversation, _tools, SystemPrompt);
 
                 if (_verbose)
                 {
-                    Console.WriteLine($"\nStop reason: {response.StopReason}");
+                    var stopReasonColor = response.StopReason switch
+                    {
+                        "tool_use" => "yellow",
+                        "end_turn" => "green",
+                        "error" => "red",
+                        _ => "grey"
+                    };
+                    AnsiConsole.MarkupLine($"[dim]Stop reason:[/] [{stopReasonColor}]{response.StopReason}[/]");
                 }
 
                 // Add assistant response to conversation
@@ -85,8 +94,15 @@ namespace DraCode.Agent.Agents
                         {
                             if (_verbose)
                             {
-                                Console.WriteLine($"\n🔧 Tool: {block.Name}");
-                                Console.WriteLine($"Input: {JsonSerializer.Serialize(block.Input)}");
+                                var toolPanel = new Panel(
+                                    new Markup($"[bold yellow]Tool:[/] [cyan]{Markup.Escape(block.Name ?? "unknown")}[/]\n" +
+                                              $"[bold yellow]Input:[/] [dim]{Markup.Escape(JsonSerializer.Serialize(block.Input))}[/]"))
+                                {
+                                    Border = BoxBorder.Rounded,
+                                    BorderStyle = new Style(Color.Yellow),
+                                    Header = new PanelHeader("🔧 [yellow]Tool Call[/]", Justify.Left)
+                                };
+                                AnsiConsole.Write(toolPanel);
                             }
 
                             var tool = _tools.FirstOrDefault(t => t.Name == block.Name);
@@ -102,8 +118,16 @@ namespace DraCode.Agent.Agents
 
                             if (_verbose)
                             {
-                                var preview = result.Length > 200 ? string.Concat(result.AsSpan(0, 200), "...") : result;
-                                Console.WriteLine($"Result: {preview}");
+                                var preview = result.Length > 500 ? string.Concat(result.AsSpan(0, 500), "...") : result;
+                                var resultColor = result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) ? "red" : "green";
+                                var resultPanel = new Panel(
+                                    new Markup($"[{resultColor}]{Markup.Escape(preview)}[/]"))
+                                {
+                                    Border = BoxBorder.Rounded,
+                                    BorderStyle = new Style(result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) ? Color.Red : Color.Green),
+                                    Header = new PanelHeader("📋 [white]Result[/]", Justify.Left)
+                                };
+                                AnsiConsole.Write(resultPanel);
                             }
 
                             toolResults.Add(new
@@ -125,14 +149,21 @@ namespace DraCode.Agent.Agents
                         {
                             foreach (var block in (response.Content ?? []).Where(b => b.Type == "text"))
                             {
-                                Console.WriteLine($"\n💬 {_llmProvider.Name}: {block.Text}");
+                                var messagePanel = new Panel(
+                                    new Markup($"[white]{Markup.Escape(block.Text ?? "")}[/]"))
+                                {
+                                    Border = BoxBorder.Rounded,
+                                    BorderStyle = new Style(Color.Cyan1),
+                                    Header = new PanelHeader($"💬 [cyan]{Markup.Escape(_llmProvider.Name)}[/]", Justify.Left)
+                                };
+                                AnsiConsole.Write(messagePanel);
                             }
                         }
 
                         // If we hit max iterations after tool calls, warn and stop
                         if (iteration >= maxIterations)
                         {
-                            Console.WriteLine($"\n⚠️ Maximum iterations ({maxIterations}) reached. Task may be incomplete.");
+                            AnsiConsole.MarkupLine($"\n[yellow]⚠️  Maximum iterations ({maxIterations}) reached. Task may be incomplete.[/]");
                             return conversation;
                         }
 
@@ -142,7 +173,7 @@ namespace DraCode.Agent.Agents
                         {
                             if (_verbose)
                             {
-                                Console.WriteLine("\n⚠️ All tool executions failed. Giving agent one final response...");
+                                AnsiConsole.MarkupLine("\n[yellow]⚠️  All tool executions failed. Giving agent one final response...[/]");
                             }
                         }
                         break;
@@ -151,7 +182,14 @@ namespace DraCode.Agent.Agents
                         // Agent finished - print response and exit
                         foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "text"))
                         {
-                            Console.WriteLine($"\n💬 {_llmProvider.Name}: {block.Text}");
+                            var messagePanel = new Panel(
+                                new Markup($"[white]{Markup.Escape(block.Text ?? "")}[/]"))
+                            {
+                                Border = BoxBorder.Double,
+                                BorderStyle = new Style(Color.Green),
+                                Header = new PanelHeader($"💬 [green]{Markup.Escape(_llmProvider.Name)}[/]", Justify.Left)
+                            };
+                            AnsiConsole.Write(messagePanel);
                         }
                         return conversation;
 
@@ -159,20 +197,20 @@ namespace DraCode.Agent.Agents
                         // Error occurred - stop immediately
                         if (_verbose)
                         {
-                            Console.WriteLine("\n❌ Error occurred during LLM request. Stopping.");
+                            AnsiConsole.MarkupLine("\n[red]❌ Error occurred during LLM request. Stopping.[/]");
                         }
                         return conversation;
 
                     case "NotConfigured":
                         // Provider not configured - stop immediately
-                        Console.Error.WriteLine($"\n❌ Provider '{_llmProvider.Name}' is not properly configured.");
+                        AnsiConsole.MarkupLine($"\n[red]❌ Provider '{Markup.Escape(_llmProvider.Name)}' is not properly configured.[/]");
                         return conversation;
 
                     default:
                         // Unexpected stop reason - stop to be safe
                         if (_verbose)
                         {
-                            Console.WriteLine($"\n⚠️ Unexpected stop reason: {response.StopReason}. Stopping.");
+                            AnsiConsole.MarkupLine($"\n[yellow]⚠️  Unexpected stop reason: {Markup.Escape(response.StopReason ?? "unknown")}. Stopping.[/]");
                         }
                         return conversation;
                 }
@@ -181,7 +219,7 @@ namespace DraCode.Agent.Agents
             // If we exit the loop naturally, we hit max iterations
             if (_verbose)
             {
-                Console.WriteLine($"\n⚠️ Maximum iterations ({maxIterations}) reached.");
+                AnsiConsole.MarkupLine($"\n[yellow]⚠️  Maximum iterations ({maxIterations}) reached.[/]");
             }
 
             return conversation;

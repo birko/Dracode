@@ -1,3 +1,5 @@
+using Spectre.Console;
+
 namespace DraCode.Agent.Tools
 {
     public class AskUser : Tool
@@ -35,32 +37,39 @@ namespace DraCode.Agent.Tools
                 if (string.IsNullOrWhiteSpace(question))
                     return "Error: question parameter is required";
 
-                // Display the question to the user
-                Console.WriteLine();
-                Console.WriteLine("┌─────────────────────────────────────────────────────────┐");
-                Console.WriteLine("│ 🤔 Agent needs your input                               │");
-                Console.WriteLine("└─────────────────────────────────────────────────────────┘");
+                // Create a styled panel for the question
+                var panelContent = new Markup($"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question ?? "")}[/]");
                 
                 if (!string.IsNullOrWhiteSpace(context))
                 {
-                    Console.WriteLine();
-                    Console.WriteLine($"Context: {context}");
+                    panelContent = new Markup(
+                        $"[dim]💡 Context:[/] [grey]{Markup.Escape(context)}[/]\n\n" +
+                        $"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question ?? "")}[/]");
                 }
-                
-                Console.WriteLine();
-                Console.WriteLine($"Question: {question}");
-                Console.WriteLine();
-                Console.Write("Your answer: ");
 
-                // Read user input
-                var userResponse = Console.ReadLine();
+                var panel = new Panel(panelContent)
+                {
+                    Border = BoxBorder.Double,
+                    BorderStyle = new Style(Color.Cyan1),
+                    Header = new PanelHeader("[bold yellow]🤔 Agent Needs Your Input[/]", Justify.Center),
+                    Padding = new Padding(2, 1)
+                };
+
+                AnsiConsole.Write(panel);
+                AnsiConsole.WriteLine();
+
+                // Read user input with a nice prompt
+                var userResponse = AnsiConsole.Ask<string>("[bold green]Your answer:[/]");
 
                 if (string.IsNullOrWhiteSpace(userResponse))
                 {
                     return "User provided no response (empty input)";
                 }
 
-                Console.WriteLine();
+                // Show confirmation
+                AnsiConsole.MarkupLine($"[dim]✓ Received:[/] [white]{Markup.Escape(userResponse)}[/]");
+                AnsiConsole.WriteLine();
+
                 return userResponse;
             }
             catch (Exception ex)

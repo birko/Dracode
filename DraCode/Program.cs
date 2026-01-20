@@ -1,4 +1,5 @@
 using DraCode.Agent.Agents;
+using Spectre.Console;
 using System.Text.Json;
 
 // Helpers to keep parsing simple and DRY
@@ -40,18 +41,80 @@ string workingDirectory = GetString(agentEl, "WorkingDirectory", Environment.Cur
 bool verbose = GetBool(agentEl, "Verbose", true);
 string taskPrompt = GetString(agentEl, "TaskPrompt", "");
 
-// Command-line overrides: --provider and --task
+// Check if provider was set via command-line
+bool providerSetViaArgs = false;
 foreach (var arg in Environment.GetCommandLineArgs())
 {
-    if (arg.StartsWith("--provider=", StringComparison.OrdinalIgnoreCase)) provider = arg["--provider=".Length..];
-    else if (arg.StartsWith("--task=", StringComparison.OrdinalIgnoreCase)) taskPrompt = arg["--task=".Length..];
+    if (arg.StartsWith("--provider=", StringComparison.OrdinalIgnoreCase))
+    {
+        provider = arg["--provider=".Length..];
+        providerSetViaArgs = true;
+    }
+    else if (arg.StartsWith("--task=", StringComparison.OrdinalIgnoreCase))
+    {
+        taskPrompt = arg["--task=".Length..];
+    }
+}
+
+// Get list of configured providers
+var configuredProviders = new List<string>();
+if (agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("Providers", out var providersElement) && providersElement.ValueKind == JsonValueKind.Object)
+{
+    foreach (var prop in providersElement.EnumerateObject())
+    {
+        configuredProviders.Add(prop.Name);
+    }
+}
+
+// If provider not set via args and we have multiple providers configured, let user choose
+if (!providerSetViaArgs && configuredProviders.Count > 1)
+{
+    AnsiConsole.Clear();
+    
+    var selectionPrompt = new SelectionPrompt<string>()
+        .Title("[bold cyan]Select an AI Provider:[/]")
+        .PageSize(10)
+        .MoreChoicesText("[grey](Move up and down to reveal more providers)[/]")
+        .HighlightStyle(new Style(Color.Cyan1));
+
+    // Add providers with icons
+    var defaultProviderIndex = 0;
+    for (int i = 0; i < configuredProviders.Count; i++)
+    {
+        var providerName = configuredProviders[i];
+        var icon = providerName.ToLowerInvariant() switch
+        {
+            "openai" => "🤖",
+            "claude" or "anthropic" => "🧠",
+            "gemini" or "google" => "✨",
+            "githubcopilot" => "🐙",
+            "azureopenai" => "☁️",
+            "ollama" => "🦙",
+            _ => "🔧"
+        };
+        
+        var displayName = providerName == provider 
+            ? $"{icon} {providerName} [dim](default)[/]" 
+            : $"{icon} {providerName}";
+        
+        selectionPrompt.AddChoice(providerName);
+        
+        // Track the default provider index
+        if (providerName == provider)
+        {
+            defaultProviderIndex = i;
+        }
+    }
+
+    provider = AnsiConsole.Prompt(selectionPrompt);
+    AnsiConsole.WriteLine();
 }
 
 // Load provider-specific config from Agent.Providers[{provider}]
 var providerConfig = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-if (agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("Providers", out var providers) && providers.ValueKind == JsonValueKind.Object)
+if (agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("Providers", out var providersConfig) && providersConfig.ValueKind == JsonValueKind.Object)
 {
-    if (providers.TryGetProperty(provider, out var selected) && selected.ValueKind == JsonValueKind.Object)
+    if (providersConfig.TryGetProperty(provider, out var selected) && selected.ValueKind == JsonValueKind.Object)
     {
         foreach (var prop in selected.EnumerateObject())
         {
@@ -69,13 +132,32 @@ foreach (var kv in providerConfig.ToList())
 }
 var type = providerConfig.TryGetValue("type", out string? value) ? value : "openai";
 var agent = AgentFactory.Create(type, workingDirectory, verbose, providerConfig);
-Console.WriteLine($"Agent created with provider '{provider}' in '{workingDirectory}'.");
+
+// Display nice banner
+AnsiConsole.Clear();
+var banner = new FigletText("DraCode")
+    .Centered()
+    .Color(Color.Cyan1);
+AnsiConsole.Write(banner);
+
+var infoTable = new Table()
+    .Border(TableBorder.Rounded)
+    .BorderColor(Color.Grey)
+    .AddColumn(new TableColumn("[bold cyan]Setting[/]").Centered())
+    .AddColumn(new TableColumn("[bold white]Value[/]").LeftAligned());
+
+infoTable.AddRow("[cyan]Provider[/]", $"[yellow]{Markup.Escape(provider)}[/]");
+infoTable.AddRow("[cyan]Model[/]", $"[yellow]{Markup.Escape(agent.ProviderName)}[/]");
+infoTable.AddRow("[cyan]Working Directory[/]", $"[dim]{Markup.Escape(workingDirectory)}[/]");
+infoTable.AddRow("[cyan]Verbose[/]", verbose ? "[green]Yes[/]" : "[red]No[/]");
+
+AnsiConsole.Write(infoTable);
+AnsiConsole.WriteLine();
 
 // If no task prompt is provided via config or CLI, request user input
 if (string.IsNullOrWhiteSpace(taskPrompt))
 {
-    Console.Write("Enter task prompt: ");
-    taskPrompt = Console.ReadLine()?.Trim() ?? string.Empty;
+    taskPrompt = AnsiConsole.Ask<string>("[bold green]Enter task prompt:[/]");
 }
 
 // If task prompt looks like a file path, read its contents
@@ -101,15 +183,29 @@ if (!string.IsNullOrWhiteSpace(taskPrompt))
         try
         {
             taskPrompt = File.ReadAllText(filePath);
+            AnsiConsole.MarkupLine($"[dim]📄 Loaded task from file: {Markup.Escape(filePath)}[/]");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to read task file '{filePath}': {ex.Message}");
+            AnsiConsole.MarkupLine($"[red]❌ Failed to read task file '{Markup.Escape(filePath)}': {Markup.Escape(ex.Message)}[/]");
         }
     }
 }
 
 if (!string.IsNullOrWhiteSpace(taskPrompt))
 {
+    AnsiConsole.WriteLine();
+    AnsiConsole.Write(new Rule("[bold green]Starting Task Execution[/]")
+    {
+        Justification = Justify.Left
+    });
+    AnsiConsole.WriteLine();
+    
     await agent.RunAsync(taskPrompt);
+    
+    AnsiConsole.WriteLine();
+    AnsiConsole.Write(new Rule("[bold green]Task Complete[/]")
+    {
+        Justification = Justify.Left
+    });
 }
