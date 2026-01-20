@@ -41,8 +41,9 @@ string workingDirectory = GetString(agentEl, "WorkingDirectory", Environment.Cur
 bool verbose = GetBool(agentEl, "Verbose", true);
 string taskPrompt = GetString(agentEl, "TaskPrompt", "");
 
-// Check if provider was set via command-line
+// Check if provider or verbose was set via command-line
 bool providerSetViaArgs = false;
+bool verboseSetViaArgs = false;
 foreach (var arg in Environment.GetCommandLineArgs())
 {
     if (arg.StartsWith("--provider=", StringComparison.OrdinalIgnoreCase))
@@ -53,6 +54,21 @@ foreach (var arg in Environment.GetCommandLineArgs())
     else if (arg.StartsWith("--task=", StringComparison.OrdinalIgnoreCase))
     {
         taskPrompt = arg["--task=".Length..];
+    }
+    else if (arg.StartsWith("--verbose=", StringComparison.OrdinalIgnoreCase))
+    {
+        verbose = bool.Parse(arg["--verbose=".Length..]);
+        verboseSetViaArgs = true;
+    }
+    else if (arg.Equals("--verbose", StringComparison.OrdinalIgnoreCase))
+    {
+        verbose = true;
+        verboseSetViaArgs = true;
+    }
+    else if (arg.Equals("--no-verbose", StringComparison.OrdinalIgnoreCase) || arg.Equals("--quiet", StringComparison.OrdinalIgnoreCase))
+    {
+        verbose = false;
+        verboseSetViaArgs = true;
     }
 }
 
@@ -107,6 +123,19 @@ if (!providerSetViaArgs && configuredProviders.Count > 1)
     }
 
     provider = AnsiConsole.Prompt(selectionPrompt);
+    AnsiConsole.WriteLine();
+}
+
+// If verbose not set via args, let user choose
+if (!verboseSetViaArgs)
+{
+    var verboseChoice = AnsiConsole.Prompt(
+        new SelectionPrompt<string>()
+            .Title("[bold cyan]Enable verbose output?[/]")
+            .AddChoices(new[] { "Yes - Show detailed execution info", "No - Show only results" })
+            .HighlightStyle(new Style(Color.Cyan1)));
+    
+    verbose = verboseChoice.StartsWith("Yes");
     AnsiConsole.WriteLine();
 }
 
