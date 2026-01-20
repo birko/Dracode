@@ -1,14 +1,31 @@
-﻿using DraCode.Agent.LLMs.Providers;
+using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using System.Text.Json;
 
-namespace DraCode.Agent
+namespace DraCode.Agent.Agents
 {
-    public class Agent(ILlmProvider llmProvider, string workingDirectory, bool verbose = true)
+    public abstract class Agent
     {
-        private readonly ILlmProvider _llmProvider = llmProvider ?? throw new ArgumentNullException(nameof(llmProvider));
-        private readonly string _workingDirectory = workingDirectory;
-        private readonly List<Tool> _tools =
+        private readonly ILlmProvider _llmProvider;
+        private readonly string _workingDirectory;
+        private readonly List<Tool> _tools;
+        private readonly bool _verbose;
+
+        protected Agent(ILlmProvider llmProvider, string workingDirectory, bool verbose = true)
+        {
+            _llmProvider = llmProvider ?? throw new ArgumentNullException(nameof(llmProvider));
+            _workingDirectory = workingDirectory;
+            _tools = CreateTools();
+            _verbose = verbose;
+        }
+
+        // Abstract property that derived classes must implement
+        protected abstract string SystemPrompt { get; }
+
+        // Virtual method that derived classes can override to customize tools
+        protected virtual List<Tool> CreateTools()
+        {
+            return
             [
                 new ListFiles(),
                 new ReadFile(),
@@ -17,7 +34,7 @@ namespace DraCode.Agent
                 new RunCommand(),
                 new DisplayText()
             ];
-        private readonly bool _verbose = verbose;
+        }
 
         public ILlmProvider Provider => _llmProvider;
         public IReadOnlyList<Tool> Tools => _tools;
@@ -27,23 +44,6 @@ namespace DraCode.Agent
 
         public async Task<List<Message>> RunAsync(string task, int maxIterations = 10)
         {
-            var systemPrompt = $@"You are a helpful coding assistant working in a sandboxed workspace at {_workingDirectory}.
-
-You have access to tools that let you read, write, and execute code. When given a task:
-1. Think step-by-step about what you need to do
-2. Use tools to explore the workspace, read files, make changes
-3. Test your changes by running code
-4. Continue iterating until the task is complete
-
-Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
-- Test your code after making changes
-- If something fails, analyze the error and try a different approach
-- Be methodical and thorough
-
-Complete the task efficiently and let me know when you're done.";
-
             var conversation = new List<Message>
             {
                 new() { Role = "user", Content = task }
@@ -58,7 +58,7 @@ Complete the task efficiently and let me know when you're done.";
                     Console.WriteLine($"{'='.ToString().PadRight(60, '=')}");
                 }
 
-                var response = await _llmProvider.SendMessageAsync(conversation, _tools, systemPrompt);
+                var response = await _llmProvider.SendMessageAsync(conversation, _tools, SystemPrompt);
 
                 if (_verbose)
                 {
@@ -85,7 +85,6 @@ Complete the task efficiently and let me know when you're done.";
                         }
 
                         var tool = _tools.FirstOrDefault(t => t.Name == block.Name);
-                        // Fix CS8604 by ensuring block.Input is not null when calling Execute
                         var result = tool != null
                             ? tool.Execute(_workingDirectory, block.Input ?? [])
                             : $"Error: Unknown tool '{block.Name}'";

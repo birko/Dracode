@@ -1,16 +1,18 @@
 using DraCode.Agent.LLMs.Providers;
 
-namespace DraCode.Agent
+namespace DraCode.Agent.Agents
 {
     public static class AgentFactory
     {
         // Create an Agent with a specific provider name and configuration.
-        // provider: "openai", "azureopenai", "claude", "gemini", "ollama"
-        public static Agent Create(
+        // provider: "openai", "azureopenai", "claude", "gemini", "ollama", "githubcopilot"
+        // agentType: "coding" (default), can be extended with more agent types in the future
+        public static Agents.Agent Create(
             string provider,
             string workingDirectory,
             bool verbose = true,
-            Dictionary<string, string>? config = null)
+            Dictionary<string, string>? config = null,
+            string agentType = "coding")
         {
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -28,7 +30,11 @@ namespace DraCode.Agent
                 _ => throw new ArgumentException($"Unknown provider '{provider}'.")
             };
 
-            return new Agent(llm, workingDirectory, verbose);
+            return agentType.ToLowerInvariant() switch
+            {
+                "coding" => new CodingAgent(llm, workingDirectory, verbose),
+                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding'")
+            };
         }
     }
 }
