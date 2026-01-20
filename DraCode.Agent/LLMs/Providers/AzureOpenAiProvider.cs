@@ -26,19 +26,34 @@ namespace DraCode.Agent.LLMs.Providers
         {
             if (!IsConfigured()) return NotConfigured();
 
-            var payload = new
+            try
             {
-                messages = BuildOpenAiStyleMessages(messages, systemPrompt),
-                tools = BuildOpenAiStyleTools(tools)
-            };
-            var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var payload = new
+                {
+                    messages = BuildOpenAiStyleMessages(messages, systemPrompt),
+                    tools = BuildOpenAiStyleTools(tools)
+                };
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var url = $"{_endpoint}/openai/deployments/{_deployment}/chat/completions?api-version=2024-02-15-preview";
-            var response = await _httpClient.PostAsync(url, content);
-            var responseJson = await response.Content.ReadAsStringAsync();
+                var url = $"{_endpoint}/openai/deployments/{_deployment}/chat/completions?api-version=2024-02-15-preview";
+                var response = await _httpClient.PostAsync(url, content);
+                var responseJson = await response.Content.ReadAsStringAsync();
 
-            return ParseOpenAiStyleResponse(responseJson);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.Error.WriteLine($"Azure OpenAI API Error: {response.StatusCode}");
+                    Console.Error.WriteLine($"Response: {responseJson}");
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
+
+                return ParseOpenAiStyleResponse(responseJson);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error calling Azure OpenAI API: {ex.Message}");
+                return new LlmResponse { StopReason = "error", Content = [] };
+            }
         }
 
         private bool IsConfigured() => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_deployment);

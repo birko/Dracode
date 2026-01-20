@@ -69,6 +69,14 @@ namespace DraCode.Agent.LLMs.Providers
                 }
 
                 var responseJson = await response.Content.ReadAsStringAsync();
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.Error.WriteLine($"GitHub Copilot API Error: {response.StatusCode}");
+                    Console.Error.WriteLine($"Response: {responseJson}");
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
+                
                 return ParseOpenAiStyleResponse(responseJson);
             }
             catch (Exception ex)

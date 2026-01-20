@@ -24,39 +24,58 @@ namespace DraCode.Agent.LLMs.Providers
 
         protected static LlmResponse ParseOpenAiStyleResponse(string responseJson)
         {
-            var result = System.Text.Json.JsonSerializer.Deserialize<JsonElement>(responseJson);
-            var choice = result.GetProperty("choices")[0];
-            var message = choice.GetProperty("message");
-
-            var llmResponse = new LlmResponse { Content = [] };
-
-            if (message.TryGetProperty("tool_calls", out var toolCalls) && toolCalls.GetArrayLength() > 0)
+            try
             {
-                llmResponse.StopReason = "tool_use";
-                foreach (var toolCall in toolCalls.EnumerateArray())
+                var result = System.Text.Json.JsonSerializer.Deserialize<JsonElement>(responseJson);
+                
+                // Check for API errors
+                if (result.TryGetProperty("error", out var error))
                 {
-                    var function = toolCall.GetProperty("function");
-                    var argumentsJson = function.GetProperty("arguments").GetString();
-                    var args = argumentsJson is not null ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(argumentsJson) : [];
-                    llmResponse.Content.Add(new ContentBlock
+                    var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
+                    var errorType = error.TryGetProperty("type", out var type) ? type.GetString() : "unknown";
+                    Console.Error.WriteLine($"API returned error: {errorType} - {errorMessage}");
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
+                
+                var choice = result.GetProperty("choices")[0];
+                var message = choice.GetProperty("message");
+
+                var llmResponse = new LlmResponse { Content = [] };
+
+                if (message.TryGetProperty("tool_calls", out var toolCalls) && toolCalls.GetArrayLength() > 0)
+                {
+                    llmResponse.StopReason = "tool_use";
+                    foreach (var toolCall in toolCalls.EnumerateArray())
                     {
-                        Type = "tool_use",
-                        Id = toolCall.GetProperty("id").GetString(),
-                        Name = function.GetProperty("name").GetString(),
-                        Input = args
-                    });
+                        var function = toolCall.GetProperty("function");
+                        var argumentsJson = function.GetProperty("arguments").GetString();
+                        var args = argumentsJson is not null ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(argumentsJson) : [];
+                        llmResponse.Content.Add(new ContentBlock
+                        {
+                            Type = "tool_use",
+                            Id = toolCall.GetProperty("id").GetString(),
+                            Name = function.GetProperty("name").GetString(),
+                            Input = args
+                        });
+                    }
                 }
-            }
-            else
-            {
-                llmResponse.StopReason = "end_turn";
-                if (message.TryGetProperty("content", out var textContent))
+                else
                 {
-                    llmResponse.Content.Add(new ContentBlock { Type = "text", Text = textContent.GetString() });
+                    llmResponse.StopReason = "end_turn";
+                    if (message.TryGetProperty("content", out var textContent))
+                    {
+                        llmResponse.Content.Add(new ContentBlock { Type = "text", Text = textContent.GetString() });
+                    }
                 }
-            }
 
-            return llmResponse;
+                return llmResponse;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error parsing OpenAI-style response: {ex.Message}");
+                Console.Error.WriteLine($"Response: {responseJson}");
+                return new LlmResponse { StopReason = "error", Content = [] };
+            }
         }
 
         protected static LlmResponse NotConfigured() => new() { StopReason = "NotConfigured", Content = [] };

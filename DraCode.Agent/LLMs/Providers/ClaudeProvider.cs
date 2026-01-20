@@ -27,14 +27,29 @@ namespace DraCode.Agent.LLMs.Providers
         {
             if (!IsConfigured()) return NotConfigured();
 
-            var payload = BuildRequestPayload(messages, tools, systemPrompt);
-            var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            try
+            {
+                var payload = BuildRequestPayload(messages, tools, systemPrompt, _model);
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync(_baseUrl, content);
-            var responseJson = await response.Content.ReadAsStringAsync();
+                var response = await _httpClient.PostAsync(_baseUrl, content);
+                var responseJson = await response.Content.ReadAsStringAsync();
 
-            return ParseResponse(responseJson);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.Error.WriteLine($"Claude API Error: {response.StatusCode}");
+                    Console.Error.WriteLine($"Response: {responseJson}");
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
+
+                return ParseResponse(responseJson);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error calling Claude API: {ex.Message}");
+                return new LlmResponse { StopReason = "error", Content = [] };
+            }
         }
 
         private bool IsConfigured() => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_model);
@@ -45,9 +60,9 @@ namespace DraCode.Agent.LLMs.Providers
             Content = []
         };
 
-        private static object BuildRequestPayload(IEnumerable<Message> messages, IEnumerable<Tool> tools, string systemPrompt) => new
+        private static object BuildRequestPayload(IEnumerable<Message> messages, IEnumerable<Tool> tools, string systemPrompt, string model) => new
         {
-            model = "" /* replaced below */,
+            model,
             max_tokens = 4096,
             system = systemPrompt,
             messages,
@@ -56,31 +71,59 @@ namespace DraCode.Agent.LLMs.Providers
 
         private static LlmResponse ParseResponse(string responseJson)
         {
-            var result = JsonSerializer.Deserialize<JsonElement>(responseJson);
-            var llmResponse = new LlmResponse { StopReason = result.GetProperty("stop_reason").GetString(), Content = [] };
-
-            foreach (var block in result.GetProperty("content").EnumerateArray())
+            try
             {
-                var blockType = block.GetProperty("type").GetString();
-                if (blockType == "text")
+                var result = JsonSerializer.Deserialize<JsonElement>(responseJson);
+                
+                // Check for API errors
+                if (result.TryGetProperty("error", out var error))
                 {
-                    llmResponse.Content.Add(new ContentBlock { Type = "text", Text = block.GetProperty("text").GetString() });
+                    var errorType = error.TryGetProperty("type", out var type) ? type.GetString() : "unknown";
+                    var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
+                    Console.Error.WriteLine($"Claude API returned error: {errorType} - {errorMessage}");
+                    return new LlmResponse { StopReason = "error", Content = [] };
                 }
-                else if (blockType == "tool_use")
-                {
-                    var inputDict = new Dictionary<string, object>();
-                    foreach (var prop in block.GetProperty("input").EnumerateObject()) inputDict[prop.Name] = prop.Value.ToString();
-                    llmResponse.Content.Add(new ContentBlock
-                    {
-                        Type = "tool_use",
-                        Id = block.GetProperty("id").GetString(),
-                        Name = block.GetProperty("name").GetString(),
-                        Input = inputDict
-                    });
-                }
-            }
+                
+                var llmResponse = new LlmResponse 
+                { 
+                    StopReason = result.GetProperty("stop_reason").GetString(), 
+                    Content = [] 
+                };
 
-            return llmResponse;
+                foreach (var block in result.GetProperty("content").EnumerateArray())
+                {
+                    var blockType = block.GetProperty("type").GetString();
+                    if (blockType == "text")
+                    {
+                        llmResponse.Content.Add(new ContentBlock { Type = "text", Text = block.GetProperty("text").GetString() });
+                    }
+                    else if (blockType == "tool_use")
+                    {
+                        var inputDict = new Dictionary<string, object>();
+                        foreach (var prop in block.GetProperty("input").EnumerateObject()) 
+                        {
+                            inputDict[prop.Name] = prop.Value.ValueKind == JsonValueKind.String 
+                                ? prop.Value.GetString() ?? string.Empty
+                                : prop.Value.ToString();
+                        }
+                        llmResponse.Content.Add(new ContentBlock
+                        {
+                            Type = "tool_use",
+                            Id = block.GetProperty("id").GetString(),
+                            Name = block.GetProperty("name").GetString(),
+                            Input = inputDict
+                        });
+                    }
+                }
+
+                return llmResponse;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error parsing Claude response: {ex.Message}");
+                Console.Error.WriteLine($"Response: {responseJson}");
+                return new LlmResponse { StopReason = "error", Content = [] };
+            }
         }
     }
 }

@@ -26,20 +26,35 @@ namespace DraCode.Agent.LLMs.Providers
         {
             if (!IsConfigured()) return NotConfigured();
 
-            var payload = new
+            try
             {
-                model = _model,
-                messages = BuildOpenAiStyleMessages(messages, systemPrompt),
-                stream = false,
-                tools = BuildOpenAiStyleTools(tools)
-            };
-            var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var payload = new
+                {
+                    model = _model,
+                    messages = BuildOpenAiStyleMessages(messages, systemPrompt),
+                    stream = false,
+                    tools = BuildOpenAiStyleTools(tools)
+                };
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync($"{_baseUrl}/api/chat", content);
-            var responseJson = await response.Content.ReadAsStringAsync();
+                var response = await _httpClient.PostAsync($"{_baseUrl}/api/chat", content);
+                var responseJson = await response.Content.ReadAsStringAsync();
 
-            return ParseResponse(responseJson);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.Error.WriteLine($"Ollama API Error: {response.StatusCode}");
+                    Console.Error.WriteLine($"Response: {responseJson}");
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
+
+                return ParseResponse(responseJson);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error calling Ollama API: {ex.Message}");
+                return new LlmResponse { StopReason = "error", Content = [] };
+            }
         }
 
         private bool IsConfigured() => !string.IsNullOrWhiteSpace(_model);

@@ -21,6 +21,9 @@ bld/
 *.userosscache
 *.sln.docstates
 
+# Launch settings (user-specific debug profiles)
+**/Properties/launchSettings.json
+
 # User-specific files
 *.rsuser
 *.suo
