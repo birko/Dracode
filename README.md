@@ -5,13 +5,17 @@
 ## 🚀 Features
 
 - **Multi-Provider LLM Support**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot
+- **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
+- **Verbose Mode Control**: Toggle between detailed execution info or clean minimal output
 - **Autonomous Agent System**: Multi-turn conversations with iterative problem solving
-- **Tool System**: 5 built-in tools for code manipulation
+- **Tool System**: 7 built-in tools for code manipulation
   - `list_files` - Directory listing with recursive search
   - `read_file` - Read file contents
   - `write_file` - Create/modify files
   - `search_code` - Grep-like code search with regex support
   - `run_command` - Execute shell commands with timeout
+  - `ask_user` - Interactive user prompts
+  - `display_text` - Formatted text output
 - **GitHub Copilot OAuth**: Integrated device flow authentication
 - **Sandboxed Workspace**: All operations restricted to working directory
 - **Flexible Configuration**: JSON config with environment variable overrides
@@ -52,6 +56,7 @@ Edit `DraCode/appsettings.local.json`:
     "Provider": "openai",
     "WorkingDirectory": "./workspace",
     "Verbose": true,
+    "TaskPrompt": "",
     "Providers": {
       "openai": {
         "apiKey": "sk-your-api-key-here",
@@ -97,7 +102,10 @@ dotnet run --project DraCode -- --provider=openai --task="Create a hello world C
 
 ```bash
 dotnet run --project DraCode
-# You'll be prompted to enter a task
+# Interactive menus will guide you through:
+# 1. Provider selection (if multiple configured)
+# 2. Verbose output preference
+# 3. Task prompt input
 ```
 
 ### Task from File
@@ -106,16 +114,30 @@ dotnet run --project DraCode
 dotnet run --project DraCode -- --task="path/to/task.txt"
 ```
 
+### Verbose Output Control
+
+```bash
+# Enable detailed execution info (shows iterations, tool calls, stop reasons)
+dotnet run -- --verbose --task="Your task"
+
+# Disable verbose output (clean, minimal output)
+dotnet run -- --quiet --task="Your task"
+dotnet run -- --no-verbose --task="Your task"
+
+# If omitted, interactive prompt will ask your preference
+dotnet run -- --task="Your task"
+```
+
 ### Examples
 
 ```bash
-# Refactor code
-dotnet run -- --provider=claude --task="Refactor Program.cs to use dependency injection"
+# Refactor code with detailed output
+dotnet run -- --provider=claude --verbose --task="Refactor Program.cs to use dependency injection"
 
-# Run tests
-dotnet run -- --provider=gemini --task="Run all unit tests and fix any failures"
+# Run tests quietly
+dotnet run -- --provider=gemini --quiet --task="Run all unit tests and fix any failures"
 
-# Generate documentation
+# Generate documentation with interactive selection
 dotnet run -- --task="Generate API documentation for all public methods"
 ```
 
@@ -131,7 +153,11 @@ Quick setup:
 
 ## 📚 Documentation
 
+- **[CLI Options Guide](DraCode/CLI_OPTIONS.md)** - Complete command-line reference
 - **[Technical Specification](TECHNICAL_SPECIFICATION.md)** - Comprehensive technical documentation
+- **[Architecture Specification](ARCHITECTURE_SPECIFICATION.md)** - System architecture and design
+- **[Implementation Plan](IMPLEMENTATION_PLAN.md)** - Development roadmap and guidelines
+- **[Tool Specifications](TOOL_SPECIFICATIONS.md)** - Built-in tools documentation
 - **[GitHub OAuth Setup](DraCode/GITHUB_OAUTH_SETUP.md)** - OAuth configuration guide
 
 ## 🏗️ Architecture

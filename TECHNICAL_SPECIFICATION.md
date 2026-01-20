@@ -1219,6 +1219,7 @@ dotnet publish -c Release -r win-x64 --self-contained
     "Provider": "openai",
     "WorkingDirectory": "./workspace",
     "Verbose": true,
+    "TaskPrompt": "",
     "Providers": {
       "openai": {
         "apiKey": "sk-...",
@@ -1235,6 +1236,8 @@ dotnet publish -c Release -r win-x64 --self-contained
   "Agent": {
     "Provider": "claude",
     "WorkingDirectory": "./workspace",
+    "Verbose": true,
+    "TaskPrompt": "",
     "Providers": {
       "openai": {
         "apiKey": "${OPENAI_API_KEY}",
