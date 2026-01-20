@@ -14,7 +14,8 @@ namespace DraCode.Agent
                 new ReadFile(),
                 new WriteFile(),
                 new SearchCode(),
-                new RunCommand()
+                new RunCommand(),
+                new DisplayText()
             ];
         private readonly bool _verbose = verbose;
 
