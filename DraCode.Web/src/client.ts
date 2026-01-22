@@ -8,6 +8,7 @@ export class DraCodeClient {
     private agents: Map<string, Agent> = new Map();
     private activeAgentId: string | null = null;
     private availableProviders: Provider[] = [];
+    private providerFilter: 'configured' | 'all' | 'notConfigured' = 'configured';
 
     // DOM element references
     private readonly elements: {
@@ -82,6 +83,32 @@ export class DraCodeClient {
         this.elements.connectBtn.addEventListener('click', () => this.connectToServer());
         this.elements.disconnectBtn.addEventListener('click', () => this.disconnectFromServer());
         this.elements.listBtn.addEventListener('click', () => this.listProviders());
+
+        // Provider filter listeners
+        const filterConfigured = document.getElementById('filterConfigured') as HTMLInputElement;
+        const filterAll = document.getElementById('filterAll') as HTMLInputElement;
+        const filterNotConfigured = document.getElementById('filterNotConfigured') as HTMLInputElement;
+
+        if (filterConfigured) {
+            filterConfigured.addEventListener('change', () => {
+                this.providerFilter = 'configured';
+                this.displayProviders(this.availableProviders);
+            });
+        }
+
+        if (filterAll) {
+            filterAll.addEventListener('change', () => {
+                this.providerFilter = 'all';
+                this.displayProviders(this.availableProviders);
+            });
+        }
+
+        if (filterNotConfigured) {
+            filterNotConfigured.addEventListener('change', () => {
+                this.providerFilter = 'notConfigured';
+                this.displayProviders(this.availableProviders);
+            });
+        }
     }
 
     /**
@@ -433,9 +460,43 @@ export class DraCodeClient {
      */
     private displayProviders(providers: Provider[]): void {
         console.log('🎨 Displaying providers:', providers);
+        console.log('🔍 Current filter:', this.providerFilter);
         this.elements.providersGrid.innerHTML = '';
 
-        providers.forEach((provider) => {
+        // Filter providers based on selection
+        let filteredProviders: Provider[];
+        
+        switch (this.providerFilter) {
+            case 'configured':
+                filteredProviders = providers.filter(p => p.configured);
+                break;
+            case 'notConfigured':
+                filteredProviders = providers.filter(p => !p.configured);
+                break;
+            case 'all':
+            default:
+                filteredProviders = providers;
+                break;
+        }
+
+        console.log(`📋 Showing ${filteredProviders.length} of ${providers.length} providers`);
+
+        if (filteredProviders.length === 0) {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.style.gridColumn = '1 / -1';
+            emptyMessage.style.textAlign = 'center';
+            emptyMessage.style.padding = 'var(--spacing-xl)';
+            emptyMessage.style.color = 'var(--text-secondary)';
+            emptyMessage.textContent = this.providerFilter === 'configured' 
+                ? 'No configured providers found. Configure providers in appsettings.json or use manual configuration.'
+                : this.providerFilter === 'notConfigured'
+                ? 'All providers are configured.'
+                : 'No providers available.';
+            this.elements.providersGrid.appendChild(emptyMessage);
+            return;
+        }
+
+        filteredProviders.forEach((provider) => {
             const card = document.createElement('div');
             card.className = 'provider-card';
 

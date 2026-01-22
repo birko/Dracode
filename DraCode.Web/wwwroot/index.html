@@ -33,7 +33,24 @@
 
             <!-- Providers Section -->
             <div id="providersSection">
-                <h2>Available Providers</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                    <h2 style="margin: 0;">Available Providers</h2>
+                    <div class="provider-filter">
+                        <label style="margin-right: var(--spacing-sm);">Show:</label>
+                        <label class="filter-option">
+                            <input type="radio" name="providerFilter" value="configured" id="filterConfigured" checked>
+                            <span>Configured</span>
+                        </label>
+                        <label class="filter-option">
+                            <input type="radio" name="providerFilter" value="all" id="filterAll">
+                            <span>All</span>
+                        </label>
+                        <label class="filter-option">
+                            <input type="radio" name="providerFilter" value="notConfigured" id="filterNotConfigured">
+                            <span>Not Configured</span>
+                        </label>
+                    </div>
+                </div>
                 <div id="providersGrid" class="providers-grid"></div>
                 
                 <div style="margin-top: var(--spacing-lg);">

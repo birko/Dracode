@@ -211,6 +211,38 @@ button.secondary:hover:not(:disabled) {
     display: none;
 }
 
+.provider-filter {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.filter-option {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-md);
+    transition: background-color var(--transition-fast);
+}
+
+.filter-option:hover {
+    background-color: var(--bg-secondary);
+}
+
+.filter-option input[type="radio"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.filter-option span {
+    font-size: var(--font-size-base);
+    color: var(--text-primary);
+    user-select: none;
+}
+
 .providers-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
