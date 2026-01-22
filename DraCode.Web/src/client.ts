@@ -577,11 +577,27 @@ export class DraCodeClient {
         this.elements.connectionTabName.value = defaultTabName;
         this.elements.connectionWorkingDir.value = '';
 
+        // Track whether the user has manually edited the working directory
+        let workingDirManuallyEdited = false;
+
         // Show modal
         this.elements.connectionModal.classList.add('active');
 
         // Focus on tab name input
         setTimeout(() => this.elements.connectionTabName.focus(), 100);
+
+        // Auto-generate working directory from tab name
+        const handleTabNameInput = () => {
+            if (!workingDirManuallyEdited) {
+                const tabName = this.elements.connectionTabName.value;
+                this.elements.connectionWorkingDir.value = this.sanitizeDirectoryName(tabName);
+            }
+        };
+
+        // Track manual edits to working directory
+        const handleWorkingDirInput = () => {
+            workingDirManuallyEdited = true;
+        };
 
         // Handle connect button
         const handleConnect = async () => {
@@ -631,6 +647,11 @@ export class DraCodeClient {
         this.elements.connectionTabName.addEventListener('keypress', handleKeyPress);
         this.elements.connectionWorkingDir.addEventListener('keypress', handleKeyPress);
         this.elements.connectionModal.addEventListener('click', handleClickOutside);
+        this.elements.connectionTabName.addEventListener('input', handleTabNameInput);
+        this.elements.connectionWorkingDir.addEventListener('input', handleWorkingDirInput);
+
+        // Initialize working directory with default
+        handleTabNameInput();
 
         // Cleanup function to remove event listeners
         const cleanup = () => {
@@ -639,6 +660,8 @@ export class DraCodeClient {
             this.elements.connectionTabName.removeEventListener('keypress', handleKeyPress);
             this.elements.connectionWorkingDir.removeEventListener('keypress', handleKeyPress);
             this.elements.connectionModal.removeEventListener('click', handleClickOutside);
+            this.elements.connectionTabName.removeEventListener('input', handleTabNameInput);
+            this.elements.connectionWorkingDir.removeEventListener('input', handleWorkingDirInput);
         };
     }
 
@@ -1099,5 +1122,31 @@ export class DraCodeClient {
 
             setTimeout(() => this.elements.generalModalInput.focus(), 100);
         });
+    }
+
+    /**
+     * Sanitize a string to be used as a directory name
+     * Removes diacritics, spaces, and special characters
+     */
+    private sanitizeDirectoryName(name: string): string {
+        if (!name) return '';
+
+        // Remove diacritics (e.g., é -> e, ñ -> n, ü -> u)
+        const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        // Replace spaces and special characters with hyphens
+        // Keep only alphanumeric characters, hyphens, and underscores
+        let sanitized = normalized
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]+/g, '-')  // Replace non-alphanumeric with hyphens
+            .replace(/^-+|-+$/g, '')        // Remove leading/trailing hyphens
+            .replace(/-+/g, '-');           // Replace multiple hyphens with single
+
+        // Ensure it's not empty after sanitization
+        if (!sanitized) {
+            sanitized = 'workspace';
+        }
+
+        return sanitized;
     }
 }
