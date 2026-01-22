@@ -18,7 +18,7 @@ dotnet run --project DraCode.AppHost
 # Open http://localhost:5001 in your browser
 ```
 
-📖 **Learn More**: [Multi-Agent System Summary](MULTI_AGENT_SYSTEM_SUMMARY.md) | [Web Client Modernization](WEB_CLIENT_MODERNIZATION_SUMMARY.md) | [Quick Start Guide](WEBSOCKET_QUICKSTART.md)
+📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md)
 
 ## 🚀 Features
 
@@ -103,11 +103,11 @@ export OPENAI_API_KEY="sk-your-api-key"
 | Provider | Configuration | Models | Setup Guide |
 |----------|--------------|--------|-------------|
 | **OpenAI** | `OPENAI_API_KEY` | gpt-4o, gpt-4, gpt-3.5-turbo | - |
-| **Claude** | `ANTHROPIC_API_KEY` | claude-3-5-sonnet, claude-3-5-haiku | [Setup Guide](DraCode/CLAUDE_SETUP.md) |
-| **Gemini** | `GEMINI_API_KEY` | gemini-2.0-flash-exp | [Setup Guide](DraCode/GEMINI_SETUP.md) |
-| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` | Custom deployments | [Setup Guide](DraCode/AZURE_OPENAI_SETUP.md) |
-| **Ollama** | None (local) | llama3.2, mistral, codellama | [Setup Guide](DraCode/OLLAMA_SETUP.md) |
-| **GitHub Copilot** | `GITHUB_CLIENT_ID` (OAuth) | gpt-4o, gpt-4-turbo | [Setup Guide](DraCode/GITHUB_OAUTH_SETUP.md) |
+| **Claude** | `ANTHROPIC_API_KEY` | claude-3-5-sonnet, claude-3-5-haiku | [Setup Guide](docs/setup-guides/CLAUDE_SETUP.md) |
+| **Gemini** | `GEMINI_API_KEY` | gemini-2.0-flash-exp | [Setup Guide](docs/setup-guides/GEMINI_SETUP.md) |
+| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` | Custom deployments | [Setup Guide](docs/setup-guides/AZURE_OPENAI_SETUP.md) |
+| **Ollama** | None (local) | llama3.2, mistral, codellama | [Setup Guide](docs/setup-guides/OLLAMA_SETUP.md) |
+| **GitHub Copilot** | `GITHUB_CLIENT_ID` (OAuth) | gpt-4o, gpt-4-turbo | [Setup Guide](docs/setup-guides/GITHUB_OAUTH_SETUP.md) |
 
 ## 🎯 Usage
 
@@ -221,7 +221,7 @@ dotnet run -- --task="Generate API documentation for all public methods"
 ## 🔐 Provider Setup Guides
 
 ### Claude (Anthropic)
-See [CLAUDE_SETUP.md](DraCode/CLAUDE_SETUP.md) for detailed setup instructions.
+See [CLAUDE_SETUP.md](docs/setup-guides/CLAUDE_SETUP.md) for detailed setup instructions.
 
 **Quick setup:**
 1. Get API key from https://console.anthropic.com/
@@ -229,7 +229,7 @@ See [CLAUDE_SETUP.md](DraCode/CLAUDE_SETUP.md) for detailed setup instructions.
 3. Run with `--provider=claude`
 
 ### Google Gemini
-See [GEMINI_SETUP.md](DraCode/GEMINI_SETUP.md) for detailed setup instructions.
+See [GEMINI_SETUP.md](docs/setup-guides/GEMINI_SETUP.md) for detailed setup instructions.
 
 **Quick setup:**
 1. Get API key from https://makersuite.google.com/app/apikey
@@ -237,7 +237,7 @@ See [GEMINI_SETUP.md](DraCode/GEMINI_SETUP.md) for detailed setup instructions.
 3. Run with `--provider=gemini`
 
 ### Azure OpenAI
-See [AZURE_OPENAI_SETUP.md](DraCode/AZURE_OPENAI_SETUP.md) for detailed setup instructions.
+See [AZURE_OPENAI_SETUP.md](docs/setup-guides/AZURE_OPENAI_SETUP.md) for detailed setup instructions.
 
 **Quick setup:**
 1. Create Azure OpenAI resource in Azure Portal
@@ -246,7 +246,7 @@ See [AZURE_OPENAI_SETUP.md](DraCode/AZURE_OPENAI_SETUP.md) for detailed setup in
 4. Run with `--provider=azureopenai`
 
 ### Ollama (Local Models)
-See [OLLAMA_SETUP.md](DraCode/OLLAMA_SETUP.md) for detailed setup instructions.
+See [OLLAMA_SETUP.md](docs/setup-guides/OLLAMA_SETUP.md) for detailed setup instructions.
 
 **Quick setup:**
 1. Install Ollama from https://ollama.com/
@@ -254,7 +254,7 @@ See [OLLAMA_SETUP.md](DraCode/OLLAMA_SETUP.md) for detailed setup instructions.
 3. Run with `--provider=ollama` (no API key needed!)
 
 ### GitHub Copilot
-See [GITHUB_OAUTH_SETUP.md](DraCode/GITHUB_OAUTH_SETUP.md) for detailed OAuth configuration instructions.
+See [GITHUB_OAUTH_SETUP.md](docs/setup-guides/GITHUB_OAUTH_SETUP.md) for detailed OAuth configuration instructions.
 
 **Quick setup:**
 1. Create GitHub OAuth App at https://github.com/settings/developers
@@ -264,17 +264,26 @@ See [GITHUB_OAUTH_SETUP.md](DraCode/GITHUB_OAUTH_SETUP.md) for detailed OAuth co
 
 ## 📚 Documentation
 
-- **[CLI Options Guide](DraCode/CLI_OPTIONS.md)** - Complete command-line reference
-- **[Claude Setup Guide](DraCode/CLAUDE_SETUP.md)** - Anthropic Claude configuration
-- **[Gemini Setup Guide](DraCode/GEMINI_SETUP.md)** - Google Gemini configuration
-- **[Azure OpenAI Setup](DraCode/AZURE_OPENAI_SETUP.md)** - Azure OpenAI Service configuration
-- **[Ollama Setup Guide](DraCode/OLLAMA_SETUP.md)** - Local models with Ollama
-- **[GitHub Copilot Setup](DraCode/GITHUB_OAUTH_SETUP.md)** - OAuth configuration
-- **[Technical Specification](TECHNICAL_SPECIFICATION.md)** - Comprehensive technical documentation
-- **[Architecture Specification](ARCHITECTURE_SPECIFICATION.md)** - System architecture and design
-- **[Implementation Plan](IMPLEMENTATION_PLAN.md)** - Development roadmap and guidelines
-- **[Tool Specifications](TOOL_SPECIFICATIONS.md)** - Built-in tools documentation
-- **[GitHub OAuth Setup](DraCode/GITHUB_OAUTH_SETUP.md)** - OAuth configuration guide
+For complete documentation, see the [docs](docs/) directory.
+
+### Quick Links
+- **[Documentation Index](docs/README.md)** - Complete documentation overview
+- **[Changelog](docs/CHANGELOG.md)** - Version history and release notes
+- **[CLI Options Guide](docs/setup-guides/CLI_OPTIONS.md)** - Complete command-line reference
+- **[WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md)** - Get started with multi-agent system
+- **[Architecture Specification](docs/architecture/ARCHITECTURE_SPECIFICATION.md)** - System architecture and design
+- **[Technical Specification](docs/architecture/TECHNICAL_SPECIFICATION.md)** - Comprehensive technical documentation
+
+### Setup Guides
+- **[Claude Setup](docs/setup-guides/CLAUDE_SETUP.md)** - Anthropic Claude configuration
+- **[Gemini Setup](docs/setup-guides/GEMINI_SETUP.md)** - Google Gemini configuration
+- **[Azure OpenAI Setup](docs/setup-guides/AZURE_OPENAI_SETUP.md)** - Azure OpenAI Service configuration
+- **[Ollama Setup](docs/setup-guides/OLLAMA_SETUP.md)** - Local models with Ollama
+- **[GitHub Copilot Setup](docs/setup-guides/GITHUB_OAUTH_SETUP.md)** - OAuth configuration
+
+### Troubleshooting
+- **[General Troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Provider Grid Issues](docs/troubleshooting/PROVIDER_GRID_TROUBLESHOOTING.md)** - WebSocket-specific problems
 
 ## 🏗️ Architecture
 
