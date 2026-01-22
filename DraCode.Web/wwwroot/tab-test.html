@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tab Switching Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background-color: #f5f5f5;
+            padding: 8px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .tab {
+            padding: 12px 24px;
+            background-color: transparent;
+            color: #6c757d;
+            border: 1px solid transparent;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            transition: all 150ms ease-in-out;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tab:hover {
+            background-color: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+        .tab.active {
+            background-color: white;
+            color: #667eea;
+            border-color: #667eea;
+            border-bottom-color: white;
+            font-weight: 600;
+        }
+        .tab-close {
+            margin-left: 8px;
+            font-size: 1.25rem;
+            line-height: 1;
+            opacity: 0.6;
+        }
+        .tab-close:hover {
+            opacity: 1;
+        }
+        .tab-contents {
+            padding: 24px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        button.test-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        button.test-btn:hover {
+            background: #5568d3;
+        }
+        .console-log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 6px;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            margin-top: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="info">
+            <strong>Tab Switching Test</strong><br>
+            Click on tabs to switch between them. The active tab should highlight in blue.
+        </div>
+        
+        <div class="tabs" id="tabsContainer">
+            <button class="tab active" data-tab="1">Tab 1 <span class="tab-close">×</span></button>
+            <button class="tab" data-tab="2">Tab 2 <span class="tab-close">×</span></button>
+            <button class="tab" data-tab="3">Tab 3 <span class="tab-close">×</span></button>
+        </div>
+        
+        <div class="tab-contents" id="tabContents">
+            <div class="tab-content active" data-content="1">
+                <h2>📝 Content 1</h2>
+                <p>This is the content for Tab 1.</p>
+                <button class="test-btn">Test Button 1</button>
+            </div>
+            <div class="tab-content" data-content="2">
+                <h2>📝 Content 2</h2>
+                <p>This is the content for Tab 2.</p>
+                <button class="test-btn">Test Button 2</button>
+            </div>
+            <div class="tab-content" data-content="3">
+                <h2>📝 Content 3</h2>
+                <p>This is the content for Tab 3.</p>
+                <button class="test-btn">Test Button 3</button>
+            </div>
+        </div>
+        
+        <div class="console-log" id="consoleLog">
+            <div class="log-entry">Console output will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        const consoleLog = document.getElementById('consoleLog');
+        
+        function log(message) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleLog.appendChild(entry);
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
+
+        // Setup tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            const tabId = tab.dataset.tab;
+            
+            // Close button
+            const closeBtn = tab.querySelector('.tab-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    log(`❌ Close clicked for tab ${tabId}`);
+                    tab.remove();
+                    document.querySelector(`[data-content="${tabId}"]`).remove();
+                });
+            }
+            
+            // Tab click
+            tab.addEventListener('click', () => {
+                log(`🖱️ Tab ${tabId} clicked`);
+                
+                // Remove active from all
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active to clicked
+                tab.classList.add('active');
+                document.querySelector(`[data-content="${tabId}"]`).classList.add('active');
+                
+                log(`✅ Switched to tab ${tabId}`);
+            });
+        });
+        
+        log('✨ Tab switching test initialized');
+    </script>
+</body>
+</html>

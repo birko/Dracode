@@ -204,6 +204,17 @@ export class DraCodeClient {
                     this.formatResponse(response),
                     response.Status === 'error' ? 'error' : 'success'
                 );
+                
+                // Refresh provider grid when agent status changes (connected/disconnected/reset)
+                if (response.Status === 'success' || 
+                    response.Status === 'error' || 
+                    response.Status === 'connected' || 
+                    response.Status === 'disconnected' || 
+                    response.Status === 'reset') {
+                    if (this.availableProviders.length > 0) {
+                        this.displayProviders(this.availableProviders);
+                    }
+                }
             } else {
                 this.logToConsole(
                     this.formatResponse(response),
@@ -400,14 +411,16 @@ export class DraCodeClient {
             const card = document.createElement('div');
             card.className = 'provider-card';
 
-            const agentId = `agent-${provider.name}-${Date.now()}`;
-            const isConnected = Array.from(this.agents.values()).some(
-                (a) => a.provider === provider.name
-            );
+            const connectionCount = Array.from(this.agents.values())
+                .filter((a) => a.provider === provider.name).length;
 
-            if (isConnected) {
+            if (connectionCount > 0) {
                 card.classList.add('connected');
             }
+
+            const connectionStatus = connectionCount > 0
+                ? `🔗 ${connectionCount} active connection${connectionCount > 1 ? 's' : ''}`
+                : '○ Not connected';
 
             card.innerHTML = `
                 <div class="provider-name">${this.escapeHtml(provider.name)}</div>
@@ -415,9 +428,14 @@ export class DraCodeClient {
                 <div class="provider-status ${provider.configured ? 'available' : 'unavailable'}">
                     ${provider.configured ? '✓ Configured' : '⚠ Not configured'}
                 </div>
+                <div class="provider-connections">${connectionStatus}</div>
             `;
 
-            card.addEventListener('click', () => this.connectToProvider(provider.name, agentId));
+            card.addEventListener('click', () => {
+                // Generate a unique agentId when clicking, not when rendering
+                const agentId = `agent-${provider.name}-${Date.now()}`;
+                this.connectToProvider(provider.name, agentId);
+            });
             this.elements.providersGrid.appendChild(card);
         });
         
@@ -433,11 +451,14 @@ export class DraCodeClient {
             return;
         }
 
-        // Check if already connected
-        if (Array.from(this.agents.values()).some((a) => a.provider === providerName)) {
-            alert('Already connected to this provider');
-            return;
-        }
+        // Count existing connections to this provider
+        const existingConnections = Array.from(this.agents.values())
+            .filter((a) => a.provider === providerName).length;
+        
+        // Create a display name with instance number if multiple connections
+        const displayName = existingConnections > 0 
+            ? `${providerName} #${existingConnections + 1}`
+            : providerName;
 
         const message: WebSocketMessage = {
             command: 'connect',
@@ -446,7 +467,7 @@ export class DraCodeClient {
         };
 
         this.ws.send(JSON.stringify(message));
-        this.createAgentTab(agentId, providerName);
+        this.createAgentTab(agentId, displayName, providerName);
         this.logToAgent(agentId, `Connecting to ${providerName}...`);
     }
 
@@ -492,11 +513,15 @@ export class DraCodeClient {
     /**
      * Create a new agent tab
      */
-    private createAgentTab(agentId: string, providerName: string): void {
+    private createAgentTab(agentId: string, displayName: string, providerName?: string): void {
+        // Use displayName for tab, providerName for internal tracking (default to displayName if not provided)
+        const provider = providerName || displayName;
+        
         // Create tab button
         const tab = document.createElement('button');
+        tab.type = 'button';
         tab.className = 'tab';
-        tab.innerHTML = `${this.escapeHtml(providerName)} <span class="tab-close">×</span>`;
+        tab.innerHTML = `${this.escapeHtml(displayName)} <span class="tab-close">×</span>`;
 
         const closeBtn = tab.querySelector('.tab-close');
         if (closeBtn) {
@@ -506,7 +531,10 @@ export class DraCodeClient {
             });
         }
 
-        tab.addEventListener('click', () => this.switchToAgent(agentId));
+        tab.addEventListener('click', () => {
+            console.log('🖱️ Tab clicked:', displayName, 'agentId:', agentId);
+            this.switchToAgent(agentId);
+        });
         this.elements.tabsContainer.appendChild(tab);
 
         // Create content div
@@ -515,7 +543,7 @@ export class DraCodeClient {
         content.innerHTML = `
             <div class="task-section">
                 <h2>📤 Send Task</h2>
-                <textarea id="task-${agentId}" placeholder="Enter task for ${this.escapeHtml(providerName)}...">Create a file called hello.txt with the content 'Hello, World!'</textarea>
+                <textarea id="task-${agentId}" placeholder="Enter task for ${this.escapeHtml(displayName)}...">Create a file called hello.txt with the content 'Hello, World!'</textarea>
                 <div class="button-group">
                     <button class="send-task-btn">Send Task</button>
                     <button class="reset-agent-btn secondary">Reset Agent</button>
@@ -546,8 +574,8 @@ export class DraCodeClient {
         this.elements.tabContents.appendChild(content);
 
         this.agents.set(agentId, {
-            provider: providerName,
-            name: providerName,
+            provider: provider,
+            name: displayName,
             tabElement: tab as HTMLButtonElement,
             contentElement: content as HTMLDivElement
         });
@@ -563,15 +591,21 @@ export class DraCodeClient {
      * Switch to agent tab
      */
     private switchToAgent(agentId: string): void {
+        console.log('🔄 Switching to agent:', agentId);
+        console.log('   Available agents:', Array.from(this.agents.keys()));
+        
         // Remove active class from all tabs
         document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
 
         const agent = this.agents.get(agentId);
         if (agent) {
+            console.log('   ✅ Agent found:', agent.name);
             agent.tabElement.classList.add('active');
             agent.contentElement.classList.add('active');
             this.activeAgentId = agentId;
+        } else {
+            console.log('   ❌ Agent not found in agents map!');
         }
     }
 
@@ -580,20 +614,37 @@ export class DraCodeClient {
      */
     private closeAgent(agentId: string): void {
         if (confirm('Disconnect this agent?')) {
+            console.log('🗑️ Closing agent:', agentId);
+            console.log('   Total agents before:', this.agents.size);
+            console.log('   Agent IDs:', Array.from(this.agents.keys()));
+            
             this.sendToAgent(agentId, { command: 'disconnect', agentId });
 
             const agent = this.agents.get(agentId);
             if (agent) {
+                console.log('   Removing tab and content for:', agent.name);
                 agent.tabElement.remove();
                 agent.contentElement.remove();
                 this.agents.delete(agentId);
+            } else {
+                console.log('   ⚠️ Agent not found in map!');
+            }
+
+            console.log('   Total agents after:', this.agents.size);
+            console.log('   Remaining agent IDs:', Array.from(this.agents.keys()));
+
+            // Refresh provider grid to update connection counts
+            if (this.availableProviders.length > 0) {
+                this.displayProviders(this.availableProviders);
             }
 
             // Switch to first available agent or show empty state
             const remainingAgents = Array.from(this.agents.keys());
             if (remainingAgents.length > 0) {
+                console.log('   Switching to first remaining agent:', remainingAgents[0]);
                 this.switchToAgent(remainingAgents[0]);
             } else {
+                console.log('   No remaining agents, hiding tabs section');
                 this.elements.agentTabs.style.display = 'none';
                 this.elements.emptyState.style.display = 'flex';
                 this.activeAgentId = null;

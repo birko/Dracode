@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.0.4] - January 2026 - Multiple Connections to Same Provider
+
+### ✨ New Feature: Multiple Provider Instances
+
+**You can now connect to the same provider multiple times with independent agent instances!**
+
+#### Features
+- ✅ Unlimited connections per provider
+- ✅ Auto-numbered tabs (OpenAI, OpenAI #2, OpenAI #3, etc.)
+- ✅ Connection count display on provider cards
+- ✅ Real-time updates as connections change
+- ✅ Independent conversation history per instance
+
+#### Use Cases
+- **Response Comparison**: Compare outputs for different prompts
+- **Parallel Tasks**: Run multiple tasks simultaneously
+- **Context Isolation**: Test that instances don't share context
+- **A/B Testing**: Test different approaches side-by-side
+
+#### Visual Design
+- **Connection Count**: "🔗 2 active connections"
+- **Smart Naming**: Auto-numbered tabs for multiple instances
+- **Real-time Updates**: Grid refreshes when connections change
+
+#### Files Modified
+- `DraCode.Web/src/client.ts` - Removed connection limit, added smart naming
+- `DraCode.Web/wwwroot/styles.css` - Added connection count styles
+
+See [MULTIPLE_CONNECTIONS_FEATURE.md](MULTIPLE_CONNECTIONS_FEATURE.md) for complete documentation.
+
+---
+
 ## [2.0.3] - January 2026 - Clickable Links in Activity Log
 
 ### ✨ New Feature: Clickable Links
