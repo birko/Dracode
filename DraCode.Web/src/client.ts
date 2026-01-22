@@ -515,7 +515,7 @@ export class DraCodeClient {
                 <div class="provider-name">${this.escapeHtml(provider.name)}</div>
                 <div class="provider-model">${this.escapeHtml(provider.model || 'Default model')}</div>
                 <div class="provider-status ${provider.configured ? 'available' : 'unavailable'}">
-                    ${provider.configured ? '✓ Configured' : '⚠ Not configured'}
+                    ${provider.configured ? 'Configured' : 'Not configured'}
                 </div>
                 <div class="provider-connections">${connectionStatus}</div>
             `;
@@ -754,6 +754,7 @@ export class DraCodeClient {
         const sendBtn = content.querySelector('.send-task-btn');
         const resetBtn = content.querySelector('.reset-agent-btn');
         const clearBtn = content.querySelector('.clear-log-btn');
+        const taskTextarea = content.querySelector(`#task-${agentId}`) as HTMLTextAreaElement;
 
         if (sendBtn) {
             sendBtn.addEventListener('click', () => this.sendTaskToAgent(agentId));
@@ -763,6 +764,16 @@ export class DraCodeClient {
         }
         if (clearBtn) {
             clearBtn.addEventListener('click', () => this.clearAgentLog(agentId));
+        }
+        if (taskTextarea) {
+            taskTextarea.addEventListener('keydown', (e) => {
+                // Enter without Shift sends the task
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendTaskToAgent(agentId);
+                }
+                // Shift+Enter adds new line (default textarea behavior)
+            });
         }
 
         this.elements.tabContents.appendChild(content);
