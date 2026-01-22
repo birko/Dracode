@@ -92,6 +92,49 @@
         </div>
     </main>
 
+    <!-- Connection Configuration Modal -->
+    <div id="connectionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔌 Configure Connection</h2>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="connectionTabName">Tab Name *</label>
+                    <input type="text" id="connectionTabName" placeholder="Enter a name for this connection">
+                </div>
+                <div class="form-group">
+                    <label for="connectionWorkingDir">Working Directory</label>
+                    <input type="text" id="connectionWorkingDir" placeholder="Leave empty for default">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="connectionModalCancel" class="secondary">Cancel</button>
+                <button id="connectionModalConnect">Connect</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- General Purpose Modal -->
+    <div id="generalModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="generalModalTitle">Dialog</h2>
+            </div>
+            <div class="modal-body">
+                <p id="generalModalMessage"></p>
+                <div id="generalModalInputContainer" class="form-group" style="display: none;">
+                    <label id="generalModalInputLabel">Input</label>
+                    <input type="text" id="generalModalInput" placeholder="">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="generalModalCancel" class="secondary" style="display: none;">Cancel</button>
+                <button id="generalModalConfirm">OK</button>
+            </div>
+        </div>
+    </div>
+
     <!-- TypeScript Module -->
     <script type="module" src="js/main.js"></script>
 </body>

@@ -23,6 +23,19 @@ export class DraCodeClient {
         agentTabs: HTMLElement;
         emptyState: HTMLElement;
         manualConfig: HTMLElement;
+        connectionModal: HTMLElement;
+        connectionTabName: HTMLInputElement;
+        connectionWorkingDir: HTMLInputElement;
+        connectionModalConnect: HTMLButtonElement;
+        connectionModalCancel: HTMLButtonElement;
+        generalModal: HTMLElement;
+        generalModalTitle: HTMLElement;
+        generalModalMessage: HTMLElement;
+        generalModalInput: HTMLInputElement;
+        generalModalInputContainer: HTMLElement;
+        generalModalInputLabel: HTMLElement;
+        generalModalConfirm: HTMLButtonElement;
+        generalModalCancel: HTMLButtonElement;
     };
 
     constructor() {
@@ -38,7 +51,20 @@ export class DraCodeClient {
             tabContents: this.getElement('tabContents'),
             agentTabs: this.getElement('agentTabs'),
             emptyState: this.getElement('emptyState'),
-            manualConfig: this.getElement('manualConfig')
+            manualConfig: this.getElement('manualConfig'),
+            connectionModal: this.getElement('connectionModal'),
+            connectionTabName: this.getElement('connectionTabName') as HTMLInputElement,
+            connectionWorkingDir: this.getElement('connectionWorkingDir') as HTMLInputElement,
+            connectionModalConnect: this.getElement('connectionModalConnect') as HTMLButtonElement,
+            connectionModalCancel: this.getElement('connectionModalCancel') as HTMLButtonElement,
+            generalModal: this.getElement('generalModal'),
+            generalModalTitle: this.getElement('generalModalTitle'),
+            generalModalMessage: this.getElement('generalModalMessage'),
+            generalModalInput: this.getElement('generalModalInput') as HTMLInputElement,
+            generalModalInputContainer: this.getElement('generalModalInputContainer'),
+            generalModalInputLabel: this.getElement('generalModalInputLabel'),
+            generalModalConfirm: this.getElement('generalModalConfirm') as HTMLButtonElement,
+            generalModalCancel: this.getElement('generalModalCancel') as HTMLButtonElement
         };
 
         this.setupEventListeners();
@@ -301,7 +327,7 @@ export class DraCodeClient {
     /**
      * Handle interactive prompt from agent
      */
-    private handlePromptMessage(response: WebSocketResponse): void {
+    private async handlePromptMessage(response: WebSocketResponse): Promise<void> {
         const agentId = response.AgentId;
         const promptId = response.PromptId;
 
@@ -326,7 +352,9 @@ export class DraCodeClient {
         this.logToAgent(agentId, promptHtml, 'info');
 
         // Show prompt input
-        const promptResponse = prompt(`${context ? 'Context: ' + context + '\n\n' : ''}${question}`);
+        const promptTitle = context ? 'Agent Question' : 'Agent Question';
+        const promptMessage = context ? `${context}\n\n${question}` : question;
+        const promptResponse = await this.showPrompt(promptTitle, promptMessage, '');
 
         if (promptResponse !== null) {
             // Send response back to agent
@@ -445,9 +473,9 @@ export class DraCodeClient {
     /**
      * Connect to a provider
      */
-    public connectToProvider(providerName: string, agentId: string): void {
+    public async connectToProvider(providerName: string, agentId: string): Promise<void> {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            alert('Not connected to server');
+            await this.showAlert('Connection Error', 'Not connected to server');
             return;
         }
 
@@ -455,38 +483,120 @@ export class DraCodeClient {
         const existingConnections = Array.from(this.agents.values())
             .filter((a) => a.provider === providerName).length;
         
-        // Create a display name with instance number if multiple connections
-        const displayName = existingConnections > 0 
+        // Create a default display name with instance number if multiple connections
+        const defaultDisplayName = existingConnections > 0 
             ? `${providerName} #${existingConnections + 1}`
             : providerName;
 
-        const message: WebSocketMessage = {
-            command: 'connect',
-            config: { provider: providerName },
-            agentId
+        // Show modal to get configuration
+        this.showConnectionModal(defaultDisplayName, (tabName, workingDir) => {
+            // Build config
+            const config: AgentConfig = { provider: providerName };
+            if (workingDir && workingDir.trim()) {
+                config.workingDirectory = workingDir.trim();
+            }
+
+            const message: WebSocketMessage = {
+                command: 'connect',
+                config: config,
+                agentId
+            };
+
+            this.ws!.send(JSON.stringify(message));
+            this.createAgentTab(agentId, tabName, providerName);
+            this.logToAgent(agentId, `Connecting to ${providerName}...`);
+        });
+    }
+
+    /**
+     * Show connection configuration modal
+     */
+    private showConnectionModal(defaultTabName: string, onConnect: (tabName: string, workingDir: string) => void): void {
+        // Set default values
+        this.elements.connectionTabName.value = defaultTabName;
+        this.elements.connectionWorkingDir.value = '';
+
+        // Show modal
+        this.elements.connectionModal.classList.add('active');
+
+        // Focus on tab name input
+        setTimeout(() => this.elements.connectionTabName.focus(), 100);
+
+        // Handle connect button
+        const handleConnect = async () => {
+            const tabName = this.elements.connectionTabName.value.trim();
+            const workingDir = this.elements.connectionWorkingDir.value.trim();
+
+            if (!tabName) {
+                await this.showAlert('Validation Error', 'Tab name is required');
+                return;
+            }
+
+            // Hide modal
+            this.elements.connectionModal.classList.remove('active');
+
+            // Clean up event listeners
+            cleanup();
+
+            // Call callback
+            onConnect(tabName, workingDir);
         };
 
-        this.ws.send(JSON.stringify(message));
-        this.createAgentTab(agentId, displayName, providerName);
-        this.logToAgent(agentId, `Connecting to ${providerName}...`);
+        // Handle cancel button
+        const handleCancel = () => {
+            this.elements.connectionModal.classList.remove('active');
+            cleanup();
+        };
+
+        // Handle Enter key in inputs
+        const handleKeyPress = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                handleConnect();
+            } else if (e.key === 'Escape') {
+                handleCancel();
+            }
+        };
+
+        // Handle click outside modal
+        const handleClickOutside = (e: MouseEvent) => {
+            if (e.target === this.elements.connectionModal) {
+                handleCancel();
+            }
+        };
+
+        // Add event listeners
+        this.elements.connectionModalConnect.addEventListener('click', handleConnect);
+        this.elements.connectionModalCancel.addEventListener('click', handleCancel);
+        this.elements.connectionTabName.addEventListener('keypress', handleKeyPress);
+        this.elements.connectionWorkingDir.addEventListener('keypress', handleKeyPress);
+        this.elements.connectionModal.addEventListener('click', handleClickOutside);
+
+        // Cleanup function to remove event listeners
+        const cleanup = () => {
+            this.elements.connectionModalConnect.removeEventListener('click', handleConnect);
+            this.elements.connectionModalCancel.removeEventListener('click', handleCancel);
+            this.elements.connectionTabName.removeEventListener('keypress', handleKeyPress);
+            this.elements.connectionWorkingDir.removeEventListener('keypress', handleKeyPress);
+            this.elements.connectionModal.removeEventListener('click', handleClickOutside);
+        };
     }
 
     /**
      * Connect to a manually configured provider
      */
-    public connectManualProvider(
+    public async connectManualProvider(
         provider: string,
         apiKey: string,
         model?: string,
         workingDir?: string
-    ): void {
+    ): Promise<void> {
         if (!provider || !apiKey) {
-            alert('Provider and API Key are required');
+            await this.showAlert('Validation Error', 'Provider and API Key are required');
             return;
         }
 
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            alert('Not connected to server');
+            await this.showAlert('Connection Error', 'Not connected to server');
             return;
         }
 
@@ -612,8 +722,9 @@ export class DraCodeClient {
     /**
      * Close an agent
      */
-    private closeAgent(agentId: string): void {
-        if (confirm('Disconnect this agent?')) {
+    private async closeAgent(agentId: string): Promise<void> {
+        const confirmed = await this.showConfirm('Disconnect Agent', 'Are you sure you want to disconnect this agent?');
+        if (confirmed) {
             console.log('🗑️ Closing agent:', agentId);
             console.log('   Total agents before:', this.agents.size);
             console.log('   Agent IDs:', Array.from(this.agents.keys()));
@@ -655,13 +766,13 @@ export class DraCodeClient {
     /**
      * Send task to agent
      */
-    private sendTaskToAgent(agentId: string): void {
+    private async sendTaskToAgent(agentId: string): Promise<void> {
         const taskInput = document.getElementById(`task-${agentId}`) as HTMLTextAreaElement;
         if (!taskInput) return;
 
         const task = taskInput.value.trim();
         if (!task) {
-            alert('Please enter a task');
+            await this.showAlert('Validation Error', 'Please enter a task');
             return;
         }
 
@@ -678,8 +789,9 @@ export class DraCodeClient {
     /**
      * Reset agent
      */
-    private resetAgent(agentId: string): void {
-        if (confirm('Reset this agent? This will reinitialize it.')) {
+    private async resetAgent(agentId: string): Promise<void> {
+        const confirmed = await this.showConfirm('Reset Agent', 'Are you sure you want to reset this agent? This will reinitialize it.');
+        if (confirmed) {
             const agent = this.agents.get(agentId);
             if (!agent) return;
 
@@ -767,5 +879,164 @@ export class DraCodeClient {
     public toggleManualConfig(): void {
         const display = this.elements.manualConfig.style.display;
         this.elements.manualConfig.style.display = display === 'none' || display === '' ? 'block' : 'none';
+    }
+
+    /**
+     * Show alert dialog (replaces window.alert)
+     */
+    private async showAlert(title: string, message: string): Promise<void> {
+        return new Promise((resolve) => {
+            this.elements.generalModalTitle.textContent = title;
+            this.elements.generalModalMessage.textContent = message;
+            this.elements.generalModalInputContainer.style.display = 'none';
+            this.elements.generalModalCancel.style.display = 'none';
+            this.elements.generalModalConfirm.textContent = 'OK';
+            this.elements.generalModal.classList.add('active');
+
+            const handleConfirm = () => {
+                this.elements.generalModal.classList.remove('active');
+                cleanup();
+                resolve();
+            };
+
+            const handleKeyPress = (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === 'Escape') {
+                    handleConfirm();
+                }
+            };
+
+            const handleClickOutside = (e: MouseEvent) => {
+                if (e.target === this.elements.generalModal) {
+                    handleConfirm();
+                }
+            };
+
+            this.elements.generalModalConfirm.addEventListener('click', handleConfirm);
+            document.addEventListener('keydown', handleKeyPress);
+            this.elements.generalModal.addEventListener('click', handleClickOutside);
+
+            const cleanup = () => {
+                this.elements.generalModalConfirm.removeEventListener('click', handleConfirm);
+                document.removeEventListener('keydown', handleKeyPress);
+                this.elements.generalModal.removeEventListener('click', handleClickOutside);
+            };
+
+            setTimeout(() => this.elements.generalModalConfirm.focus(), 100);
+        });
+    }
+
+    /**
+     * Show confirm dialog (replaces window.confirm)
+     */
+    private async showConfirm(title: string, message: string): Promise<boolean> {
+        return new Promise((resolve) => {
+            this.elements.generalModalTitle.textContent = title;
+            this.elements.generalModalMessage.textContent = message;
+            this.elements.generalModalInputContainer.style.display = 'none';
+            this.elements.generalModalCancel.style.display = 'inline-block';
+            this.elements.generalModalCancel.textContent = 'Cancel';
+            this.elements.generalModalConfirm.textContent = 'Confirm';
+            this.elements.generalModal.classList.add('active');
+
+            const handleConfirm = () => {
+                this.elements.generalModal.classList.remove('active');
+                cleanup();
+                resolve(true);
+            };
+
+            const handleCancel = () => {
+                this.elements.generalModal.classList.remove('active');
+                cleanup();
+                resolve(false);
+            };
+
+            const handleKeyPress = (e: KeyboardEvent) => {
+                if (e.key === 'Enter') {
+                    handleConfirm();
+                } else if (e.key === 'Escape') {
+                    handleCancel();
+                }
+            };
+
+            const handleClickOutside = (e: MouseEvent) => {
+                if (e.target === this.elements.generalModal) {
+                    handleCancel();
+                }
+            };
+
+            this.elements.generalModalConfirm.addEventListener('click', handleConfirm);
+            this.elements.generalModalCancel.addEventListener('click', handleCancel);
+            document.addEventListener('keydown', handleKeyPress);
+            this.elements.generalModal.addEventListener('click', handleClickOutside);
+
+            const cleanup = () => {
+                this.elements.generalModalConfirm.removeEventListener('click', handleConfirm);
+                this.elements.generalModalCancel.removeEventListener('click', handleCancel);
+                document.removeEventListener('keydown', handleKeyPress);
+                this.elements.generalModal.removeEventListener('click', handleClickOutside);
+            };
+
+            setTimeout(() => this.elements.generalModalConfirm.focus(), 100);
+        });
+    }
+
+    /**
+     * Show prompt dialog (replaces window.prompt)
+     */
+    private async showPrompt(title: string, message: string, defaultValue: string = ''): Promise<string | null> {
+        return new Promise((resolve) => {
+            this.elements.generalModalTitle.textContent = title;
+            this.elements.generalModalMessage.textContent = message;
+            this.elements.generalModalInputContainer.style.display = 'block';
+            this.elements.generalModalInputLabel.textContent = message;
+            this.elements.generalModalInput.value = defaultValue;
+            this.elements.generalModalCancel.style.display = 'inline-block';
+            this.elements.generalModalCancel.textContent = 'Cancel';
+            this.elements.generalModalConfirm.textContent = 'OK';
+            this.elements.generalModal.classList.add('active');
+
+            const handleConfirm = () => {
+                const value = this.elements.generalModalInput.value;
+                this.elements.generalModal.classList.remove('active');
+                cleanup();
+                resolve(value);
+            };
+
+            const handleCancel = () => {
+                this.elements.generalModal.classList.remove('active');
+                cleanup();
+                resolve(null);
+            };
+
+            const handleKeyPress = (e: KeyboardEvent) => {
+                if (e.key === 'Enter') {
+                    handleConfirm();
+                } else if (e.key === 'Escape') {
+                    handleCancel();
+                }
+            };
+
+            const handleClickOutside = (e: MouseEvent) => {
+                if (e.target === this.elements.generalModal) {
+                    handleCancel();
+                }
+            };
+
+            this.elements.generalModalConfirm.addEventListener('click', handleConfirm);
+            this.elements.generalModalCancel.addEventListener('click', handleCancel);
+            this.elements.generalModalInput.addEventListener('keypress', handleKeyPress);
+            document.addEventListener('keydown', handleKeyPress);
+            this.elements.generalModal.addEventListener('click', handleClickOutside);
+
+            const cleanup = () => {
+                this.elements.generalModalConfirm.removeEventListener('click', handleConfirm);
+                this.elements.generalModalCancel.removeEventListener('click', handleCancel);
+                this.elements.generalModalInput.removeEventListener('keypress', handleKeyPress);
+                document.removeEventListener('keydown', handleKeyPress);
+                this.elements.generalModal.removeEventListener('click', handleClickOutside);
+            };
+
+            setTimeout(() => this.elements.generalModalInput.focus(), 100);
+        });
     }
 }
