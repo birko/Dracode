@@ -2,10 +2,14 @@
 
 Welcome to the DraCode documentation. This directory contains all technical documentation, guides, and specifications.
 
-📖 **[View Documentation Structure Overview](STRUCTURE_OVERVIEW.md)** - Visual guide to documentation organization  
-📝 **[View Changelog](CHANGELOG.md)** - Version history and release notes
+📖 **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete project spec for regeneration  
+📝 **[Changelog](CHANGELOG.md)** - Version history and release notes
 
 ## 📚 Documentation Structure
+
+### 🎯 Core Documentation
+- **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Comprehensive specification to regenerate entire project from scratch
+- **[Changelog](CHANGELOG.md)** - Complete version history and release notes
 
 ### 🏗️ Architecture
 Technical specifications and architecture documentation:
@@ -32,9 +36,8 @@ Documentation for developers and contributors:
 
 ### 🔧 Troubleshooting
 Problem-solving guides and debugging help:
-- [General Troubleshooting](troubleshooting/TROUBLESHOOTING.md) - Common issues and solutions
+- [General Troubleshooting](troubleshooting/TROUBLESHOOTING.md) - Comprehensive debugging guide for web client
 - [Provider Grid Troubleshooting](troubleshooting/PROVIDER_GRID_TROUBLESHOOTING.md) - WebSocket provider grid issues
-- [Web Client Debugging](troubleshooting/WEB_CLIENT_DEBUGGING.md) - Web client debugging guide
 
 ### 📝 Version History
 - [Changelog](CHANGELOG.md) - Complete version history and release notes
@@ -47,9 +50,9 @@ Problem-solving guides and debugging help:
 - [Changelog](CHANGELOG.md) - See what's new
 
 ### For Developers
+- [Full Project Specification](FULL_PROJECT_SPECIFICATION.md) - Regenerate entire project
 - [Architecture Specification](architecture/ARCHITECTURE_SPECIFICATION.md) - Understand the system
 - [Implementation Plan](development/IMPLEMENTATION_PLAN.md) - Development guidelines
-- [Changelog](CHANGELOG.md) - Track changes and versions
 
 ### For Troubleshooting
 - [General Troubleshooting](troubleshooting/TROUBLESHOOTING.md) - Start here
