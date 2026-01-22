@@ -498,6 +498,7 @@ export class DraCodeClient {
         });
 
         this.logToAgent(agentId, `📤 Sent: ${task}`, 'info');
+        taskInput.value = '';
     }
 
     /**
