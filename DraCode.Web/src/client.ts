@@ -662,6 +662,18 @@ export class DraCodeClient {
     }
 
     /**
+     * Convert URLs in text to clickable links
+     */
+    private linkifyUrls(text: string): string {
+        // Regex to match URLs (http, https, ws, wss, ftp)
+        const urlPattern = /(\b(https?|wss?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
+        
+        return text.replace(urlPattern, (url) => {
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        });
+    }
+
+    /**
      * Log message to agent's activity log
      */
     private logToAgent(agentId: string, message: string, level: LogLevel = 'info'): void {
@@ -671,7 +683,11 @@ export class DraCodeClient {
         const entry = document.createElement('div');
         entry.className = `log-entry ${level}`;
         const timestamp = new Date().toLocaleTimeString();
-        entry.innerHTML = `<span class="log-time">[${timestamp}]</span> ${message}`;
+        
+        // Convert URLs to clickable links
+        const linkedMessage = this.linkifyUrls(message);
+        
+        entry.innerHTML = `<span class="log-time">[${timestamp}]</span> ${linkedMessage}`;
         logElement.appendChild(entry);
         logElement.scrollTop = logElement.scrollHeight;
     }

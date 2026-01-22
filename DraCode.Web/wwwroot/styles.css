@@ -402,6 +402,21 @@ button.secondary:hover:not(:disabled) {
     color: #ffc107;
 }
 
+.log-entry a {
+    color: #4fc3f7;
+    text-decoration: underline;
+    transition: color var(--transition-fast);
+}
+
+.log-entry a:hover {
+    color: #29b6f6;
+    text-decoration: none;
+}
+
+.log-entry a:visited {
+    color: #ba68c8;
+}
+
 .log-time {
     color: #858585;
     margin-right: var(--spacing-sm);

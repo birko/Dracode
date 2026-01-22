@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Test - DraCode Activity Log</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .log {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 8px;
+            padding: 1.5rem;
+            max-width: 800px;
+            margin: 0 auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem 0;
+        }
+        .log-time {
+            color: #858585;
+        }
+        .log-entry a {
+            color: #4fc3f7;
+            text-decoration: underline;
+            transition: color 150ms ease-in-out;
+        }
+        .log-entry a:hover {
+            color: #29b6f6;
+            text-decoration: none;
+        }
+        .log-entry a:visited {
+            color: #ba68c8;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .test-info {
+            background: #2d2d30;
+            border-left: 4px solid #4fc3f7;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔗 Activity Log - Clickable Links Test</h1>
+    
+    <div class="test-info">
+        <strong>✅ Feature Added:</strong> URLs in activity logs are now automatically detected and converted to clickable links!
+        <br><br>
+        <strong>Supported URL schemes:</strong> http, https, ws, wss, ftp
+    </div>
+
+    <div class="log">
+        <div class="log-entry">
+            <span class="log-time">[10:30:15]</span> 🔧 Tool call: read_file - Reading https://example.com/api/docs.html
+        </div>
+        <div class="log-entry">
+            <span class="log-time">[10:30:16]</span> 📋 Tool result: File contains reference to http://localhost:3000/health
+        </div>
+        <div class="log-entry">
+            <span class="log-time">[10:30:17]</span> 💬 Assistant: You can view the documentation at https://docs.example.com/api/v1/reference
+        </div>
+        <div class="log-entry">
+            <span class="log-time">[10:30:18]</span> 📄 Display: WebSocket endpoint available at ws://localhost:5000/ws
+        </div>
+        <div class="log-entry">
+            <span class="log-time">[10:30:19]</span> ℹ️ Server connected at wss://secure.example.com:8080/socket
+        </div>
+        <div class="log-entry">
+            <span class="log-time">[10:30:20]</span> 📋 Multiple URLs: Check http://api.example.com and https://api.example.com/v2 for details
+        </div>
+        <div class="log-entry">
+            <span class="log-time">[10:30:21]</span> ⚠️ Warning: Old FTP endpoint ftp://files.example.com is deprecated
+        </div>
+    </div>
+
+    <script>
+        // Simulate the linkify function
+        function linkifyUrls(text) {
+            const urlPattern = /(\b(https?|wss?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
+            return text.replace(urlPattern, (url) => {
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+            });
+        }
+
+        // Apply linkification to all log entries
+        document.querySelectorAll('.log-entry').forEach(entry => {
+            const html = entry.innerHTML;
+            entry.innerHTML = linkifyUrls(html);
+        });
+    </script>
+</body>
+</html>

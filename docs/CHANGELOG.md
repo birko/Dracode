@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.0.3] - January 2026 - Clickable Links in Activity Log
+
+### ✨ New Feature: Clickable Links
+
+**Activity logs now automatically detect and linkify URLs!**
+
+#### Features
+- ✅ Automatic URL detection (http, https, ws, wss, ftp)
+- ✅ Clickable links that open in new tab
+- ✅ Visual hover effects and visited link tracking
+- ✅ Security: `rel="noopener noreferrer"` protection
+
+#### Supported URL Types
+- HTTP/HTTPS: `https://example.com/api`
+- WebSocket: `ws://localhost:5000/ws`
+- Secure WebSocket: `wss://secure.example.com`
+- FTP: `ftp://files.example.com`
+
+#### Visual Design
+- **Link Color**: Light blue (#4fc3f7)
+- **Hover**: Brighter blue (#29b6f6)
+- **Visited**: Purple (#ba68c8)
+- **Underline**: Shows by default, removes on hover
+
+#### Files Modified
+- `DraCode.Web/src/client.ts` - Added `linkifyUrls()` method
+- `DraCode.Web/wwwroot/styles.css` - Added link styles
+- Test page: `http://localhost:5001/link-test.html`
+
+See [CLICKABLE_LINKS_FEATURE.md](CLICKABLE_LINKS_FEATURE.md) for complete documentation.
+
+---
+
 ## [2.0] - January 2026 - WebSocket Multi-Agent System
 
 ### 🎯 Major Feature: Multi-Agent WebSocket System
