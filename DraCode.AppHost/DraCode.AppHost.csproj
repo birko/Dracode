@@ -1,0 +1,16 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.1.0">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DraCode.WebSocket\DraCode.WebSocket.csproj" />
+    <ProjectReference Include="..\DraCode.Web\DraCode.Web.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>b2d56eed-4217-476a-af7c-c3ae838682dc</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

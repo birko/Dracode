@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        #log { 
+            background: #1e1e1e; 
+            color: #d4d4d4; 
+            padding: 10px; 
+            height: 400px; 
+            overflow-y: auto; 
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        button { padding: 10px; margin: 5px; }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Test - DraCode</h1>
+    <div>
+        <input type="text" id="url" value="ws://localhost:5000/ws" style="width: 300px;">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <button onclick="listProviders()">List Providers</button>
+    </div>
+    <div id="log"></div>
+
+    <script>
+        let ws = null;
+        const log = document.getElementById('log');
+
+        function addLog(msg, className = '') {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = className;
+            div.textContent = `[${time}] ${msg}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function connect() {
+            const url = document.getElementById('url').value;
+            addLog(`Connecting to ${url}...`);
+
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                addLog('✅ Connected!', 'success');
+            };
+
+            ws.onmessage = (event) => {
+                addLog(`📨 Received: ${event.data}`, 'success');
+                
+                try {
+                    const response = JSON.parse(event.data);
+                    addLog(`   Status: ${response.status}`);
+                    addLog(`   Message: ${response.message}`);
+                    if (response.data) {
+                        addLog(`   Data: ${response.data.substring(0, 100)}...`);
+                    }
+                } catch (e) {
+                    addLog('   (Could not parse as JSON)');
+                }
+            };
+
+            ws.onerror = (error) => {
+                addLog('❌ WebSocket error', 'error');
+            };
+
+            ws.onclose = () => {
+                addLog('Connection closed', 'error');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                addLog('Disconnected');
+            }
+        }
+
+        function listProviders() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addLog('⚠️ Not connected!', 'error');
+                return;
+            }
+
+            const message = JSON.stringify({ command: 'list' });
+            addLog(`📤 Sending: ${message}`);
+            ws.send(message);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "Agent": {
+    "WorkingDirectory": "./workspace",
+    "Providers": {
+      "openai": {
+        "type": "openai",
+        "apiKey": "${OPENAI_API_KEY}",
+        "model": "gpt-4o",
+        "baseUrl": "https://api.openai.com/v1/chat/completions"
+      },
+      "azureopenai": {
+        "type": "azureopenai",
+        "endpoint": "${AZURE_OPENAI_ENDPOINT}",
+        "apiKey": "${AZURE_OPENAI_API_KEY}",
+        "deployment": "gpt-4"
+      },
+      "claude": {
+        "type": "claude",
+        "apiKey": "${ANTHROPIC_API_KEY}",
+        "model": "claude-3-5-sonnet-latest",
+        "baseUrl": "https://api.anthropic.com/v1/messages"
+      },
+      "gemini": {
+        "type": "gemini",
+        "apiKey": "${GEMINI_API_KEY}",
+        "model": "gemini-2.0-flash-exp",
+        "baseUrl": "https://generativelanguage.googleapis.com/v1beta/models/"
+      },
+      "ollama": {
+        "type": "ollama",
+        "model": "llama3.2",
+        "baseUrl": "http://localhost:11434"
+      },
+      "githubcopilot": {
+        "type": "githubcopilot",
+        "clientId": "${GITHUB_CLIENT_ID}",
+        "model": "gpt-4o",
+        "baseUrl": "https://api.githubcopilot.com/chat/completions"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "dracode-web-client",
+  "version": "1.0.0",
+  "description": "DraCode Multi-Provider Web Client",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

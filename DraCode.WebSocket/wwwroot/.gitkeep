@@ -1,0 +1,3 @@
+# This directory is required by Microsoft.NET.Sdk.Web
+# It remains empty as DraCode.WebSocket serves WebSocket API only
+# Static files are served by DraCode.Web project

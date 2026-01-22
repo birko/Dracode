@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="DraCode Multi-Provider WebSocket Client - Connect to multiple LLM providers simultaneously">
+    <title>DraCode WebSocket Client</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <h1>🤖 DraCode Multi-Provider WebSocket Client</h1>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Connection Section -->
+        <section class="connection-section">
+            <div class="status disconnected" id="status">
+                ⚫ Status: Disconnected
+            </div>
+            
+            <h2>Server Connection</h2>
+            <div class="flex gap-md" style="align-items: center; margin-bottom: var(--spacing-lg);">
+                <input type="text" id="wsUrl" value="ws://localhost:5000/ws" placeholder="WebSocket URL" style="flex: 1;">
+                <button id="connectBtn">Connect to Server</button>
+                <button id="disconnectBtn" disabled>Disconnect</button>
+                <button id="listBtn" disabled class="secondary">List Providers</button>
+            </div>
+
+            <!-- Providers Section -->
+            <div id="providersSection">
+                <h2>Available Providers</h2>
+                <div id="providersGrid" class="providers-grid"></div>
+                
+                <div style="margin-top: var(--spacing-lg);">
+                    <button onclick="toggleManualConfig()" class="secondary">
+                        ➕ Add Manual Provider
+                    </button>
+                </div>
+
+                <!-- Manual Configuration Panel -->
+                <div id="manualConfig" class="manual-config">
+                    <h2>Manual Provider Configuration</h2>
+                    <div class="form-group">
+                        <label for="manualProvider">Provider Type *</label>
+                        <select id="manualProvider">
+                            <option value="openai">OpenAI</option>
+                            <option value="claude">Anthropic Claude</option>
+                            <option value="gemini">Google Gemini</option>
+                            <option value="azureopenai">Azure OpenAI</option>
+                            <option value="ollama">Ollama (Local)</option>
+                            <option value="githubcopilot">GitHub Copilot</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="manualApiKey">API Key *</label>
+                        <input type="password" id="manualApiKey" placeholder="Your API key">
+                    </div>
+                    <div class="form-group">
+                        <label for="manualModel">Model (optional)</label>
+                        <input type="text" id="manualModel" placeholder="e.g., gpt-4o, claude-3-5-sonnet-latest">
+                    </div>
+                    <div class="form-group">
+                        <label for="manualWorkingDir">Working Directory (optional)</label>
+                        <input type="text" id="manualWorkingDir" placeholder="e.g., C:/workspace">
+                    </div>
+                    <div class="button-group">
+                        <button onclick="connectManualProvider()">Connect Manual Provider</button>
+                        <button onclick="toggleManualConfig()" class="secondary">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Agent Tabs -->
+        <div id="agentTabs">
+            <div class="tabs" id="tabsContainer"></div>
+            <div id="tabContents"></div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+            </svg>
+            <h3>No Active Agents</h3>
+            <p>Connect to the server and select a provider to get started</p>
+        </div>
+    </main>
+
+    <!-- TypeScript Module -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

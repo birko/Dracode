@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DraCode Provider Diagnostic</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .section {
+            background: #2d2d2d;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .warning { color: #ffc107; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #5568d3; }
+        pre { 
+            background: #1e1e1e;
+            padding: 10px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 DraCode Provider Diagnostic Tool</h1>
+    
+    <div class="section">
+        <h2>Step 1: Test WebSocket Connection</h2>
+        <input type="text" id="wsUrl" value="ws://localhost:5000/ws" style="width: 300px; padding: 8px;">
+        <button onclick="testConnection()">Test Connection</button>
+        <pre id="connectionResult">Not tested yet</pre>
+    </div>
+
+    <div class="section">
+        <h2>Step 2: Request Provider List</h2>
+        <button onclick="requestProviders()">Request Providers</button>
+        <pre id="providersResult">Not requested yet</pre>
+    </div>
+
+    <div class="section">
+        <h2>Step 3: Check DOM Elements</h2>
+        <button onclick="checkDOM()">Check DOM</button>
+        <pre id="domResult">Not checked yet</pre>
+    </div>
+
+    <div class="section">
+        <h2>Step 4: Check Client Object</h2>
+        <button onclick="checkClient()">Check Client</button>
+        <pre id="clientResult">Not checked yet</pre>
+    </div>
+
+    <script>
+        let ws = null;
+        let lastMessage = null;
+
+        function log(elementId, message, className = '') {
+            const el = document.getElementById(elementId);
+            const span = document.createElement('span');
+            span.className = className;
+            span.textContent = message + '\n';
+            el.appendChild(span);
+        }
+
+        function clearLog(elementId) {
+            document.getElementById(elementId).textContent = '';
+        }
+
+        function testConnection() {
+            clearLog('connectionResult');
+            const url = document.getElementById('wsUrl').value;
+            
+            log('connectionResult', `Connecting to: ${url}...`);
+
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                log('connectionResult', '✅ Connected successfully!', 'success');
+                log('connectionResult', `Ready state: ${ws.readyState}`);
+            };
+
+            ws.onmessage = (event) => {
+                lastMessage = event.data;
+                log('connectionResult', `📨 Message received (${event.data.length} bytes)`, 'success');
+                
+                try {
+                    const json = JSON.parse(event.data);
+                    log('connectionResult', `Parsed JSON:`, 'success');
+                    log('connectionResult', JSON.stringify(json, null, 2));
+                } catch (e) {
+                    log('connectionResult', '⚠️ Not valid JSON', 'warning');
+                }
+            };
+
+            ws.onerror = () => {
+                log('connectionResult', '❌ Connection error', 'error');
+            };
+
+            ws.onclose = () => {
+                log('connectionResult', '🔌 Connection closed', 'warning');
+            };
+        }
+
+        function requestProviders() {
+            clearLog('providersResult');
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('providersResult', '❌ WebSocket not connected! Test connection first.', 'error');
+                return;
+            }
+
+            log('providersResult', '📤 Sending: {"command":"list"}');
+            ws.send(JSON.stringify({ command: 'list' }));
+            
+            log('providersResult', '⏳ Waiting for response...');
+            
+            // Check for response after 2 seconds
+            setTimeout(() => {
+                if (lastMessage) {
+                    try {
+                        const response = JSON.parse(lastMessage);
+                        log('providersResult', '\n✅ Response received:', 'success');
+                        log('providersResult', `Status: ${response.status}`);
+                        log('providersResult', `Message: ${response.message}`);
+                        
+                        if (response.data) {
+                            log('providersResult', '\nProvider data:');
+                            const providers = JSON.parse(response.data);
+                            log('providersResult', `Number of providers: ${providers.length}`);
+                            providers.forEach((p, i) => {
+                                log('providersResult', `\n  Provider ${i + 1}:`);
+                                log('providersResult', `    Name: ${p.name}`);
+                                log('providersResult', `    Type: ${p.type}`);
+                                log('providersResult', `    Model: ${p.model || 'N/A'}`);
+                                log('providersResult', `    Configured: ${p.configured}`);
+                            });
+                        }
+                    } catch (e) {
+                        log('providersResult', `❌ Error parsing response: ${e.message}`, 'error');
+                    }
+                } else {
+                    log('providersResult', '❌ No response received', 'error');
+                }
+            }, 2000);
+        }
+
+        function checkDOM() {
+            clearLog('domResult');
+            
+            log('domResult', '🔍 Checking DOM elements...\n');
+            
+            // Check if elements exist
+            const elements = [
+                'providersSection',
+                'providersGrid',
+                'status',
+                'connectBtn',
+                'listBtn'
+            ];
+            
+            elements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    log('domResult', `✅ #${id} exists`, 'success');
+                    log('domResult', `   display: ${el.style.display || 'not set'}`);
+                    log('domResult', `   computed display: ${getComputedStyle(el).display}`);
+                    
+                    if (id === 'providersGrid') {
+                        log('domResult', `   children: ${el.children.length}`);
+                        if (el.children.length > 0) {
+                            log('domResult', `   First child class: ${el.children[0].className}`);
+                        }
+                    }
+                } else {
+                    log('domResult', `❌ #${id} NOT FOUND`, 'error');
+                }
+                log('domResult', '');
+            });
+        }
+
+        function checkClient() {
+            clearLog('clientResult');
+            
+            log('clientResult', '🔍 Checking DraCode client object...\n');
+            
+            if (typeof window.draCodeClient !== 'undefined') {
+                log('clientResult', '✅ window.draCodeClient exists', 'success');
+                log('clientResult', `Type: ${typeof window.draCodeClient}`);
+                log('clientResult', `Constructor: ${window.draCodeClient.constructor.name}`);
+                
+                // Check WebSocket connection
+                try {
+                    const clientWs = window.draCodeClient.ws;
+                    if (clientWs) {
+                        log('clientResult', `\n📡 Client WebSocket:`);
+                        log('clientResult', `   State: ${clientWs.readyState} (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)`);
+                        log('clientResult', `   URL: ${clientWs.url}`);
+                    } else {
+                        log('clientResult', '\n⚠️ Client WebSocket is null', 'warning');
+                    }
+                } catch (e) {
+                    log('clientResult', `\n❌ Cannot access WebSocket: ${e.message}`, 'error');
+                }
+                
+                // Check agents
+                try {
+                    const agents = window.draCodeClient.agents;
+                    if (agents) {
+                        log('clientResult', `\n👥 Agents: ${agents.size}`);
+                    }
+                } catch (e) {
+                    log('clientResult', `\n❌ Cannot access agents: ${e.message}`, 'error');
+                }
+            } else {
+                log('clientResult', '❌ window.draCodeClient NOT FOUND', 'error');
+                log('clientResult', '\nThis means the client JavaScript has not initialized.');
+                log('clientResult', 'Check browser console for errors.');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Inspector - DraCode</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        
+        h1 {
+            color: #4fc3f7;
+            margin-bottom: 20px;
+        }
+        
+        .section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        
+        button {
+            background: #4fc3f7;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #29b6f6;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .log {
+            background: #1a1a1a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #333;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .log div {
+            padding: 2px 0;
+            border-bottom: 1px solid #222;
+        }
+        
+        .success { color: #66bb6a; }
+        .error { color: #ef5350; }
+        .info { color: #4fc3f7; }
+        .warn { color: #ffa726; }
+        
+        pre {
+            background: #0a0a0a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            color: #00ff00;
+            font-size: 11px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        
+        .badge.success { background: #66bb6a; color: #000; }
+        .badge.error { background: #ef5350; color: #fff; }
+        .badge.info { background: #4fc3f7; color: #000; }
+    </style>
+</head>
+<body>
+    <h1>🔍 WebSocket Message Inspector</h1>
+    <p style="color: #999; margin-bottom: 20px;">Deep dive into WebSocket message parsing</p>
+    
+    <div class="section">
+        <h2>Step 1: Connect</h2>
+        <button id="connectBtn" onclick="connect()">Connect to ws://localhost:5000/ws</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        <div id="connectionLog" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 2: Request Provider List</h2>
+        <button id="listBtn" onclick="requestList()" disabled>Send {"command":"list"}</button>
+        <div id="listLog" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 3: Raw Message Analysis</h2>
+        <div id="analysisLog" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 4: Parsed Data</h2>
+        <div id="parseLog" class="log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        
+        function log(sectionId, message, type = 'info') {
+            const section = document.getElementById(sectionId);
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            section.appendChild(div);
+            section.scrollTop = section.scrollHeight;
+        }
+        
+        function connect() {
+            log('connectionLog', '🔌 Connecting to WebSocket...', 'info');
+            
+            ws = new WebSocket('ws://localhost:5000/ws');
+            
+            ws.onopen = () => {
+                log('connectionLog', '✅ Connected successfully!', 'success');
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('listBtn').disabled = false;
+            };
+            
+            ws.onclose = () => {
+                log('connectionLog', '❌ Connection closed', 'error');
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('listBtn').disabled = true;
+            };
+            
+            ws.onerror = (error) => {
+                log('connectionLog', '❌ WebSocket error: ' + error, 'error');
+            };
+            
+            ws.onmessage = (event) => {
+                log('connectionLog', '📨 Message received!', 'success');
+                analyzeMessage(event.data);
+            };
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        function requestList() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('listLog', '❌ WebSocket not connected', 'error');
+                return;
+            }
+            
+            const message = { command: 'list' };
+            log('listLog', '📤 Sending: ' + JSON.stringify(message), 'info');
+            ws.send(JSON.stringify(message));
+        }
+        
+        function analyzeMessage(data) {
+            const analysis = document.getElementById('analysisLog');
+            const parse = document.getElementById('parseLog');
+            
+            // Clear previous
+            analysis.innerHTML = '';
+            parse.innerHTML = '';
+            
+            // Raw analysis
+            log('analysisLog', '=== RAW MESSAGE ANALYSIS ===', 'info');
+            log('analysisLog', `Type: ${typeof data}`, 'info');
+            log('analysisLog', `Length: ${data.length} characters`, 'info');
+            log('analysisLog', `First 100 chars: ${data.substring(0, 100)}`, 'info');
+            log('analysisLog', `Last 100 chars: ${data.substring(data.length - 100)}`, 'info');
+            
+            // Show full raw message
+            const rawDiv = document.createElement('div');
+            rawDiv.innerHTML = '<strong>Full Raw Message:</strong>';
+            analysis.appendChild(rawDiv);
+            
+            const pre = document.createElement('pre');
+            pre.textContent = data;
+            pre.style.maxHeight = '200px';
+            pre.style.overflow = 'auto';
+            analysis.appendChild(pre);
+            
+            // Parse attempt
+            log('parseLog', '=== PARSING ATTEMPT ===', 'info');
+            
+            try {
+                const response = JSON.parse(data);
+                log('parseLog', '✅ JSON.parse succeeded', 'success');
+                
+                // Analyze response object
+                log('parseLog', `Keys in response: ${Object.keys(response).join(', ')}`, 'info');
+                log('parseLog', `response.Status: "${response.Status}" (type: ${typeof response.Status})`, 'info');
+                log('parseLog', `response.Message: "${response.Message}" (type: ${typeof response.Message})`, 'info');
+                
+                if (response.Data !== undefined) {
+                    log('parseLog', `✅ response.Data EXISTS`, 'success');
+                    log('parseLog', `response.Data type: ${typeof response.Data}`, 'info');
+                    log('parseLog', `response.Data is array: ${Array.isArray(response.Data)}`, 'info');
+                    
+                    if (typeof response.Data === 'string') {
+                        log('parseLog', `response.Data length: ${response.Data.length} characters`, 'info');
+                        log('parseLog', `response.Data first 200 chars: ${response.Data.substring(0, 200)}`, 'info');
+                        
+                        // Try to parse the Data field
+                        try {
+                            const providers = JSON.parse(response.Data);
+                            log('parseLog', '✅ Successfully parsed response.Data as JSON', 'success');
+                            log('parseLog', `Provider type: ${Array.isArray(providers) ? 'Array' : typeof providers}`, 'info');
+                            
+                            if (Array.isArray(providers)) {
+                                log('parseLog', `✅ PROVIDER COUNT: ${providers.length}`, 'success');
+                                
+                                providers.forEach((p, i) => {
+                                    log('parseLog', `--- Provider ${i + 1} ---`, 'info');
+                                    log('parseLog', `  name: ${p.name}`, 'info');
+                                    log('parseLog', `  type: ${p.type}`, 'info');
+                                    log('parseLog', `  configured: ${p.configured}`, 'info');
+                                    if (p.model) log('parseLog', `  model: ${p.model}`, 'info');
+                                    if (p.deployment) log('parseLog', `  deployment: ${p.deployment}`, 'info');
+                                });
+                                
+                                // Show full provider object
+                                const provDiv = document.createElement('div');
+                                provDiv.innerHTML = '<strong>Full Provider Data:</strong>';
+                                parse.appendChild(provDiv);
+                                
+                                const provPre = document.createElement('pre');
+                                provPre.textContent = JSON.stringify(providers, null, 2);
+                                parse.appendChild(provPre);
+                            } else {
+                                log('parseLog', '❌ Providers is not an array!', 'error');
+                            }
+                        } catch (e) {
+                            log('parseLog', `❌ Failed to parse response.Data: ${e.message}`, 'error');
+                            log('parseLog', `Error stack: ${e.stack}`, 'error');
+                        }
+                    } else if (Array.isArray(response.Data)) {
+                        log('parseLog', '✅ response.Data is already an array', 'success');
+                        log('parseLog', `Provider count: ${response.Data.length}`, 'success');
+                        
+                        response.Data.forEach((p, i) => {
+                            log('parseLog', `Provider ${i + 1}: ${p.name} (${p.type})`, 'info');
+                        });
+                    } else {
+                        log('parseLog', `❌ response.Data is neither string nor array: ${typeof response.Data}`, 'error');
+                    }
+                    
+                    // Show raw Data field
+                    const dataDiv = document.createElement('div');
+                    dataDiv.innerHTML = '<strong>Raw response.Data:</strong>';
+                    parse.appendChild(dataDiv);
+                    
+                    const dataPre = document.createElement('pre');
+                    dataPre.textContent = typeof response.Data === 'string' ? response.Data : JSON.stringify(response.Data, null, 2);
+                    parse.appendChild(dataPre);
+                } else {
+                    log('parseLog', '❌ response.Data is UNDEFINED', 'error');
+                }
+                
+                // Show full response
+                const respDiv = document.createElement('div');
+                respDiv.innerHTML = '<strong>Full Parsed Response:</strong>';
+                parse.appendChild(respDiv);
+                
+                const respPre = document.createElement('pre');
+                respPre.textContent = JSON.stringify(response, null, 2);
+                parse.appendChild(respPre);
+                
+                // Detection check
+                log('parseLog', '=== DETECTION LOGIC CHECK ===', 'info');
+                const isSuccess = response.Status === 'success';
+                const hasMessage = !!response.Message;
+                const hasData = !!response.Data;
+                const messageHasProvider = response.Message && (response.Message.toLowerCase().includes('provider') || response.Message.toLowerCase().includes('configured'));
+                
+                log('parseLog', `Status === 'success': ${isSuccess}`, isSuccess ? 'success' : 'error');
+                log('parseLog', `Message exists: ${hasMessage}`, hasMessage ? 'success' : 'error');
+                log('parseLog', `Data exists: ${hasData}`, hasData ? 'success' : 'error');
+                log('parseLog', `Message contains 'provider' or 'configured': ${messageHasProvider}`, messageHasProvider ? 'success' : 'error');
+                
+                const shouldDetect = isSuccess && hasMessage && hasData && messageHasProvider;
+                log('parseLog', `SHOULD BE DETECTED AS PROVIDER LIST: ${shouldDetect}`, shouldDetect ? 'success' : 'error');
+                
+            } catch (e) {
+                log('parseLog', `❌ JSON.parse failed: ${e.message}`, 'error');
+                log('parseLog', `Error stack: ${e.stack}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

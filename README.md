@@ -2,6 +2,24 @@
 
 **DraCode** is an AI-powered coding agent CLI that leverages Large Language Models (LLMs) to autonomously perform coding tasks within a sandboxed workspace. It supports multiple LLM providers and provides tools for file manipulation, code search, and command execution.
 
+## 🌟 NEW: Multi-Agent WebSocket System
+
+DraCode now includes a **WebSocket server and modern TypeScript web client** that allows you to:
+- 🔄 **Connect to multiple LLM providers simultaneously** through a single WebSocket connection
+- 📊 **Compare responses** from different providers (OpenAI, Claude, Gemini, etc.) side-by-side
+- 🏃 **Run multiple agents in parallel**, each with independent conversation history
+- 🎯 **Switch between providers** using a tabbed interface
+- 🔐 **Secure configuration** with server-side API key management
+- 💎 **Modern tech stack**: TypeScript, ES modules, Flexbox CSS (zero dependencies!)
+
+**Quick Start:**
+```bash
+dotnet run --project DraCode.AppHost
+# Open http://localhost:5001 in your browser
+```
+
+📖 **Learn More**: [Multi-Agent System Summary](MULTI_AGENT_SYSTEM_SUMMARY.md) | [Web Client Modernization](WEB_CLIENT_MODERNIZATION_SUMMARY.md) | [Quick Start Guide](WEBSOCKET_QUICKSTART.md)
+
 ## 🚀 Features
 
 - **Multi-Provider LLM Support**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot
@@ -92,6 +110,43 @@ export OPENAI_API_KEY="sk-your-api-key"
 | **GitHub Copilot** | `GITHUB_CLIENT_ID` (OAuth) | gpt-4o, gpt-4-turbo | [Setup Guide](DraCode/GITHUB_OAUTH_SETUP.md) |
 
 ## 🎯 Usage
+
+### .NET Aspire (Recommended)
+
+Run both services with a single command using .NET Aspire:
+
+```bash
+dotnet run --project DraCode.AppHost
+```
+
+This will:
+- Start the WebSocket API server on port 5000
+- Start the Web Client on port 5001  
+- Launch the Aspire Dashboard for monitoring
+- Enable service discovery and telemetry
+
+See [DraCode.AppHost/README.md](DraCode.AppHost/README.md) for details.
+
+### Manual Startup
+
+Alternatively, run services separately:
+
+**Terminal 1 - Start WebSocket API:**
+```bash
+dotnet run --project DraCode.WebSocket
+```
+
+**Terminal 2 - Start Web Client:**
+```bash
+dotnet run --project DraCode.Web
+```
+
+**Open browser:** `http://localhost:5001`
+
+- **WebSocket API**: `ws://localhost:5000/ws` (DraCode.WebSocket)
+- **Web Client**: `http://localhost:5001` (DraCode.Web)
+
+See [DraCode.WebSocket/README.md](DraCode.WebSocket/README.md) for WebSocket API documentation and [DraCode.Web/README.md](DraCode.Web/README.md) for web client usage.
 
 ### Basic Usage
 
@@ -256,13 +311,19 @@ dotnet test
 
 ```
 DraCode/
-├── DraCode/              # Main CLI application
-├── DraCode.Agent/        # Agent library
-│   ├── Auth/            # OAuth implementation
-│   ├── LLMs/            # LLM provider implementations
-│   ├── Tools/           # Tool system
-│   └── Helpers/         # Utility classes
-└── TECHNICAL_SPECIFICATION.md
+├── DraCode/                  # Main CLI application
+├── DraCode.Agent/            # Agent library
+│   ├── Auth/                # OAuth implementation
+│   ├── LLMs/                # LLM provider implementations
+│   ├── Tools/               # Tool system
+│   └── Helpers/             # Utility classes
+├── DraCode.WebSocket/        # WebSocket API server
+│   ├── Models/              # WebSocket message models
+│   └── Services/            # Agent connection manager
+├── DraCode.Web/              # Web client UI
+│   └── wwwroot/             # Static web assets
+├── DraCode.AppHost/          # .NET Aspire orchestration
+└── DraCode.ServiceDefaults/  # Shared Aspire configuration
 ```
 
 ## 🤝 Contributing

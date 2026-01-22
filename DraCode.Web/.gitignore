@@ -1,0 +1,4 @@
+node_modules/
+wwwroot/js/
+*.log
+.DS_Store
