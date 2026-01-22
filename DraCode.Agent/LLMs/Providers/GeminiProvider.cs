@@ -37,16 +37,16 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.Error.WriteLine($"Gemini API Error: {response.StatusCode}");
-                    Console.Error.WriteLine($"Response: {responseJson}");
+                    SendMessage("error", $"Gemini API Error: {response.StatusCode}");
+                    SendMessage("error", $"Response: {responseJson}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
 
-                return ParseResponse(responseJson);
+                return ParseResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error calling Gemini API: {ex.Message}");
+                SendMessage("error", $"Error calling Gemini API: {ex.Message}");
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }
@@ -193,7 +193,7 @@ namespace DraCode.Agent.LLMs.Providers
             return payload;
         }
 
-        private static LlmResponse ParseResponse(string responseJson)
+        private static LlmResponse ParseResponse(string responseJson, Action<string, string>? messageCallback = null)
         {
             try
             {
@@ -204,7 +204,7 @@ namespace DraCode.Agent.LLMs.Providers
                 if (result.TryGetProperty("error", out var error))
                 {
                     var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
-                    Console.Error.WriteLine($"Gemini API returned error: {errorMessage}");
+                    messageCallback?.Invoke("error", $"Gemini API returned error: {errorMessage}");
                     llmResponse.StopReason = "error";
                     return llmResponse;
                 }
@@ -220,7 +220,7 @@ namespace DraCode.Agent.LLMs.Providers
                         if (reason == "SAFETY" || reason == "RECITATION")
                         {
                             llmResponse.StopReason = "error";
-                            Console.Error.WriteLine($"Gemini blocked response: {reason}");
+                            messageCallback?.Invoke("error", $"Gemini blocked response: {reason}");
                             return llmResponse;
                         }
                     }
@@ -270,7 +270,7 @@ namespace DraCode.Agent.LLMs.Providers
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error parsing Gemini response: {ex.Message}");
+                messageCallback?.Invoke("error", $"Error parsing Gemini response: {ex.Message}");
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }

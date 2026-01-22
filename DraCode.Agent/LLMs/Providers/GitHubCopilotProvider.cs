@@ -83,16 +83,16 @@ namespace DraCode.Agent.LLMs.Providers
                 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.Error.WriteLine($"GitHub Copilot API Error: {response.StatusCode}");
-                    Console.Error.WriteLine($"Response: {responseJson}");
+                    SendMessage("error", $"GitHub Copilot API Error: {response.StatusCode}");
+                    SendMessage("error", $"Response: {responseJson}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
                 
-                return ParseOpenAiStyleResponse(responseJson);
+                return ParseOpenAiStyleResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error calling GitHub Copilot API: {ex.Message}");
+                SendMessage("error", $"Error calling GitHub Copilot API: {ex.Message}");
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }

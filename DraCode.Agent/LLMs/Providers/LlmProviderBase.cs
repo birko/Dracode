@@ -10,6 +10,11 @@ namespace DraCode.Agent.LLMs.Providers
 
         public abstract Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt);
 
+        protected void SendMessage(string type, string message)
+        {
+            MessageCallback?.Invoke(type, message);
+        }
+
         // Abstract method that each provider implements based on their configuration needs
         protected abstract bool IsConfigured();
 
@@ -100,7 +105,7 @@ namespace DraCode.Agent.LLMs.Providers
             function = new { name = t.Name, description = t.Description, parameters = t.InputSchema }
         }).ToList();
 
-        protected static LlmResponse ParseOpenAiStyleResponse(string responseJson)
+        protected static LlmResponse ParseOpenAiStyleResponse(string responseJson, Action<string, string>? messageCallback = null)
         {
             try
             {
@@ -111,7 +116,7 @@ namespace DraCode.Agent.LLMs.Providers
                 {
                     var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
                     var errorType = error.TryGetProperty("type", out var type) ? type.GetString() : "unknown";
-                    Console.Error.WriteLine($"API returned error: {errorType} - {errorMessage}");
+                    messageCallback?.Invoke("error", $"API returned error: {errorType} - {errorMessage}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
                 
@@ -150,8 +155,8 @@ namespace DraCode.Agent.LLMs.Providers
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error parsing OpenAI-style response: {ex.Message}");
-                Console.Error.WriteLine($"Response: {responseJson}");
+                messageCallback?.Invoke("error", $"Error parsing OpenAI-style response: {ex.Message}");
+                messageCallback?.Invoke("error", $"Response: {responseJson}");
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }

@@ -21,7 +21,6 @@ namespace DraCode.Agent.Auth
         private void SendMessage(string type, string message)
         {
             _messageCallback?.Invoke(type, message);
-            Console.WriteLine(message); // Also write to console for non-WebSocket scenarios
         }
 
         public async Task<TokenInfo?> GetValidTokenAsync(bool forceRefresh = false)

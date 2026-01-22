@@ -43,8 +43,8 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.Error.WriteLine($"Ollama API Error: {response.StatusCode}");
-                    Console.Error.WriteLine($"Response: {responseJson}");
+                    SendMessage("error", $"Ollama API Error: {response.StatusCode}");
+                    SendMessage("error", $"Response: {responseJson}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
 
@@ -52,7 +52,7 @@ namespace DraCode.Agent.LLMs.Providers
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error calling Ollama API: {ex.Message}");
+                SendMessage("error", $"Error calling Ollama API: {ex.Message}");
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }

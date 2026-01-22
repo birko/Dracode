@@ -42,16 +42,16 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.Error.WriteLine($"OpenAI API Error: {response.StatusCode}");
-                    Console.Error.WriteLine($"Response: {responseJson}");
+                    SendMessage("error", $"OpenAI API Error: {response.StatusCode}");
+                    SendMessage("error", $"Response: {responseJson}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
 
-                return ParseOpenAiStyleResponse(responseJson);
+                return ParseOpenAiStyleResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error calling OpenAI API: {ex.Message}");
+                SendMessage("error", $"Error calling OpenAI API: {ex.Message}");
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }

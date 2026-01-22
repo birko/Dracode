@@ -38,16 +38,16 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.Error.WriteLine($"Claude API Error: {response.StatusCode}");
-                    Console.Error.WriteLine($"Response: {responseJson}");
+                    SendMessage("error", $"Claude API Error: {response.StatusCode}");
+                    SendMessage("error", $"Response: {responseJson}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
 
-                return ParseResponse(responseJson);
+                return ParseResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error calling Claude API: {ex.Message}");
+                SendMessage("error", $"Error calling Claude API: {ex.Message}");
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }
@@ -97,7 +97,7 @@ namespace DraCode.Agent.LLMs.Providers
             };
         }
 
-        private static LlmResponse ParseResponse(string responseJson)
+        private static LlmResponse ParseResponse(string responseJson, Action<string, string>? messageCallback = null)
         {
             try
             {
@@ -108,7 +108,7 @@ namespace DraCode.Agent.LLMs.Providers
                 {
                     var errorType = error.TryGetProperty("type", out var type) ? type.GetString() : "unknown";
                     var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
-                    Console.Error.WriteLine($"Claude API returned error: {errorType} - {errorMessage}");
+                    messageCallback?.Invoke("error", $"Claude API returned error: {errorType} - {errorMessage}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
                 
@@ -148,8 +148,8 @@ namespace DraCode.Agent.LLMs.Providers
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error parsing Claude response: {ex.Message}");
-                Console.Error.WriteLine($"Response: {responseJson}");
+                messageCallback?.Invoke("error", $"Error parsing Claude response: {ex.Message}");
+                messageCallback?.Invoke("error", $"Response: {responseJson}");
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }
