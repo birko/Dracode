@@ -10,7 +10,8 @@ namespace DraCode.Agent.LLMs.Providers
         private readonly HttpClient _httpClient;
         private readonly string _model;
         private readonly string _baseUrl;
-        private readonly GitHubOAuthService _oauthService;
+        private readonly string _clientId;
+        private GitHubOAuthService _oauthService;
         private TokenInfo? _currentToken;
 
         public override string Name => "GitHub Copilot";
@@ -20,14 +21,24 @@ namespace DraCode.Agent.LLMs.Providers
             string model = "gpt-4o", 
             string baseUrl = "https://api.githubcopilot.com/chat/completions")
         {
+            _clientId = clientId;
             _model = model;
             _baseUrl = baseUrl;
             _httpClient = new HttpClient();
-            _oauthService = new GitHubOAuthService(clientId);
+            _oauthService = new GitHubOAuthService(clientId, messageCallback: MessageCallback);
+        }
+
+        private GitHubOAuthService GetOAuthService()
+        {
+            // Recreate the OAuth service with current callback if it has changed
+            return new GitHubOAuthService(_clientId, messageCallback: MessageCallback);
         }
 
         public override async Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
         {
+            // Update OAuth service with current callback
+            _oauthService = GetOAuthService();
+            
             if (!await EnsureAuthenticatedAsync())
             {
                 return NotConfigured();

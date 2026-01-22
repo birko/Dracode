@@ -8,12 +8,20 @@ namespace DraCode.Agent.Auth
         private readonly HttpClient _httpClient;
         private readonly string _clientId;
         private readonly TokenStorage _tokenStorage;
+        private readonly Action<string, string>? _messageCallback;
 
-        public GitHubOAuthService(string clientId, TokenStorage? tokenStorage = null)
+        public GitHubOAuthService(string clientId, TokenStorage? tokenStorage = null, Action<string, string>? messageCallback = null)
         {
             _clientId = clientId;
             _httpClient = new HttpClient();
             _tokenStorage = tokenStorage ?? new TokenStorage();
+            _messageCallback = messageCallback;
+        }
+
+        private void SendMessage(string type, string message)
+        {
+            _messageCallback?.Invoke(type, message);
+            Console.WriteLine(message); // Also write to console for non-WebSocket scenarios
         }
 
         public async Task<TokenInfo?> GetValidTokenAsync(bool forceRefresh = false)
@@ -38,20 +46,20 @@ namespace DraCode.Agent.Auth
 
         public async Task<TokenInfo?> AuthenticateAsync()
         {
-            Console.WriteLine("Initiating GitHub OAuth Device Flow...");
+            SendMessage("display", "Initiating GitHub OAuth Device Flow...");
 
             // Step 1: Request device code
             var deviceCodeResponse = await RequestDeviceCodeAsync();
             if (deviceCodeResponse == null)
             {
-                Console.WriteLine("Failed to initiate device flow.");
+                SendMessage("error", "Failed to initiate device flow.");
                 return null;
             }
 
             // Step 2: Display user code and prompt user to authorize
-            Console.WriteLine($"\nPlease visit: {deviceCodeResponse.VerificationUri}");
-            Console.WriteLine($"And enter code: {deviceCodeResponse.UserCode}\n");
-            Console.WriteLine("Waiting for authorization...");
+            SendMessage("display", $"\nPlease visit: {deviceCodeResponse.VerificationUri}");
+            SendMessage("display", $"And enter code: {deviceCodeResponse.UserCode}\n");
+            SendMessage("display", "Waiting for authorization...");
 
             // Step 3: Poll for token
             var token = await PollForTokenAsync(deviceCodeResponse.DeviceCode, deviceCodeResponse.Interval);
@@ -59,7 +67,7 @@ namespace DraCode.Agent.Auth
             if (token != null)
             {
                 await _tokenStorage.SaveTokenAsync(token);
-                Console.WriteLine("✓ Authentication successful!");
+                SendMessage("display", "✓ Authentication successful!");
             }
 
             return token;
@@ -84,8 +92,8 @@ namespace DraCode.Agent.Auth
                 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"GitHub API Error: {response.StatusCode}");
-                    Console.WriteLine($"Response: {json}");
+                    SendMessage("error", $"GitHub API Error: {response.StatusCode}");
+                    SendMessage("error", $"Response: {json}");
                     return null;
                 }
                 
@@ -94,10 +102,10 @@ namespace DraCode.Agent.Auth
                 // Check for error in response
                 if (data.TryGetProperty("error", out var error))
                 {
-                    Console.WriteLine($"GitHub OAuth Error: {error.GetString()}");
+                    SendMessage("error", $"GitHub OAuth Error: {error.GetString()}");
                     if (data.TryGetProperty("error_description", out var desc))
                     {
-                        Console.WriteLine($"Description: {desc.GetString()}");
+                        SendMessage("error", $"Description: {desc.GetString()}");
                     }
                     return null;
                 }
@@ -112,7 +120,7 @@ namespace DraCode.Agent.Auth
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception requesting device code: {ex.Message}");
+                SendMessage("error", $"Exception requesting device code: {ex.Message}");
                 return null;
             }
         }
@@ -149,7 +157,7 @@ namespace DraCode.Agent.Auth
                         var errorType = error.GetString();
                         if (errorType == "authorization_pending")
                         {
-                            Console.Write(".");
+                            // Don't spam with dots - just continue waiting
                             continue;
                         }
                         else if (errorType == "slow_down")
@@ -159,7 +167,7 @@ namespace DraCode.Agent.Auth
                         }
                         else
                         {
-                            Console.WriteLine($"\nError: {errorType}");
+                            SendMessage("error", $"Error: {errorType}");
                             return null;
                         }
                     }
@@ -184,7 +192,7 @@ namespace DraCode.Agent.Auth
                 }
             }
 
-            Console.WriteLine("\nTimeout waiting for authorization.");
+            SendMessage("error", "Timeout waiting for authorization.");
             return null;
         }
 
@@ -238,7 +246,7 @@ namespace DraCode.Agent.Auth
         public void Logout()
         {
             _tokenStorage.DeleteToken();
-            Console.WriteLine("Logged out successfully.");
+            SendMessage("display", "Logged out successfully.");
         }
 
         private class DeviceCodeResponse

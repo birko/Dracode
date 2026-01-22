@@ -6,6 +6,7 @@ namespace DraCode.Agent.LLMs.Providers
     public abstract class LlmProviderBase : ILlmProvider
     {
         public abstract string Name { get; }
+        public Action<string, string>? MessageCallback { get; set; }
 
         public abstract Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt);
 

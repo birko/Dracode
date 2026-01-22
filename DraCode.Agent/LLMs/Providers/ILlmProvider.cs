@@ -6,5 +6,6 @@ namespace DraCode.Agent.LLMs.Providers
     {
         Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt);
         string Name { get; }
+        Action<string, string>? MessageCallback { get; set; }
     }
 }

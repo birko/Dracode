@@ -20,6 +20,9 @@ namespace DraCode.Agent.Agents
             _verbose = verbose;
             _messageCallback = messageCallback;
             
+            // Set callback on provider
+            _llmProvider.MessageCallback = messageCallback;
+            
             // Set callback on all tools
             foreach (var tool in _tools)
             {
@@ -30,6 +33,9 @@ namespace DraCode.Agent.Agents
         public void SetMessageCallback(Action<string, string>? callback)
         {
             _messageCallback = callback;
+            
+            // Update callback on provider
+            _llmProvider.MessageCallback = callback;
             
             // Update callback on all tools
             foreach (var tool in _tools)
