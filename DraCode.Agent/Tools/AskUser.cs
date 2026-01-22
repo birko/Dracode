@@ -1,5 +1,3 @@
-using Spectre.Console;
-
 namespace DraCode.Agent.Tools
 {
     public class AskUser : Tool
@@ -27,6 +25,8 @@ namespace DraCode.Agent.Tools
             required = new[] { "question" }
         };
 
+        public Func<string, string, Task<string>>? PromptCallback { get; set; }
+
         public override string Execute(string workingDirectory, Dictionary<string, object> input)
         {
             try
@@ -37,40 +37,30 @@ namespace DraCode.Agent.Tools
                 if (string.IsNullOrWhiteSpace(question))
                     return "Error: question parameter is required";
 
-                // Create a styled panel for the question
-                var panelContent = new Markup($"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question ?? "")}[/]");
+                // If we have a prompt callback (WebSocket mode), use it
+                if (PromptCallback != null)
+                {
+                    var fullPrompt = string.IsNullOrWhiteSpace(context) 
+                        ? question 
+                        : $"Context: {context}\n\nQuestion: {question}";
+                    
+                    SendMessage("prompt", fullPrompt ?? "");
+                    
+                    // This will block until user responds via WebSocket
+                    var response = PromptCallback(question ?? "", context ?? "").GetAwaiter().GetResult();
+                    return response;
+                }
+
+                // Console/callback mode - just send the prompt message
+                var promptMsg = string.IsNullOrWhiteSpace(context)
+                    ? $"Question: {question}"
+                    : $"Context: {context}\n\nQuestion: {question}";
                 
-                if (!string.IsNullOrWhiteSpace(context))
-                {
-                    panelContent = new Markup(
-                        $"[dim]💡 Context:[/] [grey]{Markup.Escape(context)}[/]\n\n" +
-                        $"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question ?? "")}[/]");
-                }
-
-                var panel = new Panel(panelContent)
-                {
-                    Border = BoxBorder.Double,
-                    BorderStyle = new Style(Color.Cyan1),
-                    Header = new PanelHeader("[bold yellow]🤔 Agent Needs Your Input[/]", Justify.Center),
-                    Padding = new Padding(2, 1)
-                };
-
-                AnsiConsole.Write(panel);
-                AnsiConsole.WriteLine();
-
-                // Read user input with a nice prompt
-                var userResponse = AnsiConsole.Ask<string>("[bold green]Your answer:[/]");
-
-                if (string.IsNullOrWhiteSpace(userResponse))
-                {
-                    return "User provided no response (empty input)";
-                }
-
-                // Show confirmation
-                AnsiConsole.MarkupLine($"[dim]✓ Received:[/] [white]{Markup.Escape(userResponse)}[/]");
-                AnsiConsole.WriteLine();
-
-                return userResponse;
+                SendMessage("prompt_console", promptMsg);
+                
+                // In console mode without AnsiConsole, we can't actually get input
+                // The host application (Program.cs) should handle this
+                return "Error: Console input not available in library mode. Use PromptCallback for interactive prompts.";
             }
             catch (Exception ex)
             {

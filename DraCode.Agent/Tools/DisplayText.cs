@@ -1,5 +1,3 @@
-using Spectre.Console;
-
 namespace DraCode.Agent.Tools
 {
     public class DisplayText : Tool
@@ -37,20 +35,11 @@ namespace DraCode.Agent.Tools
                 if (string.IsNullOrWhiteSpace(text))
                     return "Error: text parameter is required";
 
-                var panel = new Panel(new Markup($"[white]{Markup.Escape(text ?? "")}[/]"))
-                {
-                    Border = BoxBorder.Rounded,
-                    BorderStyle = new Style(Color.Blue),
-                    Padding = new Padding(2, 1)
-                };
-
-                if (!string.IsNullOrWhiteSpace(title))
-                {
-                    panel.Header = new PanelHeader($"📋 [bold blue]{Markup.Escape(title)}[/]", Justify.Left);
-                }
-
-                AnsiConsole.Write(panel);
-                AnsiConsole.WriteLine();
+                // Send message via callback
+                var displayMsg = string.IsNullOrWhiteSpace(title) 
+                    ? text 
+                    : $"{title}\n{text}";
+                SendMessage("display", displayMsg ?? "");
 
                 return "Text displayed successfully";
             }

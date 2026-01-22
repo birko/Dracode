@@ -6,6 +6,13 @@ namespace DraCode.Agent.Tools
         public abstract string Description { get; }
         public abstract object? InputSchema { get; }
 
+        public Action<string, string>? MessageCallback { get; set; }
+
         public abstract string Execute(string workingDirectory, Dictionary<string, object> input);
+        
+        protected void SendMessage(string type, string content)
+        {
+            MessageCallback?.Invoke(type, content);
+        }
     }
 }

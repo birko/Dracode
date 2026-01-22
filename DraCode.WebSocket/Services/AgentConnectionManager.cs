@@ -96,6 +96,10 @@ namespace DraCode.WebSocket.Services
                         await HandleSendAsync(connectionId, webSocket, request);
                         break;
 
+                    case "prompt_response":
+                        await HandlePromptResponseAsync(connectionId, webSocket, request);
+                        break;
+
                     default:
                         await SendResponseAsync(webSocket, new WebSocketResponse
                         {
@@ -251,6 +255,9 @@ namespace DraCode.WebSocket.Services
                 var connection = new AgentConnection(agent, webSocket, request.AgentId);
                 _agents[agentKey] = connection;
 
+                // Set up message streaming callback
+                SetupAgentCallbacks(connection);
+
                 _logger.LogInformation("Agent created: {AgentId} for connection {ConnectionId} with provider {Provider}", 
                     request.AgentId, connectionId, provider);
 
@@ -378,6 +385,9 @@ namespace DraCode.WebSocket.Services
 
                     var newAgent = AgentFactory.Create(provider, workingDirectory, verbose, mergedConfig);
                     existingConnection.Agent = newAgent;
+
+                    // Set up message streaming callback for new agent
+                    SetupAgentCallbacks(existingConnection);
 
                     _logger.LogInformation("Agent {AgentId} reset for connection {ConnectionId}", 
                         request.AgentId, connectionId);
@@ -521,6 +531,108 @@ namespace DraCode.WebSocket.Services
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }
 
+        private void SetupAgentCallbacks(AgentConnection connection)
+        {
+            // Set up message streaming callback
+            connection.Agent.SetMessageCallback((messageType, content) =>
+            {
+                // Send streaming message to client
+                var response = new WebSocketResponse
+                {
+                    Status = "stream",
+                    MessageType = messageType,
+                    Message = content,
+                    AgentId = connection.AgentId
+                };
+
+                // Send asynchronously without blocking
+                _ = SendResponseAsync(connection.WebSocket, response);
+            });
+
+            // Set up prompt callback for AskUser tool
+            var askUserTool = connection.Agent.Tools.OfType<DraCode.Agent.Tools.AskUser>().FirstOrDefault();
+            if (askUserTool != null)
+            {
+                askUserTool.PromptCallback = async (question, context) =>
+                {
+                    var promptId = Guid.NewGuid().ToString();
+                    var tcs = new TaskCompletionSource<string>();
+                    connection.PendingPrompts[promptId] = tcs;
+
+                    // Send prompt to client
+                    await SendResponseAsync(connection.WebSocket, new WebSocketResponse
+                    {
+                        Status = "prompt",
+                        MessageType = "prompt",
+                        Message = question,
+                        Data = context,
+                        PromptId = promptId,
+                        AgentId = connection.AgentId
+                    });
+
+                    // Wait for user response (with timeout)
+                    var timeoutTask = Task.Delay(TimeSpan.FromMinutes(5));
+                    var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+
+                    if (completedTask == timeoutTask)
+                    {
+                        connection.PendingPrompts.TryRemove(promptId, out _);
+                        return "User did not respond within timeout period";
+                    }
+
+                    connection.PendingPrompts.TryRemove(promptId, out _);
+                    return await tcs.Task;
+                };
+            }
+        }
+
+        private async Task HandlePromptResponseAsync(string connectionId, System.Net.WebSockets.WebSocket webSocket, WebSocketMessage request)
+        {
+            if (string.IsNullOrEmpty(request.AgentId) || string.IsNullOrEmpty(request.PromptId))
+            {
+                await SendResponseAsync(webSocket, new WebSocketResponse
+                {
+                    Status = "error",
+                    Error = "AgentId and PromptId are required for prompt_response command"
+                });
+                return;
+            }
+
+            var agentKey = GetAgentKey(connectionId, request.AgentId);
+            
+            if (!_agents.TryGetValue(agentKey, out var connection))
+            {
+                await SendResponseAsync(webSocket, new WebSocketResponse
+                {
+                    Status = "error",
+                    Error = $"No agent found with ID: {request.AgentId}",
+                    AgentId = request.AgentId
+                });
+                return;
+            }
+
+            if (connection.PendingPrompts.TryGetValue(request.PromptId, out var tcs))
+            {
+                tcs.SetResult(request.Data ?? "");
+                
+                await SendResponseAsync(webSocket, new WebSocketResponse
+                {
+                    Status = "success",
+                    Message = "Prompt response received",
+                    AgentId = request.AgentId
+                });
+            }
+            else
+            {
+                await SendResponseAsync(webSocket, new WebSocketResponse
+                {
+                    Status = "error",
+                    Error = $"No pending prompt found with ID: {request.PromptId}",
+                    AgentId = request.AgentId
+                });
+            }
+        }
+
         private async Task DisconnectAllAgentsForConnection(string connectionId, System.Net.WebSockets.WebSocket webSocket)
         {
             var agentsToRemove = _agents.Keys.Where(k => k.StartsWith($"{connectionId}:")).ToList();
@@ -546,6 +658,7 @@ namespace DraCode.WebSocket.Services
         public DraCode.Agent.Agents.Agent Agent { get; set; }
         public System.Net.WebSockets.WebSocket WebSocket { get; }
         public string AgentId { get; }
+        public ConcurrentDictionary<string, TaskCompletionSource<string>> PendingPrompts { get; } = new();
 
         public AgentConnection(DraCode.Agent.Agents.Agent agent, System.Net.WebSockets.WebSocket webSocket, string agentId)
         {

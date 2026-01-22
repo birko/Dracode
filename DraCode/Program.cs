@@ -2,6 +2,113 @@ using DraCode.Agent.Agents;
 using Spectre.Console;
 using System.Text.Json;
 
+// Helper to render streaming messages with AnsiConsole
+static void RenderMessage(string messageType, string content)
+{
+    switch (messageType)
+    {
+        case "info":
+            if (content.StartsWith("ITERATION"))
+            {
+                AnsiConsole.Write(new Rule($"[bold cyan]{Markup.Escape(content)}[/]")
+                {
+                    Justification = Justify.Left
+                });
+            }
+            else if (content.StartsWith("Stop reason:"))
+            {
+                var stopReason = content.Replace("Stop reason:", "").Trim();
+                var stopReasonColor = stopReason switch
+                {
+                    "tool_use" => "yellow",
+                    "end_turn" => "green",
+                    "error" => "red",
+                    _ => "grey"
+                };
+                AnsiConsole.MarkupLine($"[dim]Stop reason:[/] [{stopReasonColor}]{Markup.Escape(stopReason)}[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[dim]{Markup.Escape(content)}[/]");
+            }
+            break;
+
+        case "tool_call":
+            var toolPanel = new Panel(new Markup($"[white]{Markup.Escape(content)}[/]"))
+            {
+                Border = BoxBorder.Rounded,
+                BorderStyle = new Style(Color.Yellow),
+                Header = new PanelHeader("🔧 [yellow]Tool Call[/]", Justify.Left)
+            };
+            AnsiConsole.Write(toolPanel);
+            break;
+
+        case "tool_result":
+            var isError = content.Contains("Error:", StringComparison.OrdinalIgnoreCase);
+            var resultPanel = new Panel(new Markup($"[{(isError ? "red" : "green")}]{Markup.Escape(content)}[/]"))
+            {
+                Border = BoxBorder.Rounded,
+                BorderStyle = new Style(isError ? Color.Red : Color.Green),
+                Header = new PanelHeader("📋 [white]Result[/]", Justify.Left)
+            };
+            AnsiConsole.Write(resultPanel);
+            break;
+
+        case "assistant":
+            var assistantPanel = new Panel(new Markup($"[white]{Markup.Escape(content)}[/]"))
+            {
+                Border = BoxBorder.Rounded,
+                BorderStyle = new Style(Color.Cyan1),
+                Header = new PanelHeader("💬 [cyan]Assistant[/]", Justify.Left)
+            };
+            AnsiConsole.Write(assistantPanel);
+            break;
+
+        case "assistant_final":
+            var finalPanel = new Panel(new Markup($"[white]{Markup.Escape(content)}[/]"))
+            {
+                Border = BoxBorder.Double,
+                BorderStyle = new Style(Color.Green),
+                Header = new PanelHeader("💬 [green]Assistant[/]", Justify.Left)
+            };
+            AnsiConsole.Write(finalPanel);
+            break;
+
+        case "display":
+            var lines = content.Split('\n', 2);
+            var displayPanel = new Panel(new Markup($"[white]{Markup.Escape(lines.Length > 1 ? lines[1] : content)}[/]"))
+            {
+                Border = BoxBorder.Rounded,
+                BorderStyle = new Style(Color.Blue),
+                Padding = new Padding(2, 1)
+            };
+            if (lines.Length > 1)
+            {
+                displayPanel.Header = new PanelHeader($"📋 [bold blue]{Markup.Escape(lines[0])}[/]", Justify.Left);
+            }
+            AnsiConsole.Write(displayPanel);
+            AnsiConsole.WriteLine();
+            break;
+
+        case "warning":
+            AnsiConsole.MarkupLine($"[yellow]⚠️  {Markup.Escape(content)}[/]");
+            break;
+
+        case "error":
+            AnsiConsole.MarkupLine($"[red]❌ {Markup.Escape(content)}[/]");
+            break;
+
+        case "prompt_console":
+            // This is handled by the PromptCallback, just log that we received it
+            AnsiConsole.MarkupLine($"[dim]Prompt request: {Markup.Escape(content)}[/]");
+            break;
+
+        default:
+            AnsiConsole.MarkupLine($"[dim][{messageType}] {Markup.Escape(content)}[/]");
+            break;
+    }
+}
+
 // Helpers to keep parsing simple and DRY
 static string GetString(JsonElement parent, string name, string fallback = "")
     => parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(name, out var el)
@@ -292,6 +399,55 @@ if (resolvedTasks.Count > 0)
         
         // Create new agent instance for this task
         var agent = AgentFactory.Create(type, workingDirectory, verbose, providerConfig);
+        
+        // Set up message callback to render with AnsiConsole
+        agent.SetMessageCallback((messageType, content) =>
+        {
+            RenderMessage(messageType, content);
+        });
+        
+        // Set up AskUser prompt handler for console mode
+        var askUserTool = agent.Tools.OfType<DraCode.Agent.Tools.AskUser>().FirstOrDefault();
+        if (askUserTool != null)
+        {
+            askUserTool.PromptCallback = async (question, context) =>
+            {
+                // Display prompt with AnsiConsole
+                var panelContent = new Markup($"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question)}[/]");
+                
+                if (!string.IsNullOrWhiteSpace(context))
+                {
+                    panelContent = new Markup(
+                        $"[dim]💡 Context:[/] [grey]{Markup.Escape(context)}[/]\n\n" +
+                        $"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question)}[/]");
+                }
+
+                var panel = new Panel(panelContent)
+                {
+                    Border = BoxBorder.Double,
+                    BorderStyle = new Style(Color.Cyan1),
+                    Header = new PanelHeader("[bold yellow]🤔 Agent Needs Your Input[/]", Justify.Center),
+                    Padding = new Padding(2, 1)
+                };
+
+                AnsiConsole.Write(panel);
+                AnsiConsole.WriteLine();
+
+                // Read user input
+                var userResponse = AnsiConsole.Ask<string>("[bold green]Your answer:[/]");
+
+                if (string.IsNullOrWhiteSpace(userResponse))
+                {
+                    return "User provided no response (empty input)";
+                }
+
+                // Show confirmation
+                AnsiConsole.MarkupLine($"[dim]✓ Received:[/] [white]{Markup.Escape(userResponse)}[/]");
+                AnsiConsole.WriteLine();
+
+                return await Task.FromResult(userResponse);
+            };
+        }
         
         try
         {

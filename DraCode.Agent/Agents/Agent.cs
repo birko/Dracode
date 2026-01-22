@@ -1,6 +1,5 @@
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
-using Spectre.Console;
 using System.Text.Json;
 
 namespace DraCode.Agent.Agents
@@ -11,13 +10,37 @@ namespace DraCode.Agent.Agents
         private readonly string _workingDirectory;
         private readonly List<Tool> _tools;
         private readonly bool _verbose;
+        private Action<string, string>? _messageCallback;
 
-        protected Agent(ILlmProvider llmProvider, string workingDirectory, bool verbose = true)
+        protected Agent(ILlmProvider llmProvider, string workingDirectory, bool verbose = true, Action<string, string>? messageCallback = null)
         {
             _llmProvider = llmProvider ?? throw new ArgumentNullException(nameof(llmProvider));
             _workingDirectory = workingDirectory;
             _tools = CreateTools();
             _verbose = verbose;
+            _messageCallback = messageCallback;
+            
+            // Set callback on all tools
+            foreach (var tool in _tools)
+            {
+                tool.MessageCallback = messageCallback;
+            }
+        }
+
+        public void SetMessageCallback(Action<string, string>? callback)
+        {
+            _messageCallback = callback;
+            
+            // Update callback on all tools
+            foreach (var tool in _tools)
+            {
+                tool.MessageCallback = callback;
+            }
+        }
+
+        protected void SendMessage(string type, string content)
+        {
+            _messageCallback?.Invoke(type, content);
         }
 
         // Abstract property that derived classes must implement
@@ -55,24 +78,14 @@ namespace DraCode.Agent.Agents
             {
                 if (_verbose)
                 {
-                    AnsiConsole.Write(new Rule($"[bold cyan]ITERATION {iteration}[/]")
-                    {
-                        Justification = Justify.Left
-                    });
+                    SendMessage("info", $"ITERATION {iteration}");
                 }
 
                 var response = await _llmProvider.SendMessageAsync(conversation, _tools, SystemPrompt);
 
                 if (_verbose)
                 {
-                    var stopReasonColor = response.StopReason switch
-                    {
-                        "tool_use" => "yellow",
-                        "end_turn" => "green",
-                        "error" => "red",
-                        _ => "grey"
-                    };
-                    AnsiConsole.MarkupLine($"[dim]Stop reason:[/] [{stopReasonColor}]{response.StopReason}[/]");
+                    SendMessage("info", $"Stop reason: {response.StopReason}");
                 }
 
                 // Add assistant response to conversation
@@ -92,18 +105,8 @@ namespace DraCode.Agent.Agents
 
                         foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "tool_use"))
                         {
-                            if (_verbose)
-                            {
-                                var toolPanel = new Panel(
-                                    new Markup($"[bold yellow]Tool:[/] [cyan]{Markup.Escape(block.Name ?? "unknown")}[/]\n" +
-                                              $"[bold yellow]Input:[/] [dim]{Markup.Escape(JsonSerializer.Serialize(block.Input))}[/]"))
-                                {
-                                    Border = BoxBorder.Rounded,
-                                    BorderStyle = new Style(Color.Yellow),
-                                    Header = new PanelHeader("🔧 [yellow]Tool Call[/]", Justify.Left)
-                                };
-                                AnsiConsole.Write(toolPanel);
-                            }
+                            var toolCallMsg = $"Tool: {block.Name}\nInput: {JsonSerializer.Serialize(block.Input)}";
+                            SendMessage("tool_call", toolCallMsg);
 
                             var tool = _tools.FirstOrDefault(t => t.Name == block.Name);
                             var result = tool != null
@@ -116,19 +119,8 @@ namespace DraCode.Agent.Agents
                                 hasErrors = true;
                             }
 
-                            if (_verbose)
-                            {
-                                var preview = result.Length > 500 ? string.Concat(result.AsSpan(0, 500), "...") : result;
-                                var resultColor = result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) ? "red" : "green";
-                                var resultPanel = new Panel(
-                                    new Markup($"[{resultColor}]{Markup.Escape(preview)}[/]"))
-                                {
-                                    Border = BoxBorder.Rounded,
-                                    BorderStyle = new Style(result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) ? Color.Red : Color.Green),
-                                    Header = new PanelHeader("📋 [white]Result[/]", Justify.Left)
-                                };
-                                AnsiConsole.Write(resultPanel);
-                            }
+                            var preview = result.Length > 500 ? string.Concat(result.AsSpan(0, 500), "...") : result;
+                            SendMessage("tool_result", $"Result from {block.Name}:\n{preview}");
 
                             toolResults.Add(new
                             {
@@ -149,21 +141,14 @@ namespace DraCode.Agent.Agents
                         {
                             foreach (var block in (response.Content ?? []).Where(b => b.Type == "text"))
                             {
-                                var messagePanel = new Panel(
-                                    new Markup($"[white]{Markup.Escape(block.Text ?? "")}[/]"))
-                                {
-                                    Border = BoxBorder.Rounded,
-                                    BorderStyle = new Style(Color.Cyan1),
-                                    Header = new PanelHeader($"💬 [cyan]{Markup.Escape(_llmProvider.Name)}[/]", Justify.Left)
-                                };
-                                AnsiConsole.Write(messagePanel);
+                                SendMessage("assistant", block.Text ?? "");
                             }
                         }
 
                         // If we hit max iterations after tool calls, warn and stop
                         if (iteration >= maxIterations)
                         {
-                            AnsiConsole.MarkupLine($"\n[yellow]⚠️  Maximum iterations ({maxIterations}) reached. Task may be incomplete.[/]");
+                            SendMessage("warning", $"Maximum iterations ({maxIterations}) reached. Task may be incomplete.");
                             return conversation;
                         }
 
@@ -173,23 +158,16 @@ namespace DraCode.Agent.Agents
                         {
                             if (_verbose)
                             {
-                                AnsiConsole.MarkupLine("\n[yellow]⚠️  All tool executions failed. Giving agent one final response...[/]");
+                                SendMessage("warning", "All tool executions failed. Giving agent one final response...");
                             }
                         }
                         break;
 
                     case "end_turn":
-                        // Agent finished - print response and exit
+                        // Agent finished - send response
                         foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "text"))
                         {
-                            var messagePanel = new Panel(
-                                new Markup($"[white]{Markup.Escape(block.Text ?? "")}[/]"))
-                            {
-                                Border = BoxBorder.Double,
-                                BorderStyle = new Style(Color.Green),
-                                Header = new PanelHeader($"💬 [green]{Markup.Escape(_llmProvider.Name)}[/]", Justify.Left)
-                            };
-                            AnsiConsole.Write(messagePanel);
+                            SendMessage("assistant_final", block.Text ?? "");
                         }
                         return conversation;
 
@@ -197,20 +175,20 @@ namespace DraCode.Agent.Agents
                         // Error occurred - stop immediately
                         if (_verbose)
                         {
-                            AnsiConsole.MarkupLine("\n[red]❌ Error occurred during LLM request. Stopping.[/]");
+                            SendMessage("error", "Error occurred during LLM request. Stopping.");
                         }
                         return conversation;
 
                     case "NotConfigured":
                         // Provider not configured - stop immediately
-                        AnsiConsole.MarkupLine($"\n[red]❌ Provider '{Markup.Escape(_llmProvider.Name)}' is not properly configured.[/]");
+                        SendMessage("error", $"Provider '{_llmProvider.Name}' is not properly configured.");
                         return conversation;
 
                     default:
                         // Unexpected stop reason - stop to be safe
                         if (_verbose)
                         {
-                            AnsiConsole.MarkupLine($"\n[yellow]⚠️  Unexpected stop reason: {Markup.Escape(response.StopReason ?? "unknown")}. Stopping.[/]");
+                            SendMessage("warning", $"Unexpected stop reason: {response.StopReason ?? "unknown"}. Stopping.");
                         }
                         return conversation;
                 }
@@ -219,7 +197,7 @@ namespace DraCode.Agent.Agents
             // If we exit the loop naturally, we hit max iterations
             if (_verbose)
             {
-                AnsiConsole.MarkupLine($"\n[yellow]⚠️  Maximum iterations ({maxIterations}) reached.[/]");
+                SendMessage("warning", $"Maximum iterations ({maxIterations}) reached.");
             }
 
             return conversation;

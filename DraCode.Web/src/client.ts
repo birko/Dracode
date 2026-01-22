@@ -165,8 +165,21 @@ export class DraCodeClient {
             console.log('📨 Parsed response:', response);
             console.log('   Status:', response.Status);
             console.log('   Message:', response.Message);
+            console.log('   MessageType:', response.MessageType);
             console.log('   Data type:', typeof response.Data);
             console.log('   Data value:', response.Data);
+
+            // Handle streaming messages
+            if (response.Status === 'stream') {
+                this.handleStreamMessage(response);
+                return;
+            }
+
+            // Handle interactive prompts
+            if (response.Status === 'prompt') {
+                this.handlePromptMessage(response);
+                return;
+            }
 
             // Check if this is a provider list response
             // Provider list has Status=success, Message with "provider", and Data array
@@ -222,6 +235,116 @@ export class DraCodeClient {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Handle streaming messages from agent
+     */
+    private handleStreamMessage(response: WebSocketResponse): void {
+        const agentId = response.AgentId;
+        if (!agentId || !this.agents.has(agentId)) {
+            console.warn('Stream message for unknown agent:', agentId);
+            return;
+        }
+
+        const messageType = response.MessageType || 'info';
+        const content = response.Message || '';
+
+        // Map message types to log levels
+        let logLevel: LogLevel = 'info';
+        let icon = 'ℹ️';
+
+        switch (messageType) {
+            case 'error':
+                logLevel = 'error';
+                icon = '❌';
+                break;
+            case 'warning':
+                logLevel = 'warning';
+                icon = '⚠️';
+                break;
+            case 'tool_call':
+                logLevel = 'info';
+                icon = '🔧';
+                break;
+            case 'tool_result':
+                logLevel = 'success';
+                icon = '📋';
+                break;
+            case 'assistant':
+                logLevel = 'info';
+                icon = '💬';
+                break;
+            case 'display':
+                logLevel = 'info';
+                icon = '📄';
+                break;
+            default:
+                logLevel = 'info';
+                icon = 'ℹ️';
+        }
+
+        this.logToAgent(agentId, `${icon} ${this.escapeHtml(content)}`, logLevel);
+    }
+
+    /**
+     * Handle interactive prompt from agent
+     */
+    private handlePromptMessage(response: WebSocketResponse): void {
+        const agentId = response.AgentId;
+        const promptId = response.PromptId;
+
+        if (!agentId || !promptId || !this.agents.has(agentId)) {
+            console.warn('Prompt message for unknown agent:', agentId);
+            return;
+        }
+
+        const question = response.Message || '';
+        const context = response.Data || '';
+
+        // Display prompt in agent log
+        const promptHtml = context 
+            ? `<div class="prompt-message">
+                <div class="prompt-context">💡 Context: ${this.escapeHtml(context)}</div>
+                <div class="prompt-question">❓ ${this.escapeHtml(question)}</div>
+               </div>`
+            : `<div class="prompt-message">
+                <div class="prompt-question">❓ ${this.escapeHtml(question)}</div>
+               </div>`;
+
+        this.logToAgent(agentId, promptHtml, 'info');
+
+        // Show prompt input
+        const promptResponse = prompt(`${context ? 'Context: ' + context + '\n\n' : ''}${question}`);
+
+        if (promptResponse !== null) {
+            // Send response back to agent
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                const message: WebSocketMessage = {
+                    command: 'prompt_response',
+                    agentId: agentId,
+                    promptId: promptId,
+                    data: promptResponse
+                };
+                this.ws.send(JSON.stringify(message));
+
+                // Log user's response
+                this.logToAgent(agentId, `✅ Your answer: ${this.escapeHtml(promptResponse)}`, 'success');
+            }
+        } else {
+            // User cancelled
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                const message: WebSocketMessage = {
+                    command: 'prompt_response',
+                    agentId: agentId,
+                    promptId: promptId,
+                    data: ''
+                };
+                this.ws.send(JSON.stringify(message));
+
+                this.logToAgent(agentId, '❌ Prompt cancelled', 'warning');
+            }
+        }
     }
 
     /**

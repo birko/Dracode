@@ -398,9 +398,33 @@ button.secondary:hover:not(:disabled) {
     color: #d4d4d4;
 }
 
+.log-entry.warning {
+    color: #ffc107;
+}
+
 .log-time {
     color: #858585;
     margin-right: var(--spacing-sm);
+}
+
+/* Prompt messages */
+.prompt-message {
+    background-color: rgba(102, 126, 234, 0.1);
+    border-left: 3px solid var(--primary-color);
+    padding: var(--spacing-md);
+    margin: var(--spacing-sm) 0;
+    border-radius: var(--border-radius-sm);
+}
+
+.prompt-context {
+    color: #858585;
+    font-style: italic;
+    margin-bottom: var(--spacing-sm);
+}
+
+.prompt-question {
+    color: #4ec9b0;
+    font-weight: 600;
 }
 
 .log pre {

@@ -1,17 +1,20 @@
 // Type definitions for WebSocket messages
 export interface WebSocketMessage {
-    command: 'list' | 'connect' | 'disconnect' | 'reset' | 'send';
+    command: 'list' | 'connect' | 'disconnect' | 'reset' | 'send' | 'prompt_response';
     agentId?: string;
     data?: string;
     config?: AgentConfig;
+    promptId?: string;
 }
 
 export interface WebSocketResponse {
-    Status: 'success' | 'connected' | 'disconnected' | 'processing' | 'completed' | 'error' | 'reset';
+    Status: 'success' | 'connected' | 'disconnected' | 'processing' | 'completed' | 'error' | 'reset' | 'stream' | 'prompt';
     Message?: string;
     Data?: string;
     Error?: string;
     AgentId?: string;
+    MessageType?: string;  // Type of streaming message
+    PromptId?: string;     // ID for interactive prompts
 }
 
 export interface AgentConfig {
@@ -37,4 +40,5 @@ export interface Agent {
     contentElement: HTMLDivElement;
 }
 
-export type LogLevel = 'success' | 'error' | 'info';
+export type LogLevel = 'success' | 'error' | 'info' | 'warning';
+
