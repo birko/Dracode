@@ -103,6 +103,7 @@ ScaffoldingReadMe.txt
 # Local configuration
 appsettings.local.json
 appsettings.*.local.json
+appsettings.Development.json
 
 # OAuth tokens and secrets
 .dracode/
