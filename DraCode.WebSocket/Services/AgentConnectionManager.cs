@@ -1,11 +1,11 @@
-using System.Collections.Concurrent;
-using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
 using DraCode.Agent;
 using DraCode.Agent.Agents;
 using DraCode.WebSocket.Models;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 
 namespace DraCode.WebSocket.Services
 {
@@ -178,12 +178,12 @@ namespace DraCode.WebSocket.Services
             }
 
             // Check for API key or token
-            var hasApiKey = !string.IsNullOrEmpty(config.ApiKey) && 
-                           !config.ApiKey.StartsWith("${") && 
+            var hasApiKey = !string.IsNullOrEmpty(config.ApiKey) &&
+                           !config.ApiKey.StartsWith("${") &&
                            !config.ApiKey.EndsWith("}");
 
-            var hasClientId = !string.IsNullOrEmpty(config.ClientId) && 
-                             !config.ClientId.StartsWith("${") && 
+            var hasClientId = !string.IsNullOrEmpty(config.ClientId) &&
+                             !config.ClientId.StartsWith("${") &&
                              !config.ClientId.EndsWith("}");
 
             return hasApiKey || hasClientId;
@@ -220,13 +220,14 @@ namespace DraCode.WebSocket.Services
 
                 var requestConfig = request.Config ?? new Dictionary<string, string>();
                 var provider = requestConfig.GetValueOrDefault("provider", "openai");
-                
+                var type = "openai";
                 // Merge configuration from appsettings with request config
                 var mergedConfig = new Dictionary<string, string>();
 
                 // Start with appsettings configuration if provider exists
                 if (_config.Providers.TryGetValue(provider, out var providerConfig))
                 {
+                    type = !string.IsNullOrEmpty(providerConfig.Type) ? providerConfig.Type : "openai";
                     if (!string.IsNullOrEmpty(providerConfig.ApiKey))
                         mergedConfig["apiKey"] = ExpandEnvironmentVariable(providerConfig.ApiKey);
                     if (!string.IsNullOrEmpty(providerConfig.Model))
@@ -250,15 +251,15 @@ namespace DraCode.WebSocket.Services
                 var workingDirectory = mergedConfig.GetValueOrDefault("workingDirectory", _config.WorkingDirectory);
                 var verbose = bool.Parse(mergedConfig.GetValueOrDefault("verbose", "false"));
 
-                var agent = AgentFactory.Create(provider, workingDirectory, verbose, mergedConfig);
-                
+                var agent = AgentFactory.Create(type, workingDirectory, verbose, mergedConfig);
+
                 var connection = new AgentConnection(agent, webSocket, request.AgentId);
                 _agents[agentKey] = connection;
 
                 // Set up message streaming callback
                 SetupAgentCallbacks(connection);
 
-                _logger.LogInformation("Agent created: {AgentId} for connection {ConnectionId} with provider {Provider}", 
+                _logger.LogInformation("Agent created: {AgentId} for connection {ConnectionId} with provider {Provider}",
                     request.AgentId, connectionId, provider);
 
                 await SendResponseAsync(webSocket, new WebSocketResponse
@@ -270,7 +271,7 @@ namespace DraCode.WebSocket.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating agent {AgentId} for connection {ConnectionId}", 
+                _logger.LogError(ex, "Error creating agent {AgentId} for connection {ConnectionId}",
                     request.AgentId, connectionId);
                 await SendResponseAsync(webSocket, new WebSocketResponse
                 {
@@ -309,12 +310,12 @@ namespace DraCode.WebSocket.Services
             }
 
             var agentKey = GetAgentKey(connectionId, request.AgentId);
-            
+
             if (_agents.TryRemove(agentKey, out var connection))
             {
-                _logger.LogInformation("Agent {AgentId} disconnected from connection {ConnectionId}", 
+                _logger.LogInformation("Agent {AgentId} disconnected from connection {ConnectionId}",
                     request.AgentId, connectionId);
-                
+
                 await SendResponseAsync(webSocket, new WebSocketResponse
                 {
                     Status = "disconnected",
@@ -353,7 +354,7 @@ namespace DraCode.WebSocket.Services
                 {
                     var requestConfig = request.Config ?? new Dictionary<string, string>();
                     var provider = requestConfig.GetValueOrDefault("provider", "openai");
-                    
+
                     // Merge configuration from appsettings with request config
                     var mergedConfig = new Dictionary<string, string>();
 
@@ -389,7 +390,7 @@ namespace DraCode.WebSocket.Services
                     // Set up message streaming callback for new agent
                     SetupAgentCallbacks(existingConnection);
 
-                    _logger.LogInformation("Agent {AgentId} reset for connection {ConnectionId}", 
+                    _logger.LogInformation("Agent {AgentId} reset for connection {ConnectionId}",
                         request.AgentId, connectionId);
 
                     await SendResponseAsync(webSocket, new WebSocketResponse
@@ -401,7 +402,7 @@ namespace DraCode.WebSocket.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error resetting agent {AgentId} for connection {ConnectionId}", 
+                    _logger.LogError(ex, "Error resetting agent {AgentId} for connection {ConnectionId}",
                         request.AgentId, connectionId);
                     await SendResponseAsync(webSocket, new WebSocketResponse
                     {
@@ -483,7 +484,7 @@ namespace DraCode.WebSocket.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error executing agent task for {AgentId} in connection {ConnectionId}", 
+                _logger.LogError(ex, "Error executing agent task for {AgentId} in connection {ConnectionId}",
                     request.AgentId, connectionId);
                 await SendResponseAsync(webSocket, new WebSocketResponse
                 {
@@ -501,7 +502,7 @@ namespace DraCode.WebSocket.Services
                 return "No response from agent";
 
             var textBlocks = new List<string>();
-            
+
             // Content can be a list of ContentBlock objects
             if (lastMessage.Content is IEnumerable<ContentBlock> blocks)
             {
@@ -599,7 +600,7 @@ namespace DraCode.WebSocket.Services
             }
 
             var agentKey = GetAgentKey(connectionId, request.AgentId);
-            
+
             if (!_agents.TryGetValue(agentKey, out var connection))
             {
                 await SendResponseAsync(webSocket, new WebSocketResponse
@@ -614,7 +615,7 @@ namespace DraCode.WebSocket.Services
             if (connection.PendingPrompts.TryGetValue(request.PromptId, out var tcs))
             {
                 tcs.SetResult(request.Data ?? "");
-                
+
                 await SendResponseAsync(webSocket, new WebSocketResponse
                 {
                     Status = "success",
@@ -636,12 +637,12 @@ namespace DraCode.WebSocket.Services
         private async Task DisconnectAllAgentsForConnection(string connectionId, System.Net.WebSockets.WebSocket webSocket)
         {
             var agentsToRemove = _agents.Keys.Where(k => k.StartsWith($"{connectionId}:")).ToList();
-            
+
             foreach (var agentKey in agentsToRemove)
             {
                 if (_agents.TryRemove(agentKey, out var connection))
                 {
-                    _logger.LogInformation("Agent {AgentId} removed for connection {ConnectionId}", 
+                    _logger.LogInformation("Agent {AgentId} removed for connection {ConnectionId}",
                         connection.AgentId, connectionId);
                 }
             }
