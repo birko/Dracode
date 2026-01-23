@@ -23,18 +23,26 @@
                 ⚫ Status: Disconnected
             </div>
             
-            <h2>Server Connection</h2>
-            <div class="flex gap-md" style="align-items: center; margin-bottom: var(--spacing-lg);">
-                <input type="text" id="wsUrl" value="ws://localhost:5000/ws" placeholder="WebSocket URL" style="flex: 1;">
-                <button id="connectBtn">Connect to Server</button>
-                <button id="disconnectBtn" disabled>Disconnect</button>
-                <button id="listBtn" disabled class="secondary">List Providers</button>
+            <h2 class="collapsible-header" onclick="toggleSection('serverConnection')">
+                <span class="collapse-icon" id="serverConnectionIcon"></span>
+                Server Connection
+            </h2>
+            <div id="serverConnection" class="collapsible-content">
+                <div class="flex gap-md" style="align-items: center; margin-bottom: var(--spacing-lg);">
+                    <input type="text" id="wsUrl" value="ws://localhost:5000/ws" placeholder="WebSocket URL" style="flex: 1;">
+                    <button id="connectBtn">Connect to Server</button>
+                    <button id="disconnectBtn" disabled>Disconnect</button>
+                    <button id="listBtn" disabled class="secondary">List Providers</button>
+                </div>
             </div>
 
             <!-- Providers Section -->
             <div id="providersSection">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
-                    <h2 style="margin: 0;">Available Providers</h2>
+                    <h2 class="collapsible-header" style="margin: 0; flex: 1;" onclick="toggleSection('providersContent')">
+                        <span class="collapse-icon" id="providersContentIcon"></span>
+                        Available Providers
+                    </h2>
                     <div class="provider-filter">
                         <label style="margin-right: var(--spacing-sm);">Show:</label>
                         <label class="filter-option">
@@ -51,16 +59,17 @@
                         </label>
                     </div>
                 </div>
-                <div id="providersGrid" class="providers-grid"></div>
-                
-                <div style="margin-top: var(--spacing-lg);">
-                    <button onclick="toggleManualConfig()" class="secondary">
-                        ➕ Add Manual Provider
-                    </button>
-                </div>
+                <div id="providersContent" class="collapsible-content">
+                    <div id="providersGrid" class="providers-grid"></div>
+                    
+                    <div style="margin-top: var(--spacing-lg);">
+                        <button onclick="toggleManualConfig()" class="secondary">
+                            ➕ Add Manual Provider
+                        </button>
+                    </div>
 
-                <!-- Manual Configuration Panel -->
-                <div id="manualConfig" class="manual-config">
+                    <!-- Manual Configuration Panel -->
+                    <div id="manualConfig" class="manual-config">
                     <h2>Manual Provider Configuration</h2>
                     <div class="form-group">
                         <label for="manualProvider">Provider Type *</label>
@@ -89,6 +98,7 @@
                         <button onclick="connectManualProvider()">Connect Manual Provider</button>
                         <button onclick="toggleManualConfig()" class="secondary">Cancel</button>
                     </div>
+                </div>
                 </div>
             </div>
         </section>

@@ -302,6 +302,66 @@ export class DraCodeClient {
     }
 
     /**
+     * Sanitize string for use as HTML ID or CSS selector
+     * Removes or replaces special characters that are invalid in CSS selectors
+     */
+    private sanitizeId(text: string): string {
+        // Replace special characters with hyphens, keep only alphanumeric and hyphens
+        return text.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-');
+    }
+
+    /**
+     * Auto-collapse server connection and providers sections
+     */
+    private autoCollapseConfigSections(): void {
+        ['serverConnection', 'providersContent'].forEach(sectionId => {
+            const content = document.getElementById(sectionId);
+            const icon = document.getElementById(`${sectionId}Icon`);
+            const header = icon?.closest('.collapsible-header');
+            
+            if (content && icon && header && !content.classList.contains('collapsed')) {
+                content.classList.add('collapsed');
+                icon.classList.add('collapsed');
+                header.classList.add('collapsed');
+                localStorage.setItem(`section_${sectionId}_collapsed`, 'true');
+                
+                // Hide provider filter if this is the providers section
+                if (sectionId === 'providersContent') {
+                    const providerFilter = document.querySelector('.provider-filter') as HTMLElement;
+                    if (providerFilter) {
+                        providerFilter.style.display = 'none';
+                    }
+                    
+                    // Add count badge for providers section
+                    if (this.availableProviders.length > 0) {
+                        this.updateProviderCountBadge(header as HTMLElement, this.availableProviders.length);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Update provider count badge on collapsed header
+     */
+    private updateProviderCountBadge(header: HTMLElement, count: number): void {
+        // Remove existing badge if any
+        const existingBadge = header.querySelector('.provider-count-badge');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+
+        // Add new badge
+        if (count > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'provider-count-badge';
+            badge.textContent = `${count}`;
+            badge.title = `${count} provider(s) available`;
+            header.appendChild(badge);
+        }
+    }
+
+    /**
      * Handle streaming messages from agent
      */
     private handleStreamMessage(response: WebSocketResponse): void {
@@ -530,7 +590,7 @@ export class DraCodeClient {
 
             card.addEventListener('click', () => {
                 // Generate a unique agentId when clicking, not when rendering
-                const agentId = `agent-${provider.name}-${Date.now()}`;
+                const agentId = `agent-${this.sanitizeId(provider.name)}-${Date.now()}`;
                 this.connectToProvider(provider.name, agentId);
             });
             this.elements.providersGrid.appendChild(card);
@@ -692,7 +752,7 @@ export class DraCodeClient {
             return;
         }
 
-        const agentId = `agent-manual-${provider}-${Date.now()}`;
+        const agentId = `agent-manual-${this.sanitizeId(provider)}-${Date.now()}`;
         const config: AgentConfig = {
             provider,
             apiKey,
@@ -796,6 +856,11 @@ export class DraCodeClient {
         // Show tabs and hide empty state
         this.elements.agentTabs.style.display = 'block';
         this.elements.emptyState.style.display = 'none';
+        
+        // Auto-collapse server connection and providers sections when first agent is connected
+        if (this.agents.size === 1) {
+            this.autoCollapseConfigSections();
+        }
 
         this.switchToAgent(agentId);
     }
