@@ -10,6 +10,7 @@ A modern, vanilla TypeScript/CSS web client for DraCode's multi-agent WebSocket 
 - **CSS Custom Properties**: Themeable with CSS variables
 - **Zero Dependencies**: No runtime dependencies
 - **Modular Architecture**: Clean separation of concerns
+- **Secure**: Supports token-based authentication for WebSocket connections
 
 ## 🛠️ Quick Start
 
@@ -22,6 +23,16 @@ dotnet run --project ../DraCode.AppHost
 
 # Open: http://localhost:5001
 ```
+
+## 🔐 WebSocket Authentication
+
+If the WebSocket server has authentication enabled, you may need to configure the connection token:
+
+1. Get your authentication token from the server administrator
+2. The web client will need to be updated to include the token when connecting
+3. See [WebSocket README](../DraCode.WebSocket/README.md#authentication) for server-side configuration
+
+**Note**: By default, authentication is disabled for development convenience.
 
 ## 📁 Structure
 

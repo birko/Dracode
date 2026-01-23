@@ -1,4 +1,27 @@
 {
+  "Authentication": {
+    "Enabled": true,
+    "Tokens": [
+      "${WEBSOCKET_AUTH_TOKEN}"
+    ],
+    "TokenBindings": [
+      {
+        "Token": "${WEBSOCKET_RESTRICTED_TOKEN}",
+        "AllowedIps": [
+          "192.168.1.100",
+          "10.0.0.50",
+          "${ALLOWED_CLIENT_IP}"
+        ]
+      },
+      {
+        "Token": "another-token-with-ip-binding",
+        "AllowedIps": [
+          "127.0.0.1",
+          "::1"
+        ]
+      }
+    ]
+  },
   "Agent": {
     "WorkingDirectory": "./workspace",
     "Providers": {

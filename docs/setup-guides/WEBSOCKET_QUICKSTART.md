@@ -12,7 +12,7 @@ dotnet run --project DraCode.AppHost
 
 # Access:
 # - Aspire Dashboard: https://localhost:17169 (or check console output)
-# - WebSocket Server: ws://localhost:5000/ws
+# - WebSocket Server: ws://localhost:5000/ws (or ws://localhost:5000/ws?token=YOUR_TOKEN if auth enabled)
 # - Web Client: http://localhost:5001
 ```
 
@@ -25,6 +25,55 @@ dotnet run --project DraCode.WebSocket
 # Terminal 2: Start Web client
 dotnet run --project DraCode.Web
 ```
+
+## 🔐 Security & Authentication
+
+The WebSocket server supports optional token-based authentication with IP address binding:
+
+### Authentication Setup (Optional)
+
+Edit `DraCode.WebSocket/appsettings.json`:
+
+```json
+{
+  "Authentication": {
+    "Enabled": true,
+    "Tokens": [
+      "${WEBSOCKET_AUTH_TOKEN}"
+    ],
+    "TokenBindings": [
+      {
+        "Token": "${WEBSOCKET_RESTRICTED_TOKEN}",
+        "AllowedIps": [
+          "192.168.1.100",
+          "127.0.0.1"
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Configuration Options
+
+- **`Enabled`**: Set to `true` to enable authentication (default: `false`)
+- **`Tokens`**: Array of valid tokens (no IP restriction)
+- **`TokenBindings`**: Array of tokens with IP address restrictions (recommended for production)
+
+### Connecting with Authentication
+
+When authentication is enabled:
+```javascript
+const ws = new WebSocket('ws://localhost:5000/ws?token=your-secret-token');
+```
+
+### Security Benefits
+
+- **Token theft prevention**: Even if stolen, IP-bound tokens can't be used from unauthorized IPs
+- **Environment variables**: Store tokens securely using `${ENV_VAR}` format
+- **Proxy support**: Automatically detects client IP behind proxies (X-Forwarded-For, X-Real-IP)
+
+For detailed authentication configuration, see [DraCode.WebSocket/README.md](../DraCode.WebSocket/README.md#authentication).
 
 ## 📡 WebSocket API
 

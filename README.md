@@ -10,6 +10,7 @@ DraCode now includes a **WebSocket server and modern TypeScript web client** tha
 - 🏃 **Run multiple agents in parallel**, each with independent conversation history
 - 🎯 **Switch between providers** using a tabbed interface
 - 🔐 **Secure configuration** with server-side API key management
+- 🛡️ **Token-based authentication** with optional IP address binding to prevent token misuse
 - 💎 **Modern tech stack**: TypeScript, ES modules, Flexbox CSS (zero dependencies!)
 
 **Quick Start:**
@@ -361,6 +362,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Use `appsettings.local.json` (gitignored) for sensitive data
 - OAuth tokens stored in `~/.dracode/` (gitignored)
 - All file operations sandboxed to working directory
+- **WebSocket Authentication**: 
+  - Optional token-based authentication available for WebSocket connections
+  - Support for IP address binding to prevent token misuse
+  - See [WebSocket README](DraCode.WebSocket/README.md) for configuration
+  - Disabled by default for development convenience
 
 ## 📧 Support
 

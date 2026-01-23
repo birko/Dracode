@@ -24,6 +24,12 @@ This will:
 2. Start the Web Client (DraCode.Web) on port 5001
 3. Launch the Aspire Dashboard in your browser
 
+**Note**: If WebSocket authentication is enabled, clients will need to provide a token when connecting:
+- Without auth: `ws://localhost:5000/ws`
+- With auth: `ws://localhost:5000/ws?token=YOUR_TOKEN`
+
+See [WebSocket README](../DraCode.WebSocket/README.md#authentication) for authentication configuration.
+
 ### Aspire Dashboard
 
 The dashboard (typically at `http://localhost:15888`) provides:

@@ -10,8 +10,13 @@ builder.AddServiceDefaults();
 builder.Services.Configure<AgentConfiguration>(
     builder.Configuration.GetSection("Agent"));
 
+// Bind Authentication configuration from appsettings.json
+builder.Services.Configure<AuthenticationConfiguration>(
+    builder.Configuration.GetSection("Authentication"));
+
 // Add services to the container
 builder.Services.AddSingleton<AgentConnectionManager>();
+builder.Services.AddSingleton<WebSocketAuthenticationService>();
 
 // Add CORS for web client
 builder.Services.AddCors(options =>
@@ -40,6 +45,20 @@ app.Map("/ws", async context =>
 {
     if (context.WebSockets.IsWebSocketRequest)
     {
+        var authService = context.RequestServices.GetRequiredService<WebSocketAuthenticationService>();
+        
+        // Extract token and client IP
+        var token = authService.ExtractTokenFromQuery(context);
+        var clientIp = authService.GetClientIpAddress(context);
+        
+        // Validate authentication token with IP binding
+        if (!authService.ValidateToken(token, clientIp))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsync("Unauthorized: Invalid or missing authentication token, or IP address not allowed");
+            return;
+        }
+        
         var connectionId = Guid.NewGuid().ToString();
         var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         

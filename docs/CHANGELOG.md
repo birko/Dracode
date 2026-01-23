@@ -4,6 +4,85 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.0.5] - January 2026 - WebSocket Authentication with IP Binding
+
+### 🔐 New Feature: Token-Based Authentication with IP Address Binding
+
+**WebSocket server now supports optional token-based authentication with IP address binding to prevent token misuse!**
+
+#### Features
+- ✅ Token-based authentication for WebSocket connections
+- ✅ IP address binding prevents stolen tokens from being used
+- ✅ Supports both simple tokens and IP-bound tokens
+- ✅ Environment variable support for tokens and IPs
+- ✅ Automatic client IP detection (handles proxies via X-Forwarded-For, X-Real-IP)
+- ✅ Backward compatible - disabled by default
+- ✅ Flexible configuration - mix simple and IP-bound tokens
+
+#### Configuration
+
+**Simple token authentication:**
+```json
+{
+  "Authentication": {
+    "Enabled": true,
+    "Tokens": ["${WEBSOCKET_AUTH_TOKEN}"]
+  }
+}
+```
+
+**Token with IP binding (recommended for production):**
+```json
+{
+  "Authentication": {
+    "Enabled": true,
+    "TokenBindings": [
+      {
+        "Token": "${WEBSOCKET_RESTRICTED_TOKEN}",
+        "AllowedIps": ["192.168.1.100", "10.0.0.50"]
+      }
+    ]
+  }
+}
+```
+
+#### Connection
+
+**Without authentication:**
+```
+ws://localhost:5000/ws
+```
+
+**With authentication:**
+```
+ws://localhost:5000/ws?token=your-secret-token
+```
+
+#### Security Benefits
+- **Token theft prevention**: IP-bound tokens can't be used from unauthorized IPs
+- **Audit logging**: Failed authentication attempts logged with IP addresses
+- **Proxy support**: Works behind reverse proxies and load balancers
+- **Environment variables**: Store tokens securely outside of code
+
+#### Files Created
+- `DraCode.WebSocket/Models/AuthenticationConfiguration.cs` - Config model with TokenIpBinding
+- `DraCode.WebSocket/Services/WebSocketAuthenticationService.cs` - Validation logic
+
+#### Files Modified
+- `DraCode.WebSocket/Program.cs` - Added authentication checks before accepting connections
+- `DraCode.WebSocket/appsettings.json` - Added Authentication section
+- `DraCode.WebSocket/appsettings.local.json.example` - Added example configurations
+- `DraCode.WebSocket/README.md` - Comprehensive authentication documentation
+- `README.md` - Updated security notes
+- `docs/setup-guides/WEBSOCKET_QUICKSTART.md` - Added authentication section
+- `DraCode.AppHost/README.md` - Added authentication note
+- `DraCode.Web/README.md` - Added authentication note
+
+#### Documentation
+See [DraCode.WebSocket/README.md](../DraCode.WebSocket/README.md#authentication) for complete authentication documentation.
+
+---
+
 ## [2.0.4] - January 2026 - Multiple Connections to Same Provider
 
 ### ✨ New Feature: Multiple Provider Instances

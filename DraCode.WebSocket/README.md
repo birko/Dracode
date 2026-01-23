@@ -14,6 +14,109 @@ The server will start on `http://localhost:5000` (or `https://localhost:5001` fo
 
 Connect to: `ws://localhost:5000/ws`
 
+**With authentication enabled:**
+```
+ws://localhost:5000/ws?token=YOUR_SECRET_TOKEN
+```
+
+## Authentication
+
+The WebSocket server supports optional token-based authentication with IP address binding. Configure it in `appsettings.json`:
+
+### Simple Token Authentication
+
+```json
+{
+  "Authentication": {
+    "Enabled": true,
+    "Tokens": [
+      "${WEBSOCKET_AUTH_TOKEN}",
+      "your-secret-token-here"
+    ]
+  }
+}
+```
+
+### Token with IP Binding (Recommended for Production)
+
+Bind tokens to specific IP addresses to prevent token misuse. Even if a token is stolen, it cannot be used from unauthorized IP addresses:
+
+```json
+{
+  "Authentication": {
+    "Enabled": true,
+    "Tokens": [
+      "${WEBSOCKET_AUTH_TOKEN}"
+    ],
+    "TokenBindings": [
+      {
+        "Token": "${WEBSOCKET_RESTRICTED_TOKEN}",
+        "AllowedIps": [
+          "192.168.1.100",
+          "10.0.0.50",
+          "${ALLOWED_CLIENT_IP}"
+        ]
+      },
+      {
+        "Token": "office-token",
+        "AllowedIps": [
+          "203.0.113.45",
+          "198.51.100.20"
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Configuration Options
+
+- `Enabled`: Set to `true` to enable authentication (default: `false`)
+- `Tokens`: Array of valid authentication tokens (no IP restriction)
+  - Use environment variables: `"${ENV_VAR_NAME}"`
+  - Or hardcode tokens: `"your-secret-token"`
+- `TokenBindings`: Array of token-IP binding configurations
+  - `Token`: The authentication token (supports environment variables)
+  - `AllowedIps`: List of IP addresses allowed to use this token
+    - Supports both IPv4 and IPv6
+    - Use environment variables for dynamic IPs
+
+### How It Works
+
+1. Client connects with token: `ws://localhost:5000/ws?token=YOUR_TOKEN`
+2. Server extracts client IP address (handles proxies via X-Forwarded-For, X-Real-IP headers)
+3. Validates token from `TokenBindings` first (checks both token AND IP)
+4. Falls back to `Tokens` if no binding matches (token-only validation)
+5. Connection rejected with 401 if validation fails
+
+### Connecting with Authentication
+
+When authentication is enabled, clients must provide a token as a query parameter:
+
+```javascript
+const ws = new WebSocket('ws://localhost:5000/ws?token=your-secret-token-here');
+```
+
+Without a valid token (or IP mismatch), the connection will be rejected with HTTP 401 Unauthorized.
+
+### Behind Proxies / Load Balancers
+
+The server automatically detects client IP from these headers:
+- `X-Forwarded-For` (takes first IP in chain)
+- `X-Real-IP` (nginx)
+- Falls back to direct connection IP
+
+Ensure your proxy/load balancer is configured to set these headers correctly.
+
+### Best Practices
+
+1. **Use IP bindings in production** - Prevents token theft/misuse
+2. **Store tokens in environment variables**, not hardcoded in appsettings.json
+3. **Use strong, randomly generated tokens** (e.g., `openssl rand -base64 32`)
+4. **Keep authentication disabled in development** if not needed
+5. **Whitelist specific IPs** - Use the most restrictive IP list possible
+6. **Monitor authentication logs** - Failed attempts are logged with IP addresses
+
 ## Web Client
 
 For a ready-to-use web client, see the **DraCode.Web** project. The WebSocket server is API-only and does not serve any UI.
@@ -219,7 +322,8 @@ dotnet run --project DraCode.Web
 ## Example Client (JavaScript)
 
 ```javascript
-const ws = new WebSocket('ws://localhost:5000/ws');
+// Connect with authentication
+const ws = new WebSocket('ws://localhost:5000/ws?token=your-secret-token-here');
 
 ws.onopen = () => {
   console.log('Connected to WebSocket server');

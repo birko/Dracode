@@ -13,6 +13,7 @@
 - Tool-based autonomous code manipulation
 - Interactive user prompts via ask_user tool
 - .NET Aspire orchestration for service discovery
+- Optional token-based authentication with IP address binding
 
 ---
 
@@ -78,11 +79,13 @@ DraCode.sln
 ├── DraCode.WebSocket/            # WebSocket API server
 │   ├── Program.cs                # WebSocket endpoint setup
 │   ├── Services/
-│   │   └── AgentConnectionManager.cs  # Multi-agent orchestration
+│   │   ├── AgentConnectionManager.cs  # Multi-agent orchestration
+│   │   └── WebSocketAuthenticationService.cs  # Token & IP validation
 │   ├── Models/
 │   │   ├── WebSocketMessage.cs   # Client → Server messages
 │   │   ├── WebSocketResponse.cs  # Server → Client messages
-│   │   └── AgentConfiguration.cs # Configuration models
+│   │   ├── AgentConfiguration.cs # Configuration models
+│   │   └── AuthenticationConfiguration.cs  # Auth configuration
 │   └── appsettings.json          # Provider configuration
 ├── DraCode.Web/                  # Web client
 │   ├── Program.cs                # ASP.NET Core setup
@@ -627,8 +630,15 @@ public class AskUserTool : Tool
 // DraCode.WebSocket/Program.cs
 var builder = WebApplication.CreateBuilder(args);
 
+// Bind configurations
+builder.Services.Configure<AgentConfiguration>(
+    builder.Configuration.GetSection("Agent"));
+builder.Services.Configure<AuthenticationConfiguration>(
+    builder.Configuration.GetSection("Authentication"));
+
 // Add services
 builder.Services.AddSingleton<AgentConnectionManager>();
+builder.Services.AddSingleton<WebSocketAuthenticationService>();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -650,11 +660,26 @@ app.UseWebSockets(webSocketOptions);
 
 app.UseCors();
 
-// WebSocket endpoint
-app.Map("/ws", async (HttpContext context, AgentConnectionManager manager) =>
+// WebSocket endpoint with authentication
+app.Map("/ws", async (HttpContext context, 
+    AgentConnectionManager manager,
+    WebSocketAuthenticationService authService) =>
 {
     if (context.WebSockets.IsWebSocketRequest)
     {
+        // Authenticate
+        var token = authService.ExtractTokenFromQuery(context);
+        var clientIp = authService.GetClientIpAddress(context);
+        
+        if (!authService.ValidateToken(token, clientIp))
+        {
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsync(
+                "Unauthorized: Invalid or missing authentication token, or IP address not allowed");
+            return;
+        }
+        
+        // Accept connection
         var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         await manager.HandleConnectionAsync(webSocket);
     }
@@ -1039,6 +1064,174 @@ public class AgentConnection
     public WebSocket WebSocket { get; set; }
     public string AgentId { get; set; }
     public ConcurrentDictionary<string, TaskCompletionSource<string>> PendingPrompts { get; set; }
+}
+```
+
+#### Authentication Models
+
+```csharp
+// DraCode.WebSocket/Models/AuthenticationConfiguration.cs
+public class AuthenticationConfiguration
+{
+    public bool Enabled { get; set; } = false;
+    public List<string> Tokens { get; set; } = new();
+    public List<TokenIpBinding> TokenBindings { get; set; } = new();
+}
+
+public class TokenIpBinding
+{
+    public string Token { get; set; } = string.Empty;
+    public List<string> AllowedIps { get; set; } = new();
+}
+```
+
+#### WebSocketAuthenticationService
+
+```csharp
+// DraCode.WebSocket/Services/WebSocketAuthenticationService.cs
+public class WebSocketAuthenticationService
+{
+    private readonly AuthenticationConfiguration _config;
+    private readonly ILogger<WebSocketAuthenticationService> _logger;
+
+    public WebSocketAuthenticationService(
+        IOptions<AuthenticationConfiguration> config,
+        ILogger<WebSocketAuthenticationService> logger)
+    {
+        _config = config.Value;
+        _logger = logger;
+    }
+
+    public bool IsAuthenticationEnabled()
+    {
+        return _config.Enabled && (_config.Tokens.Any() || _config.TokenBindings.Any());
+    }
+
+    public bool ValidateToken(string? token, string? clientIp)
+    {
+        // If authentication is not enabled, allow all connections
+        if (!IsAuthenticationEnabled())
+            return true;
+
+        // If authentication is enabled but no token provided, reject
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            _logger.LogWarning("Connection attempt without token from IP: {ClientIp}", 
+                clientIp ?? "unknown");
+            return false;
+        }
+
+        // First, check token bindings (token + IP validation)
+        if (_config.TokenBindings.Any())
+        {
+            foreach (var binding in _config.TokenBindings)
+            {
+                var expandedToken = ExpandEnvironmentVariable(binding.Token);
+                if (expandedToken == token)
+                {
+                    // Token matches, now check IP
+                    if (string.IsNullOrWhiteSpace(clientIp))
+                    {
+                        _logger.LogWarning("Token matched but client IP is unknown");
+                        return false;
+                    }
+
+                    var expandedIps = binding.AllowedIps
+                        .Select(ExpandEnvironmentVariable)
+                        .Where(ip => !string.IsNullOrWhiteSpace(ip))
+                        .ToList();
+
+                    if (expandedIps.Contains(clientIp))
+                    {
+                        _logger.LogInformation("Authenticated with IP binding: {ClientIp}", 
+                            clientIp);
+                        return true;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Token valid but IP {ClientIp} not in allowed list", 
+                            clientIp);
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // Fall back to simple token validation (no IP binding)
+        if (_config.Tokens.Any())
+        {
+            var validTokens = _config.Tokens
+                .Select(ExpandEnvironmentVariable)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .ToList();
+
+            if (!validTokens.Any())
+            {
+                _logger.LogWarning("Authentication enabled but no valid tokens configured");
+                return false;
+            }
+
+            var isValid = validTokens.Contains(token);
+
+            if (isValid)
+            {
+                _logger.LogInformation("Authenticated (no IP binding) from IP: {ClientIp}", 
+                    clientIp ?? "unknown");
+            }
+            else
+            {
+                _logger.LogWarning("Invalid token from IP: {ClientIp}", 
+                    clientIp ?? "unknown");
+            }
+
+            return isValid;
+        }
+
+        _logger.LogWarning("Authentication enabled but no tokens or bindings configured");
+        return false;
+    }
+
+    public string? ExtractTokenFromQuery(HttpContext context)
+    {
+        return context.Request.Query["token"].FirstOrDefault();
+    }
+
+    public string? GetClientIpAddress(HttpContext context)
+    {
+        // Check for forwarded IP (behind proxy/load balancer)
+        var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(forwardedFor))
+        {
+            // X-Forwarded-For can contain multiple IPs, take the first one (original client)
+            var ips = forwardedFor.Split(',', 
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (ips.Length > 0)
+                return ips[0];
+        }
+
+        // Check for X-Real-IP header (nginx)
+        var realIp = context.Request.Headers["X-Real-IP"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(realIp))
+            return realIp;
+
+        // Fall back to direct connection IP
+        return context.Connection.RemoteIpAddress?.ToString();
+    }
+
+    private string ExpandEnvironmentVariable(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return value;
+
+        // Check if value is in format ${ENV_VAR}
+        if (value.StartsWith("${") && value.EndsWith("}"))
+        {
+            var envVar = value.Substring(2, value.Length - 3);
+            return Environment.GetEnvironmentVariable(envVar) ?? value;
+        }
+
+        return value;
+    }
 }
 ```
 
@@ -1916,6 +2109,11 @@ header {
     }
   },
   "AllowedHosts": "*",
+  "Authentication": {
+    "Enabled": false,
+    "Tokens": [],
+    "TokenBindings": []
+  },
   "Agent": {
     "WorkingDirectory": "./workspace",
     "Providers": {
@@ -1958,6 +2156,35 @@ header {
   }
 }
 ```
+
+**Authentication Configuration:**
+
+```json
+{
+  "Authentication": {
+    "Enabled": true,
+    "Tokens": [
+      "${WEBSOCKET_AUTH_TOKEN}"
+    ],
+    "TokenBindings": [
+      {
+        "Token": "${WEBSOCKET_RESTRICTED_TOKEN}",
+        "AllowedIps": [
+          "192.168.1.100",
+          "10.0.0.50",
+          "${ALLOWED_CLIENT_IP}"
+        ]
+      }
+    ]
+  }
+}
+```
+
+- **`Enabled`**: Set to `true` to enable authentication (default: `false`)
+- **`Tokens`**: Array of valid tokens (no IP restriction)
+- **`TokenBindings`**: Array of tokens with IP address restrictions
+  - **`Token`**: Authentication token (supports `${ENV_VAR}`)
+  - **`AllowedIps`**: List of IP addresses allowed to use this token
 
 ### tsconfig.json
 
@@ -2017,7 +2244,7 @@ builder.Build().Run();
 ```
 
 **Starts**:
-- WebSocket API: `ws://localhost:5000/ws`
+- WebSocket API: `ws://localhost:5000/ws` (or `ws://localhost:5000/ws?token=TOKEN` if auth enabled)
 - Web Client: `http://localhost:5001`
 - Aspire Dashboard: `http://localhost:18888`
 
@@ -2070,6 +2297,13 @@ builder.Build().Run();
 - Operations restricted to working directory
 - API keys never exposed to client
 - OAuth tokens stored in `~/.dracode/`
+- **WebSocket Authentication** (optional):
+  - Token-based authentication via query parameter: `ws://host/ws?token=TOKEN`
+  - IP address binding prevents stolen token usage
+  - Supports both simple tokens and IP-bound tokens
+  - Environment variable support for tokens and IPs
+  - Automatic client IP detection (handles proxies via X-Forwarded-For, X-Real-IP)
+  - Authentication disabled by default for development convenience
 
 ### 9. **Error Handling**
 - Tools return `"Error: ..."` on failure
