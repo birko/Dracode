@@ -481,34 +481,43 @@ namespace DraCode.WebSocket.Services
                 AgentId = request.AgentId
             });
 
+            // Capture variables for the background task
+            var agentId = request.AgentId;
+            var taskData = request.Data;
+            var connectionSocket = connection.WebSocket;
+
             // Run the agent task in the background so WebSocket can continue processing messages (e.g., prompt_response)
             _ = Task.Run(async () =>
             {
                 try
                 {
+                    _logger.LogInformation("🚀 Starting agent task for {AgentId}", agentId);
+                    
                     // Run the agent with the task
-                    var conversation = await connection.Agent.RunAsync(request.Data);
+                    var conversation = await connection.Agent.RunAsync(taskData);
 
+                    _logger.LogInformation("✅ Agent task completed for {AgentId}", agentId);
+                    
                     // Extract the final response
                     var finalResponse = ExtractFinalResponse(conversation);
 
-                    await SendResponseAsync(webSocket, new WebSocketResponse
+                    await SendResponseAsync(connectionSocket, new WebSocketResponse
                     {
                         Status = "completed",
                         Message = "Task completed",
                         Data = finalResponse,
-                        AgentId = request.AgentId
+                        AgentId = agentId
                     });
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error executing agent task for {AgentId} in connection {ConnectionId}",
-                        request.AgentId, connectionId);
-                    await SendResponseAsync(webSocket, new WebSocketResponse
+                    _logger.LogError(ex, "❌ Error executing agent task for {AgentId} in connection {ConnectionId}",
+                        agentId, connectionId);
+                    await SendResponseAsync(connectionSocket, new WebSocketResponse
                     {
                         Status = "error",
                         Error = $"Agent execution failed: {ex.Message}",
-                        AgentId = request.AgentId
+                        AgentId = agentId
                     });
                 }
             });
@@ -548,7 +557,30 @@ namespace DraCode.WebSocket.Services
 
             var json = JsonSerializer.Serialize(response);
             var bytes = Encoding.UTF8.GetBytes(json);
-            await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            
+            // WebSocket send operations must be synchronized
+            // Find the connection for this websocket to get its semaphore
+            var connection = _agents.Values.FirstOrDefault(c => c.WebSocket == webSocket);
+            if (connection != null)
+            {
+                await connection.WebSocketSemaphore.WaitAsync();
+                try
+                {
+                    if (webSocket.State == WebSocketState.Open)
+                    {
+                        await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                    }
+                }
+                finally
+                {
+                    connection.WebSocketSemaphore.Release();
+                }
+            }
+            else
+            {
+                // Fallback for messages not associated with an agent connection
+                await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
         }
 
         private void SetupAgentCallbacks(AgentConnection connection)
@@ -720,6 +752,7 @@ namespace DraCode.WebSocket.Services
         public System.Net.WebSockets.WebSocket WebSocket { get; }
         public string AgentId { get; }
         public ConcurrentDictionary<string, TaskCompletionSource<string>> PendingPrompts { get; } = new();
+        public SemaphoreSlim WebSocketSemaphore { get; } = new SemaphoreSlim(1, 1);
 
         public AgentConnection(DraCode.Agent.Agents.Agent agent, System.Net.WebSockets.WebSocket webSocket, string agentId)
         {
