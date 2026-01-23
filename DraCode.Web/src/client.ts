@@ -392,10 +392,14 @@ export class DraCodeClient {
                     promptId: promptId,
                     data: promptResponse
                 };
-                this.ws.send(JSON.stringify(message));
+                const messageJson = JSON.stringify(message);
+                console.log('📤 Sending prompt_response:', messageJson);
+                this.ws.send(messageJson);
 
                 // Log user's response
                 this.logToAgent(agentId, `✅ Your answer: ${this.escapeHtml(promptResponse)}`, 'success');
+            } else {
+                console.error('❌ Cannot send prompt_response: WebSocket not open. State:', this.ws?.readyState);
             }
         } else {
             // User cancelled
@@ -406,9 +410,13 @@ export class DraCodeClient {
                     promptId: promptId,
                     data: ''
                 };
-                this.ws.send(JSON.stringify(message));
+                const messageJson = JSON.stringify(message);
+                console.log('📤 Sending prompt_response (cancelled):', messageJson);
+                this.ws.send(messageJson);
 
                 this.logToAgent(agentId, '❌ Prompt cancelled', 'warning');
+            } else {
+                console.error('❌ Cannot send prompt_response: WebSocket not open. State:', this.ws?.readyState);
             }
         }
     }
@@ -737,7 +745,7 @@ export class DraCodeClient {
         content.innerHTML = `
             <div class="task-section">
                 <h2>📤 Send Task</h2>
-                <textarea id="task-${agentId}" placeholder="Enter task for ${this.escapeHtml(displayName)}...">Create a file called hello.txt with the content 'Hello, World!'</textarea>
+                <textarea id="task-${agentId}" placeholder="Enter task for ${this.escapeHtml(displayName)}..."></textarea>
                 <div class="button-group">
                     <button class="send-task-btn">Send Task</button>
                     <button class="reset-agent-btn secondary">Reset Agent</button>

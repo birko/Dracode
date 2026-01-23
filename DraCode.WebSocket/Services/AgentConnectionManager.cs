@@ -31,15 +31,23 @@ namespace DraCode.WebSocket.Services
             {
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    var messageBuilder = new StringBuilder();
+                    
+                    do
                     {
-                        await DisconnectAllAgentsForConnection(connectionId, webSocket);
-                        break;
-                    }
+                        result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
-                    var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            await DisconnectAllAgentsForConnection(connectionId, webSocket);
+                            return;
+                        }
+
+                        messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                    }
+                    while (!result.EndOfMessage);
+
+                    var message = messageBuilder.ToString();
                     await ProcessMessageAsync(connectionId, message, webSocket);
                 }
             }
@@ -59,6 +67,9 @@ namespace DraCode.WebSocket.Services
         {
             try
             {
+                _logger.LogInformation("Processing message from connection {ConnectionId}: {Message}", 
+                    connectionId, message.Length > 200 ? message.Substring(0, 200) + "..." : message);
+
                 var request = JsonSerializer.Deserialize<WebSocketMessage>(message, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
@@ -66,6 +77,7 @@ namespace DraCode.WebSocket.Services
 
                 if (request == null)
                 {
+                    _logger.LogWarning("Failed to deserialize message");
                     await SendResponseAsync(webSocket, new WebSocketResponse
                     {
                         Status = "error",
@@ -73,6 +85,9 @@ namespace DraCode.WebSocket.Services
                     });
                     return;
                 }
+
+                _logger.LogInformation("Command: {Command}, AgentId: {AgentId}, PromptId: {PromptId}", 
+                    request.Command, request.AgentId, request.PromptId);
 
                 switch (request.Command?.ToLowerInvariant())
                 {
@@ -459,40 +474,44 @@ namespace DraCode.WebSocket.Services
                 return;
             }
 
-            try
+            await SendResponseAsync(webSocket, new WebSocketResponse
             {
-                await SendResponseAsync(webSocket, new WebSocketResponse
-                {
-                    Status = "processing",
-                    Message = "Agent is processing your request...",
-                    AgentId = request.AgentId
-                });
+                Status = "processing",
+                Message = "Agent is processing your request...",
+                AgentId = request.AgentId
+            });
 
-                // Run the agent with the task
-                var conversation = await connection.Agent.RunAsync(request.Data);
-
-                // Extract the final response
-                var finalResponse = ExtractFinalResponse(conversation);
-
-                await SendResponseAsync(webSocket, new WebSocketResponse
-                {
-                    Status = "completed",
-                    Message = "Task completed",
-                    Data = finalResponse,
-                    AgentId = request.AgentId
-                });
-            }
-            catch (Exception ex)
+            // Run the agent task in the background so WebSocket can continue processing messages (e.g., prompt_response)
+            _ = Task.Run(async () =>
             {
-                _logger.LogError(ex, "Error executing agent task for {AgentId} in connection {ConnectionId}",
-                    request.AgentId, connectionId);
-                await SendResponseAsync(webSocket, new WebSocketResponse
+                try
                 {
-                    Status = "error",
-                    Error = $"Agent execution failed: {ex.Message}",
-                    AgentId = request.AgentId
-                });
-            }
+                    // Run the agent with the task
+                    var conversation = await connection.Agent.RunAsync(request.Data);
+
+                    // Extract the final response
+                    var finalResponse = ExtractFinalResponse(conversation);
+
+                    await SendResponseAsync(webSocket, new WebSocketResponse
+                    {
+                        Status = "completed",
+                        Message = "Task completed",
+                        Data = finalResponse,
+                        AgentId = request.AgentId
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error executing agent task for {AgentId} in connection {ConnectionId}",
+                        request.AgentId, connectionId);
+                    await SendResponseAsync(webSocket, new WebSocketResponse
+                    {
+                        Status = "error",
+                        Error = $"Agent execution failed: {ex.Message}",
+                        AgentId = request.AgentId
+                    });
+                }
+            });
         }
 
         private string ExtractFinalResponse(List<Message> conversation)
@@ -554,43 +573,76 @@ namespace DraCode.WebSocket.Services
             var askUserTool = connection.Agent.Tools.OfType<DraCode.Agent.Tools.AskUser>().FirstOrDefault();
             if (askUserTool != null)
             {
+                _logger.LogInformation("Setting up prompt callback for agent {AgentId}", connection.AgentId);
                 askUserTool.PromptCallback = async (question, context) =>
                 {
-                    var promptId = Guid.NewGuid().ToString();
-                    var tcs = new TaskCompletionSource<string>();
-                    connection.PendingPrompts[promptId] = tcs;
-
-                    // Send prompt to client
-                    await SendResponseAsync(connection.WebSocket, new WebSocketResponse
+                    try
                     {
-                        Status = "prompt",
-                        MessageType = "prompt",
-                        Message = question,
-                        Data = context,
-                        PromptId = promptId,
-                        AgentId = connection.AgentId
-                    });
+                        var promptId = Guid.NewGuid().ToString();
+                        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                        connection.PendingPrompts[promptId] = tcs;
 
-                    // Wait for user response (with timeout)
-                    var timeoutTask = Task.Delay(TimeSpan.FromMinutes(5));
-                    var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+                        _logger.LogInformation("✅ PROMPT ADDED TO DICTIONARY - PromptId: {PromptId}, AgentId: {AgentId}, Question: {Question}, Dictionary Count: {Count}",
+                            promptId, connection.AgentId, question, connection.PendingPrompts.Count);
 
-                    if (completedTask == timeoutTask)
-                    {
+                        // Send prompt to client
+                        await SendResponseAsync(connection.WebSocket, new WebSocketResponse
+                        {
+                            Status = "prompt",
+                            MessageType = "prompt",
+                            Message = question,
+                            Data = context,
+                            PromptId = promptId,
+                            AgentId = connection.AgentId
+                        });
+
+                        _logger.LogInformation("Prompt sent to client. Waiting for response with timeout...");
+
+                        // Wait for user response (with timeout)
+                        var timeoutTask = Task.Delay(TimeSpan.FromMinutes(5));
+                        _logger.LogInformation("⏰ Timeout task created for 5 minutes. Starting wait...");
+                        
+                        var completedTask = await Task.WhenAny(tcs.Task, timeoutTask).ConfigureAwait(false);
+                        
+                        _logger.LogInformation("⏰ Task completed! Completed task: {CompletedTask}, IsTimeout: {IsTimeout}, TCS Status: {TCSStatus}",
+                            completedTask == timeoutTask ? "TIMEOUT" : "RESPONSE", 
+                            completedTask == timeoutTask,
+                            tcs.Task.Status);
+
+                        if (completedTask == timeoutTask)
+                        {
+                            _logger.LogWarning("⏱️ PROMPT TIMEOUT - Removing from dictionary - PromptId: {PromptId}, AgentId: {AgentId}", promptId, connection.AgentId);
+                            connection.PendingPrompts.TryRemove(promptId, out _);
+                            return "User did not respond within timeout period";
+                        }
+
+                        var response = await tcs.Task.ConfigureAwait(false);
+                        _logger.LogInformation("✅ PROMPT COMPLETED - Removing from dictionary - PromptId: {PromptId}, Response: {Response}", 
+                            promptId, response);
                         connection.PendingPrompts.TryRemove(promptId, out _);
-                        return "User did not respond within timeout period";
+                        return response;
                     }
-
-                    connection.PendingPrompts.TryRemove(promptId, out _);
-                    return await tcs.Task;
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "❌ Exception in PromptCallback");
+                        return "Error: " + ex.Message;
+                    }
                 };
+            }
+            else
+            {
+                _logger.LogWarning("AskUser tool not found for agent {AgentId}", connection.AgentId);
             }
         }
 
         private async Task HandlePromptResponseAsync(string connectionId, System.Net.WebSockets.WebSocket webSocket, WebSocketMessage request)
         {
+            _logger.LogInformation("HandlePromptResponseAsync called - ConnectionId: {ConnectionId}, AgentId: {AgentId}, PromptId: {PromptId}, Data: {Data}",
+                connectionId, request.AgentId, request.PromptId, request.Data);
+
             if (string.IsNullOrEmpty(request.AgentId) || string.IsNullOrEmpty(request.PromptId))
             {
+                _logger.LogWarning("Missing AgentId or PromptId in prompt_response");
                 await SendResponseAsync(webSocket, new WebSocketResponse
                 {
                     Status = "error",
@@ -600,9 +652,12 @@ namespace DraCode.WebSocket.Services
             }
 
             var agentKey = GetAgentKey(connectionId, request.AgentId);
+            _logger.LogInformation("Looking for agent with key: {AgentKey}", agentKey);
 
             if (!_agents.TryGetValue(agentKey, out var connection))
             {
+                _logger.LogWarning("No agent found with key: {AgentKey}. Available keys: {Keys}",
+                    agentKey, string.Join(", ", _agents.Keys));
                 await SendResponseAsync(webSocket, new WebSocketResponse
                 {
                     Status = "error",
@@ -612,8 +667,11 @@ namespace DraCode.WebSocket.Services
                 return;
             }
 
+            _logger.LogInformation("Found agent. Pending prompts count: {Count}", connection.PendingPrompts.Count);
+            
             if (connection.PendingPrompts.TryGetValue(request.PromptId, out var tcs))
             {
+                _logger.LogInformation("Found pending prompt with ID: {PromptId}. Setting result.", request.PromptId);
                 tcs.SetResult(request.Data ?? "");
 
                 await SendResponseAsync(webSocket, new WebSocketResponse
@@ -625,6 +683,8 @@ namespace DraCode.WebSocket.Services
             }
             else
             {
+                _logger.LogWarning("No pending prompt found with ID: {PromptId}. Available IDs: {Ids}",
+                    request.PromptId, string.Join(", ", connection.PendingPrompts.Keys));
                 await SendResponseAsync(webSocket, new WebSocketResponse
                 {
                     Status = "error",

@@ -46,8 +46,8 @@ namespace DraCode.Agent.Tools
                     
                     SendMessage("prompt", fullPrompt ?? "");
                     
-                    // This will block until user responds via WebSocket
-                    var response = PromptCallback(question ?? "", context ?? "").GetAwaiter().GetResult();
+                    // Use ConfigureAwait(false) and GetAwaiter().GetResult() without Task.Run to avoid deadlock
+                    var response = PromptCallback(question ?? "", context ?? "").ConfigureAwait(false).GetAwaiter().GetResult();
                     return response;
                 }
 
