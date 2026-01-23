@@ -500,7 +500,10 @@ namespace DraCode.WebSocket.Services
                     
                     // Extract the final response
                     var finalResponse = ExtractFinalResponse(conversation);
+                    
+                    _logger.LogInformation("📝 Final response extracted - Length: {Length} characters", finalResponse?.Length ?? 0);
 
+                    _logger.LogInformation("📤 Sending completed response to client for {AgentId}", agentId);
                     await SendResponseAsync(connectionSocket, new WebSocketResponse
                     {
                         Status = "completed",
@@ -508,11 +511,14 @@ namespace DraCode.WebSocket.Services
                         Data = finalResponse,
                         AgentId = agentId
                     });
+                    _logger.LogInformation("✅ Completed response sent for {AgentId}", agentId);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ Error executing agent task for {AgentId} in connection {ConnectionId}",
                         agentId, connectionId);
+                    
+                    _logger.LogInformation("📤 Sending error response to client for {AgentId}", agentId);
                     await SendResponseAsync(connectionSocket, new WebSocketResponse
                     {
                         Status = "error",
@@ -552,34 +558,55 @@ namespace DraCode.WebSocket.Services
 
         private async Task SendResponseAsync(System.Net.WebSockets.WebSocket webSocket, WebSocketResponse response)
         {
-            if (webSocket.State != WebSocketState.Open)
-                return;
-
-            var json = JsonSerializer.Serialize(response);
-            var bytes = Encoding.UTF8.GetBytes(json);
-            
-            // WebSocket send operations must be synchronized
-            // Find the connection for this websocket to get its semaphore
-            var connection = _agents.Values.FirstOrDefault(c => c.WebSocket == webSocket);
-            if (connection != null)
+            try
             {
-                await connection.WebSocketSemaphore.WaitAsync();
-                try
+                if (webSocket.State != WebSocketState.Open)
                 {
-                    if (webSocket.State == WebSocketState.Open)
+                    _logger.LogWarning("⚠️ Cannot send response - WebSocket state is {State}", webSocket.State);
+                    return;
+                }
+
+                var json = JsonSerializer.Serialize(response);
+                var bytes = Encoding.UTF8.GetBytes(json);
+                
+                _logger.LogInformation("📤 Sending response - Status: {Status}, AgentId: {AgentId}, MessageType: {MessageType}", 
+                    response.Status, response.AgentId, response.MessageType);
+                
+                // WebSocket send operations must be synchronized
+                // Find the connection for this websocket to get its semaphore
+                var connection = _agents.Values.FirstOrDefault(c => c.WebSocket == webSocket);
+                if (connection != null)
+                {
+                    await connection.WebSocketSemaphore.WaitAsync();
+                    try
                     {
-                        await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                        if (webSocket.State == WebSocketState.Open)
+                        {
+                            await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                            _logger.LogInformation("✅ Response sent successfully via semaphore");
+                        }
+                        else
+                        {
+                            _logger.LogWarning("⚠️ WebSocket closed while waiting for semaphore");
+                        }
+                    }
+                    finally
+                    {
+                        connection.WebSocketSemaphore.Release();
                     }
                 }
-                finally
+                else
                 {
-                    connection.WebSocketSemaphore.Release();
+                    // Fallback for messages not associated with an agent connection
+                    _logger.LogInformation("📤 Using fallback send (no connection found)");
+                    await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                    _logger.LogInformation("✅ Fallback response sent successfully");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                // Fallback for messages not associated with an agent connection
-                await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                _logger.LogError(ex, "❌ Error sending WebSocket response - Status: {Status}, AgentId: {AgentId}", 
+                    response.Status, response.AgentId);
             }
         }
 
