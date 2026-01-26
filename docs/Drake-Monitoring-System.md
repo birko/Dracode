@@ -1,12 +1,15 @@
-# 🐉 Drake Monitoring System
+# 🦅 Drake Monitoring System
 
 ## Overview
 
-The Drake Monitoring System provides automated background monitoring and lifecycle management for Kobolds in the KoboldTown system. It consists of:
+The Drake Monitoring System provides automated background monitoring and lifecycle management for Kobolds in the KoboldTown system. **Drakes work automatically** - they're monitored by DrakeMonitoringService running every 60 seconds in the background.
 
+Components:
 - **DrakeFactory**: Creates and manages Drake instances from task file paths
 - **DrakeMonitoringService**: Background service that monitors Drakes and updates task status
 - **Drake**: Supervisor that manages Kobolds and synchronizes with markdown task files
+
+**Drake is NOT interactive** - it automatically manages Kobold workers based on task files created by Wyrm.
 
 ## Architecture
 

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KoboldTown - Hierarchy Visualization</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/hierarchy.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🏰 KoboldTown Command Center</h1>
+            <p class="subtitle">Real-time Process Hierarchy & Status</p>
+            <div class="connection-status">
+                <span id="connectionStatus" class="status-indicator">⚪ Disconnected</span>
+            </div>
+            <nav class="nav-tabs">
+                <a href="/" class="tab-link">📊 Status</a>
+                <a href="/dragon.html" class="tab-link">🐉 Dragon</a>
+                <a href="/hierarchy.html" class="tab-link active">🏰 Hierarchy</a>
+            </nav>
+        </header>
+
+        <main class="main-content hierarchy-view">
+            <!-- Statistics Overview -->
+            <section class="stats-grid">
+                <div class="stat-card dragon-stat">
+                    <div class="stat-icon">🐉</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="dragonCount">-</div>
+                        <div class="stat-label">Dragon Sessions</div>
+                    </div>
+                </div>
+                <div class="stat-card project-stat">
+                    <div class="stat-icon">📁</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="projectCount">-</div>
+                        <div class="stat-label">Projects</div>
+                    </div>
+                </div>
+                <div class="stat-card wyrm-stat">
+                    <div class="stat-icon">🐲</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="wyrmCount">-</div>
+                        <div class="stat-label">Wyrms Active</div>
+                    </div>
+                </div>
+                <div class="stat-card drake-stat">
+                    <div class="stat-icon">🦎</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="drakeCount">-</div>
+                        <div class="stat-label">Drakes</div>
+                    </div>
+                </div>
+                <div class="stat-card kobold-stat">
+                    <div class="stat-icon">⚙️</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="koboldCount">-</div>
+                        <div class="stat-label">Kobolds Working</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Hierarchy Visualization -->
+            <section class="visualization-section">
+                <div class="section-header">
+                    <h2>🗺️ Process Hierarchy</h2>
+                    <div class="controls">
+                        <button id="autoRefreshBtn" class="btn btn-secondary active">
+                            <span class="icon">🔄</span> Auto-refresh
+                        </button>
+                        <button id="refreshBtn" class="btn btn-secondary">
+                            <span class="icon">↻</span> Refresh Now
+                        </button>
+                    </div>
+                </div>
+                <div id="hierarchyCanvas" class="hierarchy-canvas">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p>Loading hierarchy...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Project Details -->
+            <section class="projects-section">
+                <div class="section-header">
+                    <h2>📊 Project Details</h2>
+                </div>
+                <div id="projectsList" class="projects-list">
+                    <p class="empty-message">No projects yet</p>
+                </div>
+            </section>
+
+            <!-- Background Services Status -->
+            <section class="services-section">
+                <div class="section-header">
+                    <h2>⚡ Background Services</h2>
+                </div>
+                <div id="servicesList" class="services-list">
+                    <div class="service-card">
+                        <div class="service-icon pulse">🐉</div>
+                        <div class="service-info">
+                            <h3>Wyrm Processing Service</h3>
+                            <p>Monitors specifications and assigns Wyrms</p>
+                            <div class="service-status">
+                                <span class="status-badge running">Running</span>
+                                <span class="service-interval">Every 60s</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="service-card">
+                        <div class="service-icon pulse">🦎</div>
+                        <div class="service-info">
+                            <h3>Drake Monitoring Service</h3>
+                            <p>Monitors Drake supervisors and Kobold workers</p>
+                            <div class="service-status">
+                                <span class="status-badge running">Running</span>
+                                <span class="service-interval">Every 60s</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="/js/hierarchy.js"></script>
+</body>
+</html>

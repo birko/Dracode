@@ -51,7 +51,13 @@ Available specialized agents:
 7. 'html' - HTML markup tasks (semantic HTML5, accessibility, SEO)
 8. 'react' - React development tasks (hooks, components, state management)
 9. 'angular' - Angular development tasks (TypeScript, RxJS, dependency injection)
-10. 'diagramming' - Creating diagrams (UML, ERD, DFD, user stories, activity diagrams)
+10. 'php' - PHP development tasks (Laravel, Symfony, WordPress, PSR standards)
+11. 'python' - Python development tasks (Django, Flask, data science, machine learning)
+12. 'diagramming' - Creating diagrams (UML, ERD, DFD, user stories, activity diagrams)
+13. 'media' - General media tasks (images, video, audio, formats, optimization)
+14. 'image' - Image tasks (raster and vector, editing, formats)
+15. 'svg' - SVG creation/editing tasks (scalable vector graphics, icons, illustrations)
+16. 'bitmap' - Bitmap/raster image tasks (JPEG, PNG, WebP, photo editing, compression)
 
 {depthGuidance}
 
@@ -62,9 +68,11 @@ When you receive a task:
 4. The selected agent will then be instantiated to handle the actual work
 
 Selection guidelines:
-- If task mentions specific framework/language (React, Angular, C#, C++), choose that agent
+- If task mentions specific framework/language (React, Angular, C#, C++, PHP, Python), choose that agent
 - If task is about creating diagrams or visual models, choose 'diagramming'
 - If task involves styling/layout/design, choose 'css' or 'html'
+- If task involves images (SVG, icons, photos, editing), choose 'svg', 'bitmap', or 'image'
+- If task involves general media (video, audio, formats), choose 'media'
 - If task is general coding or multiple languages, choose 'coding'
 - If task is about pure JavaScript without frameworks, choose 'javascript'
 - Be decisive and choose the single most appropriate agent
@@ -151,7 +159,7 @@ Returns: Information about the selected agent and confirmation that it will hand
                 var task = taskObj.ToString()!;
 
                 // Validate agent type
-                var validAgentTypes = new[] { "coding", "csharp", "cpp", "assembler", "javascript", "typescript", "css", "html", "react", "angular", "diagramming" };
+                var validAgentTypes = new[] { "coding", "csharp", "cpp", "assembler", "javascript", "typescript", "css", "html", "react", "angular", "php", "python", "diagramming", "media", "image", "svg", "bitmap" };
                 if (!validAgentTypes.Contains(agentType.ToLowerInvariant()))
                 {
                     return $"Error: Invalid agent_type '{agentType}'. Must be one of: {string.Join(", ", validAgentTypes)}";

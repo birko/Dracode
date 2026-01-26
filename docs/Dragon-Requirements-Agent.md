@@ -2,7 +2,9 @@
 
 ## Overview
 
-Dragon is a specialized AI agent designed for interactive requirements gathering. It conducts conversations with users to understand project goals, technical requirements, and specifications, then produces comprehensive documentation that can be used by the KoboldTown Wyvern to break down work into tasks.
+Dragon is a specialized AI agent designed for interactive requirements gathering. It conducts conversations with users to understand project goals, technical requirements, and specifications, then produces comprehensive documentation that triggers the KoboldTown automated workflow (Wyrm → Drake → Kobold).
+
+**Dragon is the ONLY interactive interface in KoboldTown.** All other agents (Wyrm, Drake, Kobold) work automatically in the background.
 
 ## Architecture
 
@@ -16,8 +18,16 @@ DragonAgent (Interactive conversation)
 SpecificationWriterTool
     ↓ Creates
 ./specifications/{project-name}.md
-    ↓ Input for
-Wyvern → Tasks → Kobolds
+    ↓ Triggers
+ProjectService registers project
+    ↓ Automatic Background Processing
+WyrmProcessingService (every 60s) detects spec
+    ↓
+Assigns Wyrm → Analyzes → Creates tasks
+    ↓
+DrakeMonitoringService assigns Kobolds
+    ↓
+Kobolds generate code
 ```
 
 ## Components
@@ -56,6 +66,7 @@ WebSocket service for real-time Dragon conversations.
 - Bi-directional messaging
 - Typing indicators
 - Automatic specification detection
+- **Project registration** - Automatically registers projects when specs are created
 - Error handling and reconnection support
 
 **WebSocket Protocol:**

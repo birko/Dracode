@@ -21,9 +21,35 @@ dotnet run --project DraCode.AppHost
 
 📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md)
 
+## 🏰 KoboldTown - Autonomous Multi-Agent Coding System
+
+**KoboldTown** is an intelligent, hierarchical multi-agent system that autonomously transforms your ideas into working code:
+
+🐉 **Dragon** (Interactive) - Your only touchpoint. Conduct conversational requirements gathering, refine specifications.  
+🐲 **Wyrm** (Automatic) - Analyzes specifications, breaks down into organized tasks, manages dependencies.  
+🦅 **Drake** (Automatic) - Supervises task execution, monitors progress, handles errors.  
+👹 **Kobold** (Automatic) - Writes the actual code based on Drake assignments.
+
+**Key Features:**
+- 💬 **Interactive Dragon Chat** - Natural conversation interface for requirements
+- 🔄 **Automated Workflow** - Wyrms, Drakes, and Kobolds work automatically in background
+- 📊 **Real-time Visualization** - Animated hierarchy display showing agent relationships and status
+- 📁 **Project Management** - Automatic project tracking with metadata and output locations
+- ⏱️ **Background Processing** - Services run every 60 seconds checking for new work
+- 🎨 **Modern UI** - Three-page interface: Status Monitor, Dragon Chat, Hierarchy View
+
+**Quick Start:**
+```bash
+dotnet run --project DraCode.AppHost
+# Open KoboldTown from the Aspire dashboard
+```
+
+📖 **Learn More**: [KoboldTown README](DraCode.KoboldTown/README.md) | [KoboldTown API](DraCode.KoboldTown/API.md)
+
 ## 🚀 Features
 
 - **Multi-Provider LLM Support**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot
+- **17 Specialized Agent Types**: Coding (C#, C++, JavaScript, TypeScript, PHP, Python, etc.), Web (HTML, CSS, React, Angular), Media (SVG, Bitmap, Image), and Diagramming
 - **Multi-Task Execution**: Define and execute multiple tasks sequentially with fresh agent instances
 - **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
 - **Verbose Mode Control**: Toggle between detailed execution info or clean minimal output
@@ -327,6 +353,12 @@ DraCode/
 │   ├── LLMs/                # LLM provider implementations
 │   ├── Tools/               # Tool system
 │   └── Helpers/             # Utility classes
+├── DraCode.KoboldTown/       # Multi-agent autonomous coding system
+│   ├── Agents/              # Dragon, Wyrm, Drake, Kobold agents
+│   ├── Projects/            # Wyrm project management
+│   ├── Services/            # Background processing, DragonService
+│   ├── Models/              # Project, ProjectStatus data models
+│   └── wwwroot/             # Web UI (Status, Dragon Chat, Hierarchy)
 ├── DraCode.WebSocket/        # WebSocket API server
 │   ├── Models/              # WebSocket message models
 │   └── Services/            # Agent connection manager

@@ -15,7 +15,7 @@ namespace DraCode.KoboldTown.Agents
         /// <param name="provider">LLM provider: "openai", "azureopenai", "claude", "gemini", "ollama", "githubcopilot"</param>
         /// <param name="options">Agent options (working directory, verbose, etc.)</param>
         /// <param name="config">Provider configuration (API keys, models, etc.)</param>
-        /// <param name="agentType">Type of agent to create: "orchestrator", "coding", "csharp", "cpp", etc.</param>
+        /// <param name="agentType">Type of agent to create: "dragon", "wyvern", "coding", "csharp", "cpp", "php", "python", "svg", "bitmap", etc.</param>
         /// <returns>Agent instance</returns>
         public static Agent.Agents.Agent Create(
             string provider,

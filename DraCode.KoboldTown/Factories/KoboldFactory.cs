@@ -36,7 +36,7 @@ namespace DraCode.KoboldTown.Factories
         /// Creates a new Kobold with the specified provider and agent type
         /// </summary>
         /// <param name="provider">LLM provider: "openai", "azureopenai", "claude", "gemini", "ollama", "githubcopilot"</param>
-        /// <param name="agentType">Type of agent: "csharp", "cpp", "javascript", "react", etc.</param>
+        /// <param name="agentType">Type of agent: "csharp", "cpp", "javascript", "react", "php", "python", "svg", "bitmap", etc.</param>
         /// <param name="options">Optional agent options (overrides default)</param>
         /// <param name="config">Optional provider configuration (overrides default)</param>
         /// <returns>Newly created Kobold instance</returns>

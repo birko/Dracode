@@ -7,6 +7,7 @@ export class UIController {
     }
 
     initElements() {
+        // Optional elements (may not exist on all pages)
         this.taskForm = document.getElementById('taskForm');
         this.taskInput = document.getElementById('taskInput');
         this.submitBtn = document.getElementById('submitBtn');
@@ -20,33 +21,43 @@ export class UIController {
     }
 
     bindEvents() {
-        // Task submission
-        this.taskForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleSubmit();
-        });
+        // Task submission (only if form exists)
+        if (this.taskForm) {
+            this.taskForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleSubmit();
+            });
+        }
 
         // Filter buttons
-        this.filterButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.handleFilterChange(btn);
+        if (this.filterButtons) {
+            this.filterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this.handleFilterChange(btn);
+                });
             });
-        });
+        }
 
         // Refresh button
-        this.refreshBtn.addEventListener('click', () => {
-            this.onRefresh && this.onRefresh();
-        });
+        if (this.refreshBtn) {
+            this.refreshBtn.addEventListener('click', () => {
+                this.onRefresh && this.onRefresh();
+            });
+        }
 
         // Download markdown button
-        this.downloadMarkdownBtn.addEventListener('click', () => {
-            this.onDownloadMarkdown && this.onDownloadMarkdown();
-        });
+        if (this.downloadMarkdownBtn) {
+            this.downloadMarkdownBtn.addEventListener('click', () => {
+                this.onDownloadMarkdown && this.onDownloadMarkdown();
+            });
+        }
 
         // Clear logs button
-        this.clearLogsBtn.addEventListener('click', () => {
-            this.clearLogs();
-        });
+        if (this.clearLogsBtn) {
+            this.clearLogsBtn.addEventListener('click', () => {
+                this.clearLogs();
+            });
+        }
 
         // Update tasks when task manager changes
         this.taskManager.onUpdate(() => {

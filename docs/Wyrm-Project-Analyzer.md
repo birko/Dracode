@@ -2,16 +2,22 @@
 
 ## Overview
 
-Wyrm is a specialized project analyzer that reads Dragon specifications and transforms them into organized, dependency-aware task lists. **One Wyrm per project** - it categorizes work into areas (backend, frontend, etc.), identifies dependencies, and uses the Wyvern to create executable tasks for Drakes to monitor.
+Wyrm is a specialized project analyzer that reads Dragon specifications and transforms them into organized, dependency-aware task lists. **One Wyrm per project** - it categorizes work into areas (backend, frontend, etc.), identifies dependencies, and creates executable tasks for Drakes to monitor.
+
+**Wyrms work automatically** - they're created and assigned by WyrmProcessingService (background service running every 60 seconds) when new specifications are detected.
 
 ## Architecture
 
 ```
-Dragon creates specification
+Dragon creates specification (./specifications/*.md)
     ↓
-Wyrm reads specification
+ProjectService.RegisterProject() (automatic)
     ↓
-WyrmAnalyzerAgent analyzes
+WyrmProcessingService checks every 60 seconds
+    ↓
+Detects new project → Creates Wyrm instance
+    ↓
+WyrmAnalyzerAgent analyzes specification
     ↓
 Categorizes into work areas:
   • Backend
@@ -25,11 +31,11 @@ Identifies dependencies
     ↓
 Orders tasks by dependency level
     ↓
-Uses WyvernRunner per area
+Creates task files (./workspace/{project}/*-tasks.md)
     ↓
-Creates task files for Drakes
+DrakeMonitoringService detects tasks
     ↓
-Drakes monitor & manage Kobolds
+Drakes monitor & assign to Kobolds
 ```
 
 ## Components

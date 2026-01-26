@@ -1,6 +1,7 @@
 using DraCode.Agent;
 using DraCode.KoboldTown.Factories;
 using DraCode.KoboldTown.Services;
+using DraCode.KoboldTown.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -132,6 +133,110 @@ app.Map("/dragon", async context =>
     {
         context.Response.StatusCode = 400;
     }
+});
+
+// API endpoint for hierarchy data
+app.MapGet("/api/hierarchy", (
+    ProjectService projectService,
+    DragonService dragonService,
+    DrakeFactory drakeFactory,
+    WyrmFactory wyrmFactory) =>
+{
+    var projects = projectService.GetAllProjects();
+    var stats = projectService.GetStatistics();
+    var dragonStats = dragonService.GetStatistics();
+    var drakes = drakeFactory.GetAllDrakes();
+    
+    // Calculate totals
+    var totalKobolds = drakes.Sum(d => d.GetStatistics().WorkingKobolds);
+    var totalWyrms = wyrmFactory.TotalWyrms;
+    
+    var response = new
+    {
+        statistics = new
+        {
+            dragonSessions = dragonStats.ActiveSessions,
+            projects = stats.TotalProjects,
+            wyrms = totalWyrms,
+            drakes = drakes.Count,
+            koboldsWorking = totalKobolds
+        },
+        projects = projects.Select(p => new
+        {
+            p.Id,
+            p.Name,
+            p.Status,
+            p.WyrmId,
+            p.CreatedAt,
+            p.AnalyzedAt,
+            p.OutputPath,
+            p.SpecificationPath,
+            p.TaskFiles,
+            p.ErrorMessage
+        }),
+        hierarchy = new
+        {
+            dragon = new
+            {
+                name = "Dragon Requirements Agent",
+                icon = "🐉",
+                status = dragonStats.ActiveSessions > 0 ? "active" : "idle",
+                activeSessions = dragonStats.ActiveSessions
+            },
+            projects = projects.Where(p => p.WyrmId != null).Select(p =>
+            {
+                var wyrm = wyrmFactory.GetWyrm(p.Name);
+                return new
+                {
+                    id = p.Id,
+                    name = p.Name,
+                    icon = "📁",
+                    status = p.Status.ToString().ToLower(),
+                    wyrm = wyrm != null ? new
+                    {
+                        id = p.WyrmId,
+                        name = $"Wyrm ({p.Name})",
+                        icon = "🐲",
+                        status = p.Status == ProjectStatus.Analyzed ? "active" : "working",
+                        analyzed = p.Status >= ProjectStatus.Analyzed,
+                        totalTasks = wyrm.Analysis?.TotalTasks ?? 0
+                    } : null
+                };
+            }).ToList()
+        }
+    };
+    
+    return Results.Json(response);
+});
+
+// API endpoint for project statistics
+app.MapGet("/api/projects", (ProjectService projectService) =>
+{
+    var projects = projectService.GetAllProjects();
+    return Results.Json(projects);
+});
+
+// API endpoint for statistics
+app.MapGet("/api/stats", (
+    ProjectService projectService,
+    DragonService dragonService,
+    DrakeFactory drakeFactory,
+    WyrmFactory wyrmFactory) =>
+{
+    var projectStats = projectService.GetStatistics();
+    var dragonStats = dragonService.GetStatistics();
+    var drakes = drakeFactory.GetAllDrakes();
+    
+    var response = new
+    {
+        projects = projectStats,
+        dragon = dragonStats,
+        drakes = drakes.Count,
+        wyrms = wyrmFactory.TotalWyrms,
+        koboldsWorking = drakes.Sum(d => d.GetStatistics().WorkingKobolds)
+    };
+    
+    return Results.Json(response);
 });
 
 // Serve index.html as default

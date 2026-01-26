@@ -1,0 +1,432 @@
+/* Hierarchy Visualization Styles */
+
+.hierarchy-view {
+    display: grid;
+    gap: 2rem;
+}
+
+/* Navigation Tabs */
+.nav-tabs {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.tab-link {
+    padding: 0.75rem 1.5rem;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.tab-link:hover {
+    border-color: var(--primary-color);
+    color: var(--text-primary);
+}
+
+.tab-link.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* Statistics Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.stat-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-color);
+}
+
+.stat-card:hover::before {
+    opacity: 1;
+}
+
+.stat-icon {
+    font-size: 2.5rem;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.stat-info {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Color accents for different entity types */
+.dragon-stat { --accent-color: #ef4444; }
+.project-stat { --accent-color: #8b5cf6; }
+.wyrm-stat { --accent-color: #f59e0b; }
+.drake-stat { --accent-color: #10b981; }
+.kobold-stat { --accent-color: #3b82f6; }
+
+/* Hierarchy Canvas */
+.visualization-section {
+    background: var(--surface-color);
+    border-radius: 1rem;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+}
+
+.controls {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.hierarchy-canvas {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 2rem;
+    min-height: 600px;
+    overflow: auto;
+    position: relative;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Hierarchy Nodes */
+.hierarchy-container {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+    align-items: center;
+}
+
+.hierarchy-level {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.level-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.nodes-container {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.hierarchy-node {
+    background: var(--surface-color);
+    border: 2px solid var(--border-color);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    min-width: 200px;
+    text-align: center;
+    position: relative;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.hierarchy-node:hover {
+    transform: scale(1.05);
+    border-color: var(--node-color);
+    box-shadow: 0 0 20px var(--node-color);
+}
+
+.hierarchy-node::before {
+    content: '';
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 30px;
+    background: var(--border-color);
+}
+
+.hierarchy-node.root::before {
+    display: none;
+}
+
+.node-icon {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.node-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.node-status {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+.node-status.active {
+    background: var(--success-color);
+    color: white;
+}
+
+.node-status.idle {
+    background: var(--secondary-color);
+    color: white;
+}
+
+.node-status.working {
+    background: var(--warning-color);
+    color: var(--bg-color);
+    animation: blink 1.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.node-meta {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+/* Entity-specific colors */
+.hierarchy-node.dragon { --node-color: #ef4444; }
+.hierarchy-node.project { --node-color: #8b5cf6; }
+.hierarchy-node.wyrm { --node-color: #f59e0b; }
+.hierarchy-node.drake { --node-color: #10b981; }
+.hierarchy-node.kobold { --node-color: #3b82f6; }
+
+/* Projects List */
+.projects-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.project-card {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    transition: all 0.2s;
+}
+
+.project-card:hover {
+    border-color: var(--primary-color);
+}
+
+.project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+.project-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.project-status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.project-status-badge.new { background: #64748b; color: white; }
+.project-status-badge.wyrmassigned { background: #3b82f6; color: white; }
+.project-status-badge.analyzed { background: #10b981; color: white; }
+.project-status-badge.inprogress { background: #f59e0b; color: var(--bg-color); }
+.project-status-badge.completed { background: #22c55e; color: white; }
+.project-status-badge.failed { background: #ef4444; color: white; }
+
+.project-info {
+    display: grid;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.project-info-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.project-info-label {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.project-wyrm {
+    color: var(--warning-color);
+    font-weight: bold;
+}
+
+/* Services List */
+.services-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.service-card {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.service-icon {
+    font-size: 2.5rem;
+}
+
+.service-icon.pulse {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.service-info {
+    flex: 1;
+}
+
+.service-info h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+}
+
+.service-info p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.service-status {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+}
+
+.status-badge.running {
+    background: var(--success-color);
+    color: white;
+    animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.service-interval {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .nodes-container {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .hierarchy-node {
+        width: 100%;
+        max-width: 300px;
+    }
+}

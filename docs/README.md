@@ -3,7 +3,35 @@
 Welcome to the DraCode documentation. This directory contains all technical documentation, guides, and specifications.
 
 📖 **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete project spec for regeneration  
-📝 **[Changelog](CHANGELOG.md)** - Version history and release notes
+📝 **[Changelog](CHANGELOG.md)** - Version history and release notes  
+🏰 **[KoboldTown README](../DraCode.KoboldTown/README.md)** - Multi-agent autonomous coding system
+
+## 🏰 KoboldTown Multi-Agent System
+
+**NEW!** KoboldTown is an autonomous hierarchical multi-agent system where **Dragon is your only interactive interface**. All other agents work automatically in the background.
+
+### Agent Documentation
+
+| Agent | Role | Interactive | Documentation |
+|-------|------|-------------|---------------|
+| 🐉 **Dragon** | Requirements gathering | ✅ Yes | [Dragon-Requirements-Agent.md](Dragon-Requirements-Agent.md) |
+| 🐲 **Wyrm** | Project analysis & task organization | ❌ Automatic | [Wyrm-Project-Analyzer.md](Wyrm-Project-Analyzer.md) |
+| 🦅 **Drake** | Task supervision & Kobold management | ❌ Automatic | [Drake-Monitoring-System.md](Drake-Monitoring-System.md) |
+| 👹 **Kobold** | Code generation workers | ❌ Automatic | [Kobold-System.md](Kobold-System.md), [Kobold-State-Management.md](Kobold-State-Management.md) |
+
+### KoboldTown Resources
+- **[KoboldTown README](../DraCode.KoboldTown/README.md)** - Complete user-friendly guide
+- **[KoboldTown API](../DraCode.KoboldTown/API.md)** - REST and WebSocket API documentation
+
+### How It Works
+1. **You interact with Dragon** (web chat) to describe project requirements
+2. **Dragon creates specification** → automatically registers project
+3. **Wyrm is assigned** → background service runs every 60s
+4. **Wyrm analyzes** → creates organized task files
+5. **Drake monitors** → assigns tasks to Kobolds
+6. **Kobolds generate code** → completely automatic
+
+Only Dragon requires interaction - everything else is automatic!
 
 ## 📚 Documentation Structure
 
@@ -62,6 +90,7 @@ Problem-solving guides and debugging help:
 ## 📖 Project-Specific Documentation
 
 Each project has its own README with specific details:
+- [DraCode.KoboldTown README](../DraCode.KoboldTown/README.md) - Multi-agent autonomous coding system
 - [DraCode.WebSocket README](../DraCode.WebSocket/README.md) - WebSocket API server documentation
 - [DraCode.Web README](../DraCode.Web/README.md) - Web client documentation
 - [DraCode.AppHost README](../DraCode.AppHost/README.md) - .NET Aspire orchestration documentation

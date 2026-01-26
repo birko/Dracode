@@ -1,193 +1,37 @@
-# DraCode.KoboldTown
+# 🏰 KoboldTown - AI-Powered Automated Development Workflow
 
-A WebSocket-based orchestrator service with a clean vanilla JavaScript, HTML, and CSS frontend for managing AI agent tasks.
+**KoboldTown** is an intelligent, automated AI agent system that transforms your project ideas into working code. Simply describe what you want to build, and watch as a hierarchy of specialized AI agents automatically analyzes, plans, and executes your project.
 
-## Features
+## 🌟 What Makes KoboldTown Special?
 
-- **WebSocket Server** - Real-time bidirectional communication
-- **AI Orchestrator** - Intelligent task routing to specialized agents
-- **Task Tracking** - Monitor task status through lifecycle
-- **Modular JavaScript** - Clean ES6 modules architecture
-- **Modern UI** - Responsive design with dark theme
-- **Markdown Reports** - Download task status reports
+**One Interactive Interface, Fully Automated Workflow**
 
-## Architecture
+Unlike other AI coding tools, KoboldTown separates *what you want* from *how it gets built*:
 
-```
-┌─────────────────┐
-│   Frontend      │
-│  (HTML/CSS/JS)  │
-└────────┬────────┘
-         │ WebSocket
-         ↓
-┌─────────────────┐
-│  WebSocket      │
-│  Endpoint (/ws) │
-└────────┬────────┘
-         │
-         ↓
-┌─────────────────┐
-│  Orchestrator   │
-│  Service        │
-└────────┬────────┘
-         │
-         ↓
-┌─────────────────┐
-│  Task Tracker   │
-│  (Status Mgmt)  │
-└─────────────────┘
+- 🎯 **You talk to Dragon** - A friendly AI that gathers your requirements through natural conversation
+- 🤖 **Everything else is automatic** - Specialized agents handle analysis, planning, and execution
+- 📊 **You monitor progress** - Watch the workflow in real-time through beautiful visualizations
+- ✅ **You get results** - Organized, working code delivered to your workspace
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- .NET 10.0 SDK or later
+- An API key for your preferred LLM provider (OpenAI, Claude, Gemini, Azure OpenAI, or Ollama)
+
+### Installation & Setup
+
+1. **Clone and build:**
+```bash
+git clone https://github.com/yourusername/DraCode.git
+cd DraCode
+dotnet build
 ```
 
-## Project Structure
+2. **Configure your API key** (choose one method):
 
-```
-DraCode.KoboldTown/
-├── Orchestrator/
-│   ├── TaskRecord.cs       - Task data model
-│   └── TaskTracker.cs      - Task management & markdown generation
-├── Services/
-│   └── OrchestratorService.cs - WebSocket handler & orchestrator integration
-├── wwwroot/
-│   ├── index.html          - Main UI
-│   ├── css/
-│   │   └── styles.css      - Styling (dark theme, responsive)
-│   └── js/
-│       ├── main.js         - Application entry point
-│       ├── websocket.js    - WebSocket communication module
-│       ├── taskManager.js  - Task state management
-│       └── ui.js           - UI controller module
-├── Program.cs              - Application startup
-└── appsettings.json        - Configuration
-
-## Frontend Modules
-
-### websocket.js
-- WebSocket connection management
-- Automatic reconnection with exponential backoff
-- Message routing by type
-- Connection status tracking
-
-### taskManager.js
-- Task state management
-- Filtering by status
-- Update notifications
-- In-memory task storage
-
-### ui.js
-- DOM manipulation
-- Event handling
-- Task rendering
-- Log management
-- Status updates
-
-### main.js
-- Application initialization
-- Module coordination
-- WebSocket message handling
-- Markdown download
-
-## WebSocket API
-
-### Client → Server Messages
-
-#### Submit Task
-```json
-{
-  "action": "submit_task",
-  "task": "Create a React login component"
-}
-```
-
-#### Get All Tasks
-```json
-{
-  "action": "get_tasks"
-}
-```
-
-#### Get Single Task
-```json
-{
-  "action": "get_task",
-  "taskId": "abc-123"
-}
-```
-
-#### Get Markdown Report
-```json
-{
-  "action": "get_markdown"
-}
-```
-
-### Server → Client Messages
-
-#### Task Created
-```json
-{
-  "type": "task_created",
-  "taskId": "abc-123",
-  "task": "Create React component",
-  "status": "unassigned"
-}
-```
-
-#### Status Update
-```json
-{
-  "type": "status_update",
-  "taskId": "abc-123",
-  "status": "working",
-  "assignedAgent": "react",
-  "errorMessage": null
-}
-```
-
-#### Agent Message
-```json
-{
-  "type": "agent_message",
-  "taskId": "abc-123",
-  "messageType": "info",
-  "content": "Processing task..."
-}
-```
-
-#### Tasks List
-```json
-{
-  "type": "tasks_list",
-  "tasks": [...]
-}
-```
-
-#### Markdown Report
-```json
-{
-  "type": "markdown_report",
-  "markdown": "# Report\n..."
-}
-```
-
-#### Error
-```json
-{
-  "type": "error",
-  "error": "Error message"
-}
-```
-
-## Task Lifecycle
-
-1. **⚪ unassigned** - Task submitted, awaiting orchestrator
-2. **🔵 notinitialized** - Agent selected, not yet started
-3. **🟡 working** - Agent actively processing task
-4. **🟢 done** - Task completed successfully
-
-## Configuration
-
-Edit `appsettings.json`:
-
+**Option A:** Create `DraCode.KoboldTown/appsettings.local.json`:
 ```json
 {
   "Orchestrator": {
@@ -198,59 +42,302 @@ Edit `appsettings.json`:
 }
 ```
 
-Supported providers: `openai`, `azureopenai`, `claude`, `gemini`, `ollama`, `githubcopilot`
+**Option B:** Set environment variable:
+```bash
+# Windows
+$env:OPENAI_API_KEY = "your-api-key"
 
-## Running
+# Linux/Mac
+export OPENAI_API_KEY="your-api-key"
+```
 
-### Standalone
+3. **Run KoboldTown:**
 ```bash
 dotnet run --project DraCode.KoboldTown
 ```
 
-### With Aspire AppHost
-```bash
-dotnet run --project DraCode.AppHost
+4. **Open your browser:**
+```
+http://localhost:5000/dragon.html
 ```
 
-Then navigate to the URL shown (typically `http://localhost:5xxx`)
+🎉 That's it! You're ready to start building projects with Dragon!
 
-## Development
+## 🎭 Meet the KoboldTown Team
 
-### Adding New WebSocket Actions
+KoboldTown uses a hierarchy of specialized AI agents. **Only Dragon is interactive** - everything else runs automatically!
 
-1. Add handler in `OrchestratorService.ProcessMessageAsync()`
-2. Implement action method
-3. Add client-side handler in `main.js`
+### 🐉 Dragon - Requirements Gatherer
+**⭐ THE ONLY INTERACTIVE INTERFACE ⭐**
 
-### Modifying UI
+Dragon is your friendly project consultant who:
+- Chats with you naturally to understand your goals
+- Asks clarifying questions about requirements
+- Gathers technical specifications
+- Creates detailed specification documents
 
-- **Styling**: Edit `wwwroot/css/styles.css`
-- **Layout**: Edit `wwwroot/index.html`
-- **Behavior**: Edit modules in `wwwroot/js/`
+**Where:** `/dragon.html` - **Start here!**
 
-### Adding Features
+---
 
-The modular architecture allows easy extension:
-- New task filters
-- Additional status types
-- Custom visualizations
-- Export formats
+### 🐲 Wyrm - Specification Analyzer
+**✨ FULLY AUTOMATIC ✨**
 
-## Dependencies
+Wyrm automatically:
+- Monitors for new specifications (every 60 seconds)
+- Analyzes requirements and architecture
+- Breaks projects into logical work areas
+- Creates organized, dependency-aware task lists
+- Generates task markdown files
 
-- **DraCode.Agent** - AI agent framework
-- **DraCode.ServiceDefaults** - Aspire service defaults
-- **ASP.NET Core** - Web framework
-- **System.Net.WebSockets** - WebSocket support
+**No user interaction needed!**
 
-## Browser Support
+---
 
-Modern browsers with:
-- WebSocket support
-- ES6 modules
-- CSS Grid & Flexbox
-- Fetch API
+### 🦎 Drake - Task Supervisor
+**✨ FULLY AUTOMATIC ✨**
 
-## License
+Drake supervisors automatically:
+- Monitor task queues (every 60 seconds)
+- Create supervisor instances per project
+- Assign tasks to available Kobolds
+- Track progress and dependencies
+- Update task statuses
 
-See main repository LICENSE file.
+**No user interaction needed!**
+
+---
+
+### ⚙️ Kobold - Code Executor
+**✨ FULLY AUTOMATIC ✨**
+
+Kobold workers automatically:
+- Execute assigned coding tasks
+- Generate actual code files
+- Run tests and validations
+- Report completion status
+- Handle errors and retries
+
+**Available Kobold Specializations:**
+- **Coding**: `csharp`, `cpp`, `assembler`, `javascript`, `typescript`
+- **Web**: `css`, `html`, `react`, `angular`
+- **Backend**: `php`, `python`
+- **Media**: `svg`, `bitmap`, `image`, `media`
+- **Visualization**: `diagramming`
+
+Each Kobold is an expert in their domain with deep knowledge of best practices, frameworks, and tools!
+
+**No user interaction needed!**
+
+## 🔄 How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 1: DESCRIBE YOUR PROJECT (INTERACTIVE)                │
+│  👤 You → 🐉 Dragon                                         │
+│                                                              │
+│  "Create a REST API for managing customer orders with       │
+│   authentication, CRUD operations, and email notifications" │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 2: SPECIFICATION CREATED (AUTOMATIC)                  │
+│  🐉 Dragon → 📄 Saves specification.md                      │
+│                                                              │
+│  File: ./specifications/customer-orders-api.md              │
+│  Contains: Requirements, architecture, success criteria     │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 3: ANALYSIS (AUTOMATIC - every 60s)                  │
+│  🐲 Wyrm Processing Service                                │
+│                                                              │
+│  ✓ Detects new specification                               │
+│  ✓ Analyzes requirements                                   │
+│  ✓ Identifies work areas                                   │
+│  ✓ Creates task lists                                      │
+│                                                              │
+│  Output: ./workspace/customer-orders-api/*-tasks.md         │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 4: TASK ASSIGNMENT (AUTOMATIC - every 60s)           │
+│  🦎 Drake Monitoring Service                               │
+│                                                              │
+│  ✓ Detects new tasks                                       │
+│  ✓ Creates Drake supervisors                              │
+│  ✓ Assigns to Kobold workers                              │
+│  ✓ Manages dependencies                                   │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 5: CODE GENERATION (AUTOMATIC)                       │
+│  ⚙️ Kobold Workers                                         │
+│                                                              │
+│  ✓ Execute tasks                                           │
+│  ✓ Generate code files                                    │
+│  ✓ Create tests & docs                                    │
+│  ✓ Report completion                                      │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 6: YOUR CODE IS READY! 🎉                            │
+│  📦 ./workspace/customer-orders-api/                        │
+│     ├── src/ (application code)                            │
+│     ├── tests/ (unit tests)                                │
+│     ├── docs/ (documentation)                              │
+│     └── README.md                                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 🖥️ The Three Pages
+
+### 1. 🐉 Dragon Chat - `/dragon.html`
+**⭐ START HERE - INTERACTIVE ⭐**
+
+Your only point of interaction. Chat with Dragon to:
+- Describe what you want to build
+- Answer clarifying questions
+- Provide technical requirements
+- Approve the specification
+
+### 2. 📊 Status Monitor - `/` or `/index.html`
+**MONITORING ONLY**
+
+Watch the workflow in action:
+- Task status (New → Working → Done)
+- Real-time agent activity logs
+- Filter by status
+- Download reports
+
+### 3. 🏰 Hierarchy Visualization - `/hierarchy.html`
+**MONITORING ONLY**
+
+Beautiful animated view:
+- Live statistics dashboard
+- Interactive hierarchy tree
+- Project details
+- Service health status
+- Auto-refreshes every 5 seconds
+
+## 💡 Usage Examples
+
+### Example 1: Todo API
+**You:** "I need a REST API for a todo list with CRUD operations"
+**Result:** Working API in `./workspace/todo-api/`
+
+### Example 2: Blog Platform
+**You:** "Build a blog with authentication, posts, comments, and React frontend"
+**Result:** Full application in `./workspace/blog-platform/`
+
+### Example 3: Payment Service
+**You:** "Create a Stripe payment microservice with webhooks and email receipts"
+**Result:** Production-ready service in `./workspace/payment-service/`
+
+## 📁 Directory Structure
+
+```
+.
+├── specifications/           # Dragon creates specs here
+│   └── your-project.md
+│
+├── projects/                 # Project metadata (auto-managed)
+│   └── projects.json
+│
+└── workspace/                # Generated code appears here
+    └── your-project/
+        ├── *-analysis.md     # Wyrm analysis
+        ├── *-tasks.md        # Task lists
+        ├── src/              # Source code
+        ├── tests/            # Tests
+        └── docs/             # Documentation
+```
+
+## ⚙️ Configuration
+
+### Supported Providers
+
+| Provider | Env Variable | Models |
+|----------|-------------|--------|
+| OpenAI | `OPENAI_API_KEY` | gpt-4o, gpt-4 |
+| Claude | `ANTHROPIC_API_KEY` | claude-3-5-sonnet |
+| Gemini | `GEMINI_API_KEY` | gemini-2.0-flash |
+| Azure OpenAI | `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_API_KEY` | Custom |
+| Ollama | None (local) | llama3.2, mistral |
+
+### Advanced Settings
+
+`appsettings.local.json`:
+```json
+{
+  "Orchestrator": {
+    "Provider": "openai",
+    "ApiKey": "your-key",
+    "Model": "gpt-4o"
+  }
+}
+```
+
+## 🎯 Best Practices
+
+### ✅ DO:
+- Be specific with Dragon ("Create a REST API with JWT auth and PostgreSQL")
+- Let the workflow complete (wait for background services)
+- Monitor progress on Status/Hierarchy pages
+- Review generated code before deploying
+
+### ❌ DON'T:
+- Be vague ("Make an app")
+- Interrupt the automatic process
+- Expect instant results (services run every 60s)
+- Commit API keys to version control
+
+## 🛠️ Troubleshooting
+
+**Dragon not responding?**
+- Check API key configuration
+- Verify LLM provider is accessible
+- Check browser console for errors
+
+**Wyrm not processing?**
+- Wait 60 seconds for next check cycle
+- Verify spec saved to `./specifications/`
+- Check Status Monitor logs
+
+**No code generated?**
+- Ensure Wyrm created tasks
+- Verify Drake assigned tasks to Kobolds
+- Check Status Monitor for errors
+
+## 🔒 Security
+
+- ✅ Sandboxed file operations
+- ✅ Local API key storage
+- ✅ Code stays on your machine
+- ⚠️ Review code before production
+- ⚠️ Never commit API keys
+
+## 📚 Learn More
+
+- [Main README](../README.md) - Complete DraCode documentation
+- [Architecture](../docs/architecture/) - System design
+- [Provider Setup](../docs/setup-guides/) - Configure your LLM
+
+## 🤝 Contributing
+
+Contributions welcome! See [main README](../README.md) for guidelines.
+
+## 📝 License
+
+MIT License - See [LICENSE](../LICENSE)
+
+---
+
+**Built with ❤️ using .NET 10.0 and AI agents**
+
+*KoboldTown - Where AI agents collaborate to build your projects automatically*
