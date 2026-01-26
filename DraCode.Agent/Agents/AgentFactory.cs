@@ -6,7 +6,7 @@ namespace DraCode.Agent.Agents
     {
         // Create an Agent with a specific provider name and configuration using AgentOptions
         // provider: "openai", "azureopenai", "claude", "gemini", "ollama", "githubcopilot"
-        // agentType: "coding" (default), can be extended with more agent types in the future
+        // agentType: "coding", "csharp", "cpp", "assembler", "javascript", "css", "html", "react", "angular", "diagramming"
         public static Agents.Agent Create(
             string provider,
             AgentOptions? options = null,
@@ -33,7 +33,16 @@ namespace DraCode.Agent.Agents
             return agentType.ToLowerInvariant() switch
             {
                 "coding" => new CodingAgent(llm, options),
-                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding'")
+                "csharp" => new CSharpCodingAgent(llm, options),
+                "cpp" => new CppCodingAgent(llm, options),
+                "assembler" => new AssemblerCodingAgent(llm, options),
+                "javascript" or "typescript" => new JavaScriptTypeScriptCodingAgent(llm, options),
+                "css" => new CssCodingAgent(llm, options),
+                "html" => new HtmlCodingAgent(llm, options),
+                "react" => new ReactCodingAgent(llm, options),
+                "angular" => new AngularCodingAgent(llm, options),
+                "diagramming" or "diagram" => new DiagrammingAgent(llm, options),
+                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding', 'csharp', 'cpp', 'assembler', 'javascript', 'typescript', 'css', 'html', 'react', 'angular', 'diagramming'")
             };
         }
 
