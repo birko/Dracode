@@ -4,16 +4,16 @@ namespace DraCode.Agent.Agents
 {
     public static class AgentFactory
     {
-        // Create an Agent with a specific provider name and configuration.
+        // Create an Agent with a specific provider name and configuration using AgentOptions
         // provider: "openai", "azureopenai", "claude", "gemini", "ollama", "githubcopilot"
         // agentType: "coding" (default), can be extended with more agent types in the future
         public static Agents.Agent Create(
             string provider,
-            string workingDirectory,
-            bool verbose = true,
+            AgentOptions? options = null,
             Dictionary<string, string>? config = null,
             string agentType = "coding")
         {
+            options ??= new AgentOptions();
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             string C(string key, string def = "") =>
@@ -32,9 +32,26 @@ namespace DraCode.Agent.Agents
 
             return agentType.ToLowerInvariant() switch
             {
-                "coding" => new CodingAgent(llm, workingDirectory, verbose),
+                "coding" => new CodingAgent(llm, options),
                 _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding'")
             };
+        }
+
+        // Legacy overload for backward compatibility
+        [Obsolete("Use Create method with AgentOptions instead")]
+        public static Agents.Agent Create(
+            string provider,
+            string workingDirectory,
+            bool verbose = true,
+            Dictionary<string, string>? config = null,
+            string agentType = "coding")
+        {
+            var options = new AgentOptions
+            {
+                WorkingDirectory = workingDirectory,
+                Verbose = verbose
+            };
+            return Create(provider, options, config, agentType);
         }
     }
 }

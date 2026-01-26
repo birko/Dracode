@@ -37,6 +37,24 @@ namespace DraCode.Agent.Tools
                 if (string.IsNullOrWhiteSpace(question))
                     return "Error: question parameter is required";
 
+                // Check if we're in non-interactive mode
+                if (Options != null && !Options.Interactive)
+                {
+                    // Non-interactive mode - return default response or error
+                    if (!string.IsNullOrEmpty(Options.DefaultPromptResponse))
+                    {
+                        SendMessage("info", $"[Non-Interactive Mode] Auto-responding to prompt: {question}");
+                        SendMessage("info", $"[Non-Interactive Mode] Response: {Options.DefaultPromptResponse}");
+                        return Options.DefaultPromptResponse;
+                    }
+                    else
+                    {
+                        SendMessage("warning", $"[Non-Interactive Mode] Prompt requested but no default response configured: {question}");
+                        return "Error: Cannot prompt for user input in non-interactive mode. Configure DefaultPromptResponse or enable interactive mode.";
+                    }
+                }
+
+                // Interactive mode
                 // If we have a prompt callback (WebSocket mode), use it
                 if (PromptCallback != null)
                 {
@@ -46,8 +64,20 @@ namespace DraCode.Agent.Tools
                     
                     SendMessage("prompt", fullPrompt ?? "");
                     
-                    // Use ConfigureAwait(false) and GetAwaiter().GetResult() without Task.Run to avoid deadlock
-                    var response = PromptCallback(question ?? "", context ?? "").ConfigureAwait(false).GetAwaiter().GetResult();
+                    // Use timeout if specified
+                    var timeout = Options?.PromptTimeout ?? 300;
+                    var promptTask = PromptCallback(question ?? "", context ?? "");
+                    var timeoutTask = Task.Delay(TimeSpan.FromSeconds(timeout));
+                    
+                    var completedTask = Task.WhenAny(promptTask, timeoutTask).ConfigureAwait(false).GetAwaiter().GetResult();
+                    
+                    if (completedTask == timeoutTask)
+                    {
+                        SendMessage("warning", $"Prompt timed out after {timeout} seconds");
+                        return $"Error: Prompt timed out after {timeout} seconds. No response received from user.";
+                    }
+                    
+                    var response = promptTask.ConfigureAwait(false).GetAwaiter().GetResult();
                     return response;
                 }
 

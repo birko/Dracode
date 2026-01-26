@@ -233,40 +233,7 @@ namespace DraCode.WebSocket.Services
                     return;
                 }
 
-                var requestConfig = request.Config ?? new Dictionary<string, string>();
-                var provider = requestConfig.GetValueOrDefault("provider", "openai");
-                var type = "openai";
-                // Merge configuration from appsettings with request config
-                var mergedConfig = new Dictionary<string, string>();
-
-                // Start with appsettings configuration if provider exists
-                if (_config.Providers.TryGetValue(provider, out var providerConfig))
-                {
-                    type = !string.IsNullOrEmpty(providerConfig.Type) ? providerConfig.Type : "openai";
-                    if (!string.IsNullOrEmpty(providerConfig.ApiKey))
-                        mergedConfig["apiKey"] = ExpandEnvironmentVariable(providerConfig.ApiKey);
-                    if (!string.IsNullOrEmpty(providerConfig.Model))
-                        mergedConfig["model"] = providerConfig.Model;
-                    if (!string.IsNullOrEmpty(providerConfig.BaseUrl))
-                        mergedConfig["baseUrl"] = providerConfig.BaseUrl;
-                    if (!string.IsNullOrEmpty(providerConfig.Endpoint))
-                        mergedConfig["endpoint"] = ExpandEnvironmentVariable(providerConfig.Endpoint);
-                    if (!string.IsNullOrEmpty(providerConfig.Deployment))
-                        mergedConfig["deployment"] = providerConfig.Deployment;
-                    if (!string.IsNullOrEmpty(providerConfig.ClientId))
-                        mergedConfig["clientId"] = ExpandEnvironmentVariable(providerConfig.ClientId);
-                }
-
-                // Override with request configuration
-                foreach (var kvp in requestConfig)
-                {
-                    mergedConfig[kvp.Key] = kvp.Value;
-                }
-
-                var workingDirectory = mergedConfig.GetValueOrDefault("workingDirectory", _config.WorkingDirectory);
-                var verbose = bool.Parse(mergedConfig.GetValueOrDefault("verbose", "false"));
-
-                var agent = AgentFactory.Create(type, workingDirectory, verbose, mergedConfig);
+                var (agent, provider) = CreateAgentFromConfig(request.Config);
 
                 var connection = new AgentConnection(agent, webSocket, request.AgentId);
                 _agents[agentKey] = connection;
@@ -295,6 +262,121 @@ namespace DraCode.WebSocket.Services
                     AgentId = request.AgentId
                 });
             }
+        }
+
+        // Helper method to create agent from configuration (DRY)
+        private (DraCode.Agent.Agents.Agent agent, string provider) CreateAgentFromConfig(Dictionary<string, string>? requestConfig)
+        {
+            requestConfig ??= new Dictionary<string, string>();
+            var provider = requestConfig.GetValueOrDefault("provider", "openai");
+
+            // Build agent options from all configuration sources
+            var agentOptions = BuildAgentOptions(provider, requestConfig);
+
+            // Build provider configuration
+            var mergedConfig = BuildProviderConfig(provider, requestConfig);
+
+            // Get provider type
+            var type = _config.Providers.TryGetValue(provider, out var providerConfig) && !string.IsNullOrEmpty(providerConfig.Type)
+                ? providerConfig.Type
+                : "openai";
+
+            var agent = AgentFactory.Create(type, agentOptions, mergedConfig);
+            return (agent, provider);
+        }
+
+        // Helper method to build AgentOptions from all sources
+        private DraCode.Agent.AgentOptions BuildAgentOptions(string provider, Dictionary<string, string> requestConfig)
+        {
+            // Start with global defaults
+            var options = new DraCode.Agent.AgentOptions
+            {
+                WorkingDirectory = _config.WorkingDirectory,
+                Interactive = _config.Interactive,
+                MaxIterations = _config.MaxIterations,
+                Verbose = _config.Verbose,
+                PromptTimeout = _config.PromptTimeout,
+                DefaultPromptResponse = _config.DefaultPromptResponse,
+                ModelDepth = _config.ModelDepth
+            };
+
+            // Apply provider-specific overrides
+            if (_config.Providers.TryGetValue(provider, out var providerConfig))
+            {
+                ApplyProviderOptionsToAgentOptions(providerConfig, options);
+            }
+
+            // Apply request config overrides (highest priority)
+            ApplyRequestConfigToAgentOptions(requestConfig, options);
+
+            return options;
+        }
+
+        // Helper method to apply provider config to agent options
+        private static void ApplyProviderOptionsToAgentOptions(ProviderConfig providerConfig, DraCode.Agent.AgentOptions options)
+        {
+            if (providerConfig.Interactive.HasValue)
+                options.Interactive = providerConfig.Interactive.Value;
+            if (providerConfig.MaxIterations.HasValue)
+                options.MaxIterations = providerConfig.MaxIterations.Value;
+            if (providerConfig.Verbose.HasValue)
+                options.Verbose = providerConfig.Verbose.Value;
+            if (providerConfig.PromptTimeout.HasValue)
+                options.PromptTimeout = providerConfig.PromptTimeout.Value;
+            if (!string.IsNullOrEmpty(providerConfig.DefaultPromptResponse))
+                options.DefaultPromptResponse = providerConfig.DefaultPromptResponse;
+            if (providerConfig.ModelDepth.HasValue)
+                options.ModelDepth = providerConfig.ModelDepth.Value;
+        }
+
+        // Helper method to apply request config to agent options
+        private static void ApplyRequestConfigToAgentOptions(Dictionary<string, string> requestConfig, DraCode.Agent.AgentOptions options)
+        {
+            if (requestConfig.TryGetValue("workingDirectory", out var wd))
+                options.WorkingDirectory = wd;
+            if (requestConfig.TryGetValue("interactive", out var interactive))
+                options.Interactive = bool.Parse(interactive);
+            if (requestConfig.TryGetValue("maxIterations", out var maxIter))
+                options.MaxIterations = int.Parse(maxIter);
+            if (requestConfig.TryGetValue("verbose", out var verbose))
+                options.Verbose = bool.Parse(verbose);
+            if (requestConfig.TryGetValue("promptTimeout", out var timeout))
+                options.PromptTimeout = int.Parse(timeout);
+            if (requestConfig.TryGetValue("defaultPromptResponse", out var defaultResponse))
+                options.DefaultPromptResponse = defaultResponse;
+            if (requestConfig.TryGetValue("modelDepth", out var modelDepth))
+                options.ModelDepth = int.Parse(modelDepth);
+        }
+
+        // Helper method to build provider configuration
+        private Dictionary<string, string> BuildProviderConfig(string provider, Dictionary<string, string> requestConfig)
+        {
+            var mergedConfig = new Dictionary<string, string>();
+
+            // Start with appsettings configuration if provider exists
+            if (_config.Providers.TryGetValue(provider, out var providerConfig))
+            {
+                if (!string.IsNullOrEmpty(providerConfig.ApiKey))
+                    mergedConfig["apiKey"] = ExpandEnvironmentVariable(providerConfig.ApiKey);
+                if (!string.IsNullOrEmpty(providerConfig.Model))
+                    mergedConfig["model"] = providerConfig.Model;
+                if (!string.IsNullOrEmpty(providerConfig.BaseUrl))
+                    mergedConfig["baseUrl"] = providerConfig.BaseUrl;
+                if (!string.IsNullOrEmpty(providerConfig.Endpoint))
+                    mergedConfig["endpoint"] = ExpandEnvironmentVariable(providerConfig.Endpoint);
+                if (!string.IsNullOrEmpty(providerConfig.Deployment))
+                    mergedConfig["deployment"] = providerConfig.Deployment;
+                if (!string.IsNullOrEmpty(providerConfig.ClientId))
+                    mergedConfig["clientId"] = ExpandEnvironmentVariable(providerConfig.ClientId);
+            }
+
+            // Override with request configuration
+            foreach (var kvp in requestConfig)
+            {
+                mergedConfig[kvp.Key] = kvp.Value;
+            }
+
+            return mergedConfig;
         }
 
         private string ExpandEnvironmentVariable(string value)
@@ -367,39 +449,7 @@ namespace DraCode.WebSocket.Services
             {
                 try
                 {
-                    var requestConfig = request.Config ?? new Dictionary<string, string>();
-                    var provider = requestConfig.GetValueOrDefault("provider", "openai");
-
-                    // Merge configuration from appsettings with request config
-                    var mergedConfig = new Dictionary<string, string>();
-
-                    // Start with appsettings configuration if provider exists
-                    if (_config.Providers.TryGetValue(provider, out var providerConfig))
-                    {
-                        if (!string.IsNullOrEmpty(providerConfig.ApiKey))
-                            mergedConfig["apiKey"] = ExpandEnvironmentVariable(providerConfig.ApiKey);
-                        if (!string.IsNullOrEmpty(providerConfig.Model))
-                            mergedConfig["model"] = providerConfig.Model;
-                        if (!string.IsNullOrEmpty(providerConfig.BaseUrl))
-                            mergedConfig["baseUrl"] = providerConfig.BaseUrl;
-                        if (!string.IsNullOrEmpty(providerConfig.Endpoint))
-                            mergedConfig["endpoint"] = ExpandEnvironmentVariable(providerConfig.Endpoint);
-                        if (!string.IsNullOrEmpty(providerConfig.Deployment))
-                            mergedConfig["deployment"] = providerConfig.Deployment;
-                        if (!string.IsNullOrEmpty(providerConfig.ClientId))
-                            mergedConfig["clientId"] = ExpandEnvironmentVariable(providerConfig.ClientId);
-                    }
-
-                    // Override with request configuration
-                    foreach (var kvp in requestConfig)
-                    {
-                        mergedConfig[kvp.Key] = kvp.Value;
-                    }
-
-                    var workingDirectory = mergedConfig.GetValueOrDefault("workingDirectory", _config.WorkingDirectory);
-                    var verbose = bool.Parse(mergedConfig.GetValueOrDefault("verbose", "false"));
-
-                    var newAgent = AgentFactory.Create(provider, workingDirectory, verbose, mergedConfig);
+                    var (newAgent, provider) = CreateAgentFromConfig(request.Config);
                     existingConnection.Agent = newAgent;
 
                     // Set up message streaming callback for new agent

@@ -110,10 +110,10 @@ static void RenderMessage(string messageType, string content)
 }
 
 // Helpers to keep parsing simple and DRY
-static string GetString(JsonElement parent, string name, string fallback = "")
+static string GetString(JsonElement parent, string name, string? fallback = "")
     => parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(name, out var el)
-        ? (el.ValueKind == JsonValueKind.String ? el.GetString() ?? fallback : el.ToString())
-        : fallback;
+        ? (el.ValueKind == JsonValueKind.String ? el.GetString() ?? fallback ?? "" : el.ToString())
+        : fallback ?? "";
 
 static bool GetBool(JsonElement parent, string name, bool fallback = true)
 {
@@ -144,8 +144,19 @@ var agentEl = root.TryGetProperty("Agent", out var a) ? a : default;
 
 // Read defaults from config
 string provider = GetString(agentEl, "Provider", "openai");
-string workingDirectory = GetString(agentEl, "WorkingDirectory", Environment.CurrentDirectory);
+bool interactive = GetBool(agentEl, "Interactive", true);
+int maxIterations = agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("MaxIterations", out var maxIterEl) 
+    ? (maxIterEl.ValueKind == JsonValueKind.Number ? maxIterEl.GetInt32() : 10) 
+    : 10;
 bool verbose = GetBool(agentEl, "Verbose", true);
+int promptTimeout = agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("PromptTimeout", out var timeoutEl) 
+    ? (timeoutEl.ValueKind == JsonValueKind.Number ? timeoutEl.GetInt32() : 300) 
+    : 300;
+string? defaultPromptResponse = GetString(agentEl, "DefaultPromptResponse", null);
+int modelDepth = agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("ModelDepth", out var depthEl) 
+    ? (depthEl.ValueKind == JsonValueKind.Number ? depthEl.GetInt32() : 5) 
+    : 5;
+string workingDirectory = GetString(agentEl, "WorkingDirectory", Environment.CurrentDirectory);
 
 // Read tasks from config (can be single string or array)
 var tasks = new List<string>();
@@ -166,9 +177,10 @@ if (agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("Tasks",
     }
 }
 
-// Check if provider or verbose was set via command-line
+// Check if provider, verbose or other options were set via command-line
 bool providerSetViaArgs = false;
 bool verboseSetViaArgs = false;
+bool interactiveSetViaArgs = false;
 foreach (var arg in Environment.GetCommandLineArgs())
 {
     if (arg.StartsWith("--provider=", StringComparison.OrdinalIgnoreCase))
@@ -206,6 +218,37 @@ foreach (var arg in Environment.GetCommandLineArgs())
     {
         verbose = false;
         verboseSetViaArgs = true;
+    }
+    else if (arg.StartsWith("--interactive=", StringComparison.OrdinalIgnoreCase))
+    {
+        interactive = bool.Parse(arg["--interactive=".Length..]);
+        interactiveSetViaArgs = true;
+    }
+    else if (arg.Equals("--interactive", StringComparison.OrdinalIgnoreCase))
+    {
+        interactive = true;
+        interactiveSetViaArgs = true;
+    }
+    else if (arg.Equals("--no-interactive", StringComparison.OrdinalIgnoreCase) || arg.Equals("--non-interactive", StringComparison.OrdinalIgnoreCase))
+    {
+        interactive = false;
+        interactiveSetViaArgs = true;
+    }
+    else if (arg.StartsWith("--max-iterations=", StringComparison.OrdinalIgnoreCase))
+    {
+        maxIterations = int.Parse(arg["--max-iterations=".Length..]);
+    }
+    else if (arg.StartsWith("--prompt-timeout=", StringComparison.OrdinalIgnoreCase))
+    {
+        promptTimeout = int.Parse(arg["--prompt-timeout=".Length..]);
+    }
+    else if (arg.StartsWith("--default-prompt-response=", StringComparison.OrdinalIgnoreCase))
+    {
+        defaultPromptResponse = arg["--default-prompt-response=".Length..];
+    }
+    else if (arg.StartsWith("--model-depth=", StringComparison.OrdinalIgnoreCase))
+    {
+        modelDepth = int.Parse(arg["--model-depth=".Length..]);
     }
 }
 
@@ -276,6 +319,32 @@ if (!verboseSetViaArgs)
     AnsiConsole.WriteLine();
 }
 
+// If interactive not set via args, let user choose
+if (!interactiveSetViaArgs)
+{
+    var interactiveChoice = AnsiConsole.Prompt(
+        new SelectionPrompt<string>()
+            .Title("[bold cyan]Enable interactive mode?[/]")
+            .AddChoices(new[] { 
+                "Yes - Agent can prompt for user input", 
+                "No - Non-interactive mode (auto-respond to prompts)" 
+            })
+            .HighlightStyle(new Style(Color.Cyan1)));
+    
+    interactive = interactiveChoice.StartsWith("Yes");
+    AnsiConsole.WriteLine();
+    
+    // If non-interactive, ask for default response
+    if (!interactive && string.IsNullOrEmpty(defaultPromptResponse))
+    {
+        var setDefault = AnsiConsole.Confirm("[yellow]Set a default response for prompts?[/]", false);
+        if (setDefault)
+        {
+            defaultPromptResponse = AnsiConsole.Ask<string>("[green]Default response:[/]", "I don't have that information");
+        }
+    }
+}
+
 // Load provider-specific config from Agent.Providers[{provider}]
 var providerConfig = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 if (agentEl.ValueKind == JsonValueKind.Object && agentEl.TryGetProperty("Providers", out var providersConfig) && providersConfig.ValueKind == JsonValueKind.Object)
@@ -314,7 +383,22 @@ var infoTable = new Table()
 infoTable.AddRow("[cyan]Provider[/]", $"[yellow]{Markup.Escape(provider)}[/]");
 infoTable.AddRow("[cyan]Type[/]", $"[yellow]{Markup.Escape(type)}[/]");
 infoTable.AddRow("[cyan]Working Directory[/]", $"[dim]{Markup.Escape(workingDirectory)}[/]");
+infoTable.AddRow("[cyan]Interactive Mode[/]", interactive ? "[green]Yes[/]" : "[red]No[/]");
 infoTable.AddRow("[cyan]Verbose[/]", verbose ? "[green]Yes[/]" : "[red]No[/]");
+infoTable.AddRow("[cyan]Max Iterations[/]", $"[yellow]{maxIterations}[/]");
+infoTable.AddRow("[cyan]Model Depth[/]", $"[yellow]{modelDepth}[/] [dim]({GetDepthLabel(modelDepth)})[/]");
+if (!interactive && !string.IsNullOrEmpty(defaultPromptResponse))
+{
+    infoTable.AddRow("[cyan]Default Response[/]", $"[dim]{Markup.Escape(defaultPromptResponse)}[/]");
+}
+
+// Helper function for depth label
+static string GetDepthLabel(int depth) => depth switch
+{
+    <= 3 => "Quick",
+    >= 7 => "Deep",
+    _ => "Balanced"
+};
 
 AnsiConsole.Write(infoTable);
 AnsiConsole.WriteLine();
@@ -397,8 +481,20 @@ if (resolvedTasks.Count > 0)
         AnsiConsole.MarkupLine($"[dim]📝 {Markup.Escape(preview)}[/]");
         AnsiConsole.WriteLine();
         
+        // Create agent options
+        var agentOptions = new DraCode.Agent.AgentOptions
+        {
+            WorkingDirectory = workingDirectory,
+            Interactive = interactive,
+            MaxIterations = maxIterations,
+            Verbose = verbose,
+            PromptTimeout = promptTimeout,
+            DefaultPromptResponse = defaultPromptResponse,
+            ModelDepth = modelDepth
+        };
+        
         // Create new agent instance for this task
-        var agent = AgentFactory.Create(type, workingDirectory, verbose, providerConfig);
+        var agent = AgentFactory.Create(type, agentOptions, providerConfig);
         
         // Set up message callback to render with AnsiConsole
         agent.SetMessageCallback((messageType, content) =>
@@ -406,47 +502,50 @@ if (resolvedTasks.Count > 0)
             RenderMessage(messageType, content);
         });
         
-        // Set up AskUser prompt handler for console mode
-        var askUserTool = agent.Tools.OfType<DraCode.Agent.Tools.AskUser>().FirstOrDefault();
-        if (askUserTool != null)
+        // Set up AskUser prompt handler for console mode (only in interactive mode)
+        if (interactive)
         {
-            askUserTool.PromptCallback = async (question, context) =>
+            var askUserTool = agent.Tools.OfType<DraCode.Agent.Tools.AskUser>().FirstOrDefault();
+            if (askUserTool != null)
             {
-                // Display prompt with AnsiConsole
-                var panelContent = new Markup($"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question)}[/]");
-                
-                if (!string.IsNullOrWhiteSpace(context))
+                askUserTool.PromptCallback = async (question, context) =>
                 {
-                    panelContent = new Markup(
-                        $"[dim]💡 Context:[/] [grey]{Markup.Escape(context)}[/]\n\n" +
-                        $"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question)}[/]");
-                }
+                    // Display prompt with AnsiConsole
+                    var panelContent = new Markup($"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question)}[/]");
+                    
+                    if (!string.IsNullOrWhiteSpace(context))
+                    {
+                        panelContent = new Markup(
+                            $"[dim]💡 Context:[/] [grey]{Markup.Escape(context)}[/]\n\n" +
+                            $"[bold cyan]❓ Question:[/] [white]{Markup.Escape(question)}[/]");
+                    }
 
-                var panel = new Panel(panelContent)
-                {
-                    Border = BoxBorder.Double,
-                    BorderStyle = new Style(Color.Cyan1),
-                    Header = new PanelHeader("[bold yellow]🤔 Agent Needs Your Input[/]", Justify.Center),
-                    Padding = new Padding(2, 1)
+                    var panel = new Panel(panelContent)
+                    {
+                        Border = BoxBorder.Double,
+                        BorderStyle = new Style(Color.Cyan1),
+                        Header = new PanelHeader("[bold yellow]🤔 Agent Needs Your Input[/]", Justify.Center),
+                        Padding = new Padding(2, 1)
+                    };
+
+                    AnsiConsole.Write(panel);
+                    AnsiConsole.WriteLine();
+
+                    // Read user input
+                    var userResponse = AnsiConsole.Ask<string>("[bold green]Your answer:[/]");
+
+                    if (string.IsNullOrWhiteSpace(userResponse))
+                    {
+                        return "User provided no response (empty input)";
+                    }
+
+                    // Show confirmation
+                    AnsiConsole.MarkupLine($"[dim]✓ Received:[/] [white]{Markup.Escape(userResponse)}[/]");
+                    AnsiConsole.WriteLine();
+
+                    return await Task.FromResult(userResponse);
                 };
-
-                AnsiConsole.Write(panel);
-                AnsiConsole.WriteLine();
-
-                // Read user input
-                var userResponse = AnsiConsole.Ask<string>("[bold green]Your answer:[/]");
-
-                if (string.IsNullOrWhiteSpace(userResponse))
-                {
-                    return "User provided no response (empty input)";
-                }
-
-                // Show confirmation
-                AnsiConsole.MarkupLine($"[dim]✓ Received:[/] [white]{Markup.Escape(userResponse)}[/]");
-                AnsiConsole.WriteLine();
-
-                return await Task.FromResult(userResponse);
-            };
+            }
         }
         
         try

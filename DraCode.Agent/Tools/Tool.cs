@@ -7,6 +7,7 @@ namespace DraCode.Agent.Tools
         public abstract object? InputSchema { get; }
 
         public Action<string, string>? MessageCallback { get; set; }
+        public AgentOptions? Options { get; set; }
 
         public abstract string Execute(string workingDirectory, Dictionary<string, object> input);
         

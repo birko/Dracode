@@ -23,6 +23,11 @@ export interface AgentConfig {
     model?: string;
     workingDirectory?: string;
     verbose?: string;
+    interactive?: string;
+    maxIterations?: string;
+    promptTimeout?: string;
+    defaultPromptResponse?: string;
+    modelDepth?: string;
 }
 
 export interface Provider {

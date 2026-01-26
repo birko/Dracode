@@ -1,0 +1,36 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "Authentication": {
+    "Enabled": false,
+    "Tokens": [],
+    "TokenBindings": []
+  },
+  "Agent": {
+    "WorkingDirectory": "./",
+    "Interactive": false,
+    "MaxIterations": 20,
+    "Verbose": false,
+    "PromptTimeout": 180,
+    "DefaultPromptResponse": "Use best practices and continue with default settings",
+    "Providers": {
+      "openai": {
+        "Type": "openai",
+        "ApiKey": "${OPENAI_API_KEY}",
+        "Model": "gpt-4o",
+        "BaseUrl": "https://api.openai.com/v1/chat/completions"
+      },
+      "claude": {
+        "Type": "claude",
+        "ApiKey": "${ANTHROPIC_API_KEY}",
+        "Model": "claude-3-5-sonnet-latest",
+        "BaseUrl": "https://api.anthropic.com/v1/messages"
+      }
+    }
+  }
+}

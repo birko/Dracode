@@ -7,27 +7,33 @@ namespace DraCode.Agent.Agents
     public abstract class Agent
     {
         private readonly ILlmProvider _llmProvider;
-        private readonly string _workingDirectory;
+        private readonly AgentOptions _options;
         private readonly List<Tool> _tools;
-        private readonly bool _verbose;
         private Action<string, string>? _messageCallback;
 
-        protected Agent(ILlmProvider llmProvider, string workingDirectory, bool verbose = true, Action<string, string>? messageCallback = null)
+        protected Agent(ILlmProvider llmProvider, AgentOptions? options = null, Action<string, string>? messageCallback = null)
         {
             _llmProvider = llmProvider ?? throw new ArgumentNullException(nameof(llmProvider));
-            _workingDirectory = workingDirectory;
+            _options = options ?? new AgentOptions();
             _tools = CreateTools();
-            _verbose = verbose;
             _messageCallback = messageCallback;
             
             // Set callback on provider
             _llmProvider.MessageCallback = messageCallback;
             
-            // Set callback on all tools
+            // Set callback and options on all tools
             foreach (var tool in _tools)
             {
                 tool.MessageCallback = messageCallback;
+                tool.Options = _options;
             }
+        }
+
+        // Legacy constructor for backward compatibility
+        [Obsolete("Use constructor with AgentOptions instead")]
+        protected Agent(ILlmProvider llmProvider, string workingDirectory, bool verbose = true, Action<string, string>? messageCallback = null)
+            : this(llmProvider, new AgentOptions { WorkingDirectory = workingDirectory, Verbose = verbose }, messageCallback)
+        {
         }
 
         public void SetMessageCallback(Action<string, string>? callback)
@@ -41,6 +47,7 @@ namespace DraCode.Agent.Agents
             foreach (var tool in _tools)
             {
                 tool.MessageCallback = callback;
+                tool.Options = _options;
             }
         }
 
@@ -70,26 +77,30 @@ namespace DraCode.Agent.Agents
         public ILlmProvider Provider => _llmProvider;
         public IReadOnlyList<Tool> Tools => _tools;
         public string ProviderName => _llmProvider.Name;
-        public string WorkingDirectory => _workingDirectory;
-        public bool Verbose => _verbose;
+        public AgentOptions Options => _options;
+        
+        // Legacy properties for backward compatibility
+        public string WorkingDirectory => _options.WorkingDirectory;
+        public bool Verbose => _options.Verbose;
 
-        public async Task<List<Message>> RunAsync(string task, int maxIterations = 10)
+        public async Task<List<Message>> RunAsync(string task, int? maxIterations = null)
         {
+            var maxIter = maxIterations ?? _options.MaxIterations;
             var conversation = new List<Message>
             {
                 new() { Role = "user", Content = task }
             };
 
-            for (int iteration = 1; iteration <= maxIterations; iteration++)
+            for (int iteration = 1; iteration <= maxIter; iteration++)
             {
-                if (_verbose)
+                if (_options.Verbose)
                 {
                     SendMessage("info", $"ITERATION {iteration}");
                 }
 
                 var response = await _llmProvider.SendMessageAsync(conversation, _tools, SystemPrompt);
 
-                if (_verbose)
+                if (_options.Verbose)
                 {
                     SendMessage("info", $"Stop reason: {response.StopReason}");
                 }
@@ -116,7 +127,7 @@ namespace DraCode.Agent.Agents
 
                             var tool = _tools.FirstOrDefault(t => t.Name == block.Name);
                             var result = tool != null
-                                ? tool.Execute(_workingDirectory, block.Input ?? [])
+                                ? tool.Execute(_options.WorkingDirectory, block.Input ?? [])
                                 : $"Error: Unknown tool '{block.Name}'";
 
                             // Check if tool execution resulted in an error
@@ -143,7 +154,7 @@ namespace DraCode.Agent.Agents
                         });
 
                         // If agent included text with tool calls, print it
-                        if (hasTextContent && _verbose)
+                        if (hasTextContent && _options.Verbose)
                         {
                             foreach (var block in (response.Content ?? []).Where(b => b.Type == "text"))
                             {
@@ -152,9 +163,9 @@ namespace DraCode.Agent.Agents
                         }
 
                         // If we hit max iterations after tool calls, warn and stop
-                        if (iteration >= maxIterations)
+                        if (iteration >= maxIter)
                         {
-                            SendMessage("warning", $"Maximum iterations ({maxIterations}) reached. Task may be incomplete.");
+                            SendMessage("warning", $"Maximum iterations ({maxIter}) reached. Task may be incomplete.");
                             return conversation;
                         }
 
@@ -162,7 +173,7 @@ namespace DraCode.Agent.Agents
                         if (hasErrors && toolResults.Count > 0 && toolResults.All(r => 
                             r.GetType().GetProperty("content")?.GetValue(r)?.ToString()?.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) ?? false))
                         {
-                            if (_verbose)
+                            if (_options.Verbose)
                             {
                                 SendMessage("warning", "All tool executions failed. Giving agent one final response...");
                             }
@@ -179,7 +190,7 @@ namespace DraCode.Agent.Agents
 
                     case "error":
                         // Error occurred - stop immediately
-                        if (_verbose)
+                        if (_options.Verbose)
                         {
                             SendMessage("error", "Error occurred during LLM request. Stopping.");
                         }
@@ -192,7 +203,7 @@ namespace DraCode.Agent.Agents
 
                     default:
                         // Unexpected stop reason - stop to be safe
-                        if (_verbose)
+                        if (_options.Verbose)
                         {
                             SendMessage("warning", $"Unexpected stop reason: {response.StopReason ?? "unknown"}. Stopping.");
                         }
@@ -201,9 +212,9 @@ namespace DraCode.Agent.Agents
             }
 
             // If we exit the loop naturally, we hit max iterations
-            if (_verbose)
+            if (_options.Verbose)
             {
-                SendMessage("warning", $"Maximum iterations ({maxIterations}) reached.");
+                SendMessage("warning", $"Maximum iterations ({maxIter}) reached.");
             }
 
             return conversation;
