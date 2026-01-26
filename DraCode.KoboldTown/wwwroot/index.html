@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KoboldTown - AI Wyvern</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🤖 KoboldTown Wyvern</h1>
+            <p class="subtitle">AI-Powered Task Management</p>
+            <div class="connection-status">
+                <span id="connectionStatus" class="status-indicator">⚪ Disconnected</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <section class="task-submission">
+                <h2>Submit New Task</h2>
+                <form id="taskForm">
+                    <textarea 
+                        id="taskInput" 
+                        placeholder="Describe your task here... (e.g., 'Create a React login component with form validation')"
+                        rows="4"
+                        required
+                    ></textarea>
+                    <button type="submit" id="submitBtn" class="btn btn-primary">
+                        Submit Task
+                    </button>
+                </form>
+            </section>
+
+            <section class="tasks-section">
+                <div class="section-header">
+                    <h2>Task Status</h2>
+                    <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+                    <button id="downloadMarkdownBtn" class="btn btn-secondary">📥 Download Report</button>
+                </div>
+                
+                <div class="filter-bar">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="unassigned">⚪ Unassigned</button>
+                    <button class="filter-btn" data-filter="notinitialized">🔵 Not Initialized</button>
+                    <button class="filter-btn" data-filter="working">🟡 Working</button>
+                    <button class="filter-btn" data-filter="done">🟢 Done</button>
+                </div>
+
+                <div id="tasksContainer" class="tasks-container">
+                    <p class="empty-message">No tasks yet. Submit a task to get started!</p>
+                </div>
+            </section>
+
+            <section class="logs-section">
+                <div class="section-header">
+                    <h2>Agent Logs</h2>
+                    <button id="clearLogsBtn" class="btn btn-secondary">🗑️ Clear</button>
+                </div>
+                <div id="logsContainer" class="logs-container"></div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>

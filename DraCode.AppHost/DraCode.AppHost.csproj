@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DraCode.WebSocket\DraCode.WebSocket.csproj" />
     <ProjectReference Include="..\DraCode.Web\DraCode.Web.csproj" />
+    <ProjectReference Include="..\DraCode.KoboldTown\DraCode.KoboldTown.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

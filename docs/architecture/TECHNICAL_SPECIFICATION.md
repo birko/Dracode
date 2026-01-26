@@ -383,7 +383,7 @@ DraCode/
 │
 └── DraCode.Agent/                      # Agent library
     ├── DraCode.Agent.csproj            # Project file
-    ├── Agent.cs                        # Main agent orchestrator
+    ├── Agent.cs                        # Main agent Wyvern
     ├── AgentFactory.cs                 # Provider factory
     │
     ├── Auth/                           # OAuth components

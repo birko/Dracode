@@ -8,4 +8,8 @@ var websocket = builder.AddProject<Projects.DraCode_WebSocket>("dracode-websocke
 var web = builder.AddProject<Projects.DraCode_Web>("dracode-web")
     .WithReference(websocket);
 
+// Add KoboldTown Orchestrator service
+var koboldtown = builder.AddProject<Projects.DraCode_KoboldTown>("dracode-koboldtown")
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+
 builder.Build().Run();

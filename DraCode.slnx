@@ -4,5 +4,6 @@
   <Project Path="DraCode.ServiceDefaults/DraCode.ServiceDefaults.csproj" />
   <Project Path="DraCode.Web/DraCode.Web.csproj" />
   <Project Path="DraCode.WebSocket/DraCode.WebSocket.csproj" />
+  <Project Path="DraCode.KoboldTown/DraCode.KoboldTown.csproj" />
   <Project Path="DraCode/DraCode.csproj" />
 </Solution>

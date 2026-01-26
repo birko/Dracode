@@ -1,0 +1,344 @@
+:root {
+    --primary-color: #d97706;
+    --primary-dark: #b45309;
+    --secondary-color: #059669;
+    --background: #1a1a1a;
+    --surface: #2d2d2d;
+    --surface-light: #3d3d3d;
+    --text: #e5e5e5;
+    --text-muted: #a3a3a3;
+    --border: #404040;
+    --dragon-color: #f59e0b;
+    --user-color: #3b82f6;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--background);
+    color: var(--text);
+    line-height: 1.6;
+}
+
+.container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+header .subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.status {
+    margin-top: 1rem;
+}
+
+.status span {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.status-connected {
+    background: var(--secondary-color);
+    color: white;
+}
+
+.status-disconnected {
+    background: var(--surface-light);
+    color: var(--text-muted);
+}
+
+main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.chat-container {
+    background: var(--surface);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+    min-height: 400px;
+    max-height: calc(100vh - 400px);
+}
+
+.message {
+    margin-bottom: 1.5rem;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-dragon {
+    display: flex;
+    gap: 1rem;
+}
+
+.message-dragon .avatar {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.message-dragon .content {
+    background: var(--surface-light);
+    padding: 1rem;
+    border-radius: 12px;
+    border-left: 4px solid var(--dragon-color);
+    flex: 1;
+}
+
+.message-user {
+    display: flex;
+    gap: 1rem;
+    flex-direction: row-reverse;
+}
+
+.message-user .avatar {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.message-user .content {
+    background: var(--user-color);
+    padding: 1rem;
+    border-radius: 12px;
+    color: white;
+    max-width: 70%;
+}
+
+.message-system {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 0.5rem;
+}
+
+.message-typing {
+    display: flex;
+    gap: 1rem;
+    opacity: 0.7;
+}
+
+.message-typing .avatar {
+    font-size: 2rem;
+}
+
+.message-typing .typing-indicator {
+    background: var(--surface-light);
+    padding: 1rem;
+    border-radius: 12px;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    background: var(--dragon-color);
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 60%, 100% {
+        transform: translateY(0);
+    }
+    30% {
+        transform: translateY(-10px);
+    }
+}
+
+.chat-input-container {
+    padding: 1.5rem;
+    background: var(--background);
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 1rem;
+}
+
+#userInput {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 1rem;
+    resize: none;
+}
+
+#userInput:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+#sendButton {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#sendButton:hover:not(:disabled) {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+}
+
+#sendButton:disabled {
+    background: var(--surface-light);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.info-panel {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    overflow-y: auto;
+    max-height: calc(100vh - 250px);
+}
+
+.info-panel h3, .info-panel h4 {
+    color: var(--dragon-color);
+    margin-bottom: 1rem;
+}
+
+.info-panel ol, .info-panel ul {
+    margin-left: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.info-panel li {
+    margin-bottom: 0.5rem;
+}
+
+.tips {
+    background: var(--background);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 1.5rem;
+}
+
+.specifications {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+}
+
+.spec-item {
+    background: var(--background);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.spec-item .icon {
+    font-size: 1.5rem;
+}
+
+.spec-item .info {
+    flex: 1;
+}
+
+.spec-item .name {
+    font-weight: 500;
+    color: var(--text);
+}
+
+.spec-item .time {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+footer {
+    background: var(--surface);
+    padding: 1.5rem;
+    text-align: center;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+footer a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 1024px) {
+    main {
+        grid-template-columns: 1fr;
+    }
+
+    .info-panel {
+        max-height: none;
+    }
+}
