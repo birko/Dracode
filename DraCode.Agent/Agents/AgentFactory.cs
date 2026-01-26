@@ -6,7 +6,7 @@ namespace DraCode.Agent.Agents
     {
         // Create an Agent with a specific provider name and configuration using AgentOptions
         // provider: "openai", "azureopenai", "claude", "gemini", "ollama", "githubcopilot"
-        // agentType: "coding", "csharp", "cpp", "assembler", "javascript", "css", "html", "react", "angular", "diagramming"
+        // agentType: "coding", "csharp", "cpp", "assembler", "javascript", "css", "html", "react", "angular", "php", "python", "diagramming", "media", "image", "svg", "bitmap"
         public static Agents.Agent Create(
             string provider,
             AgentOptions? options = null,
@@ -41,8 +41,14 @@ namespace DraCode.Agent.Agents
                 "html" => new HtmlCodingAgent(llm, options),
                 "react" => new ReactCodingAgent(llm, options),
                 "angular" => new AngularCodingAgent(llm, options),
+                "php" => new PhpCodingAgent(llm, options),
+                "python" => new PythonCodingAgent(llm, options),
                 "diagramming" or "diagram" => new DiagrammingAgent(llm, options),
-                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding', 'csharp', 'cpp', 'assembler', 'javascript', 'typescript', 'css', 'html', 'react', 'angular', 'diagramming'")
+                "media" => new MediaAgent(llm, options),
+                "image" => new ImageAgent(llm, options),
+                "svg" => new SvgAgent(llm, options),
+                "bitmap" => new BitmapAgent(llm, options),
+                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding', 'csharp', 'cpp', 'assembler', 'javascript', 'typescript', 'css', 'html', 'react', 'angular', 'php', 'python', 'diagramming', 'media', 'image', 'svg', 'bitmap'")
             };
         }
 

@@ -16,6 +16,7 @@ Technical specifications and architecture documentation:
 - [Architecture Specification](architecture/ARCHITECTURE_SPECIFICATION.md) - System architecture and design
 - [Technical Specification](architecture/TECHNICAL_SPECIFICATION.md) - Comprehensive technical documentation
 - [Tool Specifications](architecture/TOOL_SPECIFICATIONS.md) - Built-in tools documentation
+- **[New Agent Types](NEW_AGENT_TYPES.md)** - PHP, Python, SVG, Bitmap, and Media agents documentation
 
 ### 🚀 Setup Guides
 Step-by-step guides for setting up and configuring DraCode:

@@ -4,6 +4,69 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased] - 2026-01-26
+
+### 🎨 Added - New Specialized Agent Types
+
+**Added 6 new specialized agents - expanding from 11 to 17 total agent types:**
+
+#### New Coding Agents
+- **PhpCodingAgent** (`php`) - PHP specialist for Laravel, Symfony, WordPress
+  - Modern PHP 8.0+ with type declarations, PSR standards
+  - Composer, PHPUnit, security best practices
+- **PythonCodingAgent** (`python`) - Python specialist for web and data science
+  - Django, Flask, FastAPI frameworks
+  - NumPy, Pandas, TensorFlow, PyTorch
+  - PEP 8 compliance, type hints, async/await
+
+#### New Media Agent Hierarchy
+- **MediaAgent** (`media`) - General digital media specialist
+  - Images, video, audio formats and optimization
+- **ImageAgent** (`image`) - Image specialist (derives from MediaAgent)
+  - Raster and vector image handling
+  - Responsive images, accessibility
+- **SvgAgent** (`svg`) - SVG graphics specialist (derives from ImageAgent)
+  - Scalable vector graphics, D3.js, animations
+  - Optimization, accessibility features
+- **BitmapAgent** (`bitmap`) - Bitmap/raster specialist (derives from ImageAgent)
+  - JPEG, PNG, WebP optimization
+  - Retina displays, compression techniques
+
+### 🔧 Changed - KoboldTown Integration
+- WyvernAgent updated to recognize all 17 agent types
+- WyvernAgent system prompt expanded with new agent descriptions
+- Drake can now create Kobolds with new specialized agents
+- Automatic task assignment based on agent specialization
+- KoboldFactory documentation updated
+
+### 📚 Documentation Updates
+- **NEW**: `docs/NEW_AGENT_TYPES.md` - Comprehensive guide for new agents
+- Updated `README.md` - Now lists 17 specialized agent types
+- Updated `DraCode.KoboldTown/README.md` - Agent specializations section
+- Updated `docs/README.md` - Added reference to new agent types
+- Updated documentation across all components
+
+### 💡 Usage Examples
+```csharp
+// PHP Laravel development
+var phpAgent = AgentFactory.Create("openai", options, config, "php");
+await phpAgent.RunAsync("Create Laravel authentication system");
+
+// Python data science
+var pythonAgent = AgentFactory.Create("claude", options, config, "python");
+await pythonAgent.RunAsync("Analyze CSV data with pandas");
+
+// SVG graphics
+var svgAgent = AgentFactory.Create("openai", options, config, "svg");
+await svgAgent.RunAsync("Create animated SVG logo");
+
+// Image optimization
+var bitmapAgent = AgentFactory.Create("gemini", options, config, "bitmap");
+await bitmapAgent.RunAsync("Optimize photos for web");
+```
+
+---
+
 ## [2.0.5] - January 2026 - WebSocket Authentication with IP Binding
 
 ### 🔐 New Feature: Token-Based Authentication with IP Address Binding
