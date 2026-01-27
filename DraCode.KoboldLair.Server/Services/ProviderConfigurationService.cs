@@ -24,6 +24,26 @@ namespace DraCode.KoboldLair.Server.Services
             _configPath = configPath;
             _configuration = defaultConfig.Value;
 
+            // Log loaded providers from appsettings
+            _logger.LogInformation("========================================");
+            _logger.LogInformation("Provider Configuration Loaded");
+            _logger.LogInformation("========================================");
+            _logger.LogInformation("Total Providers: {Count}", _configuration.Providers.Count);
+            foreach (var provider in _configuration.Providers)
+            {
+                _logger.LogInformation("  - {Name} ({DisplayName}): Enabled={IsEnabled}, Model={Model}, Agents={Agents}",
+                    provider.Name,
+                    provider.DisplayName,
+                    provider.IsEnabled,
+                    provider.DefaultModel,
+                    string.Join(", ", provider.CompatibleAgents));
+            }
+            _logger.LogInformation("Agent Assignments:");
+            _logger.LogInformation("  - Dragon: {Provider}", _configuration.AgentProviders.DragonProvider);
+            _logger.LogInformation("  - Wyvern: {Provider}", _configuration.AgentProviders.WyvernProvider);
+            _logger.LogInformation("  - Kobold: {Provider}", _configuration.AgentProviders.KoboldProvider);
+            _logger.LogInformation("========================================");
+
             // Try to load saved configuration, otherwise use defaults
             LoadConfiguration();
         }

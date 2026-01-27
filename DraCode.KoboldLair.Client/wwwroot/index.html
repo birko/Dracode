@@ -3,60 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KoboldLair - Management Console</title>
-    <link rel="stylesheet" href="/css/styles.css">
+    <title>KoboldLair Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Sidebar Navigation -->
-    <aside class="sidebar">
-        <div class="sidebar-header">
-            <span class="logo-icon">🏰</span>
-            <span class="logo-text">KoboldLair</span>
-        </div>
-        <nav class="sidebar-nav">
-            <a href="#dashboard" class="nav-link active" data-route="dashboard">
-                <span class="nav-icon">📊</span>
-                <span class="nav-text">Dashboard</span>
-            </a>
-            <a href="#dragon" class="nav-link" data-route="dragon">
-                <span class="nav-icon">🐉</span>
-                <span class="nav-text">Dragon</span>
-            </a>
-            <a href="#hierarchy" class="nav-link" data-route="hierarchy">
-                <span class="nav-icon">🏰</span>
-                <span class="nav-text">Hierarchy</span>
-            </a>
-            <a href="#providers" class="nav-link" data-route="providers">
-                <span class="nav-icon">🔧</span>
-                <span class="nav-text">Providers</span>
-            </a>
-            <a href="#projects" class="nav-link" data-route="projects">
-                <span class="nav-icon">⚙️</span>
-                <span class="nav-text">Projects</span>
-            </a>
-        </nav>
-        <div class="sidebar-footer">
-            <span id="connectionStatus" class="status-indicator">⚪ Disconnected</span>
-        </div>
-    </aside>
-
-    <!-- Main Content Area -->
-    <div class="main-wrapper">
-        <header class="top-bar">
-            <h1 class="page-title">Dashboard</h1>
-            <div class="top-bar-actions">
-                <button id="infoToggle" class="icon-btn" title="Toggle Info">
-                    <span>ℹ️</span>
-                </button>
+    <div id="app">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">🏰</span>
+                    <span class="logo-text">KoboldLair</span>
+                </div>
             </div>
-        </header>
+            
+            <nav class="nav">
+                <a href="#dashboard" class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+                <a href="#dragon" class="nav-item" data-view="dragon">
+                    <span class="nav-icon">🐉</span>
+                    <span class="nav-label">Dragon</span>
+                </a>
+                <a href="#hierarchy" class="nav-item" data-view="hierarchy">
+                    <span class="nav-icon">🌳</span>
+                    <span class="nav-label">Hierarchy</span>
+                </a>
+                <a href="#projects" class="nav-item" data-view="projects">
+                    <span class="nav-icon">📁</span>
+                    <span class="nav-label">Projects</span>
+                </a>
+                <a href="#providers" class="nav-item" data-view="providers">
+                    <span class="nav-icon">🔧</span>
+                    <span class="nav-label">Providers</span>
+                </a>
+            </nav>
 
-        <main class="main-content" id="viewContainer">
-            <!-- Views will be dynamically loaded here -->
+            <div class="sidebar-footer">
+                <div class="connection-status" id="connectionStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main">
+            <header class="header">
+                <h1 class="page-title" id="pageTitle">Dashboard</h1>
+                <div class="header-actions">
+                    <button class="btn-icon" id="refreshBtn" title="Refresh">
+                        <span>🔄</span>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content" id="content">
+                <!-- Dynamic content -->
+            </div>
         </main>
     </div>
 
-    <script src="/js/config.js"></script>
-    <script type="module" src="/js/main.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,32 +1,38 @@
 # DraCode.KoboldLair.Client
 
-Web UI client for the KoboldLair autonomous multi-agent coding system.
+**Modern, minimalistic SPA dashboard** for the KoboldLair autonomous multi-agent coding system.
 
 ## Features
 
-- **Real-time Status Monitoring** - Track agents, projects, and tasks
-- **Dragon Interface** - Interactive requirements gathering chat
-- **Hierarchy Visualization** - View the agent hierarchy
-- **Provider Configuration** - Manage AI provider settings
-- **Project Management** - Configure project-specific settings
+- **Modern SPA Architecture** - Built with vanilla JavaScript ES6+ modules
+- **Minimalistic Design** - Clean, dark-themed dashboard with intuitive navigation
+- **Real-time Updates** - WebSocket integration for live data
+- **Responsive Layout** - Flexbox-based design that works on all screen sizes
+- **Multiple Views**:
+  - **Dashboard**: Overview with statistics and recent projects
+  - **Dragon**: Interactive chat interface for Dragon requirements agent
+  - **Hierarchy**: Visual representation of the agent hierarchy
+  - **Projects**: Detailed project listing and management
+  - **Providers**: AI provider configuration and status
+
+## Technology Stack
+
+- **HTML5**: Semantic markup
+- **CSS3**: Modern styling with CSS variables and Flexbox
+- **Vanilla JavaScript**: ES6+ modules, no frameworks
+- **WebSocket API**: Real-time bidirectional communication
+- **Fetch API**: RESTful API integration
 
 ## Configuration
 
-Edit `wwwroot/js/config.js` to configure the client:
+Edit `wwwroot/config.js` to configure the client:
 
 ```javascript
 const CONFIG = {
-    // Server WebSocket URL
-    serverUrl: 'ws://localhost:5000',
-    
-    // Authentication token (if required by server)
+    apiUrl: window.location.origin,
+    wsUrl: window.location.origin.replace('http', 'ws'),
     authToken: '',
-    
-    // WebSocket endpoints
-    endpoints: {
-        wyvern: '/ws',
-        dragon: '/dragon'
-    }
+    refreshInterval: 5000
 };
 ```
 
@@ -87,10 +93,13 @@ Start `dracode-koboldlair-client` from the Aspire Dashboard.
 - System statistics
 
 ### Dragon (`/dragon.html`)
-- Interactive chat interface
-- Requirements gathering
-- Specification generation
-- Project creation
+- Modern, polished chat interface with AI assistant
+- **Markdown support** - Rich text formatting in responses
+- **Streaming messages** - Real-time typing effect for AI responses
+- **Smooth animations** - Beautiful message transitions and effects
+- **Mobile responsive** - Optimized for all screen sizes
+- Requirements gathering and specification generation
+- Project creation and management
 
 ### Hierarchy (`/hierarchy.html`)
 - Visual agent hierarchy
