@@ -18,6 +18,12 @@ export class UIController {
         this.clearLogsBtn = document.getElementById('clearLogsBtn');
         this.connectionStatus = document.getElementById('connectionStatus');
         this.filterButtons = document.querySelectorAll('.filter-btn');
+        
+        // Dashboard stats elements
+        this.statTotal = document.getElementById('statTotal');
+        this.statWorking = document.getElementById('statWorking');
+        this.statDone = document.getElementById('statDone');
+        this.statPending = document.getElementById('statPending');
     }
 
     bindEvents() {
@@ -62,6 +68,7 @@ export class UIController {
         // Update tasks when task manager changes
         this.taskManager.onUpdate(() => {
             this.renderTasks();
+            this.updateStats();
         });
     }
 
@@ -93,6 +100,8 @@ export class UIController {
     }
 
     renderTasks() {
+        if (!this.tasksContainer) return;
+        
         const tasks = this.taskManager.getFilteredTasks();
         
         if (tasks.length === 0) {
@@ -104,6 +113,41 @@ export class UIController {
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
             .map(task => this.createTaskCard(task))
             .join('');
+    }
+
+    updateStats() {
+        const allTasks = this.taskManager.getAllTasks();
+        
+        const total = allTasks.length;
+        const working = allTasks.filter(t => t.status === 'working').length;
+        const done = allTasks.filter(t => t.status === 'done').length;
+        const pending = allTasks.filter(t => t.status === 'unassigned' || t.status === 'notinitialized').length;
+        
+        if (this.statTotal) this.animateCounter(this.statTotal, total);
+        if (this.statWorking) this.animateCounter(this.statWorking, working);
+        if (this.statDone) this.animateCounter(this.statDone, done);
+        if (this.statPending) this.animateCounter(this.statPending, pending);
+    }
+
+    animateCounter(element, target) {
+        const current = parseInt(element.textContent) || 0;
+        if (current === target) return;
+        
+        const duration = 500;
+        const step = (target - current) / (duration / 16);
+        let value = current;
+        
+        const animate = () => {
+            value += step;
+            if ((step > 0 && value >= target) || (step < 0 && value <= target)) {
+                element.textContent = target;
+                return;
+            }
+            element.textContent = Math.round(value);
+            requestAnimationFrame(animate);
+        };
+        
+        animate();
     }
 
     createTaskCard(task) {
@@ -134,6 +178,8 @@ export class UIController {
     }
 
     addLog(type, message) {
+        if (!this.logsContainer) return;
+        
         const timestamp = new Date().toLocaleTimeString();
         const logEntry = document.createElement('div');
         logEntry.className = `log-entry ${type}`;
@@ -147,10 +193,12 @@ export class UIController {
     }
 
     clearLogs() {
+        if (!this.logsContainer) return;
         this.logsContainer.innerHTML = '';
     }
 
     updateConnectionStatus(connected) {
+        if (!this.connectionStatus) return;
         this.connectionStatus.textContent = connected ? '🟢 Connected' : '⚪ Disconnected';
         this.connectionStatus.className = `status-indicator ${connected ? 'connected' : ''}`;
     }

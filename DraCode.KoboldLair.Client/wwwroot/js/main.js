@@ -1,16 +1,23 @@
 /**
  * Main Application Module
- * KoboldLair App
+ * KoboldLair App - SPA Version
  */
 import { WebSocketManager } from './websocket.js';
 import { TaskManager } from './taskManager.js';
 import { UIController } from './ui.js';
+import { Router } from './router.js';
+import { DashboardView } from './views/dashboard.js';
+import { DragonView } from './views/dragon.js';
+import { HierarchyView } from './views/hierarchy.js';
+import { ProvidersView } from './views/providers.js';
+import { ProjectsView } from './views/projects.js';
 
 class KoboldLairApp {
     constructor() {
         this.taskManager = new TaskManager();
         this.ui = new UIController(this.taskManager);
         this.ws = new WebSocketManager(this.getWebSocketUrl(), CONFIG.authToken);
+        this.router = new Router();
         
         this.init();
     }
@@ -21,6 +28,9 @@ class KoboldLairApp {
     }
 
     init() {
+        // Setup router
+        this.setupRouter();
+        
         // Setup WebSocket handlers
         this.setupWebSocketHandlers();
         
@@ -30,7 +40,40 @@ class KoboldLairApp {
         // Connect WebSocket
         this.ws.connect();
         
-        console.log('KoboldLair initialized');
+        console.log('KoboldLair SPA initialized');
+    }
+
+    setupRouter() {
+        // Register routes
+        this.router.addRoute('dashboard', async () => new DashboardView(this));
+        this.router.addRoute('dragon', async () => new DragonView(this));
+        this.router.addRoute('hierarchy', async () => new HierarchyView(this));
+        this.router.addRoute('providers', async () => new ProvidersView(this));
+        this.router.addRoute('projects', async () => new ProjectsView(this));
+        
+        // Setup navigation links
+        this.router.setupNavLinks();
+        
+        // Update page title on navigation
+        this.router.afterNavigate = (path) => {
+            const titles = {
+                'dashboard': 'Dashboard',
+                'dragon': 'Dragon',
+                'hierarchy': 'Hierarchy',
+                'providers': 'Providers',
+                'projects': 'Projects'
+            };
+            const pageTitle = document.querySelector('.page-title');
+            if (pageTitle) {
+                pageTitle.textContent = titles[path] || 'Dashboard';
+            }
+            
+            // Show/hide info toggle button based on route
+            const infoToggle = document.getElementById('infoToggle');
+            if (infoToggle) {
+                infoToggle.style.display = path === 'dashboard' ? 'inline-flex' : 'none';
+            }
+        };
     }
 
     setupWebSocketHandlers() {
