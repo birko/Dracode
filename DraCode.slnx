@@ -1,9 +1,10 @@
 <Solution>
   <Project Path="DraCode.Agent/DraCode.Agent.csproj" />
   <Project Path="DraCode.AppHost/DraCode.AppHost.csproj" />
+  <Project Path="DraCode.KoboldLair.Client/DraCode.KoboldLair.Client.csproj" />
+  <Project Path="DraCode.KoboldLair.Server/DraCode.KoboldLair.Server.csproj" />
   <Project Path="DraCode.ServiceDefaults/DraCode.ServiceDefaults.csproj" />
   <Project Path="DraCode.Web/DraCode.Web.csproj" />
   <Project Path="DraCode.WebSocket/DraCode.WebSocket.csproj" />
-  <Project Path="DraCode.KoboldTown/DraCode.KoboldTown.csproj" />
   <Project Path="DraCode/DraCode.csproj" />
 </Solution>

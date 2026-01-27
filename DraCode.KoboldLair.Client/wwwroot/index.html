@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KoboldTown - Status Monitor</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🏰 KoboldTown Status Monitor</h1>
+            <p class="subtitle">Real-time Automated Workflow Status</p>
+            <div class="connection-status">
+                <span id="connectionStatus" class="status-indicator">⚪ Disconnected</span>
+            </div>
+            <nav class="nav-tabs" style="display: flex; gap: 1rem; margin-top: 1.5rem; justify-content: center; flex-wrap: wrap;">
+                <a href="/" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--primary-color); border: 1px solid var(--primary-color); border-radius: 0.5rem; color: white; text-decoration: none; transition: all 0.2s;">📊 Status</a>
+                <a href="/dragon.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;">🐉 Dragon</a>
+                <a href="/hierarchy.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;">🏰 Hierarchy</a>
+                <a href="/providers.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;">🔧 Providers</a>
+                <a href="/project-config.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;">⚙️ Projects</a>
+            </nav>
+        </header>
+
+        <main class="main-content">
+            <!-- Workflow Overview -->
+            <section class="workflow-info">
+                <h2>🏰 KoboldTown Automated Workflow</h2>
+                <div class="workflow-description">
+                    <p>KoboldTown uses an automated AI agent hierarchy to transform your ideas into working code:</p>
+                    <div class="workflow-steps">
+                        <div class="workflow-step">
+                            <div class="step-icon">🐉</div>
+                            <div class="step-content">
+                                <h3>1. Dragon (Interactive)</h3>
+                                <p>Talk to Dragon to describe your project. Dragon creates detailed specifications.</p>
+                                <a href="/dragon.html" class="btn btn-primary">💬 Chat with Dragon</a>
+                            </div>
+                        </div>
+                        <div class="workflow-arrow">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-icon">🐲</div>
+                            <div class="step-content">
+                                <h3>2. Wyrm (Automatic)</h3>
+                                <p>Wyrm automatically analyzes specifications and breaks them into organized tasks.</p>
+                            </div>
+                        </div>
+                        <div class="workflow-arrow">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-icon">🦎</div>
+                            <div class="step-content">
+                                <h3>3. Drake (Automatic)</h3>
+                                <p>Drake supervisors automatically assign and monitor task execution.</p>
+                            </div>
+                        </div>
+                        <div class="workflow-arrow">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-icon">⚙️</div>
+                            <div class="step-content">
+                                <h3>4. Kobold (Automatic)</h3>
+                                <p>Kobold workers automatically execute individual tasks and generate code.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="workflow-note">
+                        <strong>Note:</strong> Only Dragon requires user interaction. Everything else happens automatically in the background.
+                    </div>
+                </div>
+            </section>
+
+            <section class="tasks-section">
+                <div class="section-header">
+                    <h2>Task Status</h2>
+                    <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+                    <button id="downloadMarkdownBtn" class="btn btn-secondary">📥 Download Report</button>
+                </div>
+                
+                <div class="filter-bar">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="unassigned">⚪ Unassigned</button>
+                    <button class="filter-btn" data-filter="notinitialized">🔵 Not Initialized</button>
+                    <button class="filter-btn" data-filter="working">🟡 Working</button>
+                    <button class="filter-btn" data-filter="done">🟢 Done</button>
+                </div>
+
+                <div id="tasksContainer" class="tasks-container">
+                    <p class="empty-message">No tasks yet. Submit a task to get started!</p>
+                </div>
+            </section>
+
+            <section class="logs-section">
+                <div class="section-header">
+                    <h2>Agent Logs</h2>
+                    <button id="clearLogsBtn" class="btn btn-secondary">🗑️ Clear</button>
+                </div>
+                <div id="logsContainer" class="logs-container"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/js/config.js"></script>
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>

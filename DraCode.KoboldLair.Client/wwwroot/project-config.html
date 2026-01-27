@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Configuration - KoboldTown</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .project-list {
+            display: grid;
+            gap: 1.25rem;
+        }
+
+        .project-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--glass-border);
+            transition: all 0.3s ease;
+        }
+
+        .project-card:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .project-name {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .project-status-badge {
+            font-size: 0.75rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .project-status-badge.new {
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        .project-status-badge.analyzed {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+        }
+
+        .agent-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .agent-control {
+            background: rgba(30, 41, 59, 0.4);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .agent-control-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .agent-control-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .agent-icon {
+            font-size: 1.3rem;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            cursor: pointer;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(100, 116, 139, 0.5);
+            border-radius: 26px;
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
+        }
+
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 3px;
+            background-color: white;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--primary-gradient);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .agent-status {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .agent-status.enabled {
+            color: var(--success-color);
+        }
+
+        .agent-status.disabled {
+            color: var(--secondary-color);
+        }
+
+        .provider-info {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .provider-info strong {
+            color: var(--text-primary);
+        }
+
+        .status-message {
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            margin-bottom: 1.5rem;
+            animation: slideDown 0.3s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid;
+        }
+
+        .status-message.success {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: var(--success-color);
+            color: var(--success-color);
+        }
+
+        .status-message.error {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: var(--error-color);
+            color: var(--error-color);
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>⚙️ Project Configuration</h1>
+            <p class="subtitle">Enable or disable agents for each project</p>
+            <nav class="nav-tabs">
+                <a href="/" class="tab-link">📊 Status</a>
+                <a href="/dragon.html" class="tab-link">🐉 Dragon</a>
+                <a href="/hierarchy.html" class="tab-link">🏰 Hierarchy</a>
+                <a href="/providers.html" class="tab-link">🔧 Providers</a>
+                <a href="/project-config.html" class="tab-link active">⚙️ Projects</a>
+            </nav>
+        </header>
+
+        <div id="statusMessage"></div>
+
+        <main class="main-content">
+            <section>
+                <h2>📁 Project Agent Settings</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Control which agents run for each project. Agents are disabled by default.
+                </p>
+                
+                <div id="projectList" class="project-list">
+                    <p style="text-align: center; color: var(--text-secondary);">Loading projects...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        let projects = [];
+
+        async function loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                projects = await response.json();
+                
+                if (!Array.isArray(projects)) {
+                    projects = [];
+                }
+                
+                renderProjects();
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+                showStatus('Failed to load projects', 'error');
+            }
+        }
+
+        async function renderProjects() {
+            const container = document.getElementById('projectList');
+            
+            if (projects.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📂</div>
+                        <h3>No Projects Yet</h3>
+                        <p>Create a project using Dragon to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const projectCards = await Promise.all(projects.map(async (project) => {
+                const providersResponse = await fetch(`/api/projects/${project.id}/providers`);
+                const providersData = await providersResponse.json();
+                const settings = providersData.providers || {};
+
+                return `
+                    <div class="project-card" data-project-id="${project.id}">
+                        <div class="project-header">
+                            <div class="project-name">
+                                📁 ${project.name}
+                            </div>
+                            <span class="project-status-badge ${project.status.toLowerCase()}">
+                                ${project.status}
+                            </span>
+                        </div>
+                        
+                        <div class="agent-controls">
+                            <div class="agent-control">
+                                <div class="agent-control-header">
+                                    <div class="agent-control-label">
+                                        <span class="agent-icon">🐲</span>
+                                        <span>Wyrm</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" 
+                                               ${settings.wyrmEnabled ? 'checked' : ''}
+                                               onchange="toggleAgent('${project.id}', 'wyrm', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="agent-status ${settings.wyrmEnabled ? 'enabled' : 'disabled'}">
+                                    ${settings.wyrmEnabled ? '✓ Enabled' : '○ Disabled'}
+                                </div>
+                                ${settings.wyrmProvider ? `
+                                    <div class="provider-info">
+                                        <strong>Provider:</strong> ${settings.wyrmProvider}
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <div class="agent-control">
+                                <div class="agent-control-header">
+                                    <div class="agent-control-label">
+                                        <span class="agent-icon">🐉</span>
+                                        <span>Drake</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" 
+                                               ${settings.drakeEnabled ? 'checked' : ''}
+                                               onchange="toggleAgent('${project.id}', 'drake', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="agent-status ${settings.drakeEnabled ? 'enabled' : 'disabled'}">
+                                    ${settings.drakeEnabled ? '✓ Enabled' : '○ Disabled'}
+                                </div>
+                                ${settings.drakeProvider ? `
+                                    <div class="provider-info">
+                                        <strong>Provider:</strong> ${settings.drakeProvider}
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <div class="agent-control">
+                                <div class="agent-control-header">
+                                    <div class="agent-control-label">
+                                        <span class="agent-icon">🦎</span>
+                                        <span>Kobolds</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" 
+                                               ${settings.koboldEnabled ? 'checked' : ''}
+                                               onchange="toggleAgent('${project.id}', 'kobold', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="agent-status ${settings.koboldEnabled ? 'enabled' : 'disabled'}">
+                                    ${settings.koboldEnabled ? '✓ Enabled' : '○ Disabled'}
+                                </div>
+                                ${settings.koboldProvider ? `
+                                    <div class="provider-info">
+                                        <strong>Provider:</strong> ${settings.koboldProvider}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }));
+
+            container.innerHTML = projectCards.join('');
+        }
+
+        async function toggleAgent(projectId, agentType, enabled) {
+            try {
+                const response = await fetch(`/api/projects/${projectId}/agents/${agentType}/toggle`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ enabled })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus(`✓ ${result.message}`, 'success');
+                    // Reload to update UI
+                    await loadProjects();
+                } else {
+                    showStatus(`✗ ${result.message}`, 'error');
+                    // Reload to revert toggle
+                    await loadProjects();
+                }
+            } catch (error) {
+                console.error('Failed to toggle agent:', error);
+                showStatus('Failed to update agent status', 'error');
+                // Reload to revert toggle
+                await loadProjects();
+            }
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+            
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        // Load projects on page load
+        loadProjects();
+
+        // Refresh every 30 seconds
+        setInterval(loadProjects, 30000);
+    </script>
+</body>
+</html>
