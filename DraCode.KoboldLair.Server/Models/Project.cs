@@ -1,7 +1,7 @@
 namespace DraCode.KoboldLair.Server.Models
 {
     /// <summary>
-    /// Represents a project in the KoboldTown system.
+    /// Represents a project in the KoboldLair system.
     /// Created when Dragon generates a specification, assigned a Wyrm for analysis.
     /// </summary>
     public class Project
@@ -20,6 +20,16 @@ namespace DraCode.KoboldLair.Server.Models
         /// Path to the specification file
         /// </summary>
         public string SpecificationPath { get; set; } = "";
+
+        /// <summary>
+        /// ID of the specification associated with this project
+        /// </summary>
+        public string? SpecificationId { get; set; }
+
+        /// <summary>
+        /// Specification object (when loaded)
+        /// </summary>
+        public Specification? Specification { get; set; }
 
         /// <summary>
         /// Directory where output files will be stored
@@ -72,64 +82,8 @@ namespace DraCode.KoboldLair.Server.Models
         public Dictionary<string, string> Metadata { get; set; } = new();
 
         /// <summary>
-        /// Provider settings for this project's agents
+        /// Maximum number of parallel Kobolds allowed for this project
         /// </summary>
-        public ProjectProviderSettings ProviderSettings { get; set; } = new();
-    }
-
-    /// <summary>
-    /// Provider configuration for a specific project
-    /// </summary>
-    public class ProjectProviderSettings
-    {
-        /// <summary>
-        /// Provider used for the Wyrm agent analyzing this project
-        /// </summary>
-        public string? WyrmProvider { get; set; }
-
-        /// <summary>
-        /// Model override for Wyrm (if any)
-        /// </summary>
-        public string? WyrmModel { get; set; }
-
-        /// <summary>
-        /// Whether Wyrm analysis is enabled for this project
-        /// </summary>
-        public bool WyrmEnabled { get; set; } = false;
-
-        /// <summary>
-        /// Provider used for Drake supervisors in this project
-        /// </summary>
-        public string? DrakeProvider { get; set; }
-
-        /// <summary>
-        /// Model override for Drakes (if any)
-        /// </summary>
-        public string? DrakeModel { get; set; }
-
-        /// <summary>
-        /// Whether Drake supervisors are enabled for this project
-        /// </summary>
-        public bool DrakeEnabled { get; set; } = false;
-
-        /// <summary>
-        /// Provider used for Kobold workers in this project
-        /// </summary>
-        public string? KoboldProvider { get; set; }
-
-        /// <summary>
-        /// Model override for Kobolds (if any)
-        /// </summary>
-        public string? KoboldModel { get; set; }
-
-        /// <summary>
-        /// Whether Kobold workers are enabled for this project
-        /// </summary>
-        public bool KoboldEnabled { get; set; } = false;
-
-        /// <summary>
-        /// Timestamp when provider settings were last updated
-        /// </summary>
-        public DateTime? LastUpdated { get; set; }
+        public int MaxParallelKobolds { get; set; } = 5;
     }
 }

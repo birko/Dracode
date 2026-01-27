@@ -12,17 +12,20 @@ namespace DraCode.KoboldLair.Server.Services
     {
         private readonly ProjectRepository _repository;
         private readonly WyrmFactory _wyrmFactory;
+        private readonly ProjectConfigurationService _projectConfigService;
         private readonly ILogger<ProjectService> _logger;
         private readonly string _defaultOutputPathBase;
 
         public ProjectService(
             ProjectRepository repository,
             WyrmFactory wyrmFactory,
+            ProjectConfigurationService projectConfigService,
             ILogger<ProjectService> logger,
             string defaultOutputPathBase = "./workspace")
         {
             _repository = repository;
             _wyrmFactory = wyrmFactory;
+            _projectConfigService = projectConfigService;
             _logger = logger;
             _defaultOutputPathBase = defaultOutputPathBase;
         }
@@ -241,7 +244,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Sets provider configuration for a project
         /// </summary>
-        public void SetProjectProviders(string projectId, ProjectProviderSettings providerSettings)
+        public void SetProjectProviders(string projectId, string agentType, string? provider, string? model = null)
         {
             var project = _repository.GetById(projectId);
             if (project == null)
@@ -249,18 +252,15 @@ namespace DraCode.KoboldLair.Server.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            providerSettings.LastUpdated = DateTime.UtcNow;
-            project.ProviderSettings = providerSettings;
-            project.UpdatedAt = DateTime.UtcNow;
-            
-            _repository.Update(project);
-            _logger.LogInformation("Updated provider settings for project: {ProjectName}", project.Name);
+            _projectConfigService.SetProjectProvider(projectId, agentType, provider, model);
+            _logger.LogInformation("Updated {AgentType} provider to {Provider} for project: {ProjectName}", 
+                agentType, provider, project.Name);
         }
 
         /// <summary>
-        /// Gets provider configuration for a project, falling back to global defaults
+        /// Gets provider configuration for a project
         /// </summary>
-        public ProjectProviderSettings GetProjectProviders(string projectId, ProviderConfigurationService globalConfig)
+        public ProjectConfig GetProjectConfig(string projectId)
         {
             var project = _repository.GetById(projectId);
             if (project == null)
@@ -268,42 +268,33 @@ namespace DraCode.KoboldLair.Server.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            // If project has provider settings, use them
-            if (project.ProviderSettings.WyrmProvider != null || 
-                project.ProviderSettings.DrakeProvider != null || 
-                project.ProviderSettings.KoboldProvider != null)
-            {
-                return project.ProviderSettings;
-            }
-
-            // Otherwise, initialize from global defaults
-            var settings = new ProjectProviderSettings
-            {
-                WyrmProvider = globalConfig.GetProviderForAgent("wyvern"),
-                DrakeProvider = globalConfig.GetProviderForAgent("wyvern"),
-                KoboldProvider = globalConfig.GetProviderForAgent("kobold"),
-                LastUpdated = DateTime.UtcNow
-            };
-
-            // Save the defaults to the project
-            project.ProviderSettings = settings;
-            _repository.Update(project);
-
-            return settings;
+            return _projectConfigService.GetOrCreateProjectConfig(projectId, project.Name);
         }
 
         /// <summary>
-        /// Initializes provider settings for all projects that don't have them
+        /// Initializes configuration for all projects that don't have it
         /// </summary>
-        public void InitializeProjectProviders(ProviderConfigurationService globalConfig)
+        public void InitializeProjectConfigurations(ProviderConfigurationService globalConfig)
         {
             var projects = _repository.GetAll();
             foreach (var project in projects)
             {
-                if (project.ProviderSettings.WyrmProvider == null)
+                var config = _projectConfigService.GetProjectConfig(project.Id);
+                if (config == null)
                 {
-                    GetProjectProviders(project.Id, globalConfig);
-                    _logger.LogInformation("Initialized provider settings for project: {ProjectName}", project.Name);
+                    // Create default configuration
+                    var newConfig = _projectConfigService.GetOrCreateProjectConfig(project.Id, project.Name);
+                    
+                    // Initialize with global defaults if not set
+                    if (string.IsNullOrEmpty(newConfig.WyrmProvider))
+                    {
+                        newConfig.WyrmProvider = globalConfig.GetProviderForAgent("wyvern");
+                        newConfig.DrakeProvider = globalConfig.GetProviderForAgent("wyvern");
+                        newConfig.KoboldProvider = globalConfig.GetProviderForAgent("kobold");
+                        _projectConfigService.UpdateProjectConfig(newConfig);
+                    }
+                    
+                    _logger.LogInformation("Initialized configuration for project: {ProjectName}", project.Name);
                 }
             }
         }
@@ -319,26 +310,7 @@ namespace DraCode.KoboldLair.Server.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            switch (agentType.ToLowerInvariant())
-            {
-                case "wyrm":
-                case "wyvern":
-                    project.ProviderSettings.WyrmEnabled = enabled;
-                    break;
-                case "drake":
-                    project.ProviderSettings.DrakeEnabled = enabled;
-                    break;
-                case "kobold":
-                    project.ProviderSettings.KoboldEnabled = enabled;
-                    break;
-                default:
-                    throw new ArgumentException($"Unknown agent type: {agentType}");
-            }
-
-            project.ProviderSettings.LastUpdated = DateTime.UtcNow;
-            project.UpdatedAt = DateTime.UtcNow;
-            
-            _repository.Update(project);
+            _projectConfigService.SetAgentEnabled(projectId, agentType, enabled);
             _logger.LogInformation("{AgentType} {Status} for project: {ProjectName}", 
                 agentType, enabled ? "enabled" : "disabled", project.Name);
         }
@@ -354,13 +326,42 @@ namespace DraCode.KoboldLair.Server.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            return agentType.ToLowerInvariant() switch
+            return _projectConfigService.IsAgentEnabled(projectId, agentType);
+        }
+
+        /// <summary>
+        /// Sets the maximum parallel kobolds limit for a project
+        /// </summary>
+        public void SetMaxParallelKobolds(string projectId, int maxParallel)
+        {
+            var project = _repository.GetById(projectId);
+            if (project == null)
             {
-                "wyrm" or "wyvern" => project.ProviderSettings.WyrmEnabled,
-                "drake" => project.ProviderSettings.DrakeEnabled,
-                "kobold" => project.ProviderSettings.KoboldEnabled,
-                _ => throw new ArgumentException($"Unknown agent type: {agentType}")
-            };
+                throw new InvalidOperationException($"Project not found: {projectId}");
+            }
+
+            if (maxParallel < 1)
+            {
+                throw new ArgumentException("MaxParallelKobolds must be at least 1");
+            }
+
+            _projectConfigService.SetMaxParallelKobolds(projectId, maxParallel);
+            _logger.LogInformation("Updated MaxParallelKobolds to {Max} for project: {ProjectName}", 
+                maxParallel, project.Name);
+        }
+
+        /// <summary>
+        /// Gets the maximum parallel kobolds limit for a project
+        /// </summary>
+        public int GetMaxParallelKobolds(string projectId)
+        {
+            var project = _repository.GetById(projectId);
+            if (project == null)
+            {
+                throw new InvalidOperationException($"Project not found: {projectId}");
+            }
+
+            return _projectConfigService.GetMaxParallelKobolds(projectId);
         }
     }
 

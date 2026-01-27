@@ -1,7 +1,7 @@
 namespace DraCode.KoboldLair.Server.Models
 {
     /// <summary>
-    /// Status of a project in the KoboldTown workflow
+    /// Status of a project in the KoboldLair workflow
     /// </summary>
     public enum ProjectStatus
     {

@@ -16,11 +16,14 @@ builder.Services.Configure<AuthenticationConfiguration>(
 builder.Services.AddSingleton<WebSocketAuthenticationService>();
 
 // Configure provider settings
-builder.Services.Configure<KoboldTownProviderConfiguration>(
-    builder.Configuration.GetSection("KoboldTownProviders"));
+builder.Services.Configure<KoboldLairProviderConfiguration>(
+    builder.Configuration.GetSection("KoboldLairProviders"));
 
 // Register provider configuration service
 builder.Services.AddSingleton<ProviderConfigurationService>();
+
+// Register project configuration service for resource limits
+builder.Services.AddSingleton<ProjectConfigurationService>();
 
 // Register project management components
 builder.Services.AddSingleton<ProjectRepository>(sp =>
@@ -46,17 +49,30 @@ builder.Services.AddSingleton<ProjectService>(sp =>
 {
     var repository = sp.GetRequiredService<ProjectRepository>();
     var wyrmFactory = sp.GetRequiredService<WyrmFactory>();
+    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
-    return new ProjectService(repository, wyrmFactory, logger, "./workspace");
+    return new ProjectService(repository, wyrmFactory, projectConfigService, logger, "./workspace");
 });
 
 // Register factories as singletons
-builder.Services.AddSingleton<KoboldFactory>();
+builder.Services.AddSingleton<KoboldFactory>(sp =>
+{
+    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    
+    // Use ProjectConfigurationService for max parallel kobolds
+    Func<string?, int> getMaxParallel = (projectId) =>
+    {
+        return projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty);
+    };
+    
+    return new KoboldFactory(projectConfigService, getMaxParallel);
+});
 builder.Services.AddSingleton<DrakeFactory>(sp =>
 {
     var koboldFactory = sp.GetRequiredService<KoboldFactory>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    return new DrakeFactory(koboldFactory, providerConfigService);
+    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+    return new DrakeFactory(koboldFactory, providerConfigService, loggerFactory);
 });
 
 // Register services
@@ -98,16 +114,16 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Initialize project providers on startup
+// Initialize project configurations on startup
 using (var scope = app.Services.CreateScope())
 {
     var projectService = scope.ServiceProvider.GetRequiredService<ProjectService>();
     var providerConfigService = scope.ServiceProvider.GetRequiredService<ProviderConfigurationService>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
-    logger.LogInformation("Initializing provider settings for existing projects...");
-    projectService.InitializeProjectProviders(providerConfigService);
-    logger.LogInformation("Provider initialization complete");
+    logger.LogInformation("Initializing configurations for existing projects...");
+    projectService.InitializeProjectConfigurations(providerConfigService);
+    logger.LogInformation("Configuration initialization complete");
 }
 
 app.MapDefaultEndpoints();
@@ -363,13 +379,25 @@ app.MapGet("/api/projects/{projectId}/providers", (
             return Results.NotFound(new { error = "Project not found" });
         }
 
-        var settings = projectService.GetProjectProviders(projectId, providerConfigService);
+        var config = projectService.GetProjectConfig(projectId);
         
         return Results.Json(new
         {
             projectId,
             projectName = project.Name,
-            providers = settings,
+            providers = new
+            {
+                wyrmProvider = config.WyrmProvider,
+                wyrmModel = config.WyrmModel,
+                wyrmEnabled = config.WyrmEnabled,
+                drakeProvider = config.DrakeProvider,
+                drakeModel = config.DrakeModel,
+                drakeEnabled = config.DrakeEnabled,
+                koboldProvider = config.KoboldProvider,
+                koboldModel = config.KoboldModel,
+                koboldEnabled = config.KoboldEnabled,
+                lastUpdated = config.LastUpdated
+            },
             availableProviders = providerConfigService.GetAvailableProviders().Select(p => new
             {
                 p.Name,
@@ -389,11 +417,11 @@ app.MapGet("/api/projects/{projectId}/providers", (
 app.MapPost("/api/projects/{projectId}/providers", (
     ProjectService projectService,
     string projectId,
-    ProjectProviderSettings settings) =>
+    ProjectProviderUpdate update) =>
 {
     try
     {
-        projectService.SetProjectProviders(projectId, settings);
+        projectService.SetProjectProviders(projectId, update.AgentType, update.ProviderName, update.ModelOverride);
         return Results.Ok(new { success = true, message = "Provider settings updated for project" });
     }
     catch (Exception ex)
@@ -436,6 +464,47 @@ app.MapGet("/api/projects/{projectId}/agents/{agentType}/status", (
     }
 });
 
+app.MapGet("/api/projects/{projectId}/config", (
+    ProjectService projectService,
+    string projectId) =>
+{
+    try
+    {
+        var project = projectService.GetProject(projectId);
+        if (project == null)
+        {
+            return Results.NotFound(new { error = "Project not found" });
+        }
+        
+        return Results.Json(new 
+        { 
+            projectId, 
+            projectName = project.Name,
+            maxParallelKobolds = project.MaxParallelKobolds
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapPost("/api/projects/{projectId}/config", (
+    ProjectService projectService,
+    string projectId,
+    ProjectConfigUpdate update) =>
+{
+    try
+    {
+        projectService.SetMaxParallelKobolds(projectId, update.MaxParallelKobolds);
+        return Results.Ok(new { success = true, message = "Project configuration updated" });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { success = false, message = ex.Message });
+    }
+});
+
 // Health check endpoint
 app.MapGet("/", () => new { status = "running", endpoints = new[] { "/ws", "/dragon" } });
 
@@ -444,3 +513,5 @@ app.Run();
 // DTOs
 record AgentProviderUpdate(string AgentType, string ProviderName, string? ModelOverride);
 record AgentToggleRequest(bool Enabled);
+record ProjectConfigUpdate(int MaxParallelKobolds);
+record ProjectProviderUpdate(string AgentType, string ProviderName, string? ModelOverride);

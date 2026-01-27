@@ -32,7 +32,7 @@ All notable changes to this project will be documented in this file.
   - JPEG, PNG, WebP optimization
   - Retina displays, compression techniques
 
-### 🔧 Changed - KoboldTown Integration
+### 🔧 Changed - KoboldLair Integration
 - WyvernAgent updated to recognize all 17 agent types
 - WyvernAgent system prompt expanded with new agent descriptions
 - Drake can now create Kobolds with new specialized agents
@@ -42,7 +42,8 @@ All notable changes to this project will be documented in this file.
 ### 📚 Documentation Updates
 - **NEW**: `docs/NEW_AGENT_TYPES.md` - Comprehensive guide for new agents
 - Updated `README.md` - Now lists 17 specialized agent types
-- Updated `DraCode.KoboldTown/README.md` - Agent specializations section
+- Updated `DraCode.KoboldLair.Server/README.md` - Agent specializations section
+- Updated `DraCode.KoboldLair.Client/README.md` - Web UI documentation
 - Updated `docs/README.md` - Added reference to new agent types
 - Updated documentation across all components
 

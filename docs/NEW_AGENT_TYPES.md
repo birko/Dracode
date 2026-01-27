@@ -307,7 +307,7 @@ var result = await bitmapAgent.RunAsync("Optimize all photos for web with retina
 16. `diagramming` - Diagrams
 
 **Special (1 type)**:
-17. `wyvern` - Task orchestration (KoboldTown internal)
+17. `wyvern` - Task orchestration (KoboldLair internal)
 
 ---
 
@@ -344,10 +344,10 @@ await svgAgent.RunAsync("Design animated SVG logo");
 await bitmapAgent.RunAsync("Optimize product photos for web");
 ```
 
-### KoboldTown Integration
+### KoboldLair Integration
 
 ```csharp
-// In KoboldTown, Wyvern automatically selects appropriate agent
+// In KoboldLair, Wyvern automatically selects appropriate agent
 // Drake then creates Kobolds with that agent type
 
 var factory = new KoboldFactory(options, config);
@@ -416,9 +416,9 @@ AgentFactory.Create(provider, options, config, agentType)
 
 Where `agentType` can be any of the 17 types listed above.
 
-### KoboldTown
+### KoboldLair
 
-All new agents are integrated with KoboldTown:
+All new agents are integrated with KoboldLair:
 
 - **WyvernAgent**: Validates and recommends new agent types
 - **KoboldFactory**: Creates Kobolds with new agent types
@@ -509,12 +509,14 @@ Optimize all images in ./assets/photos/:
 This information has been added to:
 - ✅ Main README.md
 - ✅ DraCode.Agent/README.md (if exists)
-- ✅ DraCode.KoboldTown/README.md
+- ✅ DraCode.KoboldLair.Server/README.md
+- ✅ DraCode.KoboldLair.Client/README.md
 - ✅ docs/README.md
 - ✅ This file (NEW_AGENT_TYPES.md)
 
 For more information, see:
-- [KoboldTown Agent Documentation](../DraCode.KoboldTown/README.md)
+- [KoboldLair Server Documentation](../DraCode.KoboldLair.Server/README.md)
+- [KoboldLair Client Documentation](../DraCode.KoboldLair.Client/README.md)
 - [Agent Options](AGENT_OPTIONS.md)
 - [Kobold System](Kobold-System.md)
 

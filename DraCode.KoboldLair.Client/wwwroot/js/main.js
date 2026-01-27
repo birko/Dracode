@@ -1,12 +1,12 @@
 /**
  * Main Application Module
- * KoboldTown App
+ * KoboldLair App
  */
 import { WebSocketManager } from './websocket.js';
 import { TaskManager } from './taskManager.js';
 import { UIController } from './ui.js';
 
-class KoboldTownApp {
+class KoboldLairApp {
     constructor() {
         this.taskManager = new TaskManager();
         this.ui = new UIController(this.taskManager);
@@ -30,7 +30,7 @@ class KoboldTownApp {
         // Connect WebSocket
         this.ws.connect();
         
-        console.log('KoboldTown initialized');
+        console.log('KoboldLair initialized');
     }
 
     setupWebSocketHandlers() {
@@ -140,7 +140,7 @@ class KoboldTownApp {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `koboldtown-tasks-${new Date().toISOString().split('T')[0]}.md`;
+        a.download = `koboldlair-tasks-${new Date().toISOString().split('T')[0]}.md`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -151,5 +151,5 @@ class KoboldTownApp {
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new KoboldTownApp();
+    window.app = new KoboldLairApp();
 });

@@ -34,6 +34,7 @@ namespace DraCode.KoboldLair.Server.Wyvern
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Task { get; set; } = string.Empty;
         public string AssignedAgent { get; set; } = string.Empty;
+        public string? ProjectId { get; set; }
         public TaskStatus Status { get; set; } = TaskStatus.Unassigned;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }

@@ -4,10 +4,10 @@ using DraCode.Agent.Agents;
 namespace DraCode.KoboldLair.Server.Agents
 {
     /// <summary>
-    /// Factory for creating agents in KoboldTown context.
+    /// Factory for creating agents in KoboldLair context.
     /// Handles orchestrator agent locally and delegates to DraCode.Agent.AgentFactory for specialized agents.
     /// </summary>
-    public static class KoboldTownAgentFactory
+    public static class KoboldLairAgentFactory
     {
         /// <summary>
         /// Create an Agent with a specific provider name and configuration using AgentOptions.
@@ -26,7 +26,7 @@ namespace DraCode.KoboldLair.Server.Agents
             options ??= new AgentOptions();
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            // Handle KoboldTown-specific agents locally
+            // Handle KoboldLair-specific agents locally
             if (agentType.Equals("wyvern", StringComparison.OrdinalIgnoreCase))
             {
                 // Create LLM provider

@@ -41,7 +41,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 // Get provider settings from configuration
                 var (provider, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
-                var llmProvider = KoboldTownAgentFactory.CreateLlmProvider(provider, config);
+                var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(provider, config);
                 
                 var dragon = new DragonAgent(llmProvider, options);
                 _activeSessions[sessionId] = dragon;

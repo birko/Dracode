@@ -3,32 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KoboldTown - Status Monitor</title>
+    <title>KoboldLair - Status Monitor</title>
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>🏰 KoboldTown Status Monitor</h1>
+            <h1>🏰 KoboldLair Status Monitor</h1>
             <p class="subtitle">Real-time Automated Workflow Status</p>
             <div class="connection-status">
                 <span id="connectionStatus" class="status-indicator">⚪ Disconnected</span>
             </div>
-            <nav class="nav-tabs" style="display: flex; gap: 1rem; margin-top: 1.5rem; justify-content: center; flex-wrap: wrap;">
-                <a href="/" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--primary-color); border: 1px solid var(--primary-color); border-radius: 0.5rem; color: white; text-decoration: none; transition: all 0.2s;">📊 Status</a>
-                <a href="/dragon.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;">🐉 Dragon</a>
-                <a href="/hierarchy.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;">🏰 Hierarchy</a>
-                <a href="/providers.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;">🔧 Providers</a>
-                <a href="/project-config.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-secondary); text-decoration: none; transition: all 0.2s;">⚙️ Projects</a>
+            <button id="infoToggle" class="info-toggle" title="Toggle Workflow Info">
+                <span class="info-icon">ℹ️</span>
+            </button>
+            <nav class="nav-tabs">
+                <a href="/" class="tab-link active">📊 Status</a>
+                <a href="/dragon.html" class="tab-link">🐉 Dragon</a>
+                <a href="/hierarchy.html" class="tab-link">🏰 Hierarchy</a>
+                <a href="/providers.html" class="tab-link">🔧 Providers</a>
+                <a href="/project-config.html" class="tab-link">⚙️ Projects</a>
             </nav>
         </header>
 
         <main class="main-content">
             <!-- Workflow Overview -->
-            <section class="workflow-info">
-                <h2>🏰 KoboldTown Automated Workflow</h2>
+            <section id="workflowInfo" class="workflow-info hidden">
+                <h2>🏰 KoboldLair Automated Workflow</h2>
                 <div class="workflow-description">
-                    <p>KoboldTown uses an automated AI agent hierarchy to transform your ideas into working code:</p>
+                    <p>KoboldLair uses an automated AI agent hierarchy to transform your ideas into working code:</p>
                     <div class="workflow-steps">
                         <div class="workflow-step">
                             <div class="step-icon">🐉</div>
@@ -101,5 +104,30 @@
 
     <script src="/js/config.js"></script>
     <script type="module" src="/js/main.js"></script>
+    <script>
+        // Info panel toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const infoToggle = document.getElementById('infoToggle');
+            const workflowInfo = document.getElementById('workflowInfo');
+            
+            if (infoToggle && workflowInfo) {
+                infoToggle.addEventListener('click', function() {
+                    workflowInfo.classList.toggle('hidden');
+                    infoToggle.classList.toggle('active');
+                    
+                    // Save preference to localStorage
+                    const isHidden = workflowInfo.classList.contains('hidden');
+                    localStorage.setItem('workflowInfoHidden', isHidden);
+                });
+                
+                // Restore preference from localStorage
+                const savedState = localStorage.getItem('workflowInfoHidden');
+                if (savedState === 'false') {
+                    workflowInfo.classList.remove('hidden');
+                    infoToggle.classList.add('active');
+                }
+            }
+        });
+    </script>
 </body>
 </html>

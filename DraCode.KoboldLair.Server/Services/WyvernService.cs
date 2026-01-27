@@ -241,7 +241,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         private async Task HandleGetMarkdownAsync(WebSocket webSocket)
         {
-            var markdown = _taskTracker.GenerateMarkdown("KoboldTown wyvern Tasks");
+            var markdown = _taskTracker.GenerateMarkdown("KoboldLair wyvern Tasks");
             await SendMessageAsync(webSocket, new
             {
                 type = "markdown_report",

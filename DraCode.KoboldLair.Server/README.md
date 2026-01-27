@@ -10,6 +10,94 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
 - **Token-based Authentication** with IP binding support
 - **REST API** for project management and provider configuration
 - **Multi-provider AI support** (OpenAI, Claude, Gemini, Ollama, Azure OpenAI, GitHub Copilot)
+- **Per-project resource limiting** to control parallel kobold execution
+
+## Configuration
+
+### Resource Limits (Per-Project Kobold Limits)
+
+Control how many kobolds can run in parallel per project to manage resource consumption and prevent any single project from monopolizing system resources.
+
+**Why Resource Limiting?**
+- Controlled resource consumption per project
+- Fair resource allocation across multiple projects
+- Predictable API usage and costs
+- Graceful handling of resource constraints
+
+**Configuration File:** `project-configs.json`
+
+```json
+{
+  "defaultMaxParallelKobolds": 1,
+  "projects": [
+    {
+      "projectId": "my-project",
+      "projectName": "My Project",
+      "maxParallelKobolds": 2
+    },
+    {
+      "projectId": "high-priority",
+      "projectName": "High Priority Project",
+      "maxParallelKobolds": 4
+    }
+  ]
+}
+```
+
+**Configuration Options:**
+- `defaultMaxParallelKobolds` - Default limit for projects without specific configuration (default: 1)
+- `projectId` - Unique identifier for the project (matches task's ProjectId)
+- `projectName` - Optional display name for the project
+- `maxParallelKobolds` - Maximum kobolds that can run concurrently for this project
+
+**How It Works:**
+1. When Drake receives a task to execute, it checks the project's current active kobolds
+2. If under limit: Kobold is summoned and task executes
+3. If at limit: Kobold creation skipped, task remains in queue
+4. Drake's monitoring service (runs every 60s) retries task assignment
+
+**Examples:**
+
+```json
+// Conservative setup - all projects limited to 1 kobold
+{
+  "defaultMaxParallelKobolds": 1,
+  "projects": []
+}
+
+// Priority-based allocation
+{
+  "defaultMaxParallelKobolds": 1,
+  "projects": [
+    {
+      "projectId": "production-app",
+      "maxParallelKobolds": 5
+    },
+    {
+      "projectId": "dev-project",
+      "maxParallelKobolds": 2
+    }
+  ]
+}
+```
+
+**Monitoring:**
+- Check `/api/stats` endpoint for active kobold count
+- Review logs for "at parallel limit" messages
+- Watch for task queue buildup
+
+**Best Practices:**
+1. Start conservative (1-2) and increase based on resources
+2. Monitor CPU/memory consumption and API rate limits
+3. Adjust limits based on project priority and complexity
+4. Regularly review and tune as system grows
+
+**Specify Config Path in appsettings.json:**
+```json
+{
+  "ProjectConfigurationsPath": "project-configs.json"
+}
+```
 
 ## Authentication
 

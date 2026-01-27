@@ -14,12 +14,15 @@
             <div class="status">
                 <span id="connectionStatus" class="status-disconnected">Disconnected</span>
             </div>
-            <nav class="nav-tabs" style="display: flex; gap: 1rem; margin-top: 1.5rem; justify-content: center; flex-wrap: wrap;">
-                <a href="/" class="tab-link" style="padding: 0.75rem 1.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; color: #94a3b8; text-decoration: none; transition: all 0.2s;">📊 Status</a>
-                <a href="/dragon.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: #2563eb; border: 1px solid #2563eb; border-radius: 0.5rem; color: white; text-decoration: none; transition: all 0.2s;">🐉 Dragon</a>
-                <a href="/hierarchy.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; color: #94a3b8; text-decoration: none; transition: all 0.2s;">🏰 Hierarchy</a>
-                <a href="/providers.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; color: #94a3b8; text-decoration: none; transition: all 0.2s;">🔧 Providers</a>
-                <a href="/project-config.html" class="tab-link" style="padding: 0.75rem 1.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; color: #94a3b8; text-decoration: none; transition: all 0.2s;">⚙️ Projects</a>
+            <button id="infoToggle" class="info-toggle" title="Toggle Info Panel">
+                <span class="info-icon">ℹ️</span>
+            </button>
+            <nav class="nav-tabs">
+                <a href="/" class="tab-link">📊 Status</a>
+                <a href="/dragon.html" class="tab-link active">🐉 Dragon</a>
+                <a href="/hierarchy.html" class="tab-link">🏰 Hierarchy</a>
+                <a href="/providers.html" class="tab-link">🔧 Providers</a>
+                <a href="/project-config.html" class="tab-link">⚙️ Projects</a>
             </nav>
         </header>
 
@@ -86,7 +89,7 @@
                 </div>
             </div>
 
-            <aside class="info-panel">
+            <aside id="infoPanel" class="info-panel hidden">
                 <h3>💡 How Dragon Works</h3>
                 <ol>
                     <li><strong>Discuss</strong> your project with Dragon</li>
@@ -114,11 +117,36 @@
 
         <footer>
             <a href="index.html">← Back to wyvern</a>
-            <span>KoboldTown Requirements Assistant</span>
+            <span>KoboldLair Requirements Assistant</span>
         </footer>
     </div>
 
     <script src="js/config.js"></script>
     <script type="module" src="js/dragon.js"></script>
+    <script>
+        // Info panel toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const infoToggle = document.getElementById('infoToggle');
+            const infoPanel = document.getElementById('infoPanel');
+            
+            if (infoToggle && infoPanel) {
+                infoToggle.addEventListener('click', function() {
+                    infoPanel.classList.toggle('hidden');
+                    infoToggle.classList.toggle('active');
+                    
+                    // Save preference to localStorage
+                    const isHidden = infoPanel.classList.contains('hidden');
+                    localStorage.setItem('infoPanelHidden', isHidden);
+                });
+                
+                // Restore preference from localStorage
+                const savedState = localStorage.getItem('infoPanelHidden');
+                if (savedState === 'false') {
+                    infoPanel.classList.remove('hidden');
+                    infoToggle.classList.add('active');
+                }
+            }
+        });
+    </script>
 </body>
 </html>

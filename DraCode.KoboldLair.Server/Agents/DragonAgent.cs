@@ -1,6 +1,8 @@
 using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
+using DraCode.KoboldLair.Server.Models;
+using System.Text.Json;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Server.Agents
@@ -8,11 +10,12 @@ namespace DraCode.KoboldLair.Server.Agents
     /// <summary>
     /// DragonAgent is a specialized agent for gathering project/task requirements from users.
     /// It conducts interactive discussions to understand what needs to be built and produces
-    /// detailed specifications that can be used by the wyvern and other KoboldTown agents.
+    /// detailed specifications that can be used by the wyvern and other KoboldLair agents.
     /// </summary>
     public class DragonAgent : AgentBase
     {
         private readonly string _specificationsPath;
+        private readonly Dictionary<string, Specification> _specifications = new();
 
         protected override string SystemPrompt => GetDragonSystemPrompt();
 
@@ -38,12 +41,13 @@ namespace DraCode.KoboldLair.Server.Agents
         }
 
         /// <summary>
-        /// Creates the tools available to Dragon, including the specification writer
+        /// Creates the tools available to Dragon, including specification and feature management
         /// </summary>
         protected override List<Tool> CreateTools()
         {
             var tools = base.CreateTools();
-            tools.Add(new SpecificationWriterTool(_specificationsPath));
+            tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications));
+            tools.Add(new FeatureManagementTool(_specifications));
             return tools;
         }
 
@@ -52,67 +56,56 @@ namespace DraCode.KoboldLair.Server.Agents
         /// </summary>
         private string GetDragonSystemPrompt()
         {
-            return @"You are Dragon 🐉, a senior requirements analyst and project architect for KoboldTown.
+            return @"You are Dragon 🐉, a senior requirements analyst and project architect for KoboldLair.
 
-Your role is to have an interactive conversation with the user to deeply understand their project or task requirements, then create a comprehensive specification document.
+Your role is to have an interactive conversation with the user to deeply understand their project requirements, then create or update specifications and manage features.
 
-## Your Process:
+## Your Workflow:
 
-1. **Greet and Understand Context**
-   - Introduce yourself warmly as Dragon, their requirements guide
-   - Ask what project or task they want to work on
-   - Understand the high-level goal
+1. **Check for Existing Specification**
+   - First, use list_specifications to see what already exists
+   - If working on an existing project, use load_specification to get the current state
+   - You can update existing specifications or create new ones
 
-2. **Deep Dive Questions** - Ask targeted questions to uncover:
-   - **Purpose**: Why is this needed? What problem does it solve?
-   - **Scope**: What's included? What's explicitly out of scope?
-   - **Requirements**: 
-     * Functional requirements (what it must do)
-     * Non-functional requirements (performance, security, etc.)
-     * User stories or use cases
-   - **Technical Details**:
-     * Technology stack preferences
-     * Architecture constraints
-     * Integration points
-     * Data models
-   - **Success Criteria**: How will we know it's done and working?
-   - **Timeline & Priority**: Any deadlines or priority tasks?
+2. **Understand Requirements**
+   - Ask what project or feature they want to work on
+   - Understand the high-level goal and context
+   - Ask targeted questions about purpose, scope, requirements, technical details, success criteria
 
-3. **Clarify and Confirm**
-   - Summarize what you've learned
-   - Ask for confirmation and corrections
-   - Fill in any gaps
+3. **Manage Features**
+   - Create features for new functionality using create_feature
+   - Update features ONLY if they have status ""New"" using update_feature
+   - If a feature is already assigned to Wyrm or in progress, create a NEW feature instead
+   - List features to see current status using list_features
 
-4. **Create Specification**
-   - Use the SpecificationWriterTool to create a detailed markdown specification
-   - Include all gathered information in a structured format
-   - The specification will be used by the wyvern to break down into tasks
+4. **Create or Update Specification**
+   - Use create_specification for new projects
+   - Use update_specification for existing projects
+   - Include comprehensive details: overview, requirements, architecture, success criteria
+   - The specification provides context for all features
 
-## Specification Format:
+## Feature Status Lifecycle:
+- **New**: Just created by Dragon, can be updated by Dragon
+- **AssignedToWyrm**: Wyrm has taken ownership, Dragon cannot modify (create new feature instead)
+- **InProgress**: Being worked on by Kobolds
+- **Completed**: Implementation finished
 
-Your specifications should be comprehensive markdown documents with:
-- Project/Task Name
-- Overview and Purpose
-- Detailed Requirements (functional & non-functional)
-- Technical Architecture
-- User Stories / Use Cases
-- Success Criteria
-- Out of Scope
-- Notes and Considerations
+## Tools Available:
+- **list_specifications**: See all existing specifications
+- **load_specification**: Load an existing specification by name
+- **create_specification**: Create a new specification with name and content
+- **update_specification**: Update an existing specification
+- **create_feature**: Create a new feature for a specification
+- **update_feature**: Update a feature (only works if status is New)
+- **list_features**: List all features for a specification
 
 ## Style:
 - Be conversational and friendly
-- Ask one or a few related questions at a time (don't overwhelm)
-- Use examples to clarify when needed
+- Check existing state before creating duplicates
+- Guide users through the feature workflow
 - Be thorough but efficient
-- Show enthusiasm for their project
 
-## Tools Available:
-- **SpecificationWriterTool**: Call this when you have enough information to write the specification
-  - Parameters: filename, content (markdown)
-  - This saves the specification to the specifications directory
-
-Remember: You're not implementing the project, you're gathering requirements and creating a clear specification that the KoboldTown wyvern and worker agents will use to build it.";
+Remember: You manage specifications and features. Wyrm reads new features and creates tasks for Kobolds.";
         }
 
         /// <summary>
@@ -151,18 +144,404 @@ Remember: You're not implementing the project, you're gathering requirements and
         /// Gets the path where specifications are stored
         /// </summary>
         public string SpecificationsPath => _specificationsPath;
+
+        /// <summary>
+        /// Gets a specification by name
+        /// </summary>
+        public Specification? GetSpecification(string name)
+        {
+            return _specifications.TryGetValue(name, out var spec) ? spec : null;
+        }
+
+        /// <summary>
+        /// Gets all specifications
+        /// </summary>
+        public IReadOnlyDictionary<string, Specification> GetAllSpecifications() => _specifications;
     }
 
     /// <summary>
-    /// Tool for writing specification files
+    /// Tool for managing specifications (create, update, load, list)
+    /// </summary>
+    public class SpecificationManagementTool : Tool
+    {
+        private readonly string _specificationsPath;
+        private readonly Dictionary<string, Specification> _specifications;
+
+        public SpecificationManagementTool(string specificationsPath, Dictionary<string, Specification> specifications)
+        {
+            _specificationsPath = specificationsPath;
+            _specifications = specifications;
+        }
+
+        public override string Name => "manage_specification";
+
+        public override string Description =>
+            "Manages project specifications: list all, load existing, create new, or update existing specifications.";
+
+        public override object? InputSchema => new
+        {
+            type = "object",
+            properties = new
+            {
+                action = new
+                {
+                    type = "string",
+                    description = "Action to perform: 'list', 'load', 'create', or 'update'",
+                    @enum = new[] { "list", "load", "create", "update" }
+                },
+                name = new
+                {
+                    type = "string",
+                    description = "Specification name (required for load, create, update)"
+                },
+                content = new
+                {
+                    type = "string",
+                    description = "Markdown content (required for create and update)"
+                }
+            },
+            required = new[] { "action" }
+        };
+
+        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        {
+            if (!input.TryGetValue("action", out var actionObj))
+            {
+                return "Error: action is required";
+            }
+
+            var action = actionObj.ToString()?.ToLower();
+
+            switch (action)
+            {
+                case "list":
+                    return ListSpecifications();
+                case "load":
+                    return LoadSpecification(input);
+                case "create":
+                    return CreateSpecification(input);
+                case "update":
+                    return UpdateSpecification(input);
+                default:
+                    return $"Error: Unknown action '{action}'";
+            }
+        }
+
+        private string ListSpecifications()
+        {
+            var files = Directory.GetFiles(_specificationsPath, "*.md");
+            if (files.Length == 0)
+            {
+                return "No specifications found.";
+            }
+
+            var list = string.Join("\n", files.Select(f => $"- {Path.GetFileNameWithoutExtension(f)}"));
+            return $"Specifications:\n{list}";
+        }
+
+        private string LoadSpecification(Dictionary<string, object> input)
+        {
+            if (!input.TryGetValue("name", out var nameObj))
+            {
+                return "Error: name is required for load action";
+            }
+
+            var name = nameObj.ToString() ?? "";
+            var filename = name.EndsWith(".md") ? name : $"{name}.md";
+            var fullPath = Path.Combine(_specificationsPath, filename);
+
+            if (!File.Exists(fullPath))
+            {
+                return $"Error: Specification '{name}' not found";
+            }
+
+            try
+            {
+                var content = File.ReadAllText(fullPath);
+                var spec = _specifications.GetValueOrDefault(name) ?? new Specification
+                {
+                    Name = name,
+                    FilePath = fullPath,
+                    Content = content
+                };
+
+                spec.Content = content;
+                _specifications[name] = spec;
+
+                return $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {spec.Features.Count}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error loading specification: {ex.Message}";
+            }
+        }
+
+        private string CreateSpecification(Dictionary<string, object> input)
+        {
+            if (!input.TryGetValue("name", out var nameObj) || !input.TryGetValue("content", out var contentObj))
+            {
+                return "Error: name and content are required for create action";
+            }
+
+            var name = nameObj.ToString() ?? "";
+            var content = contentObj.ToString() ?? "";
+            var filename = name.EndsWith(".md") ? name : $"{name}.md";
+            var fullPath = Path.Combine(_specificationsPath, filename);
+
+            if (File.Exists(fullPath))
+            {
+                return $"Error: Specification '{name}' already exists. Use 'update' action instead.";
+            }
+
+            try
+            {
+                File.WriteAllText(fullPath, content);
+
+                var spec = new Specification
+                {
+                    Name = name,
+                    FilePath = fullPath,
+                    Content = content,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _specifications[name] = spec;
+
+                SendMessage("success", $"Specification created: {name}");
+                return $"✅ Specification '{name}' created successfully at: {fullPath}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error creating specification: {ex.Message}";
+            }
+        }
+
+        private string UpdateSpecification(Dictionary<string, object> input)
+        {
+            if (!input.TryGetValue("name", out var nameObj) || !input.TryGetValue("content", out var contentObj))
+            {
+                return "Error: name and content are required for update action";
+            }
+
+            var name = nameObj.ToString() ?? "";
+            var content = contentObj.ToString() ?? "";
+            var filename = name.EndsWith(".md") ? name : $"{name}.md";
+            var fullPath = Path.Combine(_specificationsPath, filename);
+
+            if (!File.Exists(fullPath))
+            {
+                return $"Error: Specification '{name}' does not exist. Use 'create' action instead.";
+            }
+
+            try
+            {
+                File.WriteAllText(fullPath, content);
+
+                var spec = _specifications.GetValueOrDefault(name) ?? new Specification
+                {
+                    Name = name,
+                    FilePath = fullPath
+                };
+
+                spec.Content = content;
+                spec.UpdatedAt = DateTime.UtcNow;
+                spec.Version++;
+
+                _specifications[name] = spec;
+
+                SendMessage("success", $"Specification updated: {name}");
+                return $"✅ Specification '{name}' updated successfully (version {spec.Version})";
+            }
+            catch (Exception ex)
+            {
+                return $"Error updating specification: {ex.Message}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tool for managing features within specifications
+    /// </summary>
+    public class FeatureManagementTool : Tool
+    {
+        private readonly Dictionary<string, Specification> _specifications;
+
+        public FeatureManagementTool(Dictionary<string, Specification> specifications)
+        {
+            _specifications = specifications;
+        }
+
+        public override string Name => "manage_feature";
+
+        public override string Description =>
+            "Manages features within specifications: create, update (only if status is New), or list features.";
+
+        public override object? InputSchema => new
+        {
+            type = "object",
+            properties = new
+            {
+                action = new
+                {
+                    type = "string",
+                    description = "Action to perform: 'create', 'update', or 'list'",
+                    @enum = new[] { "create", "update", "list" }
+                },
+                specification_name = new
+                {
+                    type = "string",
+                    description = "Name of the specification (required for all actions)"
+                },
+                feature_name = new
+                {
+                    type = "string",
+                    description = "Feature name (required for create and update)"
+                },
+                description = new
+                {
+                    type = "string",
+                    description = "Feature description (required for create, optional for update)"
+                },
+                priority = new
+                {
+                    type = "string",
+                    description = "Feature priority: low, medium, high, critical (optional, default: medium)"
+                }
+            },
+            required = new[] { "action", "specification_name" }
+        };
+
+        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        {
+            if (!input.TryGetValue("action", out var actionObj) || !input.TryGetValue("specification_name", out var specNameObj))
+            {
+                return "Error: action and specification_name are required";
+            }
+
+            var action = actionObj.ToString()?.ToLower();
+            var specName = specNameObj.ToString() ?? "";
+
+            if (!_specifications.TryGetValue(specName, out var spec))
+            {
+                return $"Error: Specification '{specName}' not found. Load or create it first.";
+            }
+
+            switch (action)
+            {
+                case "create":
+                    return CreateFeature(spec, input);
+                case "update":
+                    return UpdateFeature(spec, input);
+                case "list":
+                    return ListFeatures(spec);
+                default:
+                    return $"Error: Unknown action '{action}'";
+            }
+        }
+
+        private string CreateFeature(Specification spec, Dictionary<string, object> input)
+        {
+            if (!input.TryGetValue("feature_name", out var nameObj) || !input.TryGetValue("description", out var descObj))
+            {
+                return "Error: feature_name and description are required for create action";
+            }
+
+            var name = nameObj.ToString() ?? "";
+            var description = descObj.ToString() ?? "";
+            var priority = input.TryGetValue("priority", out var prioObj) ? prioObj.ToString() ?? "medium" : "medium";
+
+            var feature = new Feature
+            {
+                Name = name,
+                Description = description,
+                Priority = priority,
+                SpecificationId = spec.Id,
+                Status = FeatureStatus.New
+            };
+
+            spec.Features.Add(feature);
+            spec.UpdatedAt = DateTime.UtcNow;
+
+            SendMessage("success", $"Feature created: {name}");
+            return $"✅ Feature '{name}' created with status 'New'\nID: {feature.Id}\nPriority: {priority}";
+        }
+
+        private string UpdateFeature(Specification spec, Dictionary<string, object> input)
+        {
+            if (!input.TryGetValue("feature_name", out var nameObj))
+            {
+                return "Error: feature_name is required for update action";
+            }
+
+            var name = nameObj.ToString() ?? "";
+            var feature = spec.Features.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+            if (feature == null)
+            {
+                return $"Error: Feature '{name}' not found in specification '{spec.Name}'";
+            }
+
+            if (feature.Status != FeatureStatus.New)
+            {
+                return $"❌ Cannot update feature '{name}': Status is '{feature.Status}'. Only features with status 'New' can be updated.\n" +
+                       $"Create a new feature instead if you need to add more functionality.";
+            }
+
+            if (input.TryGetValue("description", out var descObj))
+            {
+                feature.Description = descObj.ToString() ?? feature.Description;
+            }
+
+            if (input.TryGetValue("priority", out var prioObj))
+            {
+                feature.Priority = prioObj.ToString() ?? feature.Priority;
+            }
+
+            feature.UpdatedAt = DateTime.UtcNow;
+            spec.UpdatedAt = DateTime.UtcNow;
+
+            SendMessage("success", $"Feature updated: {name}");
+            return $"✅ Feature '{name}' updated successfully\nStatus: {feature.Status}\nPriority: {feature.Priority}";
+        }
+
+        private string ListFeatures(Specification spec)
+        {
+            if (spec.Features.Count == 0)
+            {
+                return $"No features found in specification '{spec.Name}'";
+            }
+
+            var grouped = spec.Features.GroupBy(f => f.Status);
+            var result = new System.Text.StringBuilder();
+            result.AppendLine($"Features in '{spec.Name}':\n");
+
+            foreach (var group in grouped.OrderBy(g => g.Key))
+            {
+                result.AppendLine($"## {group.Key} ({group.Count()})");
+                foreach (var feature in group)
+                {
+                    result.AppendLine($"- **{feature.Name}** (Priority: {feature.Priority})");
+                    result.AppendLine($"  {feature.Description}");
+                    result.AppendLine($"  ID: {feature.Id}");
+                }
+                result.AppendLine();
+            }
+
+            return result.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Legacy tool for backward compatibility - redirects to SpecificationManagementTool
     /// </summary>
     public class SpecificationWriterTool : Tool
     {
-        private readonly string _specificationsPath;
+        private readonly SpecificationManagementTool _managementTool;
 
-        public SpecificationWriterTool(string specificationsPath)
+        public SpecificationWriterTool(string specificationsPath, Dictionary<string, Specification> specifications)
         {
-            _specificationsPath = specificationsPath;
+            _managementTool = new SpecificationManagementTool(specificationsPath, specifications);
         }
 
         public override string Name => "write_specification";
@@ -199,45 +578,17 @@ Remember: You're not implementing the project, you're gathering requirements and
             }
 
             var filename = filenameObj.ToString() ?? "";
-            var content = contentObj.ToString() ?? "";
+            var name = Path.GetFileNameWithoutExtension(filename);
 
-            if (string.IsNullOrWhiteSpace(filename))
+            // Redirect to create action
+            var managementInput = new Dictionary<string, object>
             {
-                return "Error: Filename cannot be empty";
-            }
+                { "action", "create" },
+                { "name", name },
+                { "content", contentObj }
+            };
 
-            if (string.IsNullOrWhiteSpace(content))
-            {
-                return "Error: Content cannot be empty";
-            }
-
-            // Ensure .md extension
-            if (!filename.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
-            {
-                filename += ".md";
-            }
-
-            // Sanitize filename
-            var invalidChars = Path.GetInvalidFileNameChars();
-            filename = string.Join("_", filename.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
-
-            var fullPath = Path.Combine(_specificationsPath, filename);
-
-            try
-            {
-                File.WriteAllText(fullPath, content);
-                
-                SendMessage("success", $"Specification saved: {filename}");
-                
-                return $"✅ Specification saved successfully to: {fullPath}\n\n" +
-                       $"This specification can now be used by the wyvern to break down the project into tasks.\n" +
-                       $"File size: {content.Length} characters";
-            }
-            catch (Exception ex)
-            {
-                SendMessage("error", $"Failed to write specification: {ex.Message}");
-                return $"❌ Error writing specification: {ex.Message}";
-            }
+            return _managementTool.Execute(workingDirectory, managementInput);
         }
     }
 }

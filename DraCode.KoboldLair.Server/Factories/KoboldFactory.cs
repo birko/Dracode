@@ -14,6 +14,8 @@ namespace DraCode.KoboldLair.Server.Factories
         private readonly ConcurrentDictionary<Guid, Kobold> _kobolds;
         private readonly AgentOptions? _defaultOptions;
         private readonly Dictionary<string, string>? _defaultConfig;
+        private readonly ProjectConfigurationService _projectConfigService;
+        private readonly Func<string?, int> _getProjectMaxParallelKobolds;
 
         /// <summary>
         /// Gets the total number of Kobolds managed by this factory
@@ -24,10 +26,14 @@ namespace DraCode.KoboldLair.Server.Factories
         /// Creates a new KoboldFactory with optional default settings
         /// </summary>
         public KoboldFactory(
+            ProjectConfigurationService projectConfigService,
+            Func<string?, int>? getProjectMaxParallelKobolds = null,
             AgentOptions? defaultOptions = null,
             Dictionary<string, string>? defaultConfig = null)
         {
             _kobolds = new ConcurrentDictionary<Guid, Kobold>();
+            _projectConfigService = projectConfigService;
+            _getProjectMaxParallelKobolds = getProjectMaxParallelKobolds ?? ((projectId) => projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty));
             _defaultOptions = defaultOptions;
             _defaultConfig = defaultConfig;
         }
@@ -46,7 +52,7 @@ namespace DraCode.KoboldLair.Server.Factories
             AgentOptions? options = null,
             Dictionary<string, string>? config = null)
         {
-            var agent = KoboldTownAgentFactory.Create(
+            var agent = KoboldLairAgentFactory.Create(
                 provider,
                 options ?? _defaultOptions,
                 config ?? _defaultConfig,
@@ -118,6 +124,32 @@ namespace DraCode.KoboldLair.Server.Factories
             return _kobolds.Values
                 .Where(k => k.AgentType.Equals(agentType, StringComparison.OrdinalIgnoreCase))
                 .ToList();
+        }
+
+        /// <summary>
+        /// Gets the count of active kobolds (assigned or working) for a specific project
+        /// </summary>
+        public int GetActiveKoboldCountForProject(string? projectId)
+        {
+            if (string.IsNullOrEmpty(projectId))
+            {
+                return 0;
+            }
+
+            return _kobolds.Values
+                .Count(k => k.ProjectId == projectId && 
+                           (k.Status == KoboldStatus.Assigned || k.Status == KoboldStatus.Working));
+        }
+
+        /// <summary>
+        /// Checks if a new kobold can be created for the specified project based on the parallel limit
+        /// </summary>
+        public bool CanCreateKoboldForProject(string? projectId)
+        {
+            var currentCount = GetActiveKoboldCountForProject(projectId);
+            var maxAllowed = _getProjectMaxParallelKobolds(projectId);
+            
+            return currentCount < maxAllowed;
         }
 
         /// <summary>

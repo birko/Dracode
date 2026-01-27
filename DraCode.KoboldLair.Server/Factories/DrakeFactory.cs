@@ -13,6 +13,7 @@ namespace DraCode.KoboldLair.Server.Factories
     {
         private readonly KoboldFactory _koboldFactory;
         private readonly ProviderConfigurationService _providerConfigService;
+        private readonly ILoggerFactory? _loggerFactory;
         private readonly Dictionary<string, Drake> _drakes;
         private readonly object _lock = new object();
 
@@ -21,12 +22,15 @@ namespace DraCode.KoboldLair.Server.Factories
         /// </summary>
         /// <param name="koboldFactory">Kobold factory for creating workers</param>
         /// <param name="providerConfigService">Provider configuration service</param>
+        /// <param name="loggerFactory">Optional logger factory for Drake logging</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
-            ProviderConfigurationService providerConfigService)
+            ProviderConfigurationService providerConfigService,
+            ILoggerFactory? loggerFactory = null)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
+            _loggerFactory = loggerFactory;
             _drakes = new Dictionary<string, Drake>();
         }
 
@@ -38,13 +42,15 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <param name="provider">Optional provider override</param>
         /// <param name="model">Optional model override</param>
         /// <param name="specificationPath">Optional path to project specification</param>
+        /// <param name="projectId">Optional project identifier for resource limiting</param>
         /// <returns>Created Drake instance</returns>
         public Drake CreateDrake(
             string taskFilePath, 
             string? drakeName = null,
             string? provider = null,
             string? model = null,
-            string? specificationPath = null)
+            string? specificationPath = null,
+            string? projectId = null)
         {
             lock (_lock)
             {
@@ -82,7 +88,10 @@ namespace DraCode.KoboldLair.Server.Factories
                     LoadTasksFromFile(taskTracker, taskFilePath);
                 }
 
-                // Create the Drake with specification path
+                // Create logger for Drake
+                var logger = _loggerFactory?.CreateLogger<Drake>();
+
+                // Create the Drake with specification path and project ID
                 var drake = new Drake(
                     _koboldFactory,
                     taskTracker,
@@ -90,7 +99,9 @@ namespace DraCode.KoboldLair.Server.Factories
                     effectiveProvider,
                     config,
                     options,
-                    specificationPath
+                    specificationPath,
+                    projectId,
+                    logger
                 );
 
                 _drakes[name] = drake;

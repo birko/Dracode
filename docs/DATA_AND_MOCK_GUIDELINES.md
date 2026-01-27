@@ -1,36 +1,63 @@
-# Mock Data Indicator Guidelines
+# Data Transparency & Mock Data Guidelines
 
-## Purpose
+## Current State
 
-If mock/demo data is ever added to KoboldLair for testing or demonstration purposes, it MUST be clearly indicated to users so they understand they're not working with real data.
+✅ **All data is REAL** - No mock/demo data in the system  
+✅ **Empty state clearly shown** - Users know they're starting fresh  
+✅ **Save locations documented** - Users know where data is stored  
 
-## Implementation Requirements
+## User Experience
 
-### 1. Visual Indicators
+### Empty State (Active)
+When no projects exist, users see:
 
-**Required indicators when mock data is present:**
+**Info Banner:**
+```
+ℹ️  Starting Fresh
+No projects exist yet. All data is real and will be saved 
+when you create your first project.
+```
 
-- 🏷️ **Banner at top of page**
-  ```html
-  <div class="mock-data-banner">
-    <span class="warning-icon">⚠️</span>
-    <strong>Demo Mode:</strong> You are viewing sample data. Create real projects to get started.
-  </div>
-  ```
+**Dropdown Message:**
+```
+No projects yet - create your first one below!
+```
 
-- 🎯 **Badge on mock items**
-  ```html
-  <span class="mock-badge">DEMO</span>
-  ```
+### Data Expectations
 
-- 📊 **Footer indicator**
-  ```html
-  <div class="data-source">
-    Data Source: <strong>Mock Data</strong> (for demonstration only)
-  </div>
-  ```
+Users should ALWAYS be able to tell:
+1. ✅ Is this real data or demo data?
+2. ✅ Where is my data stored?
+3. ✅ Will this data persist?
+4. ✅ What happens when I create something?
 
-### 2. CSS Styling
+## Mock Data Guidelines
+
+**If mock/demo data is ever added**, it MUST be clearly indicated to users.
+
+### Required Visual Indicators
+
+**1. Warning Banner:**
+```html
+<div class="mock-data-banner">
+  <span class="warning-icon">⚠️</span>
+  <strong>Demo Mode:</strong> You are viewing sample data. Create real projects to get started.
+</div>
+```
+
+**2. Item Badges:**
+```html
+<span class="mock-badge">DEMO</span>
+```
+
+**3. Footer Indicator:**
+```html
+<div class="data-source">
+  Data Source: <strong>Mock Data</strong> (for demonstration only)
+</div>
+```
+
+### CSS Styling
 
 ```css
 .mock-data-banner {
@@ -75,12 +102,11 @@ If mock/demo data is ever added to KoboldLair for testing or demonstration purpo
 }
 ```
 
-### 3. JavaScript Detection
+### JavaScript Detection
 
 ```javascript
-// In dragon.js or other client files
+// Check if data has mock indicators
 function checkIfMockData(data) {
-    // Check if data has mock indicators
     if (Array.isArray(data) && data.length > 0) {
         // Check first item for mock flag
         if (data[0]._isMock || data[0]._isDemoData) {
@@ -114,23 +140,24 @@ function showMockDataIndicator() {
     container.insertBefore(banner, container.firstChild);
 }
 
-// Use in loadProjects()
+// Use in API responses
 async loadProjects() {
     const response = await fetch('/api/projects');
-    this.projects = await response.json();
+    const data = await response.json();
     
-    if (checkIfMockData(this.projects)) {
+    if (data.isMockData || checkIfMockData(data.projects)) {
         showMockDataIndicator();
         this.isMockMode = true;
     }
     
+    this.projects = data.projects || data;
     this.populateProjectSelect();
 }
 ```
 
-### 4. Server-Side Mock Data Flag
+### Server-Side Implementation
 
-If implementing mock data, include a flag in responses:
+**Add mock data flag to responses:**
 
 ```csharp
 // In Server Program.cs
@@ -148,8 +175,7 @@ app.MapGet("/api/projects", (ProjectService projectService, IConfiguration confi
 });
 ```
 
-### 5. Configuration
-
+**Configuration:**
 ```json
 // appsettings.Development.json
 {
@@ -162,53 +188,7 @@ app.MapGet("/api/projects", (ProjectService projectService, IConfiguration confi
 }
 ```
 
-### 6. User Experience Guidelines
-
-**DO:**
-- ✅ Show clear, persistent warnings about mock data
-- ✅ Use distinct visual styling (colors, badges, borders)
-- ✅ Provide easy way to switch to real data mode
-- ✅ Log to console when mock mode is active
-- ✅ Disable destructive actions on mock data
-
-**DON'T:**
-- ❌ Hide or obscure mock data indicators
-- ❌ Make mock data look identical to real data
-- ❌ Allow users to modify mock data without warning
-- ❌ Store mock data in real data locations
-
-## Current Implementation
-
-**Status:** ✅ No mock data is currently used in KoboldLair
-
-The system:
-- Starts with empty project list
-- Shows "Starting Fresh" info banner when no projects exist
-- Displays helpful message in dropdown: "No projects yet - create your first one below!"
-- All data is real and persisted to disk
-
-## Testing Mock Data Indicators
-
-If you add mock data for testing:
-
-1. **Enable mock mode:**
-   ```bash
-   # Set environment variable
-   export USE_MOCK_DATA=true
-   ```
-
-2. **Verify indicators appear:**
-   - Warning banner at top
-   - Badge on each mock item
-   - Console warning message
-   - Footer shows "Mock Data" source
-
-3. **Test user actions:**
-   - Creating new project should switch to real mode
-   - Editing mock data should show warning
-   - Deleting mock data should be prevented or warned
-
-## Example Mock Data Structure
+### Mock Data Structure
 
 ```json
 {
@@ -225,6 +205,41 @@ If you add mock data for testing:
   "dataSource": "mock"
 }
 ```
+
+## Best Practices
+
+### DO:
+- ✅ Show clear, persistent warnings about mock data
+- ✅ Use distinct visual styling (colors, badges, borders)
+- ✅ Provide easy way to switch to real data mode
+- ✅ Log to console when mock mode is active
+- ✅ Disable destructive actions on mock data
+
+### DON'T:
+- ❌ Hide or obscure mock data indicators
+- ❌ Make mock data look identical to real data
+- ❌ Allow users to modify mock data without warning
+- ❌ Store mock data in real data locations
+
+## Testing Mock Data Indicators
+
+If you add mock data for testing:
+
+1. **Enable mock mode:**
+   ```bash
+   export USE_MOCK_DATA=true
+   ```
+
+2. **Verify indicators appear:**
+   - Warning banner at top
+   - Badge on each mock item
+   - Console warning message
+   - Footer shows "Mock Data" source
+
+3. **Test user actions:**
+   - Creating new project should switch to real mode
+   - Editing mock data should show warning
+   - Deleting mock data should be prevented or warned
 
 ## Compliance Checklist
 
@@ -246,7 +261,8 @@ Before releasing with mock data:
 - `dragon.js` - Empty state detection
 - `Program.cs` - API endpoint responses
 
-## References
+## Related Documentation
 
-- [Project Lifecycle Documentation](PROJECT_LIFECYCLE.md)
-- [Dragon Quick Reference](DRAGON_QUICK_REFERENCE.md)
+- [Dragon Requirements Agent](Dragon-Requirements-Agent.md)
+- [KoboldLair Client README](../DraCode.KoboldLair.Client/README.md)
+- [KoboldLair Server README](../DraCode.KoboldLair.Server/README.md)

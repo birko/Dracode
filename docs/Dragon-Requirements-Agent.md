@@ -2,9 +2,9 @@
 
 ## Overview
 
-Dragon is a specialized AI agent designed for interactive requirements gathering. It conducts conversations with users to understand project goals, technical requirements, and specifications, then produces comprehensive documentation that triggers the KoboldTown automated workflow (Wyrm → Drake → Kobold).
+Dragon is a specialized AI agent designed for interactive requirements gathering. It conducts conversations with users to understand project goals, technical requirements, and specifications, then produces comprehensive documentation that triggers the KoboldLair automated workflow (Wyrm → Drake → Kobold).
 
-**Dragon is the ONLY interactive interface in KoboldTown.** All other agents (Wyrm, Drake, Kobold) work automatically in the background.
+**Dragon is the ONLY interactive interface in KoboldLair.** All other agents (Wyrm, Drake, Kobold) work automatically in the background.
 
 ## Architecture
 
@@ -381,7 +381,7 @@ var dragon = new DragonAgent(provider, options, specificationsPath: "/custom/pat
 ### Provide Context
 "This replaces our current Excel-based system"
 
-## Integration with KoboldTown
+## Integration with KoboldLair
 
 ### Flow
 
@@ -502,6 +502,120 @@ public class SpecificationWriterTool : Tool
 - Verify WebSocket is enabled: `app.UseWebSockets()`
 - Check firewall/proxy settings
 
+## Dragon UI: Project Selection
+
+### Overview
+The Dragon page requires users to select a project and configure the AI provider before starting a chat session. This ensures that all specifications created are properly associated with a project.
+
+### User Workflow
+1. **Open Dragon Page** → Shows project setup screen
+2. **Select/Create Project** → Choose existing or enter new name
+3. **Select Provider** → Choose AI provider (e.g., OpenAI GPT-4)
+4. **Start Chat** → Button enables when both selections made
+5. **Chat with Dragon** → Discuss requirements
+6. **Change Project** → Click button in header to switch
+
+### Features
+✅ Project selection (existing or new)  
+✅ Provider selection (Dragon-compatible only)  
+✅ Dynamic WebSocket URL (no hardcoded ports)  
+✅ API proxy (no CORS issues)  
+✅ Service discovery (automatic URL resolution)  
+✅ Change project without refresh  
+✅ Shows current project/provider in header  
+✅ Validation before chat start
+
+### UI Components
+
+**Project Setup Panel:**
+- Project selection dropdown (loads from `/api/projects`)
+- "+ Create New Project" option with name input
+- Provider selection dropdown (Dragon-compatible providers only)
+- "Start Chat" button (enabled when both selected)
+
+**Chat Interface:**
+- Header showing current project name and provider
+- "Change Project" button to return to setup
+- Standard chat interface (messages, input, send button)
+
+### Technical Details
+
+**API Endpoints:**
+- `GET /api/projects` - List all projects
+- `GET /api/providers` - List AI providers with config status
+- `WebSocket /dragon` - Dragon chat connection
+
+**Architecture:**
+```
+Browser → Client (/api/*) → Server (service discovery) → Response
+Browser → WebSocket (direct) → Server (/dragon)
+```
+
+**Service Discovery:**
+- Client proxies API requests to avoid CORS
+- Aspire resolves server URLs automatically
+- WebSocket uses dynamic URL from server config
+
+## Quick Reference Card
+
+### Debug Checklist
+Open Browser Console (F12) and verify:
+
+✅ **Success indicators:**
+```
+Configuration loaded: { serverUrl: "ws://localhost:..." }
+Connecting to WebSocket: ws://localhost:.../dragon
+WebSocket connected
+```
+
+❌ **Failure indicators:**
+```
+Failed to load projects: TypeError: Failed to fetch
+WebSocket connection failed
+Connection error
+```
+
+### Common Issues
+
+| Issue | Check | Fix |
+|-------|-------|-----|
+| Projects not loading | Server running? | Start Server in Aspire Dashboard |
+| Connection error | Config loaded? | Check `/api/config` endpoint |
+| Wrong WebSocket URL | Using localhost:5000? | Ensure config loads dynamically |
+| CORS errors | Direct to Server? | Should go through Client proxy |
+
+### Testing Commands
+```bash
+# Test configuration endpoint
+curl http://localhost:{client-port}/api/config
+
+# Test projects endpoint  
+curl http://localhost:{client-port}/api/projects
+
+# Test providers endpoint
+curl http://localhost:{client-port}/api/providers
+
+# Test WebSocket (in browser console)
+fetch('/api/config')
+  .then(r => r.json())
+  .then(c => new WebSocket(c.serverUrl + '/dragon'))
+```
+
+### File Locations
+```
+DraCode.KoboldLair.Client/
+  ├── wwwroot/
+  │   ├── dragon.html        ← UI with project selection
+  │   ├── css/dragon.css     ← Styling
+  │   └── js/
+  │       ├── config.js      ← Static config (fallback)
+  │       └── dragon.js      ← Main logic with project setup
+  └── Program.cs             ← Proxy + /api/config
+
+DraCode.KoboldLair.Server/
+  └── Program.cs             ← API endpoints + WebSocket /dragon
+```
+
 ## Future Enhancements
 
 - [ ] Upload existing docs for context
@@ -519,10 +633,10 @@ See `Examples/DragonExample.cs` (to be created) for programmatic usage examples.
 
 ## Related Documentation
 
-- [WyvernAgent.md](WyvernAgent.md) - Breaking specifications into tasks
-- [Drake-Supervisor.md](Drake-Supervisor.md) - Managing task execution
-- [Kobold-System.md](Kobold-System.md) - Worker agents
-- [KoboldTown-Summary.md](KoboldTown-Summary.md) - Complete system overview
+- [Wyrm Project Analyzer](Wyrm-Project-Analyzer.md) - Breaking specifications into tasks
+- [Drake Monitoring System](Drake-Monitoring-System.md) - Managing task execution
+- [Kobold System](Kobold-System.md) - Worker agents
+- [KoboldLair Server README](../DraCode.KoboldLair.Server/README.md) - Complete system overview
 
 ## Summary
 
@@ -531,6 +645,6 @@ Dragon 🐉 is your friendly requirements analyst that:
 - ✅ Asks the right questions
 - ✅ Understands your project needs
 - ✅ Creates comprehensive specifications
-- ✅ Integrates seamlessly with KoboldTown
+- ✅ Integrates seamlessly with KoboldLair
 
 Start your project right with Dragon! 🐉

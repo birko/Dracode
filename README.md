@@ -21,9 +21,9 @@ dotnet run --project DraCode.AppHost
 
 📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md)
 
-## 🏰 KoboldTown - Autonomous Multi-Agent Coding System
+## 🏰 KoboldLair - Autonomous Multi-Agent Coding System
 
-**KoboldTown** is an intelligent, hierarchical multi-agent system that autonomously transforms your ideas into working code:
+**KoboldLair** is an intelligent, hierarchical multi-agent system that autonomously transforms your ideas into working code:
 
 🐉 **Dragon** (Interactive) - Your only touchpoint. Conduct conversational requirements gathering, refine specifications.  
 🐲 **Wyrm** (Automatic) - Analyzes specifications, breaks down into organized tasks, manages dependencies.  
@@ -41,10 +41,10 @@ dotnet run --project DraCode.AppHost
 **Quick Start:**
 ```bash
 dotnet run --project DraCode.AppHost
-# Open KoboldTown from the Aspire dashboard
+# Open KoboldLair from the Aspire dashboard
 ```
 
-📖 **Learn More**: [KoboldTown README](DraCode.KoboldTown/README.md) | [KoboldTown API](DraCode.KoboldTown/API.md)
+📖 **Learn More**: [KoboldLair Server README](DraCode.KoboldLair.Server/README.md) | [KoboldLair Client README](DraCode.KoboldLair.Client/README.md)
 
 ## 🚀 Features
 
@@ -300,6 +300,8 @@ For complete documentation, see the [docs](docs/) directory.
 - **[WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md)** - Get started with multi-agent system
 - **[Architecture Specification](docs/architecture/ARCHITECTURE_SPECIFICATION.md)** - System architecture and design
 - **[Technical Specification](docs/architecture/TECHNICAL_SPECIFICATION.md)** - Comprehensive technical documentation
+- **[KoboldLair Server README](DraCode.KoboldLair.Server/README.md)** - Multi-agent system backend
+- **[KoboldLair Client README](DraCode.KoboldLair.Client/README.md)** - Multi-agent system web UI
 
 ### Setup Guides
 - **[Claude Setup](docs/setup-guides/CLAUDE_SETUP.md)** - Anthropic Claude configuration
@@ -316,17 +318,22 @@ For complete documentation, see the [docs](docs/) directory.
 
 ```
 ┌─────────────────────────────────────────┐
-│           DraCode CLI                   │
+│         DraCode.AppHost                 │  ← Aspire Orchestrator
 └──────────────┬──────────────────────────┘
                │
-               ▼
-┌─────────────────────────────────────────┐
-│          Agent Core                     │
-│  ┌──────────┐  ┌──────┐  ┌───────────┐ │
-│  │  Tools   │  │ LLM  │  │  OAuth    │ │
-│  │  System  │  │ API  │  │  Service  │ │
-│  └──────────┘  └──────┘  └───────────┘ │
-└─────────────────────────────────────────┘
+    ┌──────────┴──────────┬───────────────────────┐
+    │                     │                       │
+    ▼                     ▼                       ▼
+┌─────────────┐   ┌─────────────┐   ┌─────────────────────────┐
+│ WebSocket   │   │   Web       │   │   KoboldLair Server     │
+│ API         │◄──│   Client    │   │   (Multi-Agent System)  │
+└─────────────┘   └─────────────┘   └───────┬─────────────────┘
+                                            │
+                                            ▼
+                                    ┌─────────────────────┐
+                                    │ KoboldLair Client   │
+                                    │ (Web UI)            │
+                                    └─────────────────────┘
 ```
 
 ## 🛠️ Development
@@ -347,25 +354,27 @@ dotnet test
 
 ```
 DraCode/
-├── DraCode/                  # Main CLI application
-├── DraCode.Agent/            # Agent library
-│   ├── Auth/                # OAuth implementation
-│   ├── LLMs/                # LLM provider implementations
-│   ├── Tools/               # Tool system
-│   └── Helpers/             # Utility classes
-├── DraCode.KoboldTown/       # Multi-agent autonomous coding system
-│   ├── Agents/              # Dragon, Wyrm, Drake, Kobold agents
-│   ├── Projects/            # Wyrm project management
-│   ├── Services/            # Background processing, DragonService
-│   ├── Models/              # Project, ProjectStatus data models
-│   └── wwwroot/             # Web UI (Status, Dragon Chat, Hierarchy)
-├── DraCode.WebSocket/        # WebSocket API server
-│   ├── Models/              # WebSocket message models
-│   └── Services/            # Agent connection manager
-├── DraCode.Web/              # Web client UI
-│   └── wwwroot/             # Static web assets
-├── DraCode.AppHost/          # .NET Aspire orchestration
-└── DraCode.ServiceDefaults/  # Shared Aspire configuration
+├── DraCode/                      # Main CLI application
+├── DraCode.Agent/                # Agent library
+│   ├── Auth/                    # OAuth implementation
+│   ├── LLMs/                    # LLM provider implementations
+│   ├── Tools/                   # Tool system
+│   └── Helpers/                 # Utility classes
+├── DraCode.KoboldLair.Server/    # Multi-agent autonomous coding system
+│   ├── Agents/                  # Dragon, Wyrm, Drake, Kobold agents
+│   ├── Projects/                # Wyrm project management
+│   ├── Services/                # Background processing, DragonService
+│   ├── Models/                  # Project, ProjectStatus data models
+│   └── Factories/               # Agent factories
+├── DraCode.KoboldLair.Client/    # KoboldLair Web UI
+│   └── wwwroot/                 # Web UI (Status, Dragon Chat, Hierarchy)
+├── DraCode.WebSocket/            # WebSocket API server
+│   ├── Models/                  # WebSocket message models
+│   └── Services/                # Agent connection manager
+├── DraCode.Web/                  # Web client UI
+│   └── wwwroot/                 # Static web assets
+├── DraCode.AppHost/              # .NET Aspire orchestration
+└── DraCode.ServiceDefaults/      # Shared Aspire configuration
 ```
 
 ## 🤝 Contributing

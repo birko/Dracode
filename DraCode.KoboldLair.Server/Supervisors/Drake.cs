@@ -1,6 +1,7 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Server.Factories;
 using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Projects;
 using DraCode.KoboldLair.Server.Wyvern;
 using TaskStatus = DraCode.KoboldLair.Server.Wyvern.TaskStatus;
 
@@ -19,6 +20,9 @@ namespace DraCode.KoboldLair.Server.Supervisors
         private readonly Dictionary<string, string>? _defaultConfig;
         private readonly AgentOptions? _defaultOptions;
         private readonly string? _specificationPath;
+        private readonly string? _projectId;
+        private readonly ILogger<Drake>? _logger;
+        private Wyrm? _wyrm;
 
         /// <summary>
         /// Maps TaskId to KoboldId for tracking active assignments
@@ -35,6 +39,8 @@ namespace DraCode.KoboldLair.Server.Supervisors
         /// <param name="defaultConfig">Default provider configuration</param>
         /// <param name="defaultOptions">Default agent options</param>
         /// <param name="specificationPath">Optional path to project specification</param>
+        /// <param name="projectId">Optional project identifier for resource limiting</param>
+        /// <param name="logger">Optional logger for diagnostics</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -42,7 +48,9 @@ namespace DraCode.KoboldLair.Server.Supervisors
             string defaultProvider = "openai",
             Dictionary<string, string>? defaultConfig = null,
             AgentOptions? defaultOptions = null,
-            string? specificationPath = null)
+            string? specificationPath = null,
+            string? projectId = null,
+            ILogger<Drake>? logger = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -51,7 +59,17 @@ namespace DraCode.KoboldLair.Server.Supervisors
             _defaultConfig = defaultConfig;
             _defaultOptions = defaultOptions;
             _specificationPath = specificationPath;
+            _projectId = projectId;
+            _logger = logger;
             _taskToKoboldMap = new Dictionary<string, Guid>();
+        }
+
+        /// <summary>
+        /// Sets the Wyrm for this Drake to enable feature status updates
+        /// </summary>
+        public void SetWyrm(Wyrm wyrm)
+        {
+            _wyrm = wyrm;
         }
 
         /// <summary>
@@ -60,10 +78,20 @@ namespace DraCode.KoboldLair.Server.Supervisors
         /// <param name="task">Task to assign</param>
         /// <param name="agentType">Type of agent to create</param>
         /// <param name="provider">LLM provider (optional, uses default if not specified)</param>
-        /// <returns>The summoned Kobold</returns>
-        public Kobold SummonKobold(TaskRecord task, string agentType, string? provider = null)
+        /// <returns>The summoned Kobold, or null if resource limit reached</returns>
+        public Kobold? SummonKobold(TaskRecord task, string agentType, string? provider = null)
         {
             var effectiveProvider = provider ?? _defaultProvider;
+            var projectId = task.ProjectId ?? _projectId;
+
+            // Check if we can create a kobold for this project (resource limit check)
+            if (!_koboldFactory.CanCreateKoboldForProject(projectId))
+            {
+                _logger?.LogDebug(
+                    "Cannot summon kobold for task {TaskId} - project {ProjectId} has reached its parallel kobold limit",
+                    task.Id, projectId ?? "(default)");
+                return null;
+            }
 
             // Create the Kobold
             var kobold = _koboldFactory.CreateKobold(
@@ -88,8 +116,8 @@ namespace DraCode.KoboldLair.Server.Supervisors
                 }
             }
 
-            // Assign the task with description and specification context
-            kobold.AssignTask(Guid.Parse(task.Id), task.Task, specificationContext);
+            // Assign the task with description, project, and specification context
+            kobold.AssignTask(Guid.Parse(task.Id), task.Task, projectId, specificationContext);
 
             // Track the mapping
             _taskToKoboldMap[task.Id] = kobold.Id;
@@ -199,16 +227,25 @@ namespace DraCode.KoboldLair.Server.Supervisors
         /// <param name="maxIterations">Maximum iterations for agent</param>
         /// <param name="provider">LLM provider (optional)</param>
         /// <param name="messageCallback">Callback for progress messages</param>
-        /// <returns>Task result and associated Kobold</returns>
-        public async Task<(List<Message> messages, Kobold kobold)> ExecuteTaskAsync(
+        /// <returns>Task result and associated Kobold, or null if resource limit reached</returns>
+        public async Task<(List<Message> messages, Kobold kobold)?> ExecuteTaskAsync(
             TaskRecord task,
             string agentType,
             int maxIterations = 30,
             string? provider = null,
             Action<string, string>? messageCallback = null)
         {
-            // Summon Kobold
+            // Summon Kobold (may return null if resource limit reached)
             var kobold = SummonKobold(task, agentType, provider);
+            
+            if (kobold == null)
+            {
+                // Resource limit reached - task remains in queue for retry on next cycle
+                var projectId = task.ProjectId ?? _projectId ?? "(default)";
+                messageCallback?.Invoke("info", $"⏸️ Drake cannot summon kobold for task {task.Id.ToString()[..8]} - project {projectId} at parallel limit. Will retry.");
+                return null;
+            }
+
             messageCallback?.Invoke("info", $"🐉 Drake summoned Kobold {kobold.Id.ToString()[..8]} for task {task.Id.ToString()[..8]}");
 
             List<Message> messages;
@@ -247,6 +284,9 @@ namespace DraCode.KoboldLair.Server.Supervisors
 
             // Final sync of task status from Kobold
             SyncTaskFromKobold(kobold);
+            
+            // Update feature status if Wyrm is available
+            UpdateFeatureStatus();
 
             return (messages, kobold);
         }
@@ -254,6 +294,7 @@ namespace DraCode.KoboldLair.Server.Supervisors
         /// <summary>
         /// Monitors all tasks and syncs their status from associated Kobolds.
         /// Drake observes Kobold states but does not force state changes.
+        /// Also updates feature status through Wyrm if available.
         /// </summary>
         public void MonitorTasks()
         {
@@ -279,6 +320,23 @@ namespace DraCode.KoboldLair.Server.Supervisors
             }
 
             SaveTasksToFile();
+            
+            // Update feature status if Wyrm is available
+            UpdateFeatureStatus();
+        }
+
+        /// <summary>
+        /// Updates feature status based on current task statuses
+        /// </summary>
+        private void UpdateFeatureStatus()
+        {
+            if (_wyrm == null)
+                return;
+
+            var allTasks = _taskTracker.GetAllTasks();
+            var taskStatuses = allTasks.ToDictionary(t => t.Id, t => t.Status);
+            
+            _wyrm.UpdateFeatureStatus(taskStatuses);
         }
 
         /// <summary>

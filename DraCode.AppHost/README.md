@@ -17,8 +17,9 @@ The AppHost organizes DraCode services into two logical groups:
 - Interactive agent conversations through the web UI
 - Developing/debugging WebSocket-based features
 
-### 2. KoboldTown
-- **dracode-koboldtown**: Autonomous multi-agent coding orchestration system
+### 2. KoboldLair
+- **dracode-koboldlair-server**: Autonomous multi-agent coding orchestration system backend
+- **dracode-koboldlair-client**: Web UI for monitoring and interaction
 
 **Purpose**: Fully autonomous coding system where Dragon creates requirements, Wyrm analyzes projects, Wyvern assigns specialized agents (Drake supervisors), and Kobolds execute coding tasks.
 
@@ -45,9 +46,10 @@ To start services:
 2. Wait for it to be running (check dashboard status)
 3. Start `dracode-web` (it depends on websocket)
 
-**For KoboldTown**:
-- Start `dracode-koboldtown` independently
-- Can run alongside or separately from WebSocket System
+**For KoboldLair**:
+- Start `dracode-koboldlair-server` first
+- Wait for it to be running (check dashboard status)
+- Start `dracode-koboldlair-client` (it depends on server)
 
 ## What is .NET Aspire?
 
@@ -93,13 +95,18 @@ The dashboard (typically at `https://localhost:17094`) provides:
              │                          │                       │
              ▼                          ▼                       ▼
 ┌──────────────────────┐    ┌──────────────────────┐   ┌──────────────────────┐
-│ dracode-websocket    │    │   dracode-web        │   │ dracode-koboldtown   │
-│ WebSocket API        │◄───│   Web Client         │   │ Multi-Agent System   │
-│ (Group: WebSocket)   │    │   (Group: WebSocket) │   │ (Group: KoboldTown)  │
-└──────────────────────┘    └──────────────────────┘   └──────────────────────┘
-         │                                                      │
-         │                                                      │
-         └─────────────────┬────────────────────────────────────┘
+│ dracode-websocket    │    │   dracode-web        │   │ dracode-koboldlair   │
+│ WebSocket API        │◄───│   Web Client         │   │ -server              │
+│ (Group: WebSocket)   │    │   (Group: WebSocket) │   │ (Group: KoboldLair)  │
+└──────────────────────┘    └──────────────────────┘   └──────────┬───────────┘
+         │                                                         │
+         │                                                         ▼
+         │                                              ┌──────────────────────┐
+         │                                              │ dracode-koboldlair   │
+         │                                              │ -client              │
+         │                                              │ (Group: KoboldLair)  │
+         │                                              └──────────────────────┘
+         └─────────────────┬───────────────────────────────────┘
                            ▼
                  ┌───────────────────┐
                  │  DraCode.Agent    │
@@ -130,9 +137,13 @@ var websocket = builder.AddProject<Projects.DraCode_WebSocket>("dracode-websocke
 var web = builder.AddProject<Projects.DraCode_Web>("dracode-web")
     .WithReference(websocket);
 
-// ===== KoboldTown Group =====
-var koboldtown = builder.AddProject<Projects.DraCode_KoboldTown>("dracode-koboldtown")
+// ===== KoboldLair Group =====
+var koboldlairServer = builder.AddProject<Projects.DraCode_KoboldLair_Server>("dracode-koboldlair-server")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+
+var koboldlairClient = builder.AddProject<Projects.DraCode_KoboldLair_Client>("dracode-koboldlair-client")
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithReference(koboldlairServer);
 ```
 
 ### Auto-Start Configuration
@@ -176,7 +187,7 @@ Edit the respective project's `Properties/launchSettings.json`:
 ### 1. **Grouped Service Management**
 Start services by logical groups rather than individual processes:
 - Start WebSocket System together (websocket + web)
-- Start KoboldTown independently
+- Start KoboldLair independently (server + client)
 - Or run all services together
 
 ### 2. **Service Discovery**
@@ -207,8 +218,8 @@ Automatic health checks for all services with visual status indicators.
 
 3. **Start Services as Needed**:
    - For WebSocket development: Start `dracode-websocket` and `dracode-web`
-   - For KoboldTown development: Start `dracode-koboldtown`
-   - For full system: Start all three services
+   - For KoboldLair development: Start `dracode-koboldlair-server` and `dracode-koboldlair-client`
+   - For full system: Start all services
 
 4. **Monitor**: Use dashboard to view logs, metrics, and traces
 
@@ -243,9 +254,13 @@ dotnet publish DraCode.WebSocket -c Release
 dotnet publish DraCode.Web -c Release
 # Deploy to your web server
 
-# KoboldTown
-dotnet publish DraCode.KoboldTown -c Release
+# KoboldLair Server
+dotnet publish DraCode.KoboldLair.Server -c Release
 # Deploy to your orchestration server
+
+# KoboldLair Client
+dotnet publish DraCode.KoboldLair.Client -c Release
+# Deploy to your web server
 ```
 
 ## Troubleshooting
@@ -278,6 +293,7 @@ dotnet publish DraCode.KoboldTown -c Release
 - [Service Discovery](https://learn.microsoft.com/en-us/dotnet/aspire/service-discovery/overview)
 - [Aspire Dashboard](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/dashboard)
 - [DraCode WebSocket README](../DraCode.WebSocket/README.md)
-- [DraCode KoboldTown README](../DraCode.KoboldTown/README.md)
+- [DraCode KoboldLair Server README](../DraCode.KoboldLair.Server/README.md)
+- [DraCode KoboldLair Client README](../DraCode.KoboldLair.Client/README.md)
 - [Main Project README](../README.md)
 

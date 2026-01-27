@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Provider Configuration - KoboldTown</title>
+    <title>Provider Configuration - KoboldLair</title>
     <link rel="stylesheet" href="/css/styles.css">
     <style>
         .agent-config-section {
@@ -17,10 +17,10 @@
             border-radius: 1rem;
             padding: 1.5rem;
             border: 1px solid rgba(59, 130, 246, 0.2);
-            display: grid;
-            grid-template-columns: 150px 1fr auto;
-            gap: 1.5rem;
-            align-items: center;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: stretch;
             transition: all 0.3s ease;
         }
 
@@ -43,6 +43,13 @@
             font-size: 1.5rem;
         }
 
+        .provider-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
         .provider-select {
             padding: 0.75rem 1rem;
             border-radius: 0.75rem;
@@ -53,6 +60,8 @@
             cursor: pointer;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
+            flex: 1;
+            min-width: 200px;
         }
 
         .provider-select:hover {
@@ -282,8 +291,20 @@
 
         @media (max-width: 768px) {
             .agent-config-card {
-                grid-template-columns: 1fr;
-                gap: 1rem;
+                padding: 1.25rem;
+            }
+
+            .provider-controls {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .provider-select {
+                width: 100%;
+            }
+
+            .save-btn {
+                width: 100%;
             }
 
             .provider-grid {
@@ -321,10 +342,12 @@
                             <span class="agent-icon">🐉</span>
                             <span>Dragon</span>
                         </div>
-                        <select id="dragonProvider" class="provider-select">
-                            <option value="">Loading...</option>
-                        </select>
-                        <button class="save-btn" onclick="saveAgentProvider('dragon')">Save</button>
+                        <div class="provider-controls">
+                            <select id="dragonProvider" class="provider-select">
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="save-btn" onclick="saveAgentProvider('dragon')">Save</button>
+                        </div>
                     </div>
 
                     <div class="agent-config-card">
@@ -332,10 +355,12 @@
                             <span class="agent-icon">🐲</span>
                             <span>Wyvern</span>
                         </div>
-                        <select id="wyvernProvider" class="provider-select">
-                            <option value="">Loading...</option>
-                        </select>
-                        <button class="save-btn" onclick="saveAgentProvider('wyvern')">Save</button>
+                        <div class="provider-controls">
+                            <select id="wyvernProvider" class="provider-select">
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="save-btn" onclick="saveAgentProvider('wyvern')">Save</button>
+                        </div>
                     </div>
 
                     <div class="agent-config-card">
@@ -343,10 +368,12 @@
                             <span class="agent-icon">🦎</span>
                             <span>Kobolds</span>
                         </div>
-                        <select id="koboldProvider" class="provider-select">
-                            <option value="">Loading...</option>
-                        </select>
-                        <button class="save-btn" onclick="saveAgentProvider('kobold')">Save</button>
+                        <div class="provider-controls">
+                            <select id="koboldProvider" class="provider-select">
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="save-btn" onclick="saveAgentProvider('kobold')">Save</button>
+                        </div>
                     </div>
                 </div>
             </section>

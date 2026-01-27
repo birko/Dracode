@@ -33,7 +33,7 @@ namespace DraCode.KoboldLair.Server.Agents
             // Save initial state
             if (outputMarkdownPath != null)
             {
-                tracker.SaveToFile(outputMarkdownPath, "KoboldTown wyvern Task Report");
+                tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
             }
             
             // Clear any previous selection
@@ -41,8 +41,8 @@ namespace DraCode.KoboldLair.Server.Agents
 
             try
             {
-                // Create and run wyvern using KoboldTownAgentFactory
-                var wyvern = KoboldTownAgentFactory.Create(provider, options, config, "wyvern");
+                // Create and run wyvern using KoboldLairAgentFactory
+                var wyvern = KoboldLairAgentFactory.Create(provider, options, config, "wyvern");
                 if (messageCallback != null)
                 {
                     wyvern.SetMessageCallback(messageCallback);
@@ -59,7 +59,7 @@ namespace DraCode.KoboldLair.Server.Agents
                     tracker.SetError(taskRecord, "wyvern failed to select an agent");
                     if (outputMarkdownPath != null)
                     {
-                        tracker.SaveToFile(outputMarkdownPath, "KoboldTown wyvern Task Report");
+                        tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
                     }
                     messageCallback?.Invoke("error", "wyvern failed to select an agent.");
                     return ("unknown", wyvernConversation, null, tracker);
@@ -73,7 +73,7 @@ namespace DraCode.KoboldLair.Server.Agents
                 tracker.UpdateTask(taskRecord, TaskStatus.NotInitialized, selectedAgentType);
                 if (outputMarkdownPath != null)
                 {
-                    tracker.SaveToFile(outputMarkdownPath, "KoboldTown wyvern Task Report");
+                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
                 }
 
                 messageCallback?.Invoke("success", $"\n✓ Selected Agent: {selectedAgentType}");
@@ -84,11 +84,11 @@ namespace DraCode.KoboldLair.Server.Agents
                 tracker.UpdateTask(taskRecord, TaskStatus.Working);
                 if (outputMarkdownPath != null)
                 {
-                    tracker.SaveToFile(outputMarkdownPath, "KoboldTown wyvern Task Report");
+                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
                 }
 
-                // Create and run the selected specialized agent using KoboldTownAgentFactory
-                var specializedAgent = KoboldTownAgentFactory.Create(provider, options, config, selectedAgentType);
+                // Create and run the selected specialized agent using KoboldLairAgentFactory
+                var specializedAgent = KoboldLairAgentFactory.Create(provider, options, config, selectedAgentType);
                 if (messageCallback != null)
                 {
                     specializedAgent.SetMessageCallback(messageCallback);
@@ -100,7 +100,7 @@ namespace DraCode.KoboldLair.Server.Agents
                 tracker.UpdateTask(taskRecord, TaskStatus.Done);
                 if (outputMarkdownPath != null)
                 {
-                    tracker.SaveToFile(outputMarkdownPath, "KoboldTown wyvern Task Report");
+                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
                 }
 
                 messageCallback?.Invoke("success", $"\n✓ Task completed by {selectedAgentType} agent");
@@ -112,7 +112,7 @@ namespace DraCode.KoboldLair.Server.Agents
                 tracker.SetError(taskRecord, ex.Message);
                 if (outputMarkdownPath != null)
                 {
-                    tracker.SaveToFile(outputMarkdownPath, "KoboldTown wyvern Task Report");
+                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
                 }
                 messageCallback?.Invoke("error", $"Error during orchestration: {ex.Message}");
                 throw;
@@ -169,7 +169,7 @@ namespace DraCode.KoboldLair.Server.Agents
             
             SelectAgentTool.ClearSelection();
 
-            var wyvern = KoboldTownAgentFactory.Create(provider, options, config, "wyvern");
+            var wyvern = KoboldLairAgentFactory.Create(provider, options, config, "wyvern");
             if (messageCallback != null)
             {
                 wyvern.SetMessageCallback(messageCallback);

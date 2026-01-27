@@ -12,12 +12,12 @@ namespace DraCode.KoboldLair.Server.Services
     {
         private readonly ILogger<ProviderConfigurationService> _logger;
         private readonly string _configPath;
-        private KoboldTownProviderConfiguration _configuration;
+        private KoboldLairProviderConfiguration _configuration;
         private readonly object _lock = new();
 
         public ProviderConfigurationService(
             ILogger<ProviderConfigurationService> logger,
-            IOptions<KoboldTownProviderConfiguration> defaultConfig,
+            IOptions<KoboldLairProviderConfiguration> defaultConfig,
             string configPath = "./provider-config.json")
         {
             _logger = logger;
@@ -31,7 +31,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Gets the current provider configuration
         /// </summary>
-        public KoboldTownProviderConfiguration GetConfiguration()
+        public KoboldLairProviderConfiguration GetConfiguration()
         {
             lock (_lock)
             {
@@ -243,7 +243,7 @@ namespace DraCode.KoboldLair.Server.Services
                 if (File.Exists(_configPath))
                 {
                     var json = File.ReadAllText(_configPath);
-                    var savedConfig = JsonSerializer.Deserialize<KoboldTownProviderConfiguration>(json);
+                    var savedConfig = JsonSerializer.Deserialize<KoboldLairProviderConfiguration>(json);
                     if (savedConfig != null)
                     {
                         // Merge with defaults - use saved agent providers but keep default provider list

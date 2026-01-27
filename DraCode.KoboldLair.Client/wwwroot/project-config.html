@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Configuration - KoboldTown</title>
+    <title>Project Configuration - KoboldLair</title>
     <link rel="stylesheet" href="/css/styles.css">
     <style>
         .project-list {
@@ -211,6 +211,64 @@
             font-size: 3rem;
             margin-bottom: 1rem;
         }
+
+        .project-resource-limits {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .resource-control {
+            background: rgba(30, 41, 59, 0.4);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .resource-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+        }
+
+        .resource-icon {
+            font-size: 1.1rem;
+        }
+
+        .resource-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .resource-input {
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            background: var(--glass-bg);
+            color: var(--text-primary);
+            font-size: 1rem;
+            width: 100px;
+            transition: all 0.3s ease;
+        }
+
+        .resource-input:hover {
+            border-color: var(--primary-color);
+        }
+
+        .resource-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .resource-help {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
     </style>
 </head>
 <body>
@@ -362,6 +420,25 @@
                                 ` : ''}
                             </div>
                         </div>
+
+                        <div class="project-resource-limits">
+                            <div class="resource-control">
+                                <div class="resource-label">
+                                    <span class="resource-icon">⚙️</span>
+                                    <span>Max Parallel Kobolds</span>
+                                </div>
+                                <div class="resource-input-group">
+                                    <input type="number" 
+                                           id="maxKobolds-${project.id}"
+                                           class="resource-input" 
+                                           min="1" 
+                                           max="10"
+                                           value="${await getProjectMaxKobolds(project.id)}"
+                                           onchange="updateMaxKobolds('${project.id}', this.value)">
+                                    <span class="resource-help">Controls concurrent Kobold workers</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 `;
             }));
@@ -394,6 +471,49 @@
                 console.error('Failed to toggle agent:', error);
                 showStatus('Failed to update agent status', 'error');
                 // Reload to revert toggle
+                await loadProjects();
+            }
+        }
+
+        async function getProjectMaxKobolds(projectId) {
+            try {
+                const response = await fetch(`/api/projects/${projectId}/config`);
+                const data = await response.json();
+                return data.maxParallelKobolds || 1;
+            } catch (error) {
+                console.error('Failed to get max kobolds:', error);
+                return 1;
+            }
+        }
+
+        async function updateMaxKobolds(projectId, value) {
+            const maxKobolds = parseInt(value);
+            if (isNaN(maxKobolds) || maxKobolds < 1) {
+                showStatus('Max parallel kobolds must be at least 1', 'error');
+                await loadProjects();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/config`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ maxParallelKobolds: maxKobolds })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus(`✓ ${result.message}`, 'success');
+                } else {
+                    showStatus(`✗ ${result.message}`, 'error');
+                    await loadProjects();
+                }
+            } catch (error) {
+                console.error('Failed to update max kobolds:', error);
+                showStatus('Failed to update configuration', 'error');
                 await loadProjects();
             }
         }

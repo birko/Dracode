@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DraCode.Agent;
 using DraCode.KoboldLair.Server.Agents;
+using DraCode.KoboldLair.Server.Models;
 using DraCode.KoboldLair.Server.Wyvern;
 
 namespace DraCode.KoboldLair.Server.Projects
@@ -18,6 +19,7 @@ namespace DraCode.KoboldLair.Server.Projects
         private readonly Dictionary<string, string> _config;
         private readonly AgentOptions _options;
         private readonly string _outputPath;
+        private Specification? _specification;
 
         private WyrmAnalysis? _analysis;
 
@@ -43,17 +45,192 @@ namespace DraCode.KoboldLair.Server.Projects
         }
 
         /// <summary>
-        /// Analyzes the specification and creates organized task structure
+        /// Loads specification and checks for new features
         /// </summary>
-        public async Task<WyrmAnalysis> AnalyzeProjectAsync()
+        public async Task<List<Feature>> GetNewFeaturesAsync(Specification specification)
         {
+            _specification = specification;
+            return specification.Features.Where(f => f.Status == FeatureStatus.New).ToList();
+        }
+
+        /// <summary>
+        /// Marks features as assigned to Wyrm
+        /// </summary>
+        public void AssignFeatures(List<Feature> features)
+        {
+            foreach (var feature in features)
+            {
+                feature.Status = FeatureStatus.AssignedToWyrm;
+                feature.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        /// <summary>
+        /// Updates feature status based on task completion
+        /// </summary>
+        /// <param name="taskStatuses">Dictionary of task IDs to their status</param>
+        public void UpdateFeatureStatus(Dictionary<string, Wyvern.TaskStatus> taskStatuses)
+        {
+            if (_specification == null || _analysis == null)
+                return;
+
+            foreach (var feature in _specification.Features.Where(f => f.Status != FeatureStatus.Completed))
+            {
+                var featureTasks = GetTasksForFeature(feature.Id);
+                
+                if (!featureTasks.Any())
+                    continue;
+
+                // Check if any task is being worked on
+                var hasWorkingTasks = featureTasks.Any(taskId => 
+                    taskStatuses.TryGetValue(taskId, out var status) && 
+                    (status == Wyvern.TaskStatus.Working || status == Wyvern.TaskStatus.NotInitialized));
+
+                // Check if all tasks are done
+                var allTasksDone = featureTasks.All(taskId =>
+                    taskStatuses.TryGetValue(taskId, out var status) && 
+                    status == Wyvern.TaskStatus.Done);
+
+                // Update feature status
+                if (allTasksDone && feature.Status != FeatureStatus.Completed)
+                {
+                    feature.Status = FeatureStatus.Completed;
+                    feature.UpdatedAt = DateTime.UtcNow;
+                }
+                else if (hasWorkingTasks && feature.Status == FeatureStatus.AssignedToWyrm)
+                {
+                    feature.Status = FeatureStatus.InProgress;
+                    feature.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets all task IDs associated with a feature
+        /// </summary>
+        private List<string> GetTasksForFeature(string featureId)
+        {
+            if (_analysis == null)
+                return new List<string>();
+
+            return _analysis.Areas
+                .SelectMany(area => area.Tasks)
+                .Where(task => task.FeatureId == featureId)
+                .Select(task => task.Id)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Links tasks to features based on feature context in task description
+        /// Call this after analysis to associate tasks with features
+        /// </summary>
+        public void LinkTasksToFeatures()
+        {
+            if (_specification == null || _analysis == null)
+                return;
+
+            foreach (var feature in _specification.Features.Where(f => f.Status == FeatureStatus.AssignedToWyrm))
+            {
+                // Find tasks that mention this feature
+                var relatedTasks = _analysis.Areas
+                    .SelectMany(area => area.Tasks)
+                    .Where(task => 
+                        task.Description.Contains(feature.Name, StringComparison.OrdinalIgnoreCase) ||
+                        task.Name.Contains(feature.Name, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                // Link tasks to feature
+                foreach (var task in relatedTasks)
+                {
+                    task.FeatureId = feature.Id;
+                    
+                    // Add task ID to feature's task list
+                    if (!feature.TaskIds.Contains(task.Id))
+                    {
+                        feature.TaskIds.Add(task.Id);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets feature completion report
+        /// </summary>
+        public string GetFeatureStatusReport()
+        {
+            if (_specification == null)
+                return "No specification loaded.";
+
+            var report = new System.Text.StringBuilder();
+            report.AppendLine("# Feature Status Report");
+            report.AppendLine();
+
+            var grouped = _specification.Features.GroupBy(f => f.Status);
+            
+            foreach (var group in grouped.OrderBy(g => g.Key))
+            {
+                report.AppendLine($"## {group.Key} ({group.Count()})");
+                report.AppendLine();
+                
+                foreach (var feature in group)
+                {
+                    var taskCount = feature.TaskIds.Count;
+                    var icon = group.Key switch
+                    {
+                        FeatureStatus.New => "🆕",
+                        FeatureStatus.AssignedToWyrm => "📋",
+                        FeatureStatus.InProgress => "🔨",
+                        FeatureStatus.Completed => "✅",
+                        _ => "❓"
+                    };
+                    
+                    report.AppendLine($"{icon} **{feature.Name}** (Priority: {feature.Priority})");
+                    report.AppendLine($"   {feature.Description}");
+                    report.AppendLine($"   Tasks: {taskCount}");
+                    report.AppendLine();
+                }
+            }
+
+            return report.ToString();
+        }
+
+        /// <summary>
+        /// Analyzes the specification and creates organized task structure
+        /// Includes new features in the analysis context
+        /// </summary>
+        public async Task<WyrmAnalysis> AnalyzeProjectAsync(Specification? specification = null)
+        {
+            if (specification != null)
+            {
+                _specification = specification;
+            }
+
             if (!File.Exists(_specificationPath))
             {
                 throw new FileNotFoundException($"Specification not found: {_specificationPath}");
             }
 
             var specContent = await File.ReadAllTextAsync(_specificationPath);
-            var analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(specContent);
+            
+            // Get new features to include in analysis
+            var newFeatures = _specification?.Features.Where(f => f.Status == FeatureStatus.New).ToList() ?? new List<Feature>();
+            
+            // Build enhanced prompt with features
+            var prompt = specContent;
+            if (newFeatures.Any())
+            {
+                prompt += "\n\n## New Features to Implement:\n\n";
+                foreach (var feature in newFeatures)
+                {
+                    prompt += $"### {feature.Name} (Priority: {feature.Priority})\n";
+                    prompt += $"{feature.Description}\n\n";
+                }
+                
+                // Mark features as assigned
+                AssignFeatures(newFeatures);
+            }
+            
+            var analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(prompt);
 
             try
             {
@@ -69,6 +246,15 @@ namespace DraCode.KoboldLair.Server.Projects
 
                 _analysis.AnalyzedAt = DateTime.UtcNow;
                 _analysis.SpecificationPath = _specificationPath;
+                
+                // Link features to analysis
+                if (_specification != null)
+                {
+                    _analysis.ProcessedFeatures = _specification.Features
+                        .Where(f => f.Status == FeatureStatus.AssignedToWyrm)
+                        .Select(f => f.Id)
+                        .ToList();
+                }
 
                 return _analysis;
             }
@@ -156,6 +342,7 @@ namespace DraCode.KoboldLair.Server.Projects
         public string EstimatedComplexity { get; set; } = "medium";
         public DateTime AnalyzedAt { get; set; }
         public string SpecificationPath { get; set; } = "";
+        public List<string> ProcessedFeatures { get; set; } = new();
     }
 
     public class WorkArea
@@ -174,5 +361,6 @@ namespace DraCode.KoboldLair.Server.Projects
         public List<string> Dependencies { get; set; } = new();
         public int DependencyLevel { get; set; }
         public string Priority { get; set; } = "medium";
+        public string? FeatureId { get; set; }
     }
 }

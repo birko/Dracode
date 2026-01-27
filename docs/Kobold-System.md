@@ -1,7 +1,7 @@
 # 👹 Kobold Worker System
 
 ## Overview
-The Kobold system provides a worker pattern for managing AI agent instances in KoboldTown. Each Kobold is a dedicated worker agent that handles one specific task at a time, with full lifecycle tracking.
+The Kobold system provides a worker pattern for managing AI agent instances in KoboldLair. Each Kobold is a dedicated worker agent that handles one specific task at a time, with full lifecycle tracking.
 
 **Kobolds work automatically** - they're created and managed by Drake supervisors, assigned tasks automatically, and execute code generation without user interaction.
 
@@ -327,7 +327,7 @@ public class WyvernService
 ## File Structure
 
 ```
-DraCode.KoboldTown/
+DraCode.KoboldLair.Server/
 ├── Models/
 │   ├── Kobold.cs              # Worker agent wrapper
 │   └── KoboldStatus.cs        # Status enumeration
@@ -348,6 +348,6 @@ DraCode.KoboldTown/
 
 ## Related Documentation
 
-- [KoboldTownAgentFactory.md](./KoboldTownAgentFactory.md) - Agent factory details
-- [WyvernAgent.md](./WyvernAgent.md) - Task orchestration
-- [TaskTracking.md](./TaskTracking.md) - Task management system
+- [KoboldLair Server README](../DraCode.KoboldLair.Server/README.md) - Complete server documentation
+- [Drake Monitoring System](./Drake-Monitoring-System.md) - Task supervision
+- [Wyrm Project Analyzer](./Wyrm-Project-Analyzer.md) - Task organization

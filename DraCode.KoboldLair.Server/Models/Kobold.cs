@@ -16,7 +16,7 @@ namespace DraCode.KoboldLair.Server.Models
         public Guid Id { get; }
 
         /// <summary>
-        /// The agent instance created by KoboldTownAgentFactory
+        /// The agent instance created by KoboldLairAgentFactory
         /// </summary>
         public Agent.Agents.Agent Agent { get; }
 
@@ -24,6 +24,11 @@ namespace DraCode.KoboldLair.Server.Models
         /// Type of agent (e.g., "csharp", "javascript", "react")
         /// </summary>
         public string AgentType { get; }
+
+        /// <summary>
+        /// Project identifier this Kobold belongs to
+        /// </summary>
+        public string? ProjectId { get; private set; }
 
         /// <summary>
         /// Task identifier this Kobold is assigned to (null if unassigned)
@@ -87,8 +92,9 @@ namespace DraCode.KoboldLair.Server.Models
         /// </summary>
         /// <param name="taskId">Task identifier</param>
         /// <param name="taskDescription">Description of the task to execute</param>
+        /// <param name="projectId">Project identifier this task belongs to</param>
         /// <param name="specificationContext">Optional specification context for the task</param>
-        public void AssignTask(Guid taskId, string taskDescription, string? specificationContext = null)
+        public void AssignTask(Guid taskId, string taskDescription, string? projectId = null, string? specificationContext = null)
         {
             if (Status != KoboldStatus.Unassigned)
             {
@@ -97,6 +103,7 @@ namespace DraCode.KoboldLair.Server.Models
 
             TaskId = taskId;
             TaskDescription = taskDescription;
+            ProjectId = projectId;
             SpecificationContext = specificationContext;
             Status = KoboldStatus.Assigned;
             AssignedAt = DateTime.UtcNow;
@@ -188,6 +195,7 @@ You are working on a task that is part of a larger project. Below is the project
         {
             TaskId = null;
             TaskDescription = null;
+            ProjectId = null;
             SpecificationContext = null;
             Status = KoboldStatus.Unassigned;
             AssignedAt = null;

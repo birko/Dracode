@@ -2,7 +2,7 @@
 
 ## Overview
 
-The KoboldTown system follows a clear separation of concerns for state management:
+The KoboldLair system follows a clear separation of concerns for state management:
 - **Kobolds** manage their own internal state based on task execution
 - **Drake** observes Kobold states and syncs them to TaskTracker
 - **Drake** can request actions (start working) but cannot force state changes

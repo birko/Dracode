@@ -117,6 +117,48 @@ body::before {
     margin-top: 1.5rem;
 }
 
+/* Info Toggle Button */
+.info-toggle {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+    box-shadow: var(--shadow-md);
+}
+
+.info-toggle:hover {
+    background: var(--primary-gradient);
+    border-color: transparent;
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+}
+
+.info-toggle .info-icon {
+    font-size: 1.5rem;
+    transition: transform 0.3s ease;
+}
+
+.info-toggle:hover .info-icon {
+    transform: rotate(180deg);
+}
+
+.info-toggle.active {
+    background: var(--primary-gradient);
+    border-color: transparent;
+    box-shadow: 0 0 20px rgba(37, 99, 235, 0.5);
+}
+
+.info-toggle.active .info-icon {
+    transform: rotate(180deg);
+}
+
 .status-indicator {
     display: inline-flex;
     align-items: center;
@@ -187,6 +229,7 @@ section:hover {
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
     gap: 1rem;
+    row-gap: 0.75rem;
 }
 
 h2 {
@@ -375,12 +418,16 @@ textarea:focus {
     align-items: start;
     margin-bottom: 1rem;
     gap: 1rem;
+    min-width: 0;
 }
 
 .task-description {
     flex: 1;
     font-size: 1.05rem;
     line-height: 1.5;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    min-width: 0;
 }
 
 .task-status {
@@ -528,6 +575,20 @@ textarea:focus {
     border-radius: 1.5rem;
     padding: 2rem;
     border: 1px solid var(--glass-border);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: top;
+    max-height: 2000px;
+    overflow: hidden;
+}
+
+.workflow-info.hidden {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    opacity: 0;
+    transform: scaleY(0);
+    border: none;
 }
 
 .workflow-description {
@@ -741,7 +802,20 @@ textarea:focus {
         font-size: 1.25rem;
     }
     
-    .section-header .btn {
+    .section-header .btn,
+    .section-header .btn-secondary {
+        width: 100%;
+    }
+
+    .section-header > div {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .section-header > div > .btn,
+    .section-header > div > .btn-secondary {
         width: 100%;
     }
 

@@ -65,7 +65,7 @@ namespace DraCode.KoboldLair.Server.Factories
                     (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern", outputPath);
                 }
 
-                var llmProvider = KoboldTownAgentFactory.CreateLlmProvider(effectiveProvider, config);
+                var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(effectiveProvider, config);
                 var analyzerAgent = new WyrmAnalyzerAgent(llmProvider, options);
 
                 var wyrm = new Wyrm(

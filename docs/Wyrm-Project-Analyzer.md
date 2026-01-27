@@ -517,7 +517,7 @@ public class WyrmAnalysis
 
 ## Summary
 
-**Wyrm's Role in KoboldTown:**
+**Wyrm's Role in KoboldLair:**
 - 🐲 **Analyzes** Dragon specifications
 - 📊 **Categorizes** work into logical areas
 - 🔗 **Identifies** task dependencies

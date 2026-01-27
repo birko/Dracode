@@ -1,6 +1,6 @@
 /**
  * Hierarchy Visualization Controller
- * Displays real-time KoboldTown process hierarchy
+ * Displays real-time KoboldLair process hierarchy
  */
 
 class HierarchyVisualization {
@@ -8,7 +8,7 @@ class HierarchyVisualization {
         this.autoRefresh = true;
         this.refreshInterval = 5000; // 5 seconds
         this.refreshTimer = null;
-        
+
         this.init();
     }
 
@@ -26,7 +26,7 @@ class HierarchyVisualization {
         document.getElementById('autoRefreshBtn')?.addEventListener('click', (e) => {
             this.autoRefresh = !this.autoRefresh;
             e.target.classList.toggle('active');
-            
+
             if (this.autoRefresh) {
                 this.startAutoRefresh();
             } else {
@@ -39,7 +39,7 @@ class HierarchyVisualization {
         if (this.refreshTimer) {
             clearInterval(this.refreshTimer);
         }
-        
+
         this.refreshTimer = setInterval(() => {
             if (this.autoRefresh) {
                 this.loadData();
@@ -59,21 +59,21 @@ class HierarchyVisualization {
             // Fetch hierarchy data from API
             const apiUrl = CONFIG.serverUrl.replace(/^ws/, 'http') + '/api/hierarchy';
             const response = await fetch(apiUrl);
-            
+
             if (!response.ok) {
                 // If API not found, generate mock data
                 if (response.status === 404) {
-                    this.renderMockData();
+                    //this.renderMockData();
                     return;
                 }
                 throw new Error('Failed to fetch hierarchy data');
             }
-            
+
             const data = await response.json();
             this.render(data);
         } catch (error) {
             console.error('Error loading hierarchy:', error);
-            this.renderMockData();
+            //this.renderMockData();
         }
     }
 
@@ -178,7 +178,7 @@ class HierarchyVisualization {
 
     renderHierarchy(hierarchy) {
         const canvas = document.getElementById('hierarchyCanvas');
-        
+
         const html = `
             <div class="hierarchy-container">
                 <!-- Dragon Level -->
@@ -238,7 +238,7 @@ class HierarchyVisualization {
 
         const statusClass = data.status || 'idle';
         const icon = data.icon || this.getDefaultIcon(type);
-        
+
         return `
             <div class="hierarchy-node ${type} ${data.status === 'working' ? 'pulse-animation' : ''}" data-type="${type}" data-id="${data.id || ''}">
                 <div class="node-icon">${icon}</div>
@@ -277,7 +277,7 @@ class HierarchyVisualization {
     showNodeDetails(node) {
         const type = node.dataset.type;
         const title = node.querySelector('.node-title').textContent;
-        
+
         // Add visual feedback
         node.style.transform = 'scale(1.1)';
         setTimeout(() => {
@@ -290,7 +290,7 @@ class HierarchyVisualization {
 
     renderProjects(projects) {
         const container = document.getElementById('projectsList');
-        
+
         if (!projects || projects.length === 0) {
             container.innerHTML = '<p class="empty-message">No projects yet</p>';
             return;
@@ -338,20 +338,20 @@ class HierarchyVisualization {
 
     formatDate(dateString) {
         if (!dateString) return 'N/A';
-        
+
         const date = new Date(dateString);
         const now = new Date();
         const diff = now - date;
-        
+
         const minutes = Math.floor(diff / 60000);
         const hours = Math.floor(diff / 3600000);
         const days = Math.floor(diff / 86400000);
-        
+
         if (minutes < 1) return 'Just now';
         if (minutes < 60) return `${minutes}m ago`;
         if (hours < 24) return `${hours}h ago`;
         if (days < 7) return `${days}d ago`;
-        
+
         return date.toLocaleDateString();
     }
 }

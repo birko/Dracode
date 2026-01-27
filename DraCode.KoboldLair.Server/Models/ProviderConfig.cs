@@ -91,7 +91,7 @@ namespace DraCode.KoboldLair.Server.Models
     /// <summary>
     /// Root configuration containing all provider settings
     /// </summary>
-    public class KoboldTownProviderConfiguration
+    public class KoboldLairProviderConfiguration
     {
         /// <summary>
         /// List of available providers

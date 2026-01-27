@@ -4,11 +4,12 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 
 📖 **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete project spec for regeneration  
 📝 **[Changelog](CHANGELOG.md)** - Version history and release notes  
-🏰 **[KoboldTown README](../DraCode.KoboldTown/README.md)** - Multi-agent autonomous coding system
+🏰 **[KoboldLair Server README](../DraCode.KoboldLair.Server/README.md)** - Multi-agent autonomous coding system backend  
+🎨 **[KoboldLair Client README](../DraCode.KoboldLair.Client/README.md)** - Multi-agent autonomous coding system web UI
 
-## 🏰 KoboldTown Multi-Agent System
+## 🏰 KoboldLair Multi-Agent System
 
-**NEW!** KoboldTown is an autonomous hierarchical multi-agent system where **Dragon is your only interactive interface**. All other agents work automatically in the background.
+**NEW!** KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is your only interactive interface**. All other agents work automatically in the background.
 
 ### Agent Documentation
 
@@ -19,9 +20,9 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 | 🦅 **Drake** | Task supervision & Kobold management | ❌ Automatic | [Drake-Monitoring-System.md](Drake-Monitoring-System.md) |
 | 👹 **Kobold** | Code generation workers | ❌ Automatic | [Kobold-System.md](Kobold-System.md), [Kobold-State-Management.md](Kobold-State-Management.md) |
 
-### KoboldTown Resources
-- **[KoboldTown README](../DraCode.KoboldTown/README.md)** - Complete user-friendly guide
-- **[KoboldTown API](../DraCode.KoboldTown/API.md)** - REST and WebSocket API documentation
+### KoboldLair Resources
+- **[KoboldLair Server README](../DraCode.KoboldLair.Server/README.md)** - Complete backend documentation
+- **[KoboldLair Client README](../DraCode.KoboldLair.Client/README.md)** - Web UI documentation
 
 ### How It Works
 1. **You interact with Dragon** (web chat) to describe project requirements
@@ -32,6 +33,59 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 6. **Kobolds generate code** → completely automatic
 
 Only Dragon requires interaction - everything else is automatic!
+
+## Project Lifecycle
+
+Projects in KoboldLair follow a complete lifecycle from creation through execution:
+
+### Lifecycle Stages
+
+```
+1. USER CREATES PROJECT
+   User: Dragon page → Create new project "MyApp"
+   ↓
+2. DRAGON GATHERS REQUIREMENTS
+   User: Chats with Dragon about requirements
+   Dragon: Asks clarifying questions
+   ↓
+3. SPECIFICATION CREATED
+   Dragon: Creates MyApp_specification.md in ./specifications/
+   ↓
+4. PROJECT AUTO-REGISTERED
+   DragonService: Calls ProjectService.RegisterProject()
+   ProjectRepository: Saves to ./projects/projects.json
+   ↓
+5. WYRM ASSIGNED (Background Service)
+   WyrmProcessingService: Detects new project (every 60s)
+   ProjectService: Assigns Wyrm
+   Wyrm: Analyzes specification
+   ↓
+6. TASKS GENERATED
+   Wyrm: Creates task breakdown
+   Project: status → "Analyzed"
+   Tasks: Saved as task files
+   ↓
+7. DRAKE SUPERVISES
+   DrakeMonitoringService: Detects tasks (every 60s)
+   Drake: Assigns tasks to Kobolds
+   ↓
+8. KOBOLDS EXECUTE
+   Kobolds: Write actual code
+   Output: Files in ./workspace/MyApp/
+   ↓
+9. PROJECT COMPLETE
+   Project: status → "Complete"
+   Code: Ready for review and deployment
+```
+
+### Data Storage
+
+- **Projects**: `./projects/projects.json`
+- **Specifications**: `./specifications/{project}_specification.md`
+- **Tasks**: `./tasks/{project}/`
+- **Output**: `./workspace/{project}/`
+
+All data is real and persists to disk - no mock data.
 
 ## 📚 Documentation Structure
 
@@ -90,7 +144,8 @@ Problem-solving guides and debugging help:
 ## 📖 Project-Specific Documentation
 
 Each project has its own README with specific details:
-- [DraCode.KoboldTown README](../DraCode.KoboldTown/README.md) - Multi-agent autonomous coding system
+- [DraCode.KoboldLair.Server README](../DraCode.KoboldLair.Server/README.md) - Multi-agent autonomous coding system backend
+- [DraCode.KoboldLair.Client README](../DraCode.KoboldLair.Client/README.md) - Multi-agent autonomous coding system web UI
 - [DraCode.WebSocket README](../DraCode.WebSocket/README.md) - WebSocket API server documentation
 - [DraCode.Web README](../DraCode.Web/README.md) - Web client documentation
 - [DraCode.AppHost README](../DraCode.AppHost/README.md) - .NET Aspire orchestration documentation

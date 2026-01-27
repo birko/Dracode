@@ -3,18 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KoboldTown - Hierarchy Visualization</title>
+    <title>KoboldLair - Hierarchy Visualization</title>
     <link rel="stylesheet" href="/css/styles.css">
     <link rel="stylesheet" href="/css/hierarchy.css">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>🏰 KoboldTown Command Center</h1>
+            <h1>🏰 KoboldLair Command Center</h1>
             <p class="subtitle">Real-time Process Hierarchy & Status</p>
             <div class="connection-status">
                 <span id="connectionStatus" class="status-indicator">⚪ Disconnected</span>
             </div>
+            <button id="infoToggle" class="info-toggle" title="Toggle Info Sections">
+                <span class="info-icon">ℹ️</span>
+            </button>
             <nav class="nav-tabs">
                 <a href="/" class="tab-link">📊 Status</a>
                 <a href="/dragon.html" class="tab-link">🐉 Dragon</a>
@@ -26,7 +29,7 @@
 
         <main class="main-content hierarchy-view">
             <!-- Statistics Overview -->
-            <section class="stats-grid">
+            <section id="statsGrid" class="stats-grid hidden">
                 <div class="stat-card dragon-stat">
                     <div class="stat-icon">🐉</div>
                     <div class="stat-info">
@@ -96,7 +99,7 @@
             </section>
 
             <!-- Background Services Status -->
-            <section class="services-section">
+            <section id="servicesSection" class="services-section hidden">
                 <div class="section-header">
                     <h2>⚡ Background Services</h2>
                 </div>
@@ -130,5 +133,33 @@
 
     <script src="/js/config.js"></script>
     <script type="module" src="/js/hierarchy.js"></script>
+    <script>
+        // Info panel toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const infoToggle = document.getElementById('infoToggle');
+            const statsGrid = document.getElementById('statsGrid');
+            const servicesSection = document.getElementById('servicesSection');
+            
+            if (infoToggle && statsGrid && servicesSection) {
+                infoToggle.addEventListener('click', function() {
+                    statsGrid.classList.toggle('hidden');
+                    servicesSection.classList.toggle('hidden');
+                    infoToggle.classList.toggle('active');
+                    
+                    // Save preference to localStorage
+                    const isHidden = statsGrid.classList.contains('hidden');
+                    localStorage.setItem('hierarchyInfoHidden', isHidden);
+                });
+                
+                // Restore preference from localStorage
+                const savedState = localStorage.getItem('hierarchyInfoHidden');
+                if (savedState === 'false') {
+                    statsGrid.classList.remove('hidden');
+                    servicesSection.classList.remove('hidden');
+                    infoToggle.classList.add('active');
+                }
+            }
+        });
+    </script>
 </body>
 </html>
