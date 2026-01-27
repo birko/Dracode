@@ -24,7 +24,57 @@
         </header>
 
         <main>
-            <div class="chat-container">
+            <!-- Project Setup Panel (shown initially) -->
+            <div id="projectSetup" class="project-setup">
+                <div class="setup-card">
+                    <h2>🎯 Start Your Project</h2>
+                    <p class="setup-description">First, select an existing project or create a new one</p>
+                    
+                    <!-- Info banner for empty state -->
+                    <div id="emptyStateInfo" class="info-banner" style="display: none;">
+                        <span class="info-icon">ℹ️</span>
+                        <div class="info-content">
+                            <strong>Starting Fresh</strong>
+                            <p>No projects exist yet. All data is real and will be saved when you create your first project.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="projectSelect">Select Project</label>
+                        <select id="projectSelect" class="form-select">
+                            <option value="">Loading projects...</option>
+                        </select>
+                        <button id="newProjectButton" class="btn-secondary">+ Create New Project</button>
+                    </div>
+
+                    <div id="newProjectForm" class="new-project-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="projectNameInput">New Project Name</label>
+                            <input type="text" id="projectNameInput" placeholder="Enter project name..." class="form-input">
+                        </div>
+                        <button id="cancelNewProjectButton" class="btn-secondary">Cancel</button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="providerSelect">Dragon AI Provider</label>
+                        <select id="providerSelect" class="form-select">
+                            <option value="">Loading providers...</option>
+                        </select>
+                    </div>
+                    
+                    <button id="startChatButton" class="btn-primary" disabled>Start Chat</button>
+                </div>
+            </div>
+
+            <!-- Chat Container (hidden initially) -->
+            <div id="chatContainer" class="chat-container" style="display: none;">
+                <div class="chat-header">
+                    <div class="chat-project-info">
+                        <strong>Project:</strong> <span id="currentProjectName"></span>
+                        <strong style="margin-left: 1.5rem;">Provider:</strong> <span id="currentProviderName"></span>
+                    </div>
+                    <button id="changeProjectButton" class="btn-link">Change Project</button>
+                </div>
                 <div id="chatMessages" class="chat-messages"></div>
                 <div class="chat-input-container">
                     <textarea 

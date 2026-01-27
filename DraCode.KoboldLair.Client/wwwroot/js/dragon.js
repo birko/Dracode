@@ -6,10 +6,18 @@ class DragonClient {
         this.sessionId = null;
         this.isConnected = false;
         this.messageQueue = [];
+        this.currentProject = null;
+        this.currentProvider = null;
+        this.projects = [];
+        this.providers = [];
+        this.config = null; // Will be loaded dynamically
         
         this.initializeElements();
         this.attachEventListeners();
-        this.connect();
+        this.loadConfiguration().then(() => {
+            this.loadProjects();
+            this.loadProviders();
+        });
     }
 
     initializeElements() {
@@ -18,6 +26,20 @@ class DragonClient {
         this.userInput = document.getElementById('userInput');
         this.sendButton = document.getElementById('sendButton');
         this.specificationsList = document.getElementById('specificationsList');
+        
+        // Project setup elements
+        this.projectSetup = document.getElementById('projectSetup');
+        this.chatContainer = document.getElementById('chatContainer');
+        this.projectSelect = document.getElementById('projectSelect');
+        this.providerSelect = document.getElementById('providerSelect');
+        this.startChatButton = document.getElementById('startChatButton');
+        this.newProjectButton = document.getElementById('newProjectButton');
+        this.newProjectForm = document.getElementById('newProjectForm');
+        this.projectNameInput = document.getElementById('projectNameInput');
+        this.cancelNewProjectButton = document.getElementById('cancelNewProjectButton');
+        this.changeProjectButton = document.getElementById('changeProjectButton');
+        this.currentProjectName = document.getElementById('currentProjectName');
+        this.currentProviderName = document.getElementById('currentProviderName');
     }
 
     attachEventListeners() {
@@ -29,14 +51,223 @@ class DragonClient {
                 this.sendMessage();
             }
         });
+
+        // Project setup listeners
+        this.startChatButton.addEventListener('click', () => this.startChat());
+        this.newProjectButton.addEventListener('click', () => this.showNewProjectForm());
+        this.cancelNewProjectButton.addEventListener('click', () => this.hideNewProjectForm());
+        this.changeProjectButton.addEventListener('click', () => this.showProjectSetup());
+        
+        this.projectSelect.addEventListener('change', (e) => {
+            if (e.target.value === '__new__') {
+                this.showNewProjectForm();
+            } else {
+                this.hideNewProjectForm();
+            }
+            this.updateStartButton();
+        });
+        this.providerSelect.addEventListener('change', () => this.updateStartButton());
+        
+        this.projectNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.createNewProject();
+            }
+        });
+        
+        this.projectNameInput.addEventListener('input', () => {
+            this.updateStartButton();
+        });
+    }
+
+    async loadConfiguration() {
+        try {
+            const response = await fetch('/api/config');
+            this.config = await response.json();
+            console.log('Configuration loaded:', this.config);
+        } catch (error) {
+            console.error('Failed to load configuration:', error);
+            // Fallback to CONFIG from config.js
+            this.config = CONFIG;
+        }
+    }
+
+    async loadProjects() {
+        try {
+            const response = await fetch('/api/projects');
+            this.projects = await response.json();
+            this.populateProjectSelect();
+            this.updateEmptyStateInfo();
+        } catch (error) {
+            console.error('Failed to load projects:', error);
+            this.projectSelect.innerHTML = '<option value="">Error loading projects</option>';
+        }
+    }
+
+    async loadProviders() {
+        try {
+            const response = await fetch('/api/providers');
+            const data = await response.json();
+            this.providers = data.providers || [];
+            this.populateProviderSelect();
+        } catch (error) {
+            console.error('Failed to load providers:', error);
+            this.providerSelect.innerHTML = '<option value="">Error loading providers</option>';
+        }
+    }
+
+    populateProjectSelect() {
+        const options = ['<option value="">-- Select a project --</option>'];
+        
+        if (this.projects.length > 0) {
+            this.projects.forEach(project => {
+                options.push(`<option value="${project.id}">${project.name}</option>`);
+            });
+        } else {
+            // Show helpful message when no projects exist
+            options.push('<option value="" disabled style="color: #94a3b8;">No projects yet - create your first one below!</option>');
+        }
+        
+        options.push('<option value="__new__">+ Create New Project</option>');
+        this.projectSelect.innerHTML = options.join('');
+    }
+
+    updateEmptyStateInfo() {
+        const infoElement = document.getElementById('emptyStateInfo');
+        if (infoElement) {
+            if (this.projects.length === 0) {
+                infoElement.style.display = 'flex';
+            } else {
+                infoElement.style.display = 'none';
+            }
+        }
+    }
+
+    populateProviderSelect() {
+        const dragonProviders = this.providers.filter(p => 
+            p.isEnabled && p.isConfigured && 
+            (p.compatibleAgents.includes('dragon') || p.compatibleAgents.includes('all'))
+        );
+        
+        if (dragonProviders.length === 0) {
+            this.providerSelect.innerHTML = '<option value="">No providers available</option>';
+            return;
+        }
+        
+        const options = dragonProviders.map(provider => 
+            `<option value="${provider.name}">${provider.displayName} (${provider.defaultModel})</option>`
+        );
+        
+        this.providerSelect.innerHTML = options.join('');
+        this.updateStartButton();
+    }
+
+    showNewProjectForm() {
+        this.projectSelect.value = '__new__';
+        this.newProjectForm.style.display = 'block';
+        this.projectNameInput.focus();
+        this.updateStartButton();
+    }
+
+    hideNewProjectForm() {
+        this.newProjectForm.style.display = 'none';
+        this.projectNameInput.value = '';
+        if (this.projectSelect.value === '__new__') {
+            this.projectSelect.value = '';
+        }
+        this.updateStartButton();
+    }
+
+    createNewProject() {
+        const projectName = this.projectNameInput.value.trim();
+        
+        if (!projectName) {
+            return;
+        }
+        
+        // Store the new project name for later use
+        this.newProjectName = projectName;
+        this.updateStartButton();
+    }
+
+    updateStartButton() {
+        const projectValue = this.projectSelect.value;
+        const providerValue = this.providerSelect.value;
+        
+        // Check if we have a valid project selection or a new project name
+        const hasProject = (projectValue && projectValue !== '__new__') || 
+                          (projectValue === '__new__' && this.projectNameInput.value.trim());
+        const hasProvider = providerValue;
+        
+        this.startChatButton.disabled = !hasProject || !hasProvider;
+    }
+
+    startChat() {
+        const projectValue = this.projectSelect.value;
+        const providerValue = this.providerSelect.value;
+        
+        if (!providerValue) {
+            return;
+        }
+        
+        // Handle project selection or creation
+        if (projectValue === '__new__') {
+            const projectName = this.projectNameInput.value.trim();
+            if (!projectName) {
+                return;
+            }
+            this.currentProject = {
+                id: 'new-' + Date.now(),
+                name: projectName,
+                isNew: true
+            };
+        } else if (!projectValue) {
+            return;
+        } else {
+            this.currentProject = this.projects.find(p => p.id === projectValue);
+        }
+        
+        const provider = this.providers.find(p => p.name === providerValue);
+        this.currentProvider = provider;
+        
+        // Update UI
+        this.currentProjectName.textContent = this.currentProject?.name || 'Unknown';
+        this.currentProviderName.textContent = provider?.displayName || 'Unknown';
+        
+        // Hide setup, show chat
+        this.projectSetup.style.display = 'none';
+        this.chatContainer.style.display = 'flex';
+        
+        // Connect to WebSocket
+        this.connect();
+    }
+
+    showProjectSetup() {
+        // Disconnect if connected
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.close();
+        }
+        
+        // Clear chat
+        this.messagesContainer.innerHTML = '';
+        this.userInput.value = '';
+        
+        // Show setup, hide chat
+        this.chatContainer.style.display = 'none';
+        this.projectSetup.style.display = 'flex';
+        
+        // Reload projects
+        this.loadProjects();
     }
 
     connect() {
-        const wsUrl = CONFIG.serverUrl + CONFIG.endpoints.dragon;
-        const url = CONFIG.authToken 
-            ? `${wsUrl}?token=${encodeURIComponent(CONFIG.authToken)}`
+        const config = this.config || CONFIG; // Use loaded config or fallback
+        const wsUrl = config.serverUrl + config.endpoints.dragon;
+        const url = config.authToken 
+            ? `${wsUrl}?token=${encodeURIComponent(config.authToken)}`
             : wsUrl;
         
+        console.log('Connecting to WebSocket:', url);
         this.ws = new WebSocket(url);
         
         this.ws.onopen = () => {

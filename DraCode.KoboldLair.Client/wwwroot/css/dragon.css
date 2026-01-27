@@ -654,6 +654,213 @@ footer span {
     outline-offset: 2px;
 }
 
+/* Project Setup Styles */
+.project-setup {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    grid-column: 1 / -1;
+}
+
+.setup-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.5rem;
+    padding: 2.5rem;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    animation: fadeInUp 0.8s ease-out;
+}
+
+.setup-card h2 {
+    color: var(--dragon-color);
+    margin-bottom: 0.5rem;
+    font-size: 1.8rem;
+}
+
+.setup-description {
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    font-size: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    color: var(--text);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.form-select,
+.form-input {
+    width: 100%;
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.form-select:focus,
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+    background: rgba(30, 41, 59, 0.95);
+}
+
+.form-input {
+    cursor: text;
+}
+
+.info-banner {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.info-banner.warning {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.info-banner.success {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.info-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.info-content {
+    flex: 1;
+}
+
+.info-content strong {
+    display: block;
+    color: var(--text);
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+}
+
+.info-content p {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.new-project-form {
+    background: rgba(15, 23, 42, 0.6);
+    padding: 1.5rem;
+    border-radius: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    animation: fadeIn 0.4s ease-out;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-link {
+    padding: 0.85rem 1.5rem;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary {
+    background: var(--primary-gradient);
+    color: white;
+    width: 100%;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
+}
+
+.btn-primary:disabled {
+    background: rgba(51, 65, 85, 0.5);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-secondary {
+    background: rgba(30, 41, 59, 0.8);
+    color: var(--text);
+    border: 1px solid var(--border);
+    margin-top: 0.75rem;
+}
+
+.btn-secondary:hover {
+    background: rgba(51, 65, 85, 0.9);
+    border-color: var(--primary-color);
+}
+
+.btn-link {
+    background: transparent;
+    color: var(--primary-color);
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.btn-link:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+}
+
+.chat-project-info {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.chat-project-info strong {
+    color: var(--text);
+}
+
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
     *,

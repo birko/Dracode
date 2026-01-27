@@ -5,6 +5,11 @@ const CONFIG = {
     // For production: 'wss://your-server.com'
     serverUrl: 'ws://localhost:5000',
     
+    // Server HTTP API URL (for REST endpoints)
+    // For local development: 'http://localhost:5000' or 'http://localhost:5001'
+    // For production: 'https://your-server.com'
+    apiUrl: 'http://localhost:5000',
+    
     // Authentication token (leave empty if authentication is disabled on server)
     // Get this from your server administrator
     authToken: '',
