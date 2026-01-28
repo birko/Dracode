@@ -10,11 +10,6 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services
 builder.AddServiceDefaults();
 
-// Log the current environment
-Console.WriteLine($"[KoboldLair.Server] Environment: {builder.Environment.EnvironmentName}");
-Console.WriteLine($"[KoboldLair.Server] ASPNETCORE_ENVIRONMENT: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}");
-Console.WriteLine($"[KoboldLair.Server] DOTNET_ENVIRONMENT: {Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")}");
-
 // Bind Authentication configuration from appsettings.json
 builder.Services.Configure<AuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication"));
@@ -135,6 +130,7 @@ using (var scope = app.Services.CreateScope())
     var providerConfigService = scope.ServiceProvider.GetRequiredService<ProviderConfigurationService>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
+    logger.LogInformation("Environment: {EnvironmentName}", builder.Environment.EnvironmentName);
     logger.LogInformation("Initializing configurations for existing projects...");
     projectService.InitializeProjectConfigurations(providerConfigService);
     logger.LogInformation("Configuration initialization complete");

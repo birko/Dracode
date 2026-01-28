@@ -31,12 +31,20 @@ namespace DraCode.KoboldLair.Server.Agents.Dragon
             string specificationsPath = "./specifications")
             : base(provider, options)
         {
-            _specificationsPath = specificationsPath;
+            _specificationsPath = specificationsPath ?? "./specifications";
             
             // Ensure specifications directory exists
-            if (!Directory.Exists(_specificationsPath))
+            try
             {
-                Directory.CreateDirectory(_specificationsPath);
+                if (!Directory.Exists(_specificationsPath))
+                {
+                    Directory.CreateDirectory(_specificationsPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail - the tool methods will handle missing path gracefully
+                Console.WriteLine($"Warning: Could not create specifications directory '{_specificationsPath}': {ex.Message}");
             }
         }
 
@@ -257,6 +265,16 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
 
         private string ListSpecifications()
         {
+            if (string.IsNullOrEmpty(_specificationsPath))
+            {
+                return "Error: Specifications path is not configured.";
+            }
+
+            if (!Directory.Exists(_specificationsPath))
+            {
+                return "No specifications found.";
+            }
+
             var files = Directory.GetFiles(_specificationsPath, "*.md");
             if (files.Length == 0)
             {
@@ -269,6 +287,11 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
 
         private string LoadSpecification(Dictionary<string, object> input)
         {
+            if (string.IsNullOrEmpty(_specificationsPath))
+            {
+                return "Error: Specifications path is not configured.";
+            }
+
             if (!input.TryGetValue("name", out var nameObj))
             {
                 return "Error: name is required for load action";
@@ -306,6 +329,11 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
 
         private string CreateSpecification(Dictionary<string, object> input)
         {
+            if (string.IsNullOrEmpty(_specificationsPath))
+            {
+                return "Error: Specifications path is not configured.";
+            }
+
             if (!input.TryGetValue("name", out var nameObj) || !input.TryGetValue("content", out var contentObj))
             {
                 return "Error: name and content are required for create action";
@@ -347,6 +375,11 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
 
         private string UpdateSpecification(Dictionary<string, object> input)
         {
+            if (string.IsNullOrEmpty(_specificationsPath))
+            {
+                return "Error: Specifications path is not configured.";
+            }
+
             if (!input.TryGetValue("name", out var nameObj) || !input.TryGetValue("content", out var contentObj))
             {
                 return "Error: name and content are required for update action";

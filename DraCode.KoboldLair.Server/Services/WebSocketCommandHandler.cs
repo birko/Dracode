@@ -43,8 +43,13 @@ namespace DraCode.KoboldLair.Server.Services
         {
             try
             {
-                Console.WriteLine($"[KoboldLair Server - CommandHandler] Received message: {messageText}");
-                var message = JsonSerializer.Deserialize<WebSocketCommand>(messageText);
+                _logger.LogDebug("Received command message: {Message}", messageText);
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    PropertyNameCaseInsensitive = true
+                };
+                var message = JsonSerializer.Deserialize<WebSocketCommand>(messageText, options);
                 if (message == null)
                 {
                     await SendErrorAsync(webSocket, null, "Invalid message format");
@@ -476,8 +481,13 @@ namespace DraCode.KoboldLair.Server.Services
                 timestamp = DateTime.UtcNow
             };
 
-            var json = JsonSerializer.Serialize(response);
-            Console.WriteLine($"[KoboldLair Server - CommandHandler] Sending response: {json}");
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            };
+            var json = JsonSerializer.Serialize(response, options);
+            _logger.LogDebug("Sending response: {Response}", json);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }
@@ -494,8 +504,13 @@ namespace DraCode.KoboldLair.Server.Services
                 timestamp = DateTime.UtcNow
             };
 
-            var json = JsonSerializer.Serialize(response);
-            Console.WriteLine($"[KoboldLair Server - CommandHandler] Sending error: {json}");
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            };
+            var json = JsonSerializer.Serialize(response, options);
+            _logger.LogWarning("Sending error: {Error}", json);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }

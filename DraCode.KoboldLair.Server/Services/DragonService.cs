@@ -80,7 +80,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        Console.WriteLine($"[KoboldLair Server - Dragon] WebSocket close received for session {sessionId}");
+                        _logger.LogInformation("WebSocket close received for session {SessionId}", sessionId);
                         await webSocket.CloseAsync(
                             WebSocketCloseStatus.NormalClosure,
                             "Closing",
@@ -89,7 +89,7 @@ namespace DraCode.KoboldLair.Server.Services
                     }
 
                     var messageText = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    Console.WriteLine($"[KoboldLair Server - Dragon] Received message ({result.Count} bytes): {messageText}");
+                    _logger.LogDebug("Dragon received message ({Count} bytes): {Message}", result.Count, messageText);
                     await HandleMessageAsync(webSocket, sessionId, messageText, dragon);
                 }
             }
@@ -116,7 +116,11 @@ namespace DraCode.KoboldLair.Server.Services
         {
             try
             {
-                var message = JsonSerializer.Deserialize<DragonMessage>(messageText);
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+                var message = JsonSerializer.Deserialize<DragonMessage>(messageText, options);
                 if (message == null)
                 {
                     _logger.LogWarning("Invalid message format");
@@ -220,8 +224,13 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task SendMessageAsync(WebSocket webSocket, object data)
         {
-            var json = JsonSerializer.Serialize(data);
-            Console.WriteLine($"[KoboldLair Server - Dragon] Sending message: {json}");
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            };
+            var json = JsonSerializer.Serialize(data, options);
+            _logger.LogDebug("Dragon sending message: {Message}", json);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(
                 new ArraySegment<byte>(bytes),

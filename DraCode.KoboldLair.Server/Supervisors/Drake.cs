@@ -111,8 +111,7 @@ namespace DraCode.KoboldLair.Server.Supervisors
                 }
                 catch (Exception ex)
                 {
-                    // Log but don't fail if specification can't be loaded
-                    Console.WriteLine($"Warning: Could not load specification from {_specificationPath}: {ex.Message}");
+                    _logger?.LogWarning(ex, "Could not load specification from {Path}", _specificationPath);
                 }
             }
 

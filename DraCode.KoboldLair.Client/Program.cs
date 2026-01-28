@@ -5,12 +5,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Aspire service defaults
 builder.AddServiceDefaults();
 
+var app = builder.Build();
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
 // Bind configuration
 var koboldLairConfig = builder.Configuration.GetSection("KoboldLair");
 var serverUrl = koboldLairConfig.GetValue<string>("ServerUrl") ?? "ws://localhost:5000";
 var authToken = koboldLairConfig.GetValue<string>("AuthToken") ?? "";
 
-var app = builder.Build();
+logger.LogInformation("KoboldLair Client starting with server URL: {ServerUrl}", serverUrl);
 
 // Map Aspire default endpoints
 app.MapDefaultEndpoints();
@@ -77,7 +80,8 @@ app.Map("/dragon", async (HttpContext context) =>
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"WebSocket proxy error: {ex.Message}");
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "WebSocket proxy error on /dragon endpoint");
         context.Response.StatusCode = 500;
     }
 });
@@ -129,7 +133,8 @@ app.Map("/ws", async (HttpContext context) =>
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"WebSocket proxy error: {ex.Message}");
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "WebSocket proxy error on /ws endpoint");
         context.Response.StatusCode = 500;
     }
 });
@@ -167,27 +172,19 @@ static async Task RelayWebSocketAsync(WebSocket source, WebSocket destination, C
             
             if (result.MessageType == WebSocketMessageType.Close)
             {
-                Console.WriteLine($"[KoboldLair Client] WebSocket close received from {(source == destination ? "client" : "server")}");
                 await destination.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                 break;
             }
-
-            // Log received message for debugging
-            var messageText = System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count);
-            Console.WriteLine($"[KoboldLair Client] Message received ({result.Count} bytes): {messageText}");
 
             await destination.SendAsync(
                 new ArraySegment<byte>(buffer, 0, result.Count),
                 result.MessageType,
                 result.EndOfMessage,
                 cancellationToken);
-
-            // Log sent message for debugging
-            Console.WriteLine($"[KoboldLair Client] Message sent ({result.Count} bytes): {messageText}");
         }
     }
-    catch (Exception ex)
+    catch (Exception)
     {
-        Console.WriteLine($"[KoboldLair Client] WebSocket relay error: {ex.Message}");
+        // Connection closed or error - silently exit relay
     }
 }

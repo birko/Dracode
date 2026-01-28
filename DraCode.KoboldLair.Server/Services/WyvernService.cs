@@ -39,14 +39,13 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        Console.WriteLine($"[KoboldLair Server - Wyvern] WebSocket close received");
+                        _logger.LogInformation("Wyvern WebSocket close received");
                         await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                         break;
                     }
 
                     var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    Console.WriteLine($"[KoboldLair Server - Wyvern] Received message ({result.Count} bytes): {message}");
-                    _logger.LogInformation("Received message: {Message}", message);
+                    _logger.LogDebug("Wyvern received message ({Count} bytes): {Message}", result.Count, message);
 
                     await ProcessMessageAsync(webSocket, message);
                 }
@@ -65,7 +64,12 @@ namespace DraCode.KoboldLair.Server.Services
         {
             try
             {
-                var request = JsonSerializer.Deserialize<WebSocketRequest>(message);
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    PropertyNameCaseInsensitive = true
+                };
+                var request = JsonSerializer.Deserialize<WebSocketRequest>(message, options);
                 if (request == null)
                 {
                     await SendErrorAsync(webSocket, "Invalid request format");
@@ -290,8 +294,13 @@ namespace DraCode.KoboldLair.Server.Services
         {
             if (webSocket.State != WebSocketState.Open) return;
 
-            var json = JsonSerializer.Serialize(data);
-            Console.WriteLine($"[KoboldLair Server - Wyvern] Sending message: {json}");
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            };
+            var json = JsonSerializer.Serialize(data, options);
+            _logger.LogDebug("Wyvern sending message: {Message}", json);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }
