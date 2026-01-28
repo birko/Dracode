@@ -40,9 +40,11 @@ export class ProvidersView {
                 </div>
             `;
         } catch (error) {
+            console.error('Providers error:', error);
             return `<div class="empty-state">
                 <div class="empty-state-icon">⚠️</div>
-                <div>Failed to load providers</div>
+                <div class="empty-state-title">Failed to load providers</div>
+                <div class="empty-state-error">${error.message || error.toString()}</div>
             </div>`;
         }
     }

@@ -1,10 +1,9 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents;
-using DraCode.KoboldLair.Server.Wyvern;
+using DraCode.KoboldLair.Server.Agents.Wyvern;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using TaskStatus = DraCode.KoboldLair.Server.Wyvern.TaskStatus;
+using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyvern.TaskStatus;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -13,14 +12,17 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly TaskTracker _taskTracker;
         private readonly ILogger<WyvernService> _logger;
         private readonly ProviderConfigurationService _providerConfigService;
+        private readonly WebSocketCommandHandler? _commandHandler;
 
         public WyvernService(
             ILogger<WyvernService> logger, 
-            ProviderConfigurationService providerConfigService)
+            ProviderConfigurationService providerConfigService,
+            WebSocketCommandHandler? commandHandler = null)
         {
             _logger = logger;
             _taskTracker = new TaskTracker();
             _providerConfigService = providerConfigService;
+            _commandHandler = commandHandler;
         }
 
         public TaskTracker TaskTracker => _taskTracker;
@@ -37,11 +39,13 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
+                        Console.WriteLine($"[KoboldLair Server - Wyvern] WebSocket close received");
                         await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                         break;
                     }
 
                     var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    Console.WriteLine($"[KoboldLair Server - Wyvern] Received message ({result.Count} bytes): {message}");
                     _logger.LogInformation("Received message: {Message}", message);
 
                     await ProcessMessageAsync(webSocket, message);
@@ -68,8 +72,15 @@ namespace DraCode.KoboldLair.Server.Services
                     return;
                 }
 
-                switch (request.Action?.ToLowerInvariant())
+                // Support both 'action' and 'command' fields
+                var actionOrCommand = (request.Action ?? request.Command)?.ToLowerInvariant();
+
+                switch (actionOrCommand)
                 {
+                    case "ping":
+                        await SendMessageAsync(webSocket, new { type = "pong" });
+                        break;
+                    
                     case "submit_task":
                         await HandleSubmitTaskAsync(webSocket, request);
                         break;
@@ -87,7 +98,15 @@ namespace DraCode.KoboldLair.Server.Services
                         break;
                     
                     default:
-                        await SendErrorAsync(webSocket, $"Unknown action: {request.Action}");
+                        // Try to handle as API command if command handler is available
+                        if (_commandHandler != null && actionOrCommand != null)
+                        {
+                            await _commandHandler.HandleCommandAsync(webSocket, message);
+                        }
+                        else
+                        {
+                            await SendErrorAsync(webSocket, $"Unknown action: {actionOrCommand}");
+                        }
                         break;
                 }
             }
@@ -131,9 +150,12 @@ namespace DraCode.KoboldLair.Server.Services
                     MaxIterations = 10
                 };
 
-                // Message callback to send real-time updates
+                // Message callback to send real-time updates and log to console
                 Action<string, string> messageCallback = async (type, content) =>
                 {
+                    // Log all agent messages to console for debugging
+                    _logger.LogInformation("[Wyvern Agent] [{Type}] {Content}", type, content);
+                    
                     if (webSocket.State == WebSocketState.Open)
                     {
                         await SendMessageAsync(webSocket, new
@@ -269,6 +291,7 @@ namespace DraCode.KoboldLair.Server.Services
             if (webSocket.State != WebSocketState.Open) return;
 
             var json = JsonSerializer.Serialize(data);
+            Console.WriteLine($"[KoboldLair Server - Wyvern] Sending message: {json}");
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }
@@ -282,6 +305,7 @@ namespace DraCode.KoboldLair.Server.Services
     public class WebSocketRequest
     {
         public string? Action { get; set; }
+        public string? Command { get; set; }
         public string? Task { get; set; }
         public string? TaskId { get; set; }
     }

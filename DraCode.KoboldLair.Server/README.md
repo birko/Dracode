@@ -14,6 +14,68 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
 
 ## Configuration
 
+### Provider Configuration
+
+**IMPORTANT:** .NET configuration merges arrays by index position, not by replacement. This means:
+
+- `appsettings.json` - Base provider configuration
+- `appsettings.Development.json` - Development-specific providers that **MERGE** with base config
+
+**To use Development providers exclusively:**
+
+1. **Recommended:** Keep only your active providers in `appsettings.Development.json` and ensure it has the complete list you want to use
+2. **Alternative:** Remove or disable unwanted providers from `appsettings.json` base file
+
+**Configuration Structure:**
+
+```json
+{
+  "KoboldLairProviders": {
+    "Providers": [
+      {
+        "Name": "providerkey",
+        "DisplayName": "Display Name",
+        "Type": "openai|claude|gemini|ollama|llamacpp|githubcopilot",
+        "DefaultModel": "model-name",
+        "CompatibleAgents": ["dragon", "wyrm", "drake", "kobold"],
+        "IsEnabled": true,
+        "RequiresApiKey": true|false,
+        "Description": "Description text",
+        "Configuration": {
+          "apiKey": "your-api-key",  // If RequiresApiKey is true
+          "baseUrl": "https://api.example.com",
+          // ... other provider-specific config
+        }
+      }
+    ],
+    "AgentProviders": {
+      "DragonProvider": "providerkey",
+      "WyvernProvider": "providerkey",
+      "KoboldProvider": "providerkey"
+    }
+  }
+}
+```
+
+**Provider Types:**
+- `openai` - OpenAI GPT models
+- `claude` - Anthropic Claude models  
+- `gemini` - Google Gemini models
+- `ollama` - Local Ollama server
+- `llamacpp` - Local llama.cpp server
+- `azureopenai` - Azure OpenAI Service
+- `githubcopilot` - GitHub Copilot API
+
+**Checking Configuration:**
+
+When the server starts, it logs the active environment:
+```
+[KoboldLair.Server] Environment: Development
+[KoboldLair.Server] ASPNETCORE_ENVIRONMENT: Development
+```
+
+The `/api/providers` endpoint shows which providers are loaded and configured.
+
 ### Resource Limits (Per-Project Kobold Limits)
 
 Control how many kobolds can run in parallel per project to manage resource consumption and prevent any single project from monopolizing system resources.

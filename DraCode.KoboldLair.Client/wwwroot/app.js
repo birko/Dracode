@@ -5,6 +5,8 @@ import { DragonView } from './dragon-view.js';
 import { HierarchyView } from './hierarchy-view.js';
 import { ProjectsView } from './projects-view.js';
 import { ProvidersView } from './providers-view.js';
+import { ServerSelector } from './server-selector.js';
+import { refreshConfig } from './config.js';
 import CONFIG from './config.js';
 
 class App {
@@ -12,9 +14,10 @@ class App {
         this.api = new ApiClient();
         this.wsHealth = null;
         this.currentView = null;
+        this.serverSelector = new ServerSelector();
         this.views = new Map([
             ['dashboard', new DashboardView(this.api)],
-            ['dragon', new DragonView()],
+            ['dragon', new DragonView(this.api)],
             ['hierarchy', new HierarchyView(this.api)],
             ['projects', new ProjectsView(this.api)],
             ['providers', new ProvidersView(this.api)]
@@ -27,10 +30,34 @@ class App {
         // Wait a bit for config to load
         await new Promise(resolve => setTimeout(resolve, 100));
         
+        this.setupServerSelector();
         this.setupNavigation();
-        this.setupConnectionMonitor();
+        this.setupConnectionControls();
         this.setupRefreshButton();
+        this.updateConnectionInfo();
         await this.loadInitialView();
+    }
+
+    setupServerSelector() {
+        const container = document.querySelector('.header-actions');
+        if (container) {
+            const selectorContainer = document.createElement('div');
+            container.prepend(selectorContainer);
+            this.serverSelector.mount(selectorContainer);
+            
+            // Handle server changes
+            this.serverSelector.onServerChange = (server) => {
+                console.log('Server changed to:', server.name);
+                refreshConfig();
+                
+                // Disconnect and update connection info
+                if (this.api && this.api.isConnected()) {
+                    this.api.disconnect();
+                }
+                
+                this.updateConnectionInfo();
+            };
+        }
     }
 
     setupNavigation() {
@@ -56,22 +83,67 @@ class App {
         });
     }
 
-    setupConnectionMonitor() {
-        const checkConnection = async () => {
-            try {
-                const response = await fetch(`${CONFIG.apiUrl}/`);
-                if (response.ok) {
-                    this.updateConnectionStatus('connected');
-                } else {
-                    this.updateConnectionStatus('error');
-                }
-            } catch {
-                this.updateConnectionStatus('error');
-            }
-        };
+    setupConnectionControls() {
+        const connectBtn = document.getElementById('connectBtn');
+        if (!connectBtn) return;
 
-        checkConnection();
-        setInterval(checkConnection, 10000);
+        connectBtn.addEventListener('click', async () => {
+            if (this.api.isConnected()) {
+                // Disconnect
+                this.api.disconnect();
+                this.updateConnectionStatus('disconnected');
+                connectBtn.textContent = 'Connect';
+            } else {
+                // Connect
+                connectBtn.disabled = true;
+                connectBtn.textContent = 'Connecting...';
+                this.updateConnectionStatus('connecting');
+                
+                try {
+                    await this.api.connect();
+                    this.updateConnectionStatus('connected');
+                    connectBtn.textContent = 'Disconnect';
+                    
+                    // Reload current view after connection
+                    const currentHash = window.location.hash.slice(1) || 'dashboard';
+                    await this.loadView(currentHash);
+                } catch (error) {
+                    console.error('Connection failed:', error);
+                    this.updateConnectionStatus('error');
+                    connectBtn.textContent = 'Connect';
+                } finally {
+                    connectBtn.disabled = false;
+                }
+            }
+        });
+
+        // Listen to WebSocket status changes
+        if (this.api.ws) {
+            this.api.ws.onStatusChange((status) => {
+                this.updateConnectionStatus(status);
+                if (status === 'connected') {
+                    connectBtn.textContent = 'Disconnect';
+                    connectBtn.disabled = false;
+                } else if (status === 'disconnected' || status === 'error') {
+                    connectBtn.textContent = 'Connect';
+                    connectBtn.disabled = false;
+                }
+            });
+        }
+    }
+
+    updateConnectionInfo() {
+        const serverUrl = document.getElementById('serverUrl');
+        if (serverUrl) {
+            serverUrl.textContent = CONFIG.wsUrl || 'Not configured';
+        }
+        this.updateConnectionStatus('disconnected');
+        
+        const connectBtn = document.getElementById('connectBtn');
+        if (connectBtn) {
+            connectBtn.textContent = 'Connect';
+            connectBtn.disabled = false;
+        }
     }
 
     updateConnectionStatus(status) {
@@ -142,7 +214,8 @@ class App {
             content.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">⚠️</div>
-                    <div>Error loading view</div>
+                    <div class="empty-state-title">Error loading view</div>
+                    <div class="empty-state-error">${error.message || error.toString()}</div>
                 </div>
             `;
         }

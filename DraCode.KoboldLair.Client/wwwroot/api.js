@@ -1,92 +1,159 @@
 import CONFIG from './config.js';
+import { WebSocketClient } from './websocket.js';
 
 export class ApiClient {
-    constructor(baseUrl = CONFIG.apiUrl) {
-        this.baseUrl = baseUrl;
+    constructor() {
+        this.ws = null;
+        this.pendingRequests = new Map();
+        this.connected = false;
+        this.connecting = false;
     }
 
-    async fetch(endpoint, options = {}) {
+    async connect() {
+        if (this.ws && this.connected) return;
+        if (this.connecting) return;
+
+        this.connecting = true;
+
         try {
-            const response = await fetch(`${this.baseUrl}${endpoint}`, {
-                ...options,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers
+            this.ws = new WebSocketClient('/ws');
+            
+            this.ws.on('response', (data) => {
+                const request = this.pendingRequests.get(data.id);
+                if (request) {
+                    request.resolve(data.data);
+                    this.pendingRequests.delete(data.id);
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
+            this.ws.on('error', (data) => {
+                // Only handle message-level errors (not WebSocket connection errors)
+                if (data && data.id) {
+                    const request = this.pendingRequests.get(data.id);
+                    if (request) {
+                        request.reject(new Error(data.error || 'Unknown error'));
+                        this.pendingRequests.delete(data.id);
+                    }
+                }
+            });
 
-            return await response.json();
-        } catch (error) {
-            console.error(`API Error (${endpoint}):`, error);
-            throw error;
+            this.ws.onStatusChange((status) => {
+                this.connected = (status === 'connected');
+                console.log('API WebSocket status:', status);
+            });
+
+            await this.ws.connect();
+            this.connected = true;
+        } finally {
+            this.connecting = false;
         }
     }
 
-    async getStats() {
-        return this.fetch('/api/stats');
-    }
+    async sendCommand(command, data = null) {
+        // Check if connected
+        if (!this.connected) {
+            throw new Error('Not connected. Please connect first.');
+        }
 
-    async getProjects() {
-        return this.fetch('/api/projects');
-    }
+        const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        return new Promise((resolve, reject) => {
+            this.pendingRequests.set(requestId, { resolve, reject });
 
-    async getHierarchy() {
-        return this.fetch('/api/hierarchy');
-    }
+            // Send the message
+            this.ws.send({
+                id: requestId,
+                command,
+                data
+            }).catch(error => {
+                this.pendingRequests.delete(requestId);
+                reject(error);
+            });
 
-    async getProviders() {
-        return this.fetch('/api/providers');
-    }
-
-    async getProjectConfig(projectId) {
-        return this.fetch(`/api/projects/${projectId}/config`);
-    }
-
-    async updateProjectConfig(projectId, maxParallelKobolds) {
-        return this.fetch(`/api/projects/${projectId}/config`, {
-            method: 'POST',
-            body: JSON.stringify({ maxParallelKobolds })
+            // Timeout after 30 seconds
+            setTimeout(() => {
+                if (this.pendingRequests.has(requestId)) {
+                    this.pendingRequests.delete(requestId);
+                    reject(new Error('Request timeout'));
+                }
+            }, 30000);
         });
     }
 
+    disconnect() {
+        if (this.ws) {
+            this.ws.disconnect();
+            this.connected = false;
+            this.connecting = false;
+        }
+    }
+
+    isConnected() {
+        return this.connected;
+    }
+
+    async getStats() {
+        return this.sendCommand('get_stats');
+    }
+
+    async getProjects() {
+        return this.sendCommand('get_projects');
+    }
+
+    async getHierarchy() {
+        return this.sendCommand('get_hierarchy');
+    }
+
+    async getProviders() {
+        return this.sendCommand('get_providers');
+    }
+
+    async getProjectConfig(projectId) {
+        return this.sendCommand('get_project_config', { projectId });
+    }
+
+    async updateProjectConfig(projectId, maxParallelKobolds) {
+        return this.sendCommand('update_project_config', { projectId, maxParallelKobolds });
+    }
+
     async getProjectProviders(projectId) {
-        return this.fetch(`/api/projects/${projectId}/providers`);
+        return this.sendCommand('get_project_providers', { projectId });
     }
 
     async updateProjectProviders(projectId, agentType, providerName, modelOverride) {
-        return this.fetch(`/api/projects/${projectId}/providers`, {
-            method: 'POST',
-            body: JSON.stringify({ agentType, providerName, modelOverride })
+        return this.sendCommand('update_project_providers', { 
+            projectId, 
+            agentType, 
+            providerName, 
+            modelOverride 
         });
     }
 
     async toggleAgent(projectId, agentType, enabled) {
-        return this.fetch(`/api/projects/${projectId}/agents/${agentType}/toggle`, {
-            method: 'POST',
-            body: JSON.stringify({ enabled })
-        });
+        return this.sendCommand('toggle_agent', { projectId, agentType, enabled });
     }
 
     async getAgentStatus(projectId, agentType) {
-        return this.fetch(`/api/projects/${projectId}/agents/${agentType}/status`);
+        return this.sendCommand('get_agent_status', { projectId, agentType });
     }
 
     async configureProvider(agentType, providerName, modelOverride) {
-        return this.fetch('/api/providers/configure', {
-            method: 'POST',
-            body: JSON.stringify({ agentType, providerName, modelOverride })
-        });
+        return this.sendCommand('configure_provider', { agentType, providerName, modelOverride });
     }
 
     async validateProvider(providerName) {
-        return this.fetch(`/api/providers/validate/${providerName}`);
+        return this.sendCommand('validate_provider', { providerName });
     }
 
     async getProvidersForAgent(agentType) {
-        return this.fetch(`/api/providers/agents/${agentType}`);
+        return this.sendCommand('get_providers_for_agent', { agentType });
+    }
+
+    disconnect() {
+        if (this.ws) {
+            this.ws.disconnect();
+            this.ws = null;
+            this.connected = false;
+        }
     }
 }

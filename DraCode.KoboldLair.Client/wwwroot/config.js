@@ -1,35 +1,60 @@
-// Configuration - will be loaded from server
+import { serverManager } from './server-manager.js';
+
+// Configuration - dynamically loaded from ServerManager
 let CONFIG = {
     apiUrl: window.location.origin,
-    wsUrl: '', // Will use current origin
-    serverUrl: '', // Will use current origin (proxied)
+    wsUrl: '',
+    serverUrl: '',
     authToken: '',
     refreshInterval: 5000
 };
 
-// Load configuration from server
+// Load configuration from active server
 async function loadConfig() {
     try {
+        // First, try to load from /api/config endpoint (initial default)
         const response = await fetch('/api/config');
         if (response.ok) {
             const serverConfig = await response.json();
-            // If serverUrl is empty, use current origin
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            CONFIG.wsUrl = serverConfig.serverUrl || `${wsProtocol}//${window.location.host}`;
-            CONFIG.serverUrl = serverConfig.serverUrl || `${wsProtocol}//${window.location.host}`;
-            CONFIG.authToken = serverConfig.authToken || '';
-            console.log('Loaded config:', CONFIG);
+            // Store as default server if not already exists
+            const servers = serverManager.getAllServers();
+            if (servers.length === 0 || (servers.length === 1 && servers[0].id === 'default')) {
+                serverManager.updateServer('default', {
+                    url: serverConfig.serverUrl || 'ws://localhost:5000',
+                    token: serverConfig.authToken || ''
+                });
+            }
         }
     } catch (error) {
-        console.warn('Failed to load server config, using defaults:', error);
-        // Use current origin as fallback
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        CONFIG.wsUrl = `${wsProtocol}//${window.location.host}`;
-        CONFIG.serverUrl = `${wsProtocol}//${window.location.host}`;
+        console.warn('Failed to load server config from API, using stored settings:', error);
+    }
+
+    // Load from active server in ServerManager
+    updateConfigFromActiveServer();
+}
+
+// Update config from active server
+function updateConfigFromActiveServer() {
+    const activeServer = serverManager.getActiveServer();
+    if (activeServer) {
+        // Use the server URL directly (should be wss:// or ws://)
+        CONFIG.wsUrl = activeServer.url;
+        CONFIG.serverUrl = activeServer.url;
+        CONFIG.authToken = activeServer.token || '';
+        console.log('Active server config:', {
+            name: activeServer.name,
+            url: activeServer.url,
+            hasToken: !!activeServer.token
+        });
     }
 }
 
 // Initialize config on load
 loadConfig();
+
+// Export function to refresh config (call after switching servers)
+export function refreshConfig() {
+    updateConfigFromActiveServer();
+}
 
 export default CONFIG;

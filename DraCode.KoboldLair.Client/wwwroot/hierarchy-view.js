@@ -23,9 +23,11 @@ export class HierarchyView {
                 </div>
             `;
         } catch (error) {
+            console.error('Hierarchy error:', error);
             return `<div class="empty-state">
                 <div class="empty-state-icon">⚠️</div>
-                <div>Failed to load hierarchy</div>
+                <div class="empty-state-title">Failed to load hierarchy</div>
+                <div class="empty-state-error">${error.message || error.toString()}</div>
             </div>`;
         }
     }

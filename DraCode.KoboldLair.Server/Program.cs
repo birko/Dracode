@@ -1,12 +1,19 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Factories;
 using DraCode.KoboldLair.Server.Services;
 using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Agents.Wyrm;
+using DraCode.KoboldLair.Server.Agents.Kobold;
+using DraCode.KoboldLair.Server.Supervisors;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services
 builder.AddServiceDefaults();
+
+// Log the current environment
+Console.WriteLine($"[KoboldLair.Server] Environment: {builder.Environment.EnvironmentName}");
+Console.WriteLine($"[KoboldLair.Server] ASPNETCORE_ENVIRONMENT: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}");
+Console.WriteLine($"[KoboldLair.Server] DOTNET_ENVIRONMENT: {Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")}");
 
 // Bind Authentication configuration from appsettings.json
 builder.Services.Configure<AuthenticationConfiguration>(
@@ -58,13 +65,13 @@ builder.Services.AddSingleton<ProjectService>(sp =>
 builder.Services.AddSingleton<KoboldFactory>(sp =>
 {
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
-    
+
     // Use ProjectConfigurationService for max parallel kobolds
     Func<string?, int> getMaxParallel = (projectId) =>
     {
         return projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty);
     };
-    
+
     return new KoboldFactory(projectConfigService, getMaxParallel);
 });
 builder.Services.AddSingleton<DrakeFactory>(sp =>
@@ -76,7 +83,14 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
 });
 
 // Register services
-builder.Services.AddSingleton<WyvernService>();
+builder.Services.AddSingleton<WebSocketCommandHandler>();
+builder.Services.AddSingleton<WyvernService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<WyvernService>>();
+    var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var commandHandler = sp.GetRequiredService<WebSocketCommandHandler>();
+    return new WyvernService(logger, providerConfigService, commandHandler);
+});
 builder.Services.AddSingleton<DragonService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<DragonService>>();
@@ -120,7 +134,7 @@ using (var scope = app.Services.CreateScope())
     var projectService = scope.ServiceProvider.GetRequiredService<ProjectService>();
     var providerConfigService = scope.ServiceProvider.GetRequiredService<ProviderConfigurationService>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    
+
     logger.LogInformation("Initializing configurations for existing projects...");
     projectService.InitializeProjectConfigurations(providerConfigService);
     logger.LogInformation("Configuration initialization complete");
@@ -131,8 +145,12 @@ app.MapDefaultEndpoints();
 // Enable CORS
 app.UseCors();
 
-// Enable WebSocket
-app.UseWebSockets();
+// Enable WebSocket with keep-alive
+var webSocketOptions = new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(30)
+};
+app.UseWebSockets(webSocketOptions);
 
 // WebSocket endpoint for Wyvern (task delegation) with authentication
 app.Map("/ws", async context =>
@@ -140,11 +158,11 @@ app.Map("/ws", async context =>
     if (context.WebSockets.IsWebSocketRequest)
     {
         var authService = context.RequestServices.GetRequiredService<WebSocketAuthenticationService>();
-        
+
         // Extract token and client IP
         var token = authService.ExtractTokenFromQuery(context);
         var clientIp = authService.GetClientIpAddress(context);
-        
+
         // Validate authentication token with IP binding
         if (!authService.ValidateToken(token, clientIp))
         {
@@ -152,7 +170,7 @@ app.Map("/ws", async context =>
             await context.Response.WriteAsync("Unauthorized: Invalid or missing authentication token, or IP address not allowed");
             return;
         }
-        
+
         var wyvernService = context.RequestServices.GetRequiredService<WyvernService>();
         var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         await wyvernService.HandleWebSocketAsync(webSocket);
@@ -169,11 +187,11 @@ app.Map("/dragon", async context =>
     if (context.WebSockets.IsWebSocketRequest)
     {
         var authService = context.RequestServices.GetRequiredService<WebSocketAuthenticationService>();
-        
+
         // Extract token and client IP
         var token = authService.ExtractTokenFromQuery(context);
         var clientIp = authService.GetClientIpAddress(context);
-        
+
         // Validate authentication token with IP binding
         if (!authService.ValidateToken(token, clientIp))
         {
@@ -181,7 +199,7 @@ app.Map("/dragon", async context =>
             await context.Response.WriteAsync("Unauthorized: Invalid or missing authentication token, or IP address not allowed");
             return;
         }
-        
+
         var dragonService = context.RequestServices.GetRequiredService<DragonService>();
         var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         await dragonService.HandleWebSocketAsync(webSocket);
@@ -192,326 +210,7 @@ app.Map("/dragon", async context =>
     }
 });
 
-// API endpoint for hierarchy data
-app.MapGet("/api/hierarchy", (
-    ProjectService projectService,
-    DragonService dragonService,
-    DrakeFactory drakeFactory,
-    WyrmFactory wyrmFactory) =>
-{
-    var projects = projectService.GetAllProjects();
-    var stats = projectService.GetStatistics();
-    var dragonStats = dragonService.GetStatistics();
-    var drakes = drakeFactory.GetAllDrakes();
-    
-    // Calculate totals
-    var totalKobolds = drakes.Sum(d => d.GetStatistics().WorkingKobolds);
-    var totalWyrms = wyrmFactory.TotalWyrms;
-    
-    var response = new
-    {
-        statistics = new
-        {
-            dragonSessions = dragonStats.ActiveSessions,
-            projects = stats.TotalProjects,
-            wyrms = totalWyrms,
-            drakes = drakes.Count,
-            koboldsWorking = totalKobolds
-        },
-        projects = projects.Select(p => new
-        {
-            p.Id,
-            p.Name,
-            p.Status,
-            p.WyrmId,
-            p.CreatedAt,
-            p.AnalyzedAt,
-            p.OutputPath,
-            p.SpecificationPath,
-            p.TaskFiles,
-            p.ErrorMessage
-        }),
-        hierarchy = new
-        {
-            dragon = new
-            {
-                name = "Dragon Requirements Agent",
-                icon = "🐉",
-                status = dragonStats.ActiveSessions > 0 ? "active" : "idle",
-                activeSessions = dragonStats.ActiveSessions
-            },
-            projects = projects.Where(p => p.WyrmId != null).Select(p =>
-            {
-                var wyrm = wyrmFactory.GetWyrm(p.Name);
-                return new
-                {
-                    id = p.Id,
-                    name = p.Name,
-                    icon = "📁",
-                    status = p.Status.ToString().ToLower(),
-                    wyrm = wyrm != null ? new
-                    {
-                        id = p.WyrmId,
-                        name = $"Wyrm ({p.Name})",
-                        icon = "🐲",
-                        status = p.Status == ProjectStatus.Analyzed ? "active" : "working",
-                        analyzed = p.Status >= ProjectStatus.Analyzed,
-                        totalTasks = wyrm.Analysis?.TotalTasks ?? 0
-                    } : null
-                };
-            }).ToList()
-        }
-    };
-    
-    return Results.Json(response);
-});
-
-// API endpoint for project statistics
-app.MapGet("/api/projects", (ProjectService projectService) =>
-{
-    var projects = projectService.GetAllProjects();
-    return Results.Json(projects);
-});
-
-// API endpoint for statistics
-app.MapGet("/api/stats", (
-    ProjectService projectService,
-    DragonService dragonService,
-    DrakeFactory drakeFactory,
-    WyrmFactory wyrmFactory) =>
-{
-    var projectStats = projectService.GetStatistics();
-    var dragonStats = dragonService.GetStatistics();
-    var drakes = drakeFactory.GetAllDrakes();
-    
-    var response = new
-    {
-        projects = projectStats,
-        dragon = dragonStats,
-        drakes = drakes.Count,
-        wyrms = wyrmFactory.TotalWyrms,
-        koboldsWorking = drakes.Sum(d => d.GetStatistics().WorkingKobolds)
-    };
-    
-    return Results.Json(response);
-});
-
-// API endpoints for provider configuration
-app.MapGet("/api/providers", (ProviderConfigurationService providerService) =>
-{
-    var config = providerService.GetConfiguration();
-    var providers = config.Providers.Select(p => new
-    {
-        p.Name,
-        p.DisplayName,
-        p.Type,
-        p.DefaultModel,
-        p.CompatibleAgents,
-        p.IsEnabled,
-        p.RequiresApiKey,
-        p.Description,
-        IsConfigured = providerService.ValidateProvider(p.Name).isValid
-    });
-    
-    return Results.Json(new
-    {
-        providers,
-        agentProviders = config.AgentProviders
-    });
-});
-
-app.MapPost("/api/providers/configure", (
-    ProviderConfigurationService providerService,
-    AgentProviderUpdate update) =>
-{
-    try
-    {
-        providerService.SetProviderForAgent(update.AgentType, update.ProviderName, update.ModelOverride);
-        return Results.Ok(new { success = true, message = $"Updated {update.AgentType} to use {update.ProviderName}" });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { success = false, message = ex.Message });
-    }
-});
-
-app.MapGet("/api/providers/validate/{providerName}", (
-    ProviderConfigurationService providerService,
-    string providerName) =>
-{
-    var (isValid, message) = providerService.ValidateProvider(providerName);
-    return Results.Json(new { isValid, message, providerName });
-});
-
-app.MapGet("/api/providers/agents/{agentType}", (
-    ProviderConfigurationService providerService,
-    string agentType) =>
-{
-    var providers = providerService.GetProvidersForAgent(agentType);
-    var currentProvider = providerService.GetProviderForAgent(agentType);
-    
-    return Results.Json(new
-    {
-        agentType,
-        currentProvider,
-        availableProviders = providers.Select(p => new
-        {
-            p.Name,
-            p.DisplayName,
-            p.DefaultModel,
-            p.Description,
-            IsConfigured = providerService.ValidateProvider(p.Name).isValid
-        })
-    });
-});
-
-// Project-specific provider endpoints
-app.MapGet("/api/projects/{projectId}/providers", (
-    ProjectService projectService,
-    ProviderConfigurationService providerConfigService,
-    string projectId) =>
-{
-    try
-    {
-        var project = projectService.GetProject(projectId);
-        if (project == null)
-        {
-            return Results.NotFound(new { error = "Project not found" });
-        }
-
-        var config = projectService.GetProjectConfig(projectId);
-        
-        return Results.Json(new
-        {
-            projectId,
-            projectName = project.Name,
-            providers = new
-            {
-                wyrmProvider = config.WyrmProvider,
-                wyrmModel = config.WyrmModel,
-                wyrmEnabled = config.WyrmEnabled,
-                drakeProvider = config.DrakeProvider,
-                drakeModel = config.DrakeModel,
-                drakeEnabled = config.DrakeEnabled,
-                koboldProvider = config.KoboldProvider,
-                koboldModel = config.KoboldModel,
-                koboldEnabled = config.KoboldEnabled,
-                lastUpdated = config.LastUpdated
-            },
-            availableProviders = providerConfigService.GetAvailableProviders().Select(p => new
-            {
-                p.Name,
-                p.DisplayName,
-                p.DefaultModel,
-                p.CompatibleAgents,
-                IsConfigured = providerConfigService.ValidateProvider(p.Name).isValid
-            })
-        });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-});
-
-app.MapPost("/api/projects/{projectId}/providers", (
-    ProjectService projectService,
-    string projectId,
-    ProjectProviderUpdate update) =>
-{
-    try
-    {
-        projectService.SetProjectProviders(projectId, update.AgentType, update.ProviderName, update.ModelOverride);
-        return Results.Ok(new { success = true, message = "Provider settings updated for project" });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { success = false, message = ex.Message });
-    }
-});
-
-app.MapPost("/api/projects/{projectId}/agents/{agentType}/toggle", (
-    ProjectService projectService,
-    string projectId,
-    string agentType,
-    AgentToggleRequest request) =>
-{
-    try
-    {
-        projectService.SetAgentEnabled(projectId, agentType, request.Enabled);
-        var status = request.Enabled ? "enabled" : "disabled";
-        return Results.Ok(new { success = true, message = $"{agentType} {status} for project", enabled = request.Enabled });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { success = false, message = ex.Message });
-    }
-});
-
-app.MapGet("/api/projects/{projectId}/agents/{agentType}/status", (
-    ProjectService projectService,
-    string projectId,
-    string agentType) =>
-{
-    try
-    {
-        var enabled = projectService.IsAgentEnabled(projectId, agentType);
-        return Results.Json(new { projectId, agentType, enabled });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-});
-
-app.MapGet("/api/projects/{projectId}/config", (
-    ProjectService projectService,
-    string projectId) =>
-{
-    try
-    {
-        var project = projectService.GetProject(projectId);
-        if (project == null)
-        {
-            return Results.NotFound(new { error = "Project not found" });
-        }
-        
-        return Results.Json(new 
-        { 
-            projectId, 
-            projectName = project.Name,
-            maxParallelKobolds = project.MaxParallelKobolds
-        });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-});
-
-app.MapPost("/api/projects/{projectId}/config", (
-    ProjectService projectService,
-    string projectId,
-    ProjectConfigUpdate update) =>
-{
-    try
-    {
-        projectService.SetMaxParallelKobolds(projectId, update.MaxParallelKobolds);
-        return Results.Ok(new { success = true, message = "Project configuration updated" });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { success = false, message = ex.Message });
-    }
-});
-
 // Health check endpoint
 app.MapGet("/", () => new { status = "running", endpoints = new[] { "/ws", "/dragon" } });
 
 app.Run();
-
-// DTOs
-record AgentProviderUpdate(string AgentType, string ProviderName, string? ModelOverride);
-record AgentToggleRequest(bool Enabled);
-record ProjectConfigUpdate(int MaxParallelKobolds);
-record ProjectProviderUpdate(string AgentType, string ProviderName, string? ModelOverride);

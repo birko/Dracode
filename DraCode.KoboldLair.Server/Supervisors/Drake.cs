@@ -1,9 +1,9 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Factories;
+using DraCode.KoboldLair.Server.Agents.Kobold;
 using DraCode.KoboldLair.Server.Models;
-using DraCode.KoboldLair.Server.Projects;
-using DraCode.KoboldLair.Server.Wyvern;
-using TaskStatus = DraCode.KoboldLair.Server.Wyvern.TaskStatus;
+using DraCode.KoboldLair.Server.Agents.Wyrm;
+using DraCode.KoboldLair.Server.Agents.Wyvern;
+using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyvern.TaskStatus;
 
 namespace DraCode.KoboldLair.Server.Supervisors
 {

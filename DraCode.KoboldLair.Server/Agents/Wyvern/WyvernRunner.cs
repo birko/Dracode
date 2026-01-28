@@ -1,8 +1,7 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Wyvern;
-using TaskStatus = DraCode.KoboldLair.Server.Wyvern.TaskStatus;
+using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyvern.TaskStatus;
 
-namespace DraCode.KoboldLair.Server.Agents
+namespace DraCode.KoboldLair.Server.Agents.Wyvern
 {
     /// <summary>
     /// Helper class for running tasks through the wyvern pattern.

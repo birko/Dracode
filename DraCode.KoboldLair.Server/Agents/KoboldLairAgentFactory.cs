@@ -1,5 +1,7 @@
 using DraCode.Agent;
 using DraCode.Agent.Agents;
+using DraCode.KoboldLair.Server.Agents.Wyvern;
+using DraCode.KoboldLair.Server.Agents.Dragon;
 
 namespace DraCode.KoboldLair.Server.Agents
 {

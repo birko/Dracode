@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Wyvern
+namespace DraCode.KoboldLair.Server.Agents.Wyvern
 {
     /// <summary>
     /// Represents the status of a task in the orchestrator

@@ -1,10 +1,8 @@
 using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
-using DraCode.KoboldLair.Server.Agents;
-using DraCode.KoboldLair.Server.Projects;
 using DraCode.KoboldLair.Server.Services;
 
-namespace DraCode.KoboldLair.Server.Factories
+namespace DraCode.KoboldLair.Server.Agents.Wyrm
 {
     /// <summary>
     /// Factory for creating and managing Wyrm instances.

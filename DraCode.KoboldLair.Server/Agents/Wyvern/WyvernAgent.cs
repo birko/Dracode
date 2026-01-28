@@ -3,7 +3,7 @@ using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
-namespace DraCode.KoboldLair.Server.Agents
+namespace DraCode.KoboldLair.Server.Agents.Wyvern
 {
     public class WyvernAgent : AgentBase
     {

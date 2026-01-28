@@ -133,14 +133,21 @@ namespace DraCode.KoboldLair.Server.Services
 
                 config["model"] = modelOverride ?? providerConfig.DefaultModel;
 
-                // Add API key from environment if needed
+                // Add API key from environment if needed (overrides config file)
                 if (providerConfig.RequiresApiKey)
                 {
-                    var apiKeyEnvVar = GetApiKeyEnvironmentVariable(providerName);
+                    var apiKeyEnvVar = GetApiKeyEnvironmentVariable(providerConfig.Type);
                     var apiKey = Environment.GetEnvironmentVariable(apiKeyEnvVar);
                     if (!string.IsNullOrWhiteSpace(apiKey))
                     {
                         config["apiKey"] = apiKey;
+                        _logger.LogDebug("Using API key from environment variable {EnvVar} for provider {Provider}", 
+                            apiKeyEnvVar, providerName);
+                    }
+                    else if (!config.ContainsKey("apiKey") || string.IsNullOrWhiteSpace(config["apiKey"]))
+                    {
+                        _logger.LogWarning("Provider {Provider} requires API key but none found in environment variable {EnvVar} or configuration", 
+                            providerName, apiKeyEnvVar);
                     }
                 }
 
@@ -244,11 +251,14 @@ namespace DraCode.KoboldLair.Server.Services
                 // Check API key if required
                 if (provider.RequiresApiKey)
                 {
-                    var apiKeyEnvVar = GetApiKeyEnvironmentVariable(providerName);
+                    var apiKeyEnvVar = GetApiKeyEnvironmentVariable(provider.Type);
                     var apiKey = Environment.GetEnvironmentVariable(apiKeyEnvVar);
-                    if (string.IsNullOrWhiteSpace(apiKey))
+                    var configHasKey = provider.Configuration.ContainsKey("apiKey") && 
+                                      !string.IsNullOrWhiteSpace(provider.Configuration["apiKey"]);
+                    
+                    if (string.IsNullOrWhiteSpace(apiKey) && !configHasKey)
                     {
-                        return (false, $"API key not found. Please set environment variable: {apiKeyEnvVar}");
+                        return (false, $"API key not found. Please set environment variable: {apiKeyEnvVar} or add apiKey to configuration");
                     }
                 }
 
@@ -295,16 +305,17 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private static string GetApiKeyEnvironmentVariable(string providerName)
+        private static string GetApiKeyEnvironmentVariable(string providerType)
         {
-            return providerName.ToLowerInvariant() switch
+            return providerType.ToLowerInvariant() switch
             {
                 "openai" => "OPENAI_API_KEY",
                 "claude" => "ANTHROPIC_API_KEY",
                 "gemini" => "GOOGLE_API_KEY",
                 "azureopenai" => "AZURE_OPENAI_API_KEY",
                 "githubcopilot" => "GITHUB_COPILOT_TOKEN",
-                _ => $"{providerName.ToUpperInvariant()}_API_KEY"
+                "llamacpp" => "LLAMACPP_API_KEY",
+                _ => $"{providerType.ToUpperInvariant()}_API_KEY"
             };
         }
     }

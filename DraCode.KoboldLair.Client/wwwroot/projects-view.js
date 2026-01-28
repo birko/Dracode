@@ -29,9 +29,11 @@ export class ProjectsView {
                 </div>
             `;
         } catch (error) {
+            console.error('Projects error:', error);
             return `<div class="empty-state">
                 <div class="empty-state-icon">⚠️</div>
-                <div>Failed to load projects</div>
+                <div class="empty-state-title">Failed to load projects</div>
+                <div class="empty-state-error">${error.message || error.toString()}</div>
             </div>`;
         }
     }

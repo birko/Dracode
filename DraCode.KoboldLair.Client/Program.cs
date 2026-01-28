@@ -2,19 +2,13 @@ using System.Net.WebSockets;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Aspire service defaults (includes service discovery)
+// Add Aspire service defaults
 builder.AddServiceDefaults();
 
-// Configure service discovery
-builder.Services.AddServiceDiscovery();
-
-// Add HTTP client for proxying to KoboldLair Server with service discovery
-builder.Services.AddHttpClient("KoboldLairServer", client =>
-{
-    // Placeholder - will be resolved by service discovery
-    client.BaseAddress = new Uri("http://dracode-koboldlair-server");
-})
-.AddServiceDiscovery(); // Enable service discovery for this client
+// Bind configuration
+var koboldLairConfig = builder.Configuration.GetSection("KoboldLair");
+var serverUrl = koboldLairConfig.GetValue<string>("ServerUrl") ?? "ws://localhost:5000";
+var authToken = koboldLairConfig.GetValue<string>("AuthToken") ?? "";
 
 var app = builder.Build();
 
@@ -24,85 +18,20 @@ app.MapDefaultEndpoints();
 // Enable WebSockets
 app.UseWebSockets();
 
-// Serve dynamic configuration (MUST come before wildcard /api/{**path})
-app.MapGet("/api/config", async (HttpContext context, IHttpClientFactory httpClientFactory) =>
+// Serve configuration endpoint for frontend
+app.MapGet("/api/config", () => Results.Json(new
 {
-    try
+    serverUrl,
+    authToken,
+    endpoints = new
     {
-        // For WebSocket connections, use relative URLs (proxy through this client)
-        var config = new
-        {
-            serverUrl = "", // Empty means use current origin
-            apiUrl = "",
-            authToken = "",
-            endpoints = new
-            {
-                wyvern = "/ws",
-                dragon = "/dragon"
-            }
-        };
-        
-        return Results.Json(config);
+        wyvern = "/ws",
+        dragon = "/dragon"
     }
-    catch
-    {
-        var config = new
-        {
-            serverUrl = "",
-            apiUrl = "",
-            authToken = "",
-            endpoints = new
-            {
-                wyvern = "/ws",
-                dragon = "/dragon"
-            }
-        };
-        
-        return Results.Json(config);
-    }
-});
-
-// Proxy API requests to the server (comes after specific routes)
-app.MapGet("/api/{**path}", async (string path, IHttpClientFactory httpClientFactory) =>
-{
-    try
-    {
-        var client = httpClientFactory.CreateClient("KoboldLairServer");
-        var response = await client.GetAsync($"/api/{path}");
-        var content = await response.Content.ReadAsStringAsync();
-        return Results.Content(content, response.Content.Headers.ContentType?.ToString() ?? "application/json");
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Error proxying request: {ex.Message}", statusCode: 500);
-    }
-});
-
-app.MapPost("/api/{**path}", async (string path, HttpContext context, IHttpClientFactory httpClientFactory) =>
-{
-    try
-    {
-        var client = httpClientFactory.CreateClient("KoboldLairServer");
-        var requestContent = new StreamContent(context.Request.Body);
-        
-        foreach (var header in context.Request.Headers)
-        {
-            if (header.Key.StartsWith("Content-", StringComparison.OrdinalIgnoreCase))
-                requestContent.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
-        }
-        
-        var response = await client.PostAsync($"/api/{path}", requestContent);
-        var content = await response.Content.ReadAsStringAsync();
-        return Results.Content(content, response.Content.Headers.ContentType?.ToString() ?? "application/json");
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Error proxying request: {ex.Message}", statusCode: 500);
-    }
-});
+}));
 
 // WebSocket proxy for /dragon endpoint
-app.Map("/dragon", async (HttpContext context, IHttpClientFactory httpClientFactory) =>
+app.Map("/dragon", async (HttpContext context) =>
 {
     if (!context.WebSockets.IsWebSocketRequest)
     {
@@ -112,12 +41,16 @@ app.Map("/dragon", async (HttpContext context, IHttpClientFactory httpClientFact
 
     try
     {
-        var client = httpClientFactory.CreateClient("KoboldLairServer");
-        var serverUrl = client.BaseAddress?.ToString().TrimEnd('/') ?? "http://localhost:5000";
-        var wsUrl = serverUrl.Replace("http://", "ws://").Replace("https://", "ws://") + "/dragon";
+        // Convert http(s):// to ws(s):// for WebSocket connection
+        var wsUrl = serverUrl.Replace("https://", "wss://").Replace("http://", "ws://").TrimEnd('/') + "/dragon";
         
-        // Extract token if present
+        // Extract token if present in query or use config
         var token = context.Request.Query["token"].ToString();
+        if (string.IsNullOrEmpty(token))
+        {
+            token = authToken;
+        }
+        
         if (!string.IsNullOrEmpty(token))
         {
             wsUrl += $"?token={token}";
@@ -125,6 +58,9 @@ app.Map("/dragon", async (HttpContext context, IHttpClientFactory httpClientFact
 
         var clientWs = await context.WebSockets.AcceptWebSocketAsync();
         var serverWs = new ClientWebSocket();
+        
+        // Bypass SSL certificate validation for development
+        serverWs.Options.RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true;
         
         await serverWs.ConnectAsync(new Uri(wsUrl), context.RequestAborted);
 
@@ -147,7 +83,7 @@ app.Map("/dragon", async (HttpContext context, IHttpClientFactory httpClientFact
 });
 
 // WebSocket proxy for /ws endpoint (Wyvern)
-app.Map("/ws", async (HttpContext context, IHttpClientFactory httpClientFactory) =>
+app.Map("/ws", async (HttpContext context) =>
 {
     if (!context.WebSockets.IsWebSocketRequest)
     {
@@ -157,12 +93,16 @@ app.Map("/ws", async (HttpContext context, IHttpClientFactory httpClientFactory)
 
     try
     {
-        var client = httpClientFactory.CreateClient("KoboldLairServer");
-        var serverUrl = client.BaseAddress?.ToString().TrimEnd('/') ?? "http://localhost:5000";
-        var wsUrl = serverUrl.Replace("http://", "ws://").Replace("https://", "ws://") + "/ws";
+        // Convert http(s):// to ws(s):// for WebSocket connection
+        var wsUrl = serverUrl.Replace("https://", "wss://").Replace("http://", "ws://").TrimEnd('/') + "/ws";
         
-        // Extract token if present
+        // Extract token if present in query or use config
         var token = context.Request.Query["token"].ToString();
+        if (string.IsNullOrEmpty(token))
+        {
+            token = authToken;
+        }
+        
         if (!string.IsNullOrEmpty(token))
         {
             wsUrl += $"?token={token}";
@@ -170,6 +110,9 @@ app.Map("/ws", async (HttpContext context, IHttpClientFactory httpClientFactory)
 
         var clientWs = await context.WebSockets.AcceptWebSocketAsync();
         var serverWs = new ClientWebSocket();
+        
+        // Bypass SSL certificate validation for development
+        serverWs.Options.RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true;
         
         await serverWs.ConnectAsync(new Uri(wsUrl), context.RequestAborted);
 
@@ -192,7 +135,20 @@ app.Map("/ws", async (HttpContext context, IHttpClientFactory httpClientFactory)
 });
 
 // Serve static files
-app.UseStaticFiles();
+var staticFileOptions = new StaticFileOptions();
+
+// Disable caching in development
+if (app.Environment.IsDevelopment())
+{
+    staticFileOptions.OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+        ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+        ctx.Context.Response.Headers.Append("Expires", "0");
+    };
+}
+
+app.UseStaticFiles(staticFileOptions);
 
 // Serve index.html as default
 app.MapFallbackToFile("index.html");
@@ -211,19 +167,27 @@ static async Task RelayWebSocketAsync(WebSocket source, WebSocket destination, C
             
             if (result.MessageType == WebSocketMessageType.Close)
             {
+                Console.WriteLine($"[KoboldLair Client] WebSocket close received from {(source == destination ? "client" : "server")}");
                 await destination.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                 break;
             }
+
+            // Log received message for debugging
+            var messageText = System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count);
+            Console.WriteLine($"[KoboldLair Client] Message received ({result.Count} bytes): {messageText}");
 
             await destination.SendAsync(
                 new ArraySegment<byte>(buffer, 0, result.Count),
                 result.MessageType,
                 result.EndOfMessage,
                 cancellationToken);
+
+            // Log sent message for debugging
+            Console.WriteLine($"[KoboldLair Client] Message sent ({result.Count} bytes): {messageText}");
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"WebSocket relay error: {ex.Message}");
+        Console.WriteLine($"[KoboldLair Client] WebSocket relay error: {ex.Message}");
     }
 }

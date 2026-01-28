@@ -1,10 +1,9 @@
 using System.Text.Json;
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents;
+using DraCode.KoboldLair.Server.Agents.Wyvern;
 using DraCode.KoboldLair.Server.Models;
-using DraCode.KoboldLair.Server.Wyvern;
 
-namespace DraCode.KoboldLair.Server.Projects
+namespace DraCode.KoboldLair.Server.Agents.Wyrm
 {
     /// <summary>
     /// Wyrm analyzes project specifications and creates organized, dependency-aware task lists.

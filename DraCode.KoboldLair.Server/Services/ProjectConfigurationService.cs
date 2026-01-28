@@ -1,6 +1,7 @@
 using System.Text.Json;
+using DraCode.KoboldLair.Server.Models;
 
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Services
 {
     /// <summary>
     /// Service for loading and managing project configurations
@@ -195,9 +196,33 @@ namespace DraCode.KoboldLair.Server.Models
         /// <summary>
         /// Gets all project configurations
         /// </summary>
-        public IReadOnlyList<ProjectConfig> GetAllProjects()
+        public IReadOnlyList<ProjectConfig> GetAllProjectConfigs()
         {
             return _configurations.Projects.AsReadOnly();
+        }
+
+        /// <summary>
+        /// Gets the default configuration
+        /// </summary>
+        public int GetDefaultConfiguration()
+        {
+            return _configurations.DefaultMaxParallelKobolds;
+        }
+
+        /// <summary>
+        /// Deletes a project configuration
+        /// </summary>
+        public bool DeleteProjectConfig(string projectId)
+        {
+            var config = GetProjectConfig(projectId);
+            if (config == null)
+            {
+                return false;
+            }
+
+            _configurations.Projects.Remove(config);
+            SaveConfigurations();
+            return true;
         }
 
         /// <summary>

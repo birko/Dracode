@@ -25,33 +25,41 @@
 
 ## Configuration
 
-Edit `wwwroot/config.js` to configure the client:
+The client now uses **WebSocket-only communication**. Configure the server connection in `appsettings.json`:
 
-```javascript
-const CONFIG = {
-    apiUrl: window.location.origin,
-    wsUrl: window.location.origin.replace('http', 'ws'),
-    authToken: '',
-    refreshInterval: 5000
-};
+```json
+{
+  "KoboldLair": {
+    "ServerUrl": "ws://localhost:5000",
+    "AuthToken": ""
+  }
+}
 ```
 
-### Server URL
+### Server URL Configuration
 
-The `serverUrl` should point to your KoboldLair.Server instance:
+Set the `ServerUrl` to point to your KoboldLair.Server WebSocket endpoint:
 
 - **Local development**: `ws://localhost:5000`
-- **Production with HTTPS**: `wss://your-domain.com`
+- **Remote server**: `ws://192.168.1.100:5000`
+- **Production with TLS**: `wss://your-domain.com`
 - **Custom port**: `ws://localhost:8080`
+
+The URL should use `ws://` for unencrypted or `wss://` for encrypted connections.
 
 ### Authentication
 
 If the server has authentication enabled:
 
 1. Get a valid token from your server administrator
-2. Set it in config.js:
-```javascript
-authToken: 'your-token-here'
+2. Set it in `appsettings.json`:
+```json
+{
+  "KoboldLair": {
+    "ServerUrl": "ws://your-server:5000",
+    "AuthToken": "your-token-here"
+  }
+}
 ```
 
 The token will be automatically appended to all WebSocket connections.
@@ -98,6 +106,7 @@ Start `dracode-koboldlair-client` from the Aspire Dashboard.
 - **Streaming messages** - Real-time typing effect for AI responses
 - **Smooth animations** - Beautiful message transitions and effects
 - **Mobile responsive** - Optimized for all screen sizes
+- **Agent Reload** - 🔄 Reload agent button to clear context and reload provider settings
 - Requirements gathering and specification generation
 - Project creation and management
 
@@ -120,45 +129,108 @@ Start `dracode-koboldlair-client` from the Aspire Dashboard.
 
 ## Connecting to a Remote Server
 
-To connect to a KoboldLair.Server running on another machine:
+To connect to a KoboldLair.Server running on another machine, edit `appsettings.json`:
 
-1. Edit `wwwroot/js/config.js`:
-```javascript
-const CONFIG = {
-    serverUrl: 'ws://192.168.1.100:5000',  // Server IP and port
-    authToken: 'your-server-token',        // If authentication is enabled
-    // ...
-};
+```json
+{
+  "KoboldLair": {
+    "ServerUrl": "ws://192.168.1.100:5000",
+    "AuthToken": "your-server-token"
+  }
+}
 ```
 
-2. Ensure the server's CORS policy allows your client origin (already configured by default)
+For production with TLS/SSL:
 
-3. For production, use WSS (WebSocket Secure):
-```javascript
-serverUrl: 'wss://your-server.com'
+```json
+{
+  "KoboldLair": {
+    "ServerUrl": "wss://your-server.com",
+    "AuthToken": "your-server-token"
+  }
+}
 ```
+
+**Note**: The server must be accessible from your client machine on the specified port.
 
 ## Troubleshooting
 
 ### Connection Issues
 
 **Problem**: WebSocket connection fails
-- Check `config.js` has correct `serverUrl`
-- Verify server is running
-- Check firewall/network allows WebSocket connections
-- Look for CORS errors in browser console
+- Check `appsettings.json` has correct `ServerUrl`
+- Verify server is running and accessible
+- Check firewall/network allows WebSocket connections on the specified port
+- Look for connection errors in browser console
 
 **Problem**: "Unauthorized" error
-- Verify `authToken` in config.js matches server configuration
+- Verify `AuthToken` in appsettings.json matches server configuration
 - Check if your IP is in allowed list (if IP binding enabled)
 - Ensure token is not expired
 
-### API Errors
+### Dragon Agent Issues
 
-If API endpoints (hierarchy, stats) fail:
-- Ensure `serverUrl` protocol conversion works (ws → http, wss → https)
-- Check server API is accessible
-- Verify CORS headers
+**Problem**: Dragon agent gives stale or incorrect responses
+- Click the "🔄 Reload Agent" button in the chat header
+- This clears the conversation context and reloads provider settings
+- Useful when provider configuration has changed
+
+## Communication Architecture
+
+The client now uses **pure WebSocket communication** instead of HTTP API calls.
+
+### How It Works
+
+```
+┌─────────┐          ┌─────────────────┐          ┌─────────────────┐
+│ Browser │ ────────►│ KoboldLair      │ ────────►│ KoboldLair      │
+│         │   WS     │ Client          │   WS     │ Server          │
+│         │          │ (Proxy)         │          │ (Handlers)      │
+└─────────┘          └─────────────────┘          └─────────────────┘
+           /ws, /dragon                 /ws, /dragon
+```
+
+### WebSocket Message Protocol
+
+**Request Format:**
+```json
+{
+  "id": "req_1234567890_abc",
+  "command": "get_projects",
+  "data": { /* optional command data */ }
+}
+```
+
+**Response Format:**
+```json
+{
+  "id": "req_1234567890_abc",
+  "type": "response",
+  "data": { /* response data */ },
+  "timestamp": "2026-01-28T09:30:00.000Z"
+}
+```
+
+### Available Commands
+
+All API operations are now WebSocket commands:
+- `get_hierarchy` - Get project hierarchy
+- `get_projects` - List all projects
+- `get_stats` - System statistics
+- `get_providers` - List LLM providers
+- `configure_provider` - Configure agent providers
+- `get_project_config` - Get project settings
+- `update_project_config` - Update project settings
+- `toggle_agent` - Enable/disable agent
+- And more...
+
+### Benefits
+
+1. **Unified Protocol**: Single WebSocket connection for all operations
+2. **Real-time**: Instant updates without polling
+3. **Configurable**: Easy server URL configuration
+4. **Simplified**: No HTTP proxy layer needed
+5. **Efficient**: Persistent connection reduces overhead
 
 ## Development
 
@@ -191,111 +263,9 @@ wwwroot/
 2. Refresh browser (no rebuild needed)
 3. For production, run `dotnet publish`
 
-## API Proxy Architecture
-
-The KoboldLair Client acts as a proxy for API requests to the KoboldLair Server. This design eliminates CORS issues and simplifies the frontend architecture.
-
-### How It Works
-
-```
-┌─────────┐          ┌─────────────────┐          ┌─────────────────┐
-│ Browser │ ────────►│ KoboldLair      │ ────────►│ KoboldLair      │
-│         │   HTTP   │ Client          │   HTTP   │ Server          │
-│         │          │ (Proxy)         │          │ (API Endpoints) │
-└─────────┘          └─────────────────┘          └─────────────────┘
-          /api/projects                 /api/projects
-          /api/providers                /api/providers
-```
-
-### Client-Side JavaScript
-
-The JavaScript code makes simple relative URL requests:
-
-```javascript
-// dragon.js
-async loadProjects() {
-    const response = await fetch('/api/projects');
-    this.projects = await response.json();
-}
-
-async loadProviders() {
-    const response = await fetch('/api/providers');
-    const data = await response.json();
-    this.providers = data.providers || [];
-}
-```
-
-### Proxy Implementation (Program.cs)
-
-The Client application proxies these requests to the Server:
-
-```csharp
-// Configure HttpClient with Aspire service discovery
-builder.Services.AddServiceDiscovery();
-builder.Services.AddHttpClient("KoboldLairServer", client =>
-{
-    client.BaseAddress = new Uri("http://dracode-koboldlair-server");
-})
-.AddServiceDiscovery();
-
-// Proxy GET requests
-app.MapGet("/api/{**path}", async (string path, IHttpClientFactory httpClientFactory) =>
-{
-    var client = httpClientFactory.CreateClient("KoboldLairServer");
-    var response = await client.GetAsync($"/api/{path}");
-    var content = await response.Content.ReadAsStringAsync();
-    return Results.Content(content, response.Content.Headers.ContentType?.ToString());
-});
-
-// Proxy POST requests
-app.MapPost("/api/{**path}", async (string path, HttpContext context, ...) =>
-{
-    var client = httpClientFactory.CreateClient("KoboldLairServer");
-    // Forward request body and headers
-    var response = await client.PostAsync($"/api/{path}", requestContent);
-    var content = await response.Content.ReadAsStringAsync();
-    return Results.Content(content, response.Content.Headers.ContentType?.ToString());
-});
-```
-
-### Benefits
-
-1. **No CORS Issues**: Browser only communicates with one origin (Client)
-2. **Simplified Configuration**: No need to configure server URLs in JavaScript
-3. **Service Discovery**: Aspire automatically resolves server endpoints
-4. **Security**: Server URL not exposed to browser
-5. **Flexibility**: Easy to add caching, rate limiting, or authentication at proxy level
-
-### Supported Endpoints
-
-All `/api/*` endpoints on the Server are automatically proxied:
-
-- `GET /api/projects` - List all projects
-- `GET /api/providers` - List LLM providers
-- `GET /api/hierarchy` - Get project hierarchy
-- `GET /api/stats` - Get system statistics
-- `GET /api/projects/{id}/providers` - Get project-specific providers
-- `POST /api/providers/configure` - Configure agent providers
-- `POST /api/projects/{id}/agents/{type}/toggle` - Toggle agent for project
-
-### Troubleshooting API Proxy
-
-**Error: "Failed to load projects/providers"**
-
-Check:
-1. Is the KoboldLair Server running?
-2. Is the KoboldLair Client running?
-3. Check browser console for specific error messages
-4. Check Client logs for proxy errors
-5. Verify Aspire service discovery is working
-
-**Error: "Service endpoint resolver cannot resolve 'http://dracode-koboldlair-server'"**
-
-Solution:
-1. Ensure `builder.AddServiceDefaults()` is called in Client
-2. Ensure `builder.Services.AddServiceDiscovery()` is called
-3. Ensure Client has `WithReference(koboldlairServer)` in AppHost
+**Note**: Configuration changes in `appsettings.json` require restarting the client application.
 
 ## Related
 
 - [DraCode.KoboldLair.Server](../DraCode.KoboldLair.Server/README.md) - WebSocket server
+- [WebSocket Protocol Documentation](../docs/websocket-protocol.md) - Detailed protocol specification

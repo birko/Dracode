@@ -5,7 +5,7 @@ using DraCode.KoboldLair.Server.Models;
 using System.Text.Json;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
-namespace DraCode.KoboldLair.Server.Agents
+namespace DraCode.KoboldLair.Server.Agents.Dragon
 {
     /// <summary>
     /// DragonAgent is a specialized agent for gathering project/task requirements from users.
@@ -63,8 +63,8 @@ Your role is to have an interactive conversation with the user to deeply underst
 ## Your Workflow:
 
 1. **Check for Existing Specification**
-   - First, use list_specifications to see what already exists
-   - If working on an existing project, use load_specification to get the current state
+   - First, use manage_specification with action:'list' to see what already exists
+   - If working on an existing project, use manage_specification with action:'load' to get the current state
    - You can update existing specifications or create new ones
 
 2. **Understand Requirements**
@@ -73,14 +73,14 @@ Your role is to have an interactive conversation with the user to deeply underst
    - Ask targeted questions about purpose, scope, requirements, technical details, success criteria
 
 3. **Manage Features**
-   - Create features for new functionality using create_feature
-   - Update features ONLY if they have status ""New"" using update_feature
+   - Create features for new functionality using manage_feature with action:'create'
+   - Update features ONLY if they have status ""New"" using manage_feature with action:'update'
    - If a feature is already assigned to Wyrm or in progress, create a NEW feature instead
-   - List features to see current status using list_features
+   - List features to see current status using manage_feature with action:'list'
 
 4. **Create or Update Specification**
-   - Use create_specification for new projects
-   - Use update_specification for existing projects
+   - Use manage_specification with action:'create' for new projects
+   - Use manage_specification with action:'update' for existing projects
    - Include comprehensive details: overview, requirements, architecture, success criteria
    - The specification provides context for all features
 
@@ -91,13 +91,8 @@ Your role is to have an interactive conversation with the user to deeply underst
 - **Completed**: Implementation finished
 
 ## Tools Available:
-- **list_specifications**: See all existing specifications
-- **load_specification**: Load an existing specification by name
-- **create_specification**: Create a new specification with name and content
-- **update_specification**: Update an existing specification
-- **create_feature**: Create a new feature for a specification
-- **update_feature**: Update a feature (only works if status is New)
-- **list_features**: List all features for a specification
+- **manage_specification**: Manage specifications (actions: list, load, create, update)
+- **manage_feature**: Manage features (actions: list, create, update)
 
 ## Style:
 - Be conversational and friendly
@@ -124,7 +119,12 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
             
             // Return the last assistant message
             var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
-            return lastMessage?.Content?.ToString() ?? "Hello! I'm Dragon 🐉. What project would you like to work on?";
+            if (lastMessage?.Content == null)
+            {
+                return "Hello! I'm Dragon 🐉. What project would you like to work on?";
+            }
+
+            return ExtractTextFromContent(lastMessage.Content);
         }
 
         /// <summary>
@@ -137,7 +137,35 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
             var messages = await RunAsync(userMessage, maxIterations: 1);
             
             var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
-            return lastMessage?.Content?.ToString() ?? "I understand. Please continue...";
+            if (lastMessage?.Content == null)
+            {
+                return "I understand. Please continue...";
+            }
+
+            return ExtractTextFromContent(lastMessage.Content);
+        }
+
+        /// <summary>
+        /// Extracts text from message content (handles string, ContentBlock, or List<ContentBlock>)
+        /// </summary>
+        private string ExtractTextFromContent(object content)
+        {
+            if (content is string text)
+            {
+                return text;
+            }
+            else if (content is ContentBlock block)
+            {
+                return block.Text ?? "";
+            }
+            else if (content is IEnumerable<ContentBlock> blocks)
+            {
+                return string.Join("\n", blocks
+                    .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
+                    .Select(b => b.Text));
+            }
+            
+            return content?.ToString() ?? "";
         }
 
         /// <summary>

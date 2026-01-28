@@ -1,9 +1,10 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents;
 using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Services;
 using System.Collections.Concurrent;
+using KoboldModel = DraCode.KoboldLair.Server.Models.Kobold;
 
-namespace DraCode.KoboldLair.Server.Factories
+namespace DraCode.KoboldLair.Server.Agents.Kobold
 {
     /// <summary>
     /// Factory for creating and managing Kobold worker agents.
@@ -11,7 +12,7 @@ namespace DraCode.KoboldLair.Server.Factories
     /// </summary>
     public class KoboldFactory
     {
-        private readonly ConcurrentDictionary<Guid, Kobold> _kobolds;
+        private readonly ConcurrentDictionary<Guid, KoboldModel> _kobolds;
         private readonly AgentOptions? _defaultOptions;
         private readonly Dictionary<string, string>? _defaultConfig;
         private readonly ProjectConfigurationService _projectConfigService;
@@ -31,7 +32,7 @@ namespace DraCode.KoboldLair.Server.Factories
             AgentOptions? defaultOptions = null,
             Dictionary<string, string>? defaultConfig = null)
         {
-            _kobolds = new ConcurrentDictionary<Guid, Kobold>();
+            _kobolds = new ConcurrentDictionary<Guid, KoboldModel>();
             _projectConfigService = projectConfigService;
             _getProjectMaxParallelKobolds = getProjectMaxParallelKobolds ?? ((projectId) => projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty));
             _defaultOptions = defaultOptions;
@@ -46,7 +47,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <param name="options">Optional agent options (overrides default)</param>
         /// <param name="config">Optional provider configuration (overrides default)</param>
         /// <returns>Newly created Kobold instance</returns>
-        public Kobold CreateKobold(
+        public KoboldModel CreateKobold(
             string provider,
             string agentType,
             AgentOptions? options = null,
@@ -59,7 +60,7 @@ namespace DraCode.KoboldLair.Server.Factories
                 agentType
             );
 
-            var kobold = new Kobold(agent, agentType);
+            var kobold = new KoboldModel(agent, agentType);
             _kobolds.TryAdd(kobold.Id, kobold);
 
             return kobold;
@@ -68,7 +69,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <summary>
         /// Gets a Kobold by its ID
         /// </summary>
-        public Kobold? GetKobold(Guid koboldId)
+        public KoboldModel? GetKobold(Guid koboldId)
         {
             _kobolds.TryGetValue(koboldId, out var kobold);
             return kobold;
@@ -77,7 +78,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <summary>
         /// Gets all Kobolds
         /// </summary>
-        public IReadOnlyCollection<Kobold> GetAllKobolds()
+        public IReadOnlyCollection<KoboldModel> GetAllKobolds()
         {
             return _kobolds.Values.ToList();
         }
@@ -85,7 +86,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <summary>
         /// Gets Kobolds by status
         /// </summary>
-        public IReadOnlyCollection<Kobold> GetKoboldsByStatus(KoboldStatus status)
+        public IReadOnlyCollection<KoboldModel> GetKoboldsByStatus(KoboldStatus status)
         {
             return _kobolds.Values
                 .Where(k => k.Status == status)
@@ -95,7 +96,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <summary>
         /// Gets all unassigned Kobolds
         /// </summary>
-        public IReadOnlyCollection<Kobold> GetUnassignedKobolds()
+        public IReadOnlyCollection<KoboldModel> GetUnassignedKobolds()
         {
             return GetKoboldsByStatus(KoboldStatus.Unassigned);
         }
@@ -103,7 +104,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <summary>
         /// Gets all working Kobolds
         /// </summary>
-        public IReadOnlyCollection<Kobold> GetWorkingKobolds()
+        public IReadOnlyCollection<KoboldModel> GetWorkingKobolds()
         {
             return GetKoboldsByStatus(KoboldStatus.Working);
         }
@@ -111,7 +112,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <summary>
         /// Gets Kobold assigned to a specific task
         /// </summary>
-        public Kobold? GetKoboldByTaskId(Guid taskId)
+        public KoboldModel? GetKoboldByTaskId(Guid taskId)
         {
             return _kobolds.Values.FirstOrDefault(k => k.TaskId == taskId);
         }
@@ -119,7 +120,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <summary>
         /// Gets Kobolds by agent type
         /// </summary>
-        public IReadOnlyCollection<Kobold> GetKoboldsByType(string agentType)
+        public IReadOnlyCollection<KoboldModel> GetKoboldsByType(string agentType)
         {
             return _kobolds.Values
                 .Where(k => k.AgentType.Equals(agentType, StringComparison.OrdinalIgnoreCase))
