@@ -39,7 +39,7 @@ export class DragonView {
                     </div>
                 </div>
                 <div class="chat-messages" id="dragonMessages">
-                    ${this.messages.length > 0 ? this.messages.map(msg => `
+                    ${this.messages.length > 0 ? this.messages.filter(msg => msg.content).map(msg => `
                         <div class="chat-message ${msg.role}">
                             <div class="chat-message-icon">${msg.role === 'user' ? '👤' : '🐉'}</div>
                             <div class="chat-message-content">
@@ -185,15 +185,15 @@ export class DragonView {
 
         // Icon based on error type
         const icon = errorType === 'llm_connection' ? '🔌' :
-                     errorType === 'llm_timeout' ? '⏱️' :
-                     errorType === 'llm_error' ? '🤖' :
-                     errorType === 'llm_response' ? '📄' : '⚠️';
+            errorType === 'llm_timeout' ? '⏱️' :
+                errorType === 'llm_error' ? '🤖' :
+                    errorType === 'llm_response' ? '📄' : '⚠️';
 
         const errorTitle = errorType === 'llm_connection' ? 'Connection Error' :
-                          errorType === 'llm_timeout' ? 'Timeout Error' :
-                          errorType === 'llm_error' ? 'LLM Provider Error' :
-                          errorType === 'llm_response' ? 'Response Error' :
-                          errorType === 'startup_error' ? 'Startup Error' : 'Error';
+            errorType === 'llm_timeout' ? 'Timeout Error' :
+                errorType === 'llm_error' ? 'LLM Provider Error' :
+                    errorType === 'llm_response' ? 'Response Error' :
+                        errorType === 'startup_error' ? 'Startup Error' : 'Error';
 
         messageEl.innerHTML = `
             <div class="chat-message-icon" style="color: #dc2626;">${icon}</div>
