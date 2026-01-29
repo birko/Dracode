@@ -1,343 +1,302 @@
-# DraCode Web Client Troubleshooting Guide
+# DraCode Troubleshooting Guide
 
-This guide helps you diagnose and fix common issues with the DraCode WebSocket web client.
-
----
-
-## 🔍 Quick Diagnostic Checklist
-
-Before diving into specific issues, run this quick check:
-
-1. ✅ Server running on http://localhost:5000
-2. ✅ Web client accessible at http://localhost:5001
-3. ✅ Browser console open (F12 → Console tab)
-4. ✅ No errors in console on page load
-5. ✅ At least one provider configured in appsettings.json
+This guide covers common issues for the DraCode Web Client, KoboldLair, and provider configuration.
 
 ---
 
-## 🐛 Common Issues
+## Quick Diagnostic Checklist
 
-### Issue 1: Provider List Not Showing
+Before diving into specific issues:
 
-## Debug Steps
-
-### 1. Check Browser Console
-Open browser DevTools (F12) and check the Console tab for these messages:
-
-**Expected messages after connecting:**
-```
-✨ DraCode Client initialized
-[SUCCESS] ✅ Connected to WebSocket server
-[INFO] 📋 Requesting provider list...
-📨 Received message: {status: "success", message: "Found X provider(s)", data: "[...]"}
-📋 Received providers: [Array of providers]
-🎨 Displaying providers: [Array of providers]
-✅ Provider cards added to grid. Grid element: <div id="providersGrid">
-[SUCCESS] 📋 Found X providers
-```
-
-### 2. Check Network Tab
-In DevTools Network tab:
-- Filter by "WS" (WebSocket)
-- Click on the WebSocket connection
-- Check "Messages" tab
-- Verify you see:
-  - Sent: `{"command":"list"}`
-  - Received: Provider list JSON response
-
-### 3. Check WebSocket Server
-Ensure the WebSocket server is running and responding:
-
-```bash
-# Terminal 1: Start WebSocket server
-dotnet run --project DraCode.WebSocket
-
-# Should see:
-# info: Microsoft.Hosting.Lifetime[14]
-#       Now listening on: http://localhost:5000
-```
-
-Test with wscat:
-```bash
-wscat -c ws://localhost:5000/ws
-> {"command":"list"}
-# Should receive JSON response with providers
-```
-
-### 4. Check Element Visibility
-In DevTools Console, run:
-```javascript
-// Check if element exists
-console.log(document.getElementById('providersSection'));
-
-// Check display style
-console.log(document.getElementById('providersSection').style.display);
-
-// Check if hidden by CSS
-console.log(getComputedStyle(document.getElementById('providersSection')).display);
-
-// Check grid
-console.log(document.getElementById('providersGrid').children.length);
-```
-
-### 5. Common Issues
-
-#### Issue: providersSection is hidden
-**Symptom:** Element exists but `display: none`
-
-**Fix:** Click "Connect to Server" button again. The section should show after connection.
-
-#### Issue: No provider cards in grid
-**Symptom:** `providersGrid.children.length === 0`
-
-**Possible causes:**
-1. Server didn't send provider list
-2. Response format is wrong
-3. JavaScript error during rendering
-
-**Check server logs:**
-```bash
-# In WebSocket server terminal
-# Should see log when list command received
-```
-
-#### Issue: Server not responding
-**Symptom:** No messages in Network tab
-
-**Fix:**
-1. Check server is running on port 5000
-2. Check CORS is enabled
-3. Verify WebSocket URL: `ws://localhost:5000/ws` (not `http://`)
-
-### 6. Manual Fix
-
-If automatic listing doesn't work, try manual list:
-
-1. Connect to server
-2. Click "List Providers" button manually
-3. Check console for debug output
-
-### 7. Server Configuration
-
-Ensure `appsettings.json` has providers configured:
-
-```json
-{
-  "Agent": {
-    "Providers": {
-      "openai": {
-        "Type": "openai",
-        "ApiKey": "${OPENAI_API_KEY}",
-        "Model": "gpt-4o"
-      }
-    }
-  }
-}
-```
-
-### 8. Full Reset
-
-If nothing works:
-
-```bash
-# Stop all services
-# Clear browser cache (Ctrl+Shift+Delete)
-# Rebuild
-
-cd C:\Source\DraCode
-dotnet clean
-dotnet build
-dotnet run --project DraCode.AppHost
-
-# Open fresh browser tab: http://localhost:5001
-```
-
-## Expected Behavior
-
-After clicking "Connect to Server":
-1. ✅ Status changes to "Connected"
-2. ✅ Provider section appears
-3. ✅ After ~500ms, provider cards appear in grid
-4. ✅ Console shows debug messages
-5. ✅ Can click provider cards to connect
-
-## Still Not Working?
-
-Share the following for further help:
-1. Browser console output (full log)
-2. Network tab WebSocket messages
-3. Server terminal output
-4. Output of: `dotnet --version` and `node --version`
+1. Server running on appropriate port (check Aspire Dashboard)
+2. Browser console open (F12 → Console tab)
+3. No errors in console on page load
+4. At least one provider configured in appsettings.json
+5. Environment variables set for API keys
 
 ---
 
-## Issue 2: WebSocket Connection Fails
+## WebSocket Connection Issues
 
-### Symptoms
+### WebSocket Connection Fails
+
+**Symptoms:**
 - Status stays at "Disconnected"
 - Console shows connection error
 - No WebSocket in Network tab
 
-### Diagnostic Steps
+**Solutions:**
 
-**Step 1: Verify server is running**
-```bash
-# Check terminal shows:
-# Now listening on: http://localhost:5000
-```
+1. **Verify server is running:**
+   ```bash
+   # Check Aspire Dashboard or terminal
+   dotnet run --project DraCode.AppHost
+   ```
 
-**Step 2: Check WebSocket URL**
-- Must be `ws://localhost:5000/ws` (not `http://`)
-- Check input field has correct URL
+2. **Check WebSocket URL:** Must be `ws://localhost:PORT/ws` (not `http://`)
 
-**Step 3: Test with browser console**
-```javascript
-new WebSocket('ws://localhost:5000/ws')
-// If error, server issue. If opens, client issue.
-```
+3. **Test connection manually:**
+   ```javascript
+   // In browser console:
+   new WebSocket('ws://localhost:5000/ws')
+   ```
 
-### Common Fixes
+4. **Common fixes:**
+   - Server not started: Run `dotnet run --project DraCode.WebSocket`
+   - Wrong port: Verify port in console output
+   - Firewall: Add exception for the port
 
-1. **Server not started**: Run `dotnet run --project DraCode.WebSocket`
-2. **Wrong port**: Check server is on 5000, not 5001
-3. **Firewall blocking**: Add exception for port 5000
-4. **CORS issue**: Check server has CORS enabled
+### "Reconnecting..." Loop
+
+**Symptoms:**
+- WebSocket connects then immediately disconnects
+- Status alternates between Connected and Disconnected
+
+**Solutions:**
+
+1. Check Server logs for rejection reasons
+2. Verify authentication token matches server config
+3. Increase reconnect delay in client code
+4. Disable hot reload during testing (prevents server restarts)
 
 ---
 
-## Issue 3: Tab Switching Not Working
+## Provider Issues
 
-### Symptoms
+### Provider List Not Showing
+
+**Debug Steps:**
+
+1. **Check Browser Console for:**
+   ```
+   ✨ DraCode Client initialized
+   [SUCCESS] ✅ Connected to WebSocket server
+   📋 Received providers: [Array of providers]
+   ```
+
+2. **Check Network Tab:**
+   - Filter by "WS" (WebSocket)
+   - Verify `{"command":"list"}` sent
+   - Verify response with provider data
+
+3. **Test with wscat:**
+   ```bash
+   wscat -c ws://localhost:5000/ws
+   > {"command":"list"}
+   # Should receive provider list
+   ```
+
+### "Found 0 configured provider(s)"
+
+**Causes:**
+- Incorrect casing in appsettings.json
+- API key environment variable not set
+
+**Solutions:**
+
+1. **Fix casing in appsettings.json:**
+   ```json
+   {
+     "Agent": {
+       "Providers": {
+         "openai": {
+           "Type": "openai",      // PascalCase
+           "ApiKey": "${...}",    // PascalCase
+           "Model": "gpt-4o"      // PascalCase
+         }
+       }
+     }
+   }
+   ```
+
+2. **Set environment variables:**
+   ```bash
+   export OPENAI_API_KEY="sk-..."
+   export ANTHROPIC_API_KEY="sk-ant-..."
+   ```
+
+3. **Restart server** after config changes
+
+### API Key Not Found
+
+**Symptoms:**
+- Warnings about missing API keys in logs
+- Provider shows as "not configured"
+
+**Solutions:**
+
+1. **Check environment variable:**
+   ```bash
+   # Windows PowerShell
+   echo $env:OPENAI_API_KEY
+
+   # Linux/macOS
+   echo $OPENAI_API_KEY
+   ```
+
+2. **Restart terminal** after setting variables
+
+3. **Variable name must match exactly** (case-sensitive on Linux/macOS)
+
+---
+
+## KoboldLair Dragon Issues
+
+### "Error loading projects/providers"
+
+**Symptoms:**
+- Project dropdown shows "Error loading projects"
+- Provider dropdown shows "Error loading providers"
+
+**Solutions:**
+
+1. **Check if Server is running** in Aspire Dashboard
+
+2. **Test API endpoints:**
+   ```bash
+   curl http://localhost:{client-port}/api/projects
+   curl http://localhost:{client-port}/api/providers
+   ```
+
+3. **Check browser console for:**
+   - "Failed to fetch"
+   - "net::ERR_CONNECTION_REFUSED"
+   - "404 Not Found"
+
+### Dragon WebSocket Connection Failed
+
+**Symptoms:**
+- Connection stuck on "Disconnected"
+- Can select project/provider but chat doesn't start
+
+**Solutions:**
+
+1. **Check /api/config endpoint:**
+   ```bash
+   curl http://localhost:{client-port}/api/config
+   # Should return JSON with serverUrl
+   ```
+
+2. **Test WebSocket manually:**
+   ```javascript
+   // In browser console:
+   fetch('/api/config')
+     .then(r => r.json())
+     .then(config => {
+       const ws = new WebSocket(config.serverUrl + '/dragon');
+       ws.onopen = () => console.log('Connected!');
+       ws.onerror = (e) => console.error('Error:', e);
+     });
+   ```
+
+3. **Check authentication** - verify token in config
+
+---
+
+## Agent and Task Issues
+
+### Tab Switching Not Working
+
+**Symptoms:**
 - Can't switch between agent tabs
-- Clicking tab does nothing
 - Wrong tab appears active
 
-### Diagnostic Steps
+**Solutions:**
 
-**Check console for errors:**
-```javascript
-// Should see when clicking tab:
-🖱️ Tab clicked: [name] agentId: [id]
-🔄 Switching to agent: [id]
-✅ Agent found: [name]
-```
+1. **Hard refresh:** Ctrl+Shift+R
+2. **Disconnect all, then reconnect**
+3. **Check button type:** Tabs should have `type="button"`
 
-**Verify tab elements:**
-```javascript
-// In console:
-document.querySelectorAll('.tab').length
-// Should match number of connections
+### Tasks Not Sending
 
-document.querySelectorAll('.tab.active').length
-// Should be 1
-```
-
-### Common Fixes
-
-1. **Hard refresh**: Ctrl+Shift+R to reload JavaScript
-2. **Clear all agents**: Disconnect all, then reconnect
-3. **Check button type**: Tabs should have `type="button"`
-
----
-
-## Issue 4: Tasks Not Sending
-
-### Symptoms
+**Symptoms:**
 - Clicking "Send Task" does nothing
 - No message in activity log
-- Console shows no errors
 
-### Diagnostic Steps
+**Solutions:**
 
-**Step 1: Check agent is connected**
-```javascript
-// Status should be "Connected"
-// Tab should exist in agent tabs section
-```
+1. **Check agent is connected** (status shows "Connected")
+2. **Check textarea has content**
+3. **Check WebSocket state:**
+   ```javascript
+   window.draCodeClient.ws.readyState
+   // Should be 1 (OPEN)
+   ```
 
-**Step 2: Check textarea has content**
-```javascript
-document.querySelector('#task-[agentId]').value
-// Should not be empty
-```
+### Agent Prompts Not Appearing
 
-**Step 3: Check WebSocket state**
-```javascript
-window.draCodeClient.ws.readyState
-// Should be 1 (OPEN)
-```
+**Solutions:**
 
-### Common Fixes
-
-1. **Not connected**: Connect agent first
-2. **Empty task**: Enter task text
-3. **WebSocket closed**: Reconnect to server
+1. **Hard refresh** page
+2. **Check browser popup blocker**
+3. **Verify modal element exists:**
+   ```javascript
+   document.getElementById('generalModal')
+   ```
 
 ---
 
-## Issue 5: Agent Prompts Not Appearing
+## Configuration Issues
 
-### Symptoms
-- Agent asks question but no modal appears
-- Task hangs at "waiting for response"
-- Console shows prompt message
+### Wrong Environment
 
-### Diagnostic Steps
-
-**Check modal element:**
-```javascript
-document.getElementById('generalModal')
-// Should exist
-
-document.getElementById('generalModal').classList.contains('active')
-// Should be true when prompt shown
+**Check current environment:**
+```bash
+echo $ASPNETCORE_ENVIRONMENT
+# Should be: Development or Production
 ```
 
-**Check for JavaScript errors:**
-- Look for errors in console when prompt should appear
+**Run with specific environment:**
+```bash
+dotnet run --environment Development
+dotnet run --environment Production
+```
 
-### Common Fixes
+### Providers Not Loading
 
-1. **Modal CSS not loaded**: Hard refresh
-2. **Modal blocked by popup blocker**: Check browser settings
-3. **Click outside modal**: Close and try again
+1. Verify environment-specific config file exists
+2. Check provider is enabled (`"IsEnabled": true`)
+3. Review startup logs for provider list
 
 ---
 
-## Issue 6: Provider Connection Count Wrong
+## Performance Issues
 
-### Symptoms
-- Shows wrong number of connections
-- Count doesn't update after connect/disconnect
+### Slow Provider List Loading
 
-### Diagnostic Steps
+**Solutions:**
+- Use provider filter to show only configured
+- Check server performance
 
-**Check provider filter:**
-- Verify correct filter selected (Configured/All/Not Configured)
-- Check if provider is configured in appsettings.json
+### High Memory Usage
 
-**Refresh provider list:**
-- Click "List Providers" button
-- Should trigger update
-
-### Common Fixes
-
-1. **Click "List Providers"** after each connect/disconnect
-2. **Check appsettings.json** has provider with valid API key
-3. **Hard refresh** if count still wrong
+**Solutions:**
+- Use "Clear Log" button periodically
+- Disconnect unused agents
+- Refresh page to clear memory
 
 ---
 
 ## Advanced Debugging
 
-### Enable Verbose Console Logging
+### Enable Verbose Logging
 
-The client already includes extensive logging. Check console for:
-- 🖱️ User interactions
-- 📤 Outgoing messages
-- 📨 Incoming messages
-- ✅/❌ Success/failure indicators
+**Browser:**
+```javascript
+localStorage.setItem('debug', 'true');
+// Reload page
+```
+
+**Server (appsettings.Development.json):**
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Debug"
+    }
+  }
+}
+```
 
 ### Inspect WebSocket Messages
 
@@ -345,7 +304,6 @@ The client already includes extensive logging. Check console for:
 2. Filter by "WS"
 3. Click WebSocket connection
 4. View Messages tab
-5. Check sent/received messages match expected format
 
 ### Check DOM State
 
@@ -362,27 +320,17 @@ window.draCodeClient.agents.size
 
 // Get active agent ID
 window.draCodeClient.activeAgentId
-
-// List all agent IDs
-Array.from(window.draCodeClient.agents.keys())
 ```
-
-### Server-Side Debugging
-
-Check `DraCode.WebSocket` terminal for:
-- Connection/disconnection logs
-- Command received logs
-- Error messages
 
 ---
 
 ## Browser Compatibility
 
-**Supported Browsers:**
-- ✅ Chrome 90+
-- ✅ Edge 90+
-- ✅ Firefox 88+
-- ✅ Safari 14+
+**Supported:**
+- Chrome 90+
+- Edge 90+
+- Firefox 88+
+- Safari 14+
 
 **Known Issues:**
 - Older browsers may not support ES2020 features
@@ -390,47 +338,42 @@ Check `DraCode.WebSocket` terminal for:
 
 ---
 
-## Performance Issues
+## Full Reset
 
-### Slow Provider List Loading
+If nothing works:
 
-**Causes:**
-- Many providers configured
-- Slow server response
+```bash
+# Stop all services (Ctrl+C)
+cd C:\Source\DraCode
+dotnet clean
+dotnet build
+dotnet run --project DraCode.AppHost
 
-**Solutions:**
-- Use provider filter to show only configured
-- Check server performance
-
-### High Memory Usage
-
-**Causes:**
-- Many agents with large logs
-- Long-running sessions
-
-**Solutions:**
-- Use "Clear Log" button periodically
-- Disconnect unused agents
-- Refresh page to clear memory
+# Clear browser cache (Ctrl+Shift+Delete)
+# Open fresh browser tab
+```
 
 ---
 
 ## Error Messages Reference
 
-### "Not connected to server"
-**Meaning:** WebSocket not open  
-**Fix:** Click "Connect to Server"
-
-### "Element with id 'X' not found"
-**Meaning:** DOM element missing  
-**Fix:** Hard refresh (Ctrl+Shift+R)
-
-### "Agent not found"
-**Meaning:** Agent ID doesn't exist  
-**Fix:** Reconnect agent or refresh page
-
-### "Tab name is required"
-**Meaning:** Empty tab name in connection modal  
-**Fix:** Enter a name for the connection
+| Error | Meaning | Fix |
+|-------|---------|-----|
+| "Not connected to server" | WebSocket not open | Click "Connect to Server" |
+| "Element with id 'X' not found" | DOM element missing | Hard refresh (Ctrl+Shift+R) |
+| "Agent not found" | Agent ID doesn't exist | Reconnect agent or refresh |
+| "Tab name is required" | Empty tab name | Enter a name for connection |
+| "Found 0 configured provider(s)" | Server not loading providers | Fix appsettings.json casing |
 
 ---
+
+## Getting Help
+
+If still stuck, provide:
+
+1. Browser console output (full log)
+2. Network tab WebSocket messages
+3. Server terminal output
+4. Output of: `dotnet --version`
+5. Aspire Dashboard screenshot (showing service status)
+6. Configuration from `/api/config` endpoint

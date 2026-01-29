@@ -1,7 +1,7 @@
+using System.Text.Json;
 using DraCode.Agent;
 using DraCode.KoboldLair.Server.Models;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -40,7 +40,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
             _logger.LogInformation("Agent Assignments:");
             _logger.LogInformation("  - Dragon: {Provider}", _configuration.AgentProviders.DragonProvider);
-            _logger.LogInformation("  - Wyrm: {Provider}", _configuration.AgentProviders.WyvernProvider);
+            _logger.LogInformation("  - Wyvern: {Provider}", _configuration.AgentProviders.WyvernProvider);
             _logger.LogInformation("  - Kobold: {Provider}", _configuration.AgentProviders.KoboldProvider);
             _logger.LogInformation("========================================");
 
@@ -78,8 +78,8 @@ namespace DraCode.KoboldLair.Server.Services
             lock (_lock)
             {
                 return _configuration.Providers
-                    .Where(p => p.IsEnabled && 
-                           (p.CompatibleAgents.Contains(agentType.ToLowerInvariant()) || 
+                    .Where(p => p.IsEnabled &&
+                           (p.CompatibleAgents.Contains(agentType.ToLowerInvariant()) ||
                             p.CompatibleAgents.Contains("all")))
                     .ToList();
             }
@@ -106,7 +106,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// Gets the provider configuration and agent options for a specific agent type
         /// </summary>
         public (string provider, Dictionary<string, string> config, AgentOptions options) GetProviderSettingsForAgent(
-            string agentType, 
+            string agentType,
             string? workingDirectory = null)
         {
             lock (_lock)
@@ -141,12 +141,12 @@ namespace DraCode.KoboldLair.Server.Services
                     if (!string.IsNullOrWhiteSpace(apiKey))
                     {
                         config["apiKey"] = apiKey;
-                        _logger.LogDebug("Using API key from environment variable {EnvVar} for provider {Provider}", 
+                        _logger.LogDebug("Using API key from environment variable {EnvVar} for provider {Provider}",
                             apiKeyEnvVar, providerName);
                     }
                     else if (!config.ContainsKey("apiKey") || string.IsNullOrWhiteSpace(config["apiKey"]))
                     {
-                        _logger.LogWarning("Provider {Provider} requires API key but none found in environment variable {EnvVar} or configuration", 
+                        _logger.LogWarning("Provider {Provider} requires API key but none found in environment variable {EnvVar} or configuration",
                             providerName, apiKeyEnvVar);
                     }
                 }
@@ -181,7 +181,7 @@ namespace DraCode.KoboldLair.Server.Services
                     throw new ArgumentException($"Provider '{providerName}' is not enabled");
                 }
 
-                if (!provider.CompatibleAgents.Contains(agentType.ToLowerInvariant()) && 
+                if (!provider.CompatibleAgents.Contains(agentType.ToLowerInvariant()) &&
                     !provider.CompatibleAgents.Contains("all"))
                 {
                     throw new ArgumentException($"Provider '{providerName}' is not compatible with agent type '{agentType}'");
@@ -253,9 +253,9 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     var apiKeyEnvVar = GetApiKeyEnvironmentVariable(provider.Type);
                     var apiKey = Environment.GetEnvironmentVariable(apiKeyEnvVar);
-                    var configHasKey = provider.Configuration.ContainsKey("apiKey") && 
+                    var configHasKey = provider.Configuration.ContainsKey("apiKey") &&
                                       !string.IsNullOrWhiteSpace(provider.Configuration["apiKey"]);
-                    
+
                     if (string.IsNullOrWhiteSpace(apiKey) && !configHasKey)
                     {
                         return (false, $"API key not found. Please set environment variable: {apiKeyEnvVar} or add apiKey to configuration");

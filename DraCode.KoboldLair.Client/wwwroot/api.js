@@ -1,4 +1,3 @@
-import CONFIG from './config.js';
 import { WebSocketClient } from './websocket.js';
 
 export class ApiClient {
@@ -16,8 +15,8 @@ export class ApiClient {
         this.connecting = true;
 
         try {
-            this.ws = new WebSocketClient('/ws');
-            
+            this.ws = new WebSocketClient('/wyvern');
+
             this.ws.on('response', (data) => {
                 const request = this.pendingRequests.get(data.id);
                 if (request) {
@@ -56,7 +55,7 @@ export class ApiClient {
         }
 
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
+
         return new Promise((resolve, reject) => {
             this.pendingRequests.set(requestId, { resolve, reject });
 
@@ -121,11 +120,11 @@ export class ApiClient {
     }
 
     async updateProjectProviders(projectId, agentType, providerName, modelOverride) {
-        return this.sendCommand('update_project_providers', { 
-            projectId, 
-            agentType, 
-            providerName, 
-            modelOverride 
+        return this.sendCommand('update_project_providers', {
+            projectId,
+            agentType,
+            providerName,
+            modelOverride
         });
     }
 

@@ -213,6 +213,6 @@ app.Map("/dragon", async context =>
 });
 
 // Health check endpoint
-app.MapGet("/", () => new { status = "running", endpoints = new[] { "/ws", "/dragon" } });
+app.MapGet("/", () => new { status = "running", endpoints = new[] { "/wyvern", "/dragon" } });
 
 app.Run();

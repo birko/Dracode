@@ -112,7 +112,7 @@ Start `dracode-koboldlair-client` from the Aspire Dashboard.
 
 ### Hierarchy (`/hierarchy.html`)
 - Visual agent hierarchy
-- Dragon → Wyrms → Drakes → Kobolds
+- Dragon → Wyverns → Drakes → Kobolds
 - Status indicators
 - Task counts
 
@@ -187,7 +187,7 @@ The client now uses **pure WebSocket communication** instead of HTTP API calls.
 │         │   WS     │ Client          │   WS     │ Server          │
 │         │          │ (Proxy)         │          │ (Handlers)      │
 └─────────┘          └─────────────────┘          └─────────────────┘
-           /ws, /dragon                 /ws, /dragon
+           /wyvern, /dragon            /wyvern, /dragon
 ```
 
 ### WebSocket Message Protocol

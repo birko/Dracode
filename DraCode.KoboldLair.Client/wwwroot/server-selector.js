@@ -92,11 +92,11 @@ export class ServerSelector {
             if (this.onServerChange) {
                 this.onServerChange(serverManager.getActiveServer());
             }
-            
+
             // Update UI
             const container = document.querySelector('.server-selector').parentElement;
             this.mount(container);
-            
+
             // Show notification
             this.showNotification('Server switched successfully');
         }
@@ -155,11 +155,11 @@ export class ServerSelector {
 
             const server = serverManager.addServer(name, url, token);
             modal.remove();
-            
+
             // Refresh selector
             const container = document.querySelector('.server-selector').parentElement;
             this.mount(container);
-            
+
             this.showNotification(`Server "${name}" added successfully`);
         });
     }
@@ -225,7 +225,7 @@ export class ServerSelector {
                 } else if (action === 'save') {
                     const url = card.querySelector('[data-field="url"]').value.trim();
                     const token = card.querySelector('[data-field="token"]').value.trim();
-                    
+
                     if (serverManager.updateServer(serverId, { url, token })) {
                         this.showNotification('Server updated');
                     }
@@ -243,8 +243,8 @@ export class ServerSelector {
         this.showNotification('Testing connection...');
 
         try {
-            const ws = new WebSocket(server.url + '/ws' + (server.token ? `?token=${server.token}` : ''));
-            
+            const ws = new WebSocket(server.url + '/wyvern' + (server.token ? `?token=${server.token}` : ''));
+
             ws.onopen = () => {
                 this.showNotification('✅ Connection successful!', 'success');
                 ws.close();

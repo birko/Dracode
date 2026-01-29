@@ -28,7 +28,7 @@ app.MapGet("/api/config", () => Results.Json(new
     authToken,
     endpoints = new
     {
-        wyvern = "/ws",
+        wyvern = "/wyvern",
         dragon = "/dragon"
     }
 }));
@@ -46,14 +46,14 @@ app.Map("/dragon", async (HttpContext context) =>
     {
         // Convert http(s):// to ws(s):// for WebSocket connection
         var wsUrl = serverUrl.Replace("https://", "wss://").Replace("http://", "ws://").TrimEnd('/') + "/dragon";
-        
+
         // Extract token if present in query or use config
         var token = context.Request.Query["token"].ToString();
         if (string.IsNullOrEmpty(token))
         {
             token = authToken;
         }
-        
+
         if (!string.IsNullOrEmpty(token))
         {
             wsUrl += $"?token={token}";
@@ -61,10 +61,10 @@ app.Map("/dragon", async (HttpContext context) =>
 
         var clientWs = await context.WebSockets.AcceptWebSocketAsync();
         var serverWs = new ClientWebSocket();
-        
+
         // Bypass SSL certificate validation for development
         serverWs.Options.RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true;
-        
+
         await serverWs.ConnectAsync(new Uri(wsUrl), context.RequestAborted);
 
         // Bidirectional proxy
@@ -72,7 +72,7 @@ app.Map("/dragon", async (HttpContext context) =>
         var serverToClient = RelayWebSocketAsync(serverWs, clientWs, context.RequestAborted);
 
         await Task.WhenAny(clientToServer, serverToClient);
-        
+
         if (clientWs.State == WebSocketState.Open)
             await clientWs.CloseAsync(WebSocketCloseStatus.NormalClosure, "Proxy closed", CancellationToken.None);
         if (serverWs.State == WebSocketState.Open)
@@ -86,8 +86,8 @@ app.Map("/dragon", async (HttpContext context) =>
     }
 });
 
-// WebSocket proxy for /ws endpoint (Wyvern)
-app.Map("/ws", async (HttpContext context) =>
+// WebSocket proxy for /wyvern endpoint (Wyvern)
+app.Map("/wyvern", async (HttpContext context) =>
 {
     if (!context.WebSockets.IsWebSocketRequest)
     {
@@ -98,15 +98,15 @@ app.Map("/ws", async (HttpContext context) =>
     try
     {
         // Convert http(s):// to ws(s):// for WebSocket connection
-        var wsUrl = serverUrl.Replace("https://", "wss://").Replace("http://", "ws://").TrimEnd('/') + "/ws";
-        
+        var wsUrl = serverUrl.Replace("https://", "wss://").Replace("http://", "ws://").TrimEnd('/') + "/wyvern";
+
         // Extract token if present in query or use config
         var token = context.Request.Query["token"].ToString();
         if (string.IsNullOrEmpty(token))
         {
             token = authToken;
         }
-        
+
         if (!string.IsNullOrEmpty(token))
         {
             wsUrl += $"?token={token}";
@@ -114,10 +114,10 @@ app.Map("/ws", async (HttpContext context) =>
 
         var clientWs = await context.WebSockets.AcceptWebSocketAsync();
         var serverWs = new ClientWebSocket();
-        
+
         // Bypass SSL certificate validation for development
         serverWs.Options.RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true;
-        
+
         await serverWs.ConnectAsync(new Uri(wsUrl), context.RequestAborted);
 
         // Bidirectional proxy
@@ -125,7 +125,7 @@ app.Map("/ws", async (HttpContext context) =>
         var serverToClient = RelayWebSocketAsync(serverWs, clientWs, context.RequestAborted);
 
         await Task.WhenAny(clientToServer, serverToClient);
-        
+
         if (clientWs.State == WebSocketState.Open)
             await clientWs.CloseAsync(WebSocketCloseStatus.NormalClosure, "Proxy closed", CancellationToken.None);
         if (serverWs.State == WebSocketState.Open)
@@ -134,7 +134,7 @@ app.Map("/ws", async (HttpContext context) =>
     catch (Exception ex)
     {
         var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "WebSocket proxy error on /ws endpoint");
+        logger.LogError(ex, "WebSocket proxy error on /wyvern endpoint");
         context.Response.StatusCode = 500;
     }
 });
@@ -169,7 +169,7 @@ static async Task RelayWebSocketAsync(WebSocket source, WebSocket destination, C
         while (source.State == WebSocketState.Open && destination.State == WebSocketState.Open)
         {
             var result = await source.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-            
+
             if (result.MessageType == WebSocketMessageType.Close)
             {
                 await destination.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);

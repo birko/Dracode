@@ -1,7 +1,8 @@
 using DraCode.Agent;
 using DraCode.Agent.Agents;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
 using DraCode.KoboldLair.Server.Agents.Dragon;
+using DraCode.KoboldLair.Server.Agents.Wyrm;
+using DraCode.KoboldLair.Server.Agents.Wyvern;
 
 namespace DraCode.KoboldLair.Server.Agents
 {
@@ -17,7 +18,7 @@ namespace DraCode.KoboldLair.Server.Agents
         /// <param name="provider">LLM provider: "openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "githubcopilot"</param>
         /// <param name="options">Agent options (working directory, verbose, etc.)</param>
         /// <param name="config">Provider configuration (API keys, models, etc.)</param>
-        /// <param name="agentType">Type of agent to create: "dragon", "wyrm", "coding", "csharp", "cpp", "php", "python", "svg", "bitmap", etc.</param>
+        /// <param name="agentType">Type of agent to create: "dragon", "wyvernanalyzer", "wyrm", "coding", "csharp", "cpp", "php", "python", "svg", "bitmap", etc.</param>
         /// <returns>Agent instance</returns>
         public static Agent.Agents.Agent Create(
             string provider,
@@ -39,10 +40,16 @@ namespace DraCode.KoboldLair.Server.Agents
             {
                 // Create Dragon agent for requirements gathering
                 var llmProvider = CreateLlmProvider(provider, config);
-                var specificationsPath = config.TryGetValue("specificationsPath", out var path) 
-                    ? path 
+                var specificationsPath = config.TryGetValue("specificationsPath", out var path)
+                    ? path
                     : "./specifications";
                 return new DragonAgent(llmProvider, options, specificationsPath);
+            }
+            else if (agentType.Equals("wyvernanalyzer", StringComparison.OrdinalIgnoreCase))
+            {
+                // Create WyvernAnalyzer agent for requirements gathering
+                var llmProvider = CreateLlmProvider(provider, config);
+                return new WyvernAnalyzerAgent(llmProvider, options);
             }
 
             // Delegate all other agent types to DraCode.Agent.AgentFactory
@@ -81,38 +88,38 @@ namespace DraCode.KoboldLair.Server.Agents
             return provider.ToLowerInvariant() switch
             {
                 "openai" => new Agent.LLMs.Providers.OpenAiProvider(
-                    C("apiKey"), 
-                    C("model", "gpt-4o"), 
+                    C("apiKey"),
+                    C("model", "gpt-4o"),
                     C("baseUrl", "https://api.openai.com/v1/chat/completions")),
-                
+
                 "azureopenai" => new Agent.LLMs.Providers.AzureOpenAiProvider(
-                    C("endpoint"), 
-                    C("apiKey"), 
+                    C("endpoint"),
+                    C("apiKey"),
                     C("deployment", "gpt-4")),
-                
+
                 "claude" => new Agent.LLMs.Providers.ClaudeProvider(
-                    C("apiKey"), 
-                    C("model", "claude-3-5-sonnet-latest"), 
+                    C("apiKey"),
+                    C("model", "claude-3-5-sonnet-latest"),
                     C("baseUrl", "https://api.anthropic.com/v1/messages")),
-                
+
                 "gemini" => new Agent.LLMs.Providers.GeminiProvider(
-                    C("apiKey"), 
-                    C("model", "gemini-2.0-flash-exp"), 
+                    C("apiKey"),
+                    C("model", "gemini-2.0-flash-exp"),
                     C("baseUrl", "https://generativelanguage.googleapis.com/v1beta/models/")),
-                
+
                 "ollama" => new Agent.LLMs.Providers.OllamaProvider(
-                    C("model", "llama3.2"), 
+                    C("model", "llama3.2"),
                     C("baseUrl", "http://localhost:11434")),
-                
+
                 "llamacpp" => new Agent.LLMs.Providers.LlamaCppProvider(
-                    C("model", "default"), 
+                    C("model", "default"),
                     C("baseUrl", "http://localhost:8080")),
-                
+
                 "githubcopilot" => new Agent.LLMs.Providers.GitHubCopilotProvider(
-                    C("clientId"), 
-                    C("model", "gpt-4o"), 
+                    C("clientId"),
+                    C("model", "gpt-4o"),
                     C("baseUrl", "https://api.githubcopilot.com/chat/completions")),
-                
+
                 _ => throw new ArgumentException($"Unknown provider '{provider}'. Supported providers: openai, azureopenai, claude, gemini, ollama, llamacpp, githubcopilot")
             };
         }

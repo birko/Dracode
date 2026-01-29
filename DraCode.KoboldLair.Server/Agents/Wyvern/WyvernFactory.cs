@@ -12,7 +12,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
     {
         private readonly Dictionary<string, Wyvern> _Wyverns;
         private readonly object _lock = new object();
-        
+
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly AgentOptions _defaultOptions;
 
@@ -63,8 +63,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                     (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern", outputPath);
                 }
 
-                var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(effectiveProvider, config);
-                var analyzerAgent = new WyvernAnalyzerAgent(llmProvider, options);
+                var analyzerAgent = (WyvernAnalyzerAgent)KoboldLairAgentFactory.Create("wyvernanalyzer", options, config);
 
                 var Wyvern = new Wyvern(
                     projectName,
