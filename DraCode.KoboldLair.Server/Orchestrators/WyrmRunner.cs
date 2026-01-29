@@ -1,7 +1,9 @@
 using DraCode.Agent;
-using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyrm.TaskStatus;
+using DraCode.KoboldLair.Server.Agents;
+using DraCode.KoboldLair.Server.Models;
+using TaskStatus = DraCode.KoboldLair.Server.Models.TaskStatus;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyrm
+namespace DraCode.KoboldLair.Server.Orchestrators
 {
     /// <summary>
     /// Helper class for running tasks through the task delegation pattern.
@@ -49,7 +51,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
 
                 messageCallback?.Invoke("info", "🎯 Wyrm: Analyzing task to select the best agent...\n");
 
-                var wyrmConversation = await wyrm.RunAsync(task, maxIterations: 5);
+                var wyrmConversation = await wyrm.RunAsync(task, maxIterations: 8);
 
                 // Get the agent selection
                 var selection = SelectAgentTool.GetLastSelection();
@@ -174,7 +176,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
                 wyrm.SetMessageCallback(messageCallback);
             }
 
-            await wyrm.RunAsync(task, maxIterations: 5);
+            await wyrm.RunAsync(task, maxIterations: 8);
 
             var selection = SelectAgentTool.GetLastSelection();
             if (selection == null)

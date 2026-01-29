@@ -1,9 +1,10 @@
 using System.Text.Json;
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
+using DraCode.KoboldLair.Server.Agents;
 using DraCode.KoboldLair.Server.Models;
+using TaskStatus = DraCode.KoboldLair.Server.Models.TaskStatus;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyvern
+namespace DraCode.KoboldLair.Server.Orchestrators
 {
     /// <summary>
     /// Wyvern analyzes project specifications and creates organized, dependency-aware task lists.
@@ -13,26 +14,44 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
     {
         private readonly string _projectName;
         private readonly string _specificationPath;
-        private readonly WyvernAnalyzerAgent _analyzerAgent;
+        private readonly WyvernAgent _analyzerAgent;
         private readonly string _provider;
         private readonly Dictionary<string, string> _config;
         private readonly AgentOptions _options;
         private readonly string _outputPath;
         private Specification? _specification;
 
+        // Wyrm-specific provider settings (separate from Wyvern's own settings)
+        private readonly string _wyrmProvider;
+        private readonly Dictionary<string, string> _wyrmConfig;
+        private readonly AgentOptions _wyrmOptions;
+
         private WyvernAnalysis? _analysis;
 
         /// <summary>
         /// Creates a new Wyvern for a project
         /// </summary>
+        /// <param name="projectName">Name of the project</param>
+        /// <param name="specificationPath">Path to the specification file</param>
+        /// <param name="analyzerAgent">The Wyvern analyzer agent</param>
+        /// <param name="provider">Provider for Wyvern analysis</param>
+        /// <param name="config">Configuration for Wyvern</param>
+        /// <param name="options">Agent options for Wyvern</param>
+        /// <param name="outputPath">Output path for task files</param>
+        /// <param name="wyrmProvider">Provider for Wyrm task delegation (optional, defaults to Wyvern's provider)</param>
+        /// <param name="wyrmConfig">Configuration for Wyrm (optional, defaults to Wyvern's config)</param>
+        /// <param name="wyrmOptions">Agent options for Wyrm (optional, defaults to Wyvern's options)</param>
         public Wyvern(
             string projectName,
             string specificationPath,
-            WyvernAnalyzerAgent analyzerAgent,
+            WyvernAgent analyzerAgent,
             string provider,
             Dictionary<string, string> config,
             AgentOptions options,
-            string outputPath)
+            string outputPath,
+            string? wyrmProvider = null,
+            Dictionary<string, string>? wyrmConfig = null,
+            AgentOptions? wyrmOptions = null)
         {
             _projectName = projectName;
             _specificationPath = specificationPath;
@@ -41,6 +60,11 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
             _config = config;
             _options = options;
             _outputPath = outputPath;
+
+            // Use Wyrm-specific settings if provided, otherwise fall back to Wyvern's settings
+            _wyrmProvider = wyrmProvider ?? provider;
+            _wyrmConfig = wyrmConfig ?? config;
+            _wyrmOptions = wyrmOptions ?? options;
         }
 
         /// <summary>
@@ -68,7 +92,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
         /// Updates feature status based on task completion
         /// </summary>
         /// <param name="taskStatuses">Dictionary of task IDs to their status</param>
-        public void UpdateFeatureStatus(Dictionary<string, Wyrm.TaskStatus> taskStatuses)
+        public void UpdateFeatureStatus(Dictionary<string, TaskStatus> taskStatuses)
         {
             if (_specification == null || _analysis == null)
                 return;
@@ -76,19 +100,19 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
             foreach (var feature in _specification.Features.Where(f => f.Status != FeatureStatus.Completed))
             {
                 var featureTasks = GetTasksForFeature(feature.Id);
-                
+
                 if (!featureTasks.Any())
                     continue;
 
                 // Check if any task is being worked on
-                var hasWorkingTasks = featureTasks.Any(taskId => 
-                    taskStatuses.TryGetValue(taskId, out var status) && 
-                    (status == Wyrm.TaskStatus.Working || status == Wyrm.TaskStatus.NotInitialized));
+                var hasWorkingTasks = featureTasks.Any(taskId =>
+                    taskStatuses.TryGetValue(taskId, out var status) &&
+                    (status == TaskStatus.Working || status == TaskStatus.NotInitialized));
 
                 // Check if all tasks are done
                 var allTasksDone = featureTasks.All(taskId =>
-                    taskStatuses.TryGetValue(taskId, out var status) && 
-                    status == Wyrm.TaskStatus.Done);
+                    taskStatuses.TryGetValue(taskId, out var status) &&
+                    status == TaskStatus.Done);
 
                 // Update feature status
                 if (allTasksDone && feature.Status != FeatureStatus.Completed)
@@ -133,7 +157,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                 // Find tasks that mention this feature
                 var relatedTasks = _analysis.Areas
                     .SelectMany(area => area.Tasks)
-                    .Where(task => 
+                    .Where(task =>
                         task.Description.Contains(feature.Name, StringComparison.OrdinalIgnoreCase) ||
                         task.Name.Contains(feature.Name, StringComparison.OrdinalIgnoreCase))
                     .ToList();
@@ -142,7 +166,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                 foreach (var task in relatedTasks)
                 {
                     task.FeatureId = feature.Id;
-                    
+
                     // Add task ID to feature's task list
                     if (!feature.TaskIds.Contains(task.Id))
                     {
@@ -165,12 +189,12 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
             report.AppendLine();
 
             var grouped = _specification.Features.GroupBy(f => f.Status);
-            
+
             foreach (var group in grouped.OrderBy(g => g.Key))
             {
                 report.AppendLine($"## {group.Key} ({group.Count()})");
                 report.AppendLine();
-                
+
                 foreach (var feature in group)
                 {
                     var taskCount = feature.TaskIds.Count;
@@ -182,7 +206,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                         FeatureStatus.Completed => "✅",
                         _ => "❓"
                     };
-                    
+
                     report.AppendLine($"{icon} **{feature.Name}** (Priority: {feature.Priority})");
                     report.AppendLine($"   {feature.Description}");
                     report.AppendLine($"   Tasks: {taskCount}");
@@ -210,10 +234,10 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
             }
 
             var specContent = await File.ReadAllTextAsync(_specificationPath);
-            
+
             // Get new features to include in analysis
             var newFeatures = _specification?.Features.Where(f => f.Status == FeatureStatus.New).ToList() ?? new List<Feature>();
-            
+
             // Build enhanced prompt with features
             var prompt = specContent;
             if (newFeatures.Any())
@@ -224,11 +248,11 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                     prompt += $"### {feature.Name} (Priority: {feature.Priority})\n";
                     prompt += $"{feature.Description}\n\n";
                 }
-                
+
                 // Mark features as assigned
                 AssignFeatures(newFeatures);
             }
-            
+
             var analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(prompt);
 
             try
@@ -245,7 +269,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
 
                 _analysis.AnalyzedAt = DateTime.UtcNow;
                 _analysis.SpecificationPath = _specificationPath;
-                
+
                 // Link features to analysis
                 if (_specification != null)
                 {
@@ -264,35 +288,65 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
         }
 
         /// <summary>
-        /// Creates tasks using the orchestrator for each area
+        /// Creates tasks using the orchestrator for each area.
+        /// Can optionally process only specific areas (for reprocessing pending areas).
         /// </summary>
-        public async Task<Dictionary<string, string>> CreateTasksAsync()
+        /// <param name="areasToProcess">Optional list of area names to process. If null, processes all areas.</param>
+        /// <param name="existingTaskFiles">Optional existing task files dictionary to merge with.</param>
+        /// <returns>Dictionary of area names to task file paths, and list of areas that failed processing.</returns>
+        public async Task<(Dictionary<string, string> TaskFiles, List<string> FailedAreas)> CreateTasksAsync(
+            List<string>? areasToProcess = null,
+            Dictionary<string, string>? existingTaskFiles = null)
         {
             if (_analysis == null)
             {
                 throw new InvalidOperationException("Must call AnalyzeProjectAsync() first");
             }
 
-            var taskFiles = new Dictionary<string, string>();
+            var taskFiles = existingTaskFiles != null
+                ? new Dictionary<string, string>(existingTaskFiles)
+                : new Dictionary<string, string>();
+            var failedAreas = new List<string>();
 
-            foreach (var area in _analysis.Areas)
+            // Determine which areas to process
+            var areas = areasToProcess != null
+                ? _analysis.Areas.Where(a => areasToProcess.Contains(a.Name, StringComparer.OrdinalIgnoreCase)).ToList()
+                : _analysis.Areas;
+
+            foreach (var area in areas)
             {
-                var areaOutputPath = Path.Combine(_outputPath, $"{_projectName}-{area.Name.ToLower()}-tasks.md");
-                var orchestratorInput = CreateOrchestratorInput(area);
-                
-                // Use WyrmRunner static method
-                await WyrmRunner.RunAsync(
-                    _provider,
-                    orchestratorInput,
-                    _options,
-                    _config,
-                    outputMarkdownPath: areaOutputPath
-                );
-                
-                taskFiles[area.Name] = areaOutputPath;
+                try
+                {
+                    var areaOutputPath = Path.Combine(_outputPath, $"{_projectName}-{area.Name.ToLower()}-tasks.md");
+                    var orchestratorInput = CreateOrchestratorInput(area);
+
+                    // Use WyrmRunner with Wyrm-specific provider/config settings
+                    await WyrmRunner.RunAsync(
+                        _wyrmProvider,
+                        orchestratorInput,
+                        _wyrmOptions,
+                        _wyrmConfig,
+                        outputMarkdownPath: areaOutputPath
+                    );
+
+                    taskFiles[area.Name] = areaOutputPath;
+                }
+                catch (Exception)
+                {
+                    // Track failed areas for reprocessing
+                    failedAreas.Add(area.Name);
+                }
             }
 
-            return taskFiles;
+            return (taskFiles, failedAreas);
+        }
+
+        /// <summary>
+        /// Gets the list of all area names from the analysis
+        /// </summary>
+        public List<string> GetAllAreaNames()
+        {
+            return _analysis?.Areas.Select(a => a.Name).ToList() ?? new List<string>();
         }
 
         private string CreateOrchestratorInput(WorkArea area)

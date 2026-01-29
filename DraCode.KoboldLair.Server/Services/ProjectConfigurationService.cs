@@ -65,7 +65,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _configurations.Projects.Remove(existing);
             }
-            
+
             config.LastUpdated = DateTime.UtcNow;
             _configurations.Projects.Add(config);
             SaveConfigurations();
@@ -102,10 +102,12 @@ namespace DraCode.KoboldLair.Server.Services
         public void SetAgentEnabled(string projectId, string agentType, bool enabled)
         {
             var config = GetOrCreateProjectConfig(projectId);
-            
+
             switch (agentType.ToLowerInvariant())
             {
                 case "wyrm":
+                    config.WyrmEnabled = enabled;
+                    break;
                 case "wyvern":
                     config.WyvernEnabled = enabled;
                     break;
@@ -136,7 +138,8 @@ namespace DraCode.KoboldLair.Server.Services
 
             return agentType.ToLowerInvariant() switch
             {
-                "wyrm" or "wyvern" => config.WyvernEnabled,
+                "wyrm" => config.WyrmEnabled,
+                "wyvern" => config.WyvernEnabled,
                 "drake" => config.DrakeEnabled,
                 "kobold" => config.KoboldEnabled,
                 _ => false
@@ -149,10 +152,13 @@ namespace DraCode.KoboldLair.Server.Services
         public void SetProjectProvider(string projectId, string agentType, string? provider, string? model = null)
         {
             var config = GetOrCreateProjectConfig(projectId);
-            
+
             switch (agentType.ToLowerInvariant())
             {
                 case "wyrm":
+                    config.WyrmProvider = provider;
+                    config.WyrmModel = model;
+                    break;
                 case "wyvern":
                     config.WyvernProvider = provider;
                     config.WyvernModel = model;
@@ -186,9 +192,31 @@ namespace DraCode.KoboldLair.Server.Services
 
             return agentType.ToLowerInvariant() switch
             {
-                "wyrm" or "wyvern" => config.WyvernProvider,
+                "wyvern" => config.WyvernProvider,
+                "wyrm" => config.WyrmProvider,
                 "drake" => config.DrakeProvider,
                 "kobold" => config.KoboldProvider,
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Gets model for a specific agent type in a project
+        /// </summary>
+        public string? GetProjectModel(string projectId, string agentType)
+        {
+            var config = GetProjectConfig(projectId);
+            if (config == null)
+            {
+                return null;
+            }
+
+            return agentType.ToLowerInvariant() switch
+            {
+                "wyvern" => config.WyvernModel,
+                "wyrm" => config.WyrmModel,
+                "drake" => config.DrakeModel,
+                "kobold" => config.KoboldModel,
                 _ => null
             };
         }

@@ -1,9 +1,7 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents.Kobold;
-using DraCode.KoboldLair.Server.Agents.Wyvern;
+using DraCode.KoboldLair.Server.Factories;
 using DraCode.KoboldLair.Server.Models;
 using DraCode.KoboldLair.Server.Services;
-using DraCode.KoboldLair.Server.Supervisors;
 
 var builder = WebApplication.CreateBuilder(args);
 

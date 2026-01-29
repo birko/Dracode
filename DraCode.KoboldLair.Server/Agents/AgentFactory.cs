@@ -1,8 +1,5 @@
 using DraCode.Agent;
 using DraCode.Agent.Agents;
-using DraCode.KoboldLair.Server.Agents.Dragon;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
-using DraCode.KoboldLair.Server.Agents.Wyvern;
 
 namespace DraCode.KoboldLair.Server.Agents
 {
@@ -18,7 +15,7 @@ namespace DraCode.KoboldLair.Server.Agents
         /// <param name="provider">LLM provider: "openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "githubcopilot"</param>
         /// <param name="options">Agent options (working directory, verbose, etc.)</param>
         /// <param name="config">Provider configuration (API keys, models, etc.)</param>
-        /// <param name="agentType">Type of agent to create: "dragon", "wyvernanalyzer", "wyrm", "coding", "csharp", "cpp", "php", "python", "svg", "bitmap", etc.</param>
+        /// <param name="agentType">Type of agent to create: "dragon", "wyvern", "wyrm", "coding", "csharp", "cpp", "php", "python", "svg", "bitmap", etc.</param>
         /// <returns>Agent instance</returns>
         public static Agent.Agents.Agent Create(
             string provider,
@@ -45,11 +42,11 @@ namespace DraCode.KoboldLair.Server.Agents
                     : "./specifications";
                 return new DragonAgent(llmProvider, options, specificationsPath);
             }
-            else if (agentType.Equals("wyvernanalyzer", StringComparison.OrdinalIgnoreCase))
+            else if (agentType.Equals("wyvern", StringComparison.OrdinalIgnoreCase))
             {
-                // Create WyvernAnalyzer agent for requirements gathering
+                // Create WyvernAgent for requirements gathering
                 var llmProvider = CreateLlmProvider(provider, config);
-                return new WyvernAnalyzerAgent(llmProvider, options);
+                return new WyvernAgent(llmProvider, options);
             }
 
             // Delegate all other agent types to DraCode.Agent.AgentFactory

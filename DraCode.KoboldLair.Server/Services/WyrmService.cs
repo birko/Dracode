@@ -1,9 +1,10 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
+using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Orchestrators;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyrm.TaskStatus;
+using TaskStatus = DraCode.KoboldLair.Server.Models.TaskStatus;
 
 namespace DraCode.KoboldLair.Server.Services
 {

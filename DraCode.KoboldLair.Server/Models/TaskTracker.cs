@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyrm
+namespace DraCode.KoboldLair.Server.Models
 {
     /// <summary>
     /// Manages task tracking and markdown report generation

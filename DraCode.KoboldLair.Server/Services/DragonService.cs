@@ -4,7 +4,6 @@ using System.Text.Json;
 using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.KoboldLair.Server.Agents;
-using DraCode.KoboldLair.Server.Agents.Dragon;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -45,7 +44,12 @@ namespace DraCode.KoboldLair.Server.Services
                 // Get provider settings from configuration
                 var (provider, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
 
-                var dragon = (DragonAgent)KoboldLairAgentFactory.Create(provider, options, config, "dragon");
+                // Create callback for spec updates that notifies ProjectService
+                Action<string>? onSpecUpdated = _projectService != null
+                    ? specPath => _projectService.MarkSpecificationModified(specPath)
+                    : null;
+
+                var dragon = CreateDragonAgent(provider, options, config, onSpecUpdated);
 
                 // Set up message callback for debugging
                 dragon.SetMessageCallback((type, content) =>
@@ -58,16 +62,45 @@ namespace DraCode.KoboldLair.Server.Services
 
                 // Send welcome message
                 _logger.LogInformation("[Dragon] Starting session...");
-                var welcomeResponse = await dragon.StartSessionAsync();
-                _logger.LogInformation("[Dragon] Welcome response: {Response}", welcomeResponse);
-
-                await SendMessageAsync(webSocket, new
+                try
                 {
-                    type = "dragon_message",
-                    sessionId,
-                    message = welcomeResponse,
-                    timestamp = DateTime.UtcNow
-                });
+                    var welcomeResponse = await dragon.StartSessionAsync();
+                    _logger.LogInformation("[Dragon] Welcome response: {Response}", welcomeResponse);
+
+                    await SendMessageAsync(webSocket, new
+                    {
+                        type = "dragon_message",
+                        sessionId,
+                        message = welcomeResponse,
+                        timestamp = DateTime.UtcNow
+                    });
+                }
+                catch (HttpRequestException ex)
+                {
+                    _logger.LogError(ex, "Failed to start Dragon session - LLM connection error");
+                    await SendMessageAsync(webSocket, new
+                    {
+                        type = "error",
+                        errorType = "llm_connection",
+                        sessionId,
+                        message = $"Failed to connect to LLM provider: {ex.Message}",
+                        details = "Please check that your API key is valid and the provider service is available.",
+                        timestamp = DateTime.UtcNow
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to start Dragon session");
+                    await SendMessageAsync(webSocket, new
+                    {
+                        type = "error",
+                        errorType = "startup_error",
+                        sessionId,
+                        message = $"Failed to initialize Dragon: {ex.Message}",
+                        details = "There was a problem starting the requirements agent. Please check provider configuration.",
+                        timestamp = DateTime.UtcNow
+                    });
+                }
 
                 // Handle incoming messages
                 var buffer = new byte[1024 * 4];
@@ -205,14 +238,66 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                 }
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "Error handling Dragon message");
+                _logger.LogError(ex, "HTTP error communicating with LLM provider");
                 await SendMessageAsync(webSocket, new
                 {
                     type = "error",
+                    errorType = "llm_connection",
                     sessionId,
-                    message = "Sorry, I encountered an error. Please try again.",
+                    message = $"Failed to connect to LLM provider: {ex.Message}",
+                    details = "Please check that your API key is valid and the provider service is available.",
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+            {
+                _logger.LogError(ex, "Timeout communicating with LLM provider");
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "error",
+                    errorType = "llm_timeout",
+                    sessionId,
+                    message = "Request to LLM provider timed out",
+                    details = "The AI service is taking too long to respond. Please try again.",
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "JSON parsing error in LLM response");
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "error",
+                    errorType = "llm_response",
+                    sessionId,
+                    message = "Invalid response from LLM provider",
+                    details = $"Could not parse the AI response: {ex.Message}",
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling Dragon message");
+
+                // Check if it's an LLM-related error by examining the message
+                var isLlmError = ex.Message.Contains("API", StringComparison.OrdinalIgnoreCase) ||
+                                 ex.Message.Contains("provider", StringComparison.OrdinalIgnoreCase) ||
+                                 ex.Message.Contains("401") || ex.Message.Contains("403") ||
+                                 ex.Message.Contains("429") || ex.Message.Contains("500");
+
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "error",
+                    errorType = isLlmError ? "llm_error" : "general",
+                    sessionId,
+                    message = isLlmError
+                        ? $"LLM Provider Error: {ex.Message}"
+                        : "An unexpected error occurred",
+                    details = isLlmError
+                        ? "There was a problem communicating with the AI service. Check your API key and provider settings."
+                        : ex.Message,
                     timestamp = DateTime.UtcNow
                 });
             }
@@ -278,8 +363,13 @@ namespace DraCode.KoboldLair.Server.Services
                 }
 
 
+                // Create callback for spec updates that notifies ProjectService
+                Action<string>? onSpecUpdated = _projectService != null
+                    ? specPath => _projectService.MarkSpecificationModified(specPath)
+                    : null;
+
                 // Create new agent with clean context
-                var dragon = (DragonAgent)KoboldLairAgentFactory.Create(providerName, options, config, "dragon");
+                var dragon = CreateDragonAgent(providerName, options, config, onSpecUpdated);
 
                 // Set up message callback for debugging
                 dragon.SetMessageCallback((type, content) =>
@@ -330,6 +420,48 @@ namespace DraCode.KoboldLair.Server.Services
                     ? Directory.GetFiles("./specifications", "*.md").Length
                     : 0
             };
+        }
+
+        /// <summary>
+        /// Creates a DragonAgent with the specification update callback and project listing
+        /// </summary>
+        private DragonAgent CreateDragonAgent(
+            string provider,
+            AgentOptions options,
+            Dictionary<string, string> config,
+            Action<string>? onSpecificationUpdated)
+        {
+            var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(provider, config);
+            var specificationsPath = config.TryGetValue("specificationsPath", out var path)
+                ? path
+                : "./specifications";
+
+            // Create project listing function if ProjectService is available
+            Func<List<ProjectInfo>>? getProjects = _projectService != null
+                ? () => GetProjectInfoList()
+                : null;
+
+            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects);
+        }
+
+        /// <summary>
+        /// Gets project information for the list_projects tool
+        /// </summary>
+        private List<ProjectInfo> GetProjectInfoList()
+        {
+            if (_projectService == null)
+                return new List<ProjectInfo>();
+
+            var projects = _projectService.GetAllProjects();
+            return projects.Select(p => new ProjectInfo
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Status = p.Status.ToString(),
+                FeatureCount = p.Specification?.Features.Count ?? 0,
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt
+            }).ToList();
         }
     }
 

@@ -1,8 +1,9 @@
 using DraCode.Agent;
-using DraCode.Agent.LLMs.Providers;
+using DraCode.KoboldLair.Server.Agents;
+using DraCode.KoboldLair.Server.Orchestrators;
 using DraCode.KoboldLair.Server.Services;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyvern
+namespace DraCode.KoboldLair.Server.Factories
 {
     /// <summary>
     /// Factory for creating and managing Wyvern instances.
@@ -28,12 +29,21 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
         /// <summary>
         /// Creates a new Wyvern for a project
         /// </summary>
+        /// <param name="projectName">Name of the project</param>
+        /// <param name="specificationPath">Path to the specification file</param>
+        /// <param name="outputPath">Output path for task files</param>
+        /// <param name="wyvernProvider">Optional override for Wyvern provider</param>
+        /// <param name="wyvernModel">Optional override for Wyvern model</param>
+        /// <param name="wyrmProvider">Optional override for Wyrm provider</param>
+        /// <param name="wyrmModel">Optional override for Wyrm model</param>
         public Wyvern CreateWyvern(
             string projectName,
             string specificationPath,
             string outputPath = "./tasks",
-            string? provider = null,
-            string? model = null)
+            string? wyvernProvider = null,
+            string? wyvernModel = null,
+            string? wyrmProvider = null,
+            string? wyrmModel = null)
         {
             lock (_lock)
             {
@@ -42,42 +52,56 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                     throw new InvalidOperationException($"Wyvern already exists for project: {projectName}");
                 }
 
-                // Get provider settings
-                string effectiveProvider;
-                Dictionary<string, string> config;
-                AgentOptions options;
+                // Get Wyvern provider settings
+                string effectiveWyvernProvider;
+                Dictionary<string, string> wyvernConfig;
+                AgentOptions wyvernOptions;
 
-                if (provider != null)
+                (effectiveWyvernProvider, wyvernConfig, wyvernOptions) = _providerConfigService.GetProviderSettingsForAgent("wyvern", outputPath);
+                if (wyvernProvider != null)
                 {
                     // Use specified provider
-                    (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern", outputPath);
-                    effectiveProvider = provider;
-                    if (model != null)
+                    effectiveWyvernProvider = wyvernProvider;
+                    if (wyvernModel != null)
                     {
-                        config["model"] = model;
+                        wyvernConfig["model"] = wyvernModel;
                     }
                 }
-                else
+
+                // Get Wyrm provider settings (separate from Wyvern)
+                string effectiveWyrmProvider;
+                Dictionary<string, string> wyrmConfig;
+                AgentOptions wyrmOptions;
+
+                (effectiveWyrmProvider, wyrmConfig, wyrmOptions) = _providerConfigService.GetProviderSettingsForAgent("wyrm", outputPath);
+                if (wyrmProvider != null)
                 {
-                    // Use configured provider
-                    (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern", outputPath);
+                    // Use specified provider override
+                    effectiveWyrmProvider = wyrmProvider;
+                    if (wyrmModel != null)
+                    {
+                        wyrmConfig["model"] = wyrmModel;
+                    }
                 }
 
-                var analyzerAgent = (WyvernAnalyzerAgent)KoboldLairAgentFactory.Create("wyvernanalyzer", options, config);
+                var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create("wyvern", wyvernOptions, wyvernConfig);
 
-                var Wyvern = new Wyvern(
+                var wyvern = new Wyvern(
                     projectName,
                     specificationPath,
                     analyzerAgent,
-                    effectiveProvider,
-                    config,
-                    options,
-                    outputPath
+                    effectiveWyvernProvider,
+                    wyvernConfig,
+                    wyvernOptions,
+                    outputPath,
+                    effectiveWyrmProvider,
+                    wyrmConfig,
+                    wyrmOptions
                 );
 
-                _Wyverns[projectName] = Wyvern;
+                _Wyverns[projectName] = wyvern;
 
-                return Wyvern;
+                return wyvern;
             }
         }
 

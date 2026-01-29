@@ -21,6 +21,11 @@ namespace DraCode.KoboldLair.Server.Models
         Analyzed,
 
         /// <summary>
+        /// Specification was modified after analysis - needs reprocessing
+        /// </summary>
+        SpecificationModified,
+
+        /// <summary>
         /// Tasks are being processed by Drakes
         /// </summary>
         InProgress,

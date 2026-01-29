@@ -85,11 +85,34 @@ namespace DraCode.Agent.Agents
 
         public async Task<List<Message>> RunAsync(string task, int? maxIterations = null)
         {
-            var maxIter = maxIterations ?? _options.MaxIterations;
             var conversation = new List<Message>
             {
                 new() { Role = "user", Content = task }
             };
+            return await RunWithHistoryAsync(conversation, maxIterations);
+        }
+
+        /// <summary>
+        /// Continues a conversation with existing message history.
+        /// Use this for multi-turn conversations where context must be preserved.
+        /// </summary>
+        /// <param name="conversationHistory">Existing conversation messages</param>
+        /// <param name="newUserMessage">New user message to add</param>
+        /// <param name="maxIterations">Maximum iterations for this turn</param>
+        /// <returns>Updated conversation including new messages</returns>
+        public async Task<List<Message>> ContinueAsync(List<Message> conversationHistory, string newUserMessage, int? maxIterations = null)
+        {
+            var conversation = new List<Message>(conversationHistory);
+            conversation.Add(new Message { Role = "user", Content = newUserMessage });
+            return await RunWithHistoryAsync(conversation, maxIterations);
+        }
+
+        /// <summary>
+        /// Runs the agent loop with an existing conversation history.
+        /// </summary>
+        private async Task<List<Message>> RunWithHistoryAsync(List<Message> conversation, int? maxIterations = null)
+        {
+            var maxIter = maxIterations ?? _options.MaxIterations;
 
             for (int iteration = 1; iteration <= maxIter; iteration++)
             {

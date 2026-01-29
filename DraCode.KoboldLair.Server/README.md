@@ -297,6 +297,44 @@ All messages are JSON:
 5. **Rotate tokens regularly**
 6. **Monitor authentication logs** for suspicious activity
 
+## Project Structure
+
+```
+DraCode.KoboldLair.Server/
+├── Agents/                         # Agent Implementations
+│   ├── AgentFactory.cs             # Creates Dragon, Wyrm, Drake agents
+│   ├── DragonAgent.cs              # Interactive requirements gathering
+│   ├── WyrmAgent.cs                # Project analyzer
+│   └── WyvernAgent.cs              # Task delegator
+├── Factories/                      # Factory Pattern - Resource Creation
+│   ├── KoboldFactory.cs            # Creates Kobolds with parallel limits
+│   ├── DrakeFactory.cs             # Creates Drake supervisors
+│   └── WyvernFactory.cs            # Creates Wyvern orchestrators
+├── Orchestrators/                  # High-Level Orchestration
+│   ├── Drake.cs                    # Task supervisor
+│   ├── WyrmRunner.cs               # Task running orchestrator
+│   └── Wyvern.cs                   # Task delegation orchestrator
+├── Models/                         # Data Models
+│   ├── Project.cs                  # Project entity
+│   ├── ProjectConfig.cs            # Project configuration
+│   ├── Kobold.cs                   # Worker agent wrapper
+│   ├── TaskRecord.cs               # Individual task record
+│   ├── TaskTracker.cs              # Task tracking
+│   └── ...                         # Other domain models
+├── Services/                       # Business Logic Services
+│   ├── DragonService.cs            # Dragon WebSocket service
+│   ├── WyrmService.cs              # Wyrm analysis service
+│   ├── WyvernProcessingService.cs  # Wyvern background processing (60s)
+│   ├── DrakeMonitoringService.cs   # Drake background monitoring (60s)
+│   ├── ProjectService.cs           # Project management
+│   └── ...                         # Other services
+├── Program.cs                      # ASP.NET Core startup & DI
+├── appsettings.json                # Base configuration
+├── appsettings.Development.json    # Development overrides
+├── project-configs.json            # Per-project resource limits
+└── provider-config.json            # Provider configuration
+```
+
 ## Related
 
 - [DraCode.KoboldLair.Client](../DraCode.KoboldLair.Client/README.md) - Web UI client

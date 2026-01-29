@@ -3,35 +3,35 @@ using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyvern
+namespace DraCode.KoboldLair.Server.Agents
 {
-    /// <summary>
-    /// WyvernAnalyzerAgent is a specialized agent for analyzing project specifications.
-    /// It reads specifications created by Dragon, divides work into areas (backend, frontend, etc.),
-    /// and organizes tasks by dependencies.
-    /// </summary>
-    public class WyvernAnalyzerAgent : AgentBase
-    {
-        protected override string SystemPrompt => GetWyvernSystemPrompt();
+   /// <summary>
+   /// WyvernAgent is a specialized agent for analyzing project specifications.
+   /// It reads specifications created by Dragon, divides work into areas (backend, frontend, etc.),
+   /// and organizes tasks by dependencies.
+   /// </summary>
+   public class WyvernAgent : AgentBase
+   {
+      protected override string SystemPrompt => GetWyvernSystemPrompt();
 
-        /// <summary>
-        /// Creates a new Wyvern analyzer agent
-        /// </summary>
-        /// <param name="provider">LLM provider to use</param>
-        /// <param name="options">Agent options</param>
-        public WyvernAnalyzerAgent(
-            ILlmProvider provider,
-            AgentOptions? options = null)
-            : base(provider, options)
-        {
-        }
+      /// <summary>
+      /// Creates a new Wyvern analyzer agent
+      /// </summary>
+      /// <param name="provider">LLM provider to use</param>
+      /// <param name="options">Agent options</param>
+      public WyvernAgent(
+          ILlmProvider provider,
+          AgentOptions? options = null)
+          : base(provider, options)
+      {
+      }
 
-        /// <summary>
-        /// Gets the specialized system prompt for the Wyvern analyzer
-        /// </summary>
-        private string GetWyvernSystemPrompt()
-        {
-            return @"You are Wyvern 🐲, a senior project architect and task planner for KoboldLair.
+      /// <summary>
+      /// Gets the specialized system prompt for the Wyvern analyzer
+      /// </summary>
+      private string GetWyvernSystemPrompt()
+      {
+         return @"You are Wyvern 🐲, a senior project architect and task planner for KoboldLair.
 
 Your role is to analyze project specifications created by Dragon and break them down into organized, dependency-aware task lists.
 
@@ -128,27 +128,27 @@ You MUST respond with a valid JSON object in this exact format:
 - Your ENTIRE response must be valid JSON
 - Do not include markdown code blocks or explanations
 - Just return the JSON object directly";
-        }
+      }
 
-        /// <summary>
-        /// Analyzes a specification and returns organized task structure
-        /// </summary>
-        /// <param name="specificationContent">Content of the specification file</param>
-        /// <returns>JSON string with organized tasks</returns>
-        public async Task<string> AnalyzeSpecificationAsync(string specificationContent)
-        {
-            var prompt = $@"Please analyze the following project specification and break it down into organized, dependency-aware tasks.
+      /// <summary>
+      /// Analyzes a specification and returns organized task structure
+      /// </summary>
+      /// <param name="specificationContent">Content of the specification file</param>
+      /// <returns>JSON string with organized tasks</returns>
+      public async Task<string> AnalyzeSpecificationAsync(string specificationContent)
+      {
+         var prompt = $@"Please analyze the following project specification and break it down into organized, dependency-aware tasks.
 
 SPECIFICATION:
 {specificationContent}
 
 Respond with the JSON structure as defined in your system prompt.";
 
-            var messages = await RunAsync(prompt, maxIterations: 1);
-            
-            // Return the last assistant message (should be JSON)
-            var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
-            return lastMessage?.Content?.ToString() ?? "{}";
-        }
-    }
+         var messages = await RunAsync(prompt, maxIterations: 1);
+
+         // Return the last assistant message (should be JSON)
+         var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
+         return lastMessage?.Content?.ToString() ?? "{}";
+      }
+   }
 }

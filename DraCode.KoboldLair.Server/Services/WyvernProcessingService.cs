@@ -60,7 +60,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (!canRun)
                     {
-                        _logger.LogWarning("⚠️ Previous Wyrm processing job still running, skipping this cycle");
+                        _logger.LogWarning("⚠️ Previous Wyvern processing job still running, skipping this cycle");
                         continue;
                     }
 
@@ -74,7 +74,7 @@ namespace DraCode.KoboldLair.Server.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "❌ Error in Wyrm processing cycle");
+                    _logger.LogError(ex, "❌ Error in Wyvern processing cycle");
                 }
                 finally
                 {
@@ -86,7 +86,7 @@ namespace DraCode.KoboldLair.Server.Services
                 }
             }
 
-            _logger.LogInformation("🛑 Wyrm Processing Service stopped");
+            _logger.LogInformation("🛑 Wyvern Processing Service stopped");
         }
 
         /// <summary>
@@ -112,7 +112,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             // Check for new projects that need Wyrms
             var newProjects = await CheckForNewProjectsAsync(specFiles);
-            
+
             // Process projects that need Wyrm assignment
             var projectsNeedingWyrm = _projectService.GetProjectsByStatus(ProjectStatus.New);
             foreach (var project in projectsNeedingWyrm)
@@ -121,19 +121,19 @@ namespace DraCode.KoboldLair.Server.Services
                     break;
 
                 // Check if Wyrm is enabled for this project
-                if (!_projectService.IsAgentEnabled(project.Id, "wyrm"))
+                if (!_projectService.IsAgentEnabled(project.Id, "wyvern"))
                 {
-                    _logger.LogInformation("⏭️ Skipping project {ProjectName} - Wyrm disabled", project.Name);
+                    _logger.LogInformation("⏭️ Skipping project {ProjectName} - Wyvern disabled", project.Name);
                     continue;
                 }
 
                 try
                 {
-                    await AssignWyrmToProjectAsync(project);
+                    await AssignWyvernToProjectAsync(project);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to assign Wyrm to project: {ProjectId}", project.Id);
+                    _logger.LogError(ex, "Failed to assign Wyvern to project: {ProjectId}", project.Id);
                 }
             }
 
@@ -144,10 +144,10 @@ namespace DraCode.KoboldLair.Server.Services
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
-                // Check if Wyrm is enabled for this project
-                if (!_projectService.IsAgentEnabled(project.Id, "wyrm"))
+                // Check if Wyvern is enabled for this project
+                if (!_projectService.IsAgentEnabled(project.Id, "wyvern"))
                 {
-                    _logger.LogInformation("⏭️ Skipping analysis for project {ProjectName} - Wyrm disabled", project.Name);
+                    _logger.LogInformation("⏭️ Skipping analysis for project {ProjectName} - Wyvern disabled", project.Name);
                     continue;
                 }
 
@@ -158,6 +158,30 @@ namespace DraCode.KoboldLair.Server.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to analyze project: {ProjectId}", project.Id);
+                }
+            }
+
+            // Process projects with modified specifications (reprocessing)
+            var projectsWithModifiedSpecs = _projectService.GetProjectsByStatus(ProjectStatus.SpecificationModified);
+            foreach (var project in projectsWithModifiedSpecs)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                // Check if Wyvern is enabled for this project
+                if (!_projectService.IsAgentEnabled(project.Id, "wyvern"))
+                {
+                    _logger.LogInformation("⏭️ Skipping reanalysis for project {ProjectName} - Wyvern disabled", project.Name);
+                    continue;
+                }
+
+                try
+                {
+                    await ReanalyzeModifiedProjectAsync(project);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to reanalyze modified project: {ProjectId}", project.Id);
                 }
             }
 
@@ -218,7 +242,7 @@ namespace DraCode.KoboldLair.Server.Services
             try
             {
                 var lines = await File.ReadAllLinesAsync(specPath);
-                
+
                 // Look for first H1 heading
                 var h1Line = lines.FirstOrDefault(l => l.TrimStart().StartsWith("# "));
                 if (h1Line != null)
@@ -227,10 +251,10 @@ namespace DraCode.KoboldLair.Server.Services
                 }
 
                 // Look for "Project:" or "Project Name:" pattern
-                var projectLine = lines.FirstOrDefault(l => 
+                var projectLine = lines.FirstOrDefault(l =>
                     l.Contains("Project:", StringComparison.OrdinalIgnoreCase) ||
                     l.Contains("Project Name:", StringComparison.OrdinalIgnoreCase));
-                
+
                 if (projectLine != null)
                 {
                     var colonIndex = projectLine.IndexOf(':');
@@ -249,27 +273,45 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Assigns a Wyrm to a project
+        /// Assigns a Wyvern to a project
         /// </summary>
-        private async Task AssignWyrmToProjectAsync(Models.Project project)
+        private async Task AssignWyvernToProjectAsync(Models.Project project)
         {
-            _logger.LogInformation("🐲 Assigning Wyrm to project: {ProjectName}", project.Name);
-            
+            _logger.LogInformation("🐲 Assigning Wyvern to project: {ProjectName}", project.Name);
+
             var wyvern = await _projectService.AssignWyvernAsync(project.Id);
-            
-            _logger.LogInformation("✅ Wyrm assigned to project: {ProjectName}", project.Name);
+
+            _logger.LogInformation("✅ Wyvern assigned to project: {ProjectName}", project.Name);
         }
 
         /// <summary>
-        /// Runs Wyrm analysis on a project
+        /// Runs Wyvern analysis on a project
         /// </summary>
         private async Task AnalyzeProjectAsync(Models.Project project)
         {
-            _logger.LogInformation("🔍 Starting Wyrm analysis for project: {ProjectName}", project.Name);
-            
+            _logger.LogInformation("🔍 Starting Wyvern analysis for project: {ProjectName}", project.Name);
+
             var analysis = await _projectService.AnalyzeProjectAsync(project.Id);
-            
-            _logger.LogInformation("✅ Wyrm analysis completed for project: {ProjectName}. Total tasks: {TaskCount}",
+
+            _logger.LogInformation("✅ Wyvern analysis completed for project: {ProjectName}. Total tasks: {TaskCount}",
+                project.Name, analysis.TotalTasks);
+        }
+
+        /// <summary>
+        /// Reanalyzes a project whose specification was modified.
+        /// First transitions back to WyvernAssigned, then runs normal analysis.
+        /// </summary>
+        private async Task ReanalyzeModifiedProjectAsync(Models.Project project)
+        {
+            _logger.LogInformation("🔄 Reanalyzing modified specification for project: {ProjectName}", project.Name);
+
+            // Transition to WyvernAssigned so normal analysis flow can pick it up
+            _projectService.UpdateProjectStatus(project.Id, ProjectStatus.WyvernAssigned);
+
+            // Run analysis (which will create new tasks for changes)
+            var analysis = await _projectService.AnalyzeProjectAsync(project.Id);
+
+            _logger.LogInformation("✅ Reanalysis completed for project: {ProjectName}. Total tasks: {TaskCount}",
                 project.Name, analysis.TotalTasks);
         }
 

@@ -1,5 +1,6 @@
+using DraCode.KoboldLair.Server.Factories;
 using DraCode.KoboldLair.Server.Models;
-using DraCode.KoboldLair.Server.Agents.Wyvern;
+using DraCode.KoboldLair.Server.Orchestrators;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -65,7 +66,8 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Assigns a Wyvern to a project for specification analysis
+        /// Assigns a Wyvern to a project for specification analysis.
+        /// Uses project-specific provider/model settings for both Wyvern and Wyrm if configured.
         /// </summary>
         public async Task<Wyvern> AssignWyvernAsync(string projectId)
         {
@@ -87,11 +89,26 @@ namespace DraCode.KoboldLair.Server.Services
 
             try
             {
-                // Create wyvern for this project
+                // Get project-specific provider/model settings for Wyvern
+                var wyvernProvider = _projectConfigService.GetProjectProvider(projectId, "wyvern");
+                var wyvernModel = _projectConfigService.GetProjectModel(projectId, "wyvern");
+
+                // Get project-specific provider/model settings for Wyrm
+                var wyrmProvider = _projectConfigService.GetProjectProvider(projectId, "wyrm");
+                var wyrmModel = _projectConfigService.GetProjectModel(projectId, "wyrm");
+
+                _logger.LogDebug("Creating Wyvern for project {ProjectName} with Wyvern provider={WyvernProvider}, Wyrm provider={WyrmProvider}",
+                    project.Name, wyvernProvider ?? "default", wyrmProvider ?? "default");
+
+                // Create wyvern for this project with project-specific settings
                 var wyvern = _wyvernFactory.CreateWyvern(
                     project.Name,
                     project.SpecificationPath,
-                    project.OutputPath
+                    project.OutputPath,
+                    wyvernProvider,
+                    wyvernModel,
+                    wyrmProvider,
+                    wyrmModel
                 );
 
                 // Update project
@@ -114,7 +131,9 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Runs Wyvern analysis on a project's specification
+        /// Runs Wyvern analysis on a project's specification.
+        /// Only sets status to Analyzed if Wyrm is enabled and all areas have tasks assigned.
+        /// If some areas fail, they are stored as pending areas for reprocessing on subsequent runs.
         /// </summary>
         public async Task<WyvernAnalysis> AnalyzeProjectAsync(string projectId)
         {
@@ -132,28 +151,94 @@ namespace DraCode.KoboldLair.Server.Services
 
             try
             {
-                _logger.LogInformation("🔍 Starting wyvern analysis for project: {ProjectName}", project.Name);
+                // Check if Wyrm is enabled for this project
+                var wyrmEnabled = _projectConfigService.IsAgentEnabled(projectId, "wyrm");
 
-                // Run analysis
-                var analysis = await wyvern.AnalyzeProjectAsync();
+                // Determine if we're reprocessing pending areas or doing full analysis
+                var isReprocessing = project.PendingAreas.Count > 0;
+                var areasToProcess = isReprocessing ? project.PendingAreas : null;
 
-                // Save analysis report
-                var analysisReportPath = Path.Combine(project.OutputPath, $"{project.Name}-analysis.md");
-                var report = wyvern.GenerateReport();
-                await File.WriteAllTextAsync(analysisReportPath, report);
+                WyvernAnalysis analysis;
 
-                // Create tasks
-                var taskFiles = await wyvern.CreateTasksAsync();
+                if (!isReprocessing)
+                {
+                    _logger.LogInformation("🔍 Starting wyvern analysis for project: {ProjectName}", project.Name);
 
-                // Update project
-                project.Status = ProjectStatus.Analyzed;
-                project.AnalyzedAt = DateTime.UtcNow;
-                project.AnalysisOutputPath = analysisReportPath;
+                    // Run full analysis
+                    analysis = await wyvern.AnalyzeProjectAsync();
+
+                    // Save analysis report
+                    var analysisReportPath = Path.Combine(project.OutputPath, $"{project.Name}-analysis.md");
+                    var report = wyvern.GenerateReport();
+                    await File.WriteAllTextAsync(analysisReportPath, report);
+                    project.AnalysisOutputPath = analysisReportPath;
+                }
+                else
+                {
+                    _logger.LogInformation("🔄 Reprocessing {Count} pending area(s) for project: {ProjectName}",
+                        project.PendingAreas.Count, project.Name);
+
+                    // For reprocessing, we need the existing analysis
+                    analysis = wyvern.Analysis ?? await wyvern.AnalyzeProjectAsync();
+                }
+
+                // Create tasks (process only pending areas if reprocessing)
+                var (taskFiles, failedAreas) = await wyvern.CreateTasksAsync(
+                    areasToProcess,
+                    isReprocessing ? project.TaskFiles : null
+                );
+
+                // Compute content hash for change detection
+                var specContent = await File.ReadAllTextAsync(project.SpecificationPath);
+                var contentHash = ComputeContentHash(specContent);
+
+                // Get all areas from analysis
+                var allAreas = wyvern.GetAllAreaNames();
+
+                // Determine which areas still need processing
+                var areasWithTasks = taskFiles.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var pendingAreas = allAreas
+                    .Where(a => !areasWithTasks.Contains(a))
+                    .Concat(failedAreas)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                // Update project fields
+                project.LastProcessedAt = DateTime.UtcNow;
+                project.LastProcessedContentHash = contentHash;
                 project.TaskFiles = taskFiles;
-                _repository.Update(project);
+                project.PendingAreas = pendingAreas;
 
-                _logger.LogInformation("✅ Wyvern analysis completed for project: {ProjectName}. Tasks: {TaskCount}", 
-                    project.Name, analysis.TotalTasks);
+                // Determine final status:
+                // - Set to Analyzed only if Wyrm is enabled AND all areas have tasks
+                // - Otherwise keep as WyvernAssigned for reprocessing on next cycle
+                var allAreasComplete = pendingAreas.Count == 0;
+
+                if (wyrmEnabled && allAreasComplete)
+                {
+                    project.Status = ProjectStatus.Analyzed;
+                    project.AnalyzedAt = DateTime.UtcNow;
+                    _logger.LogInformation("✅ Wyvern analysis completed for project: {ProjectName}. Tasks: {TaskCount}, Areas: {AreaCount}",
+                        project.Name, analysis.TotalTasks, allAreas.Count);
+                }
+                else
+                {
+                    // Keep as WyvernAssigned - will be reprocessed on next service cycle
+                    project.Status = ProjectStatus.WyvernAssigned;
+
+                    if (!wyrmEnabled)
+                    {
+                        _logger.LogInformation("⏸️ Wyvern analysis partial for project: {ProjectName}. Wyrm disabled - waiting for enablement.",
+                            project.Name);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("⏸️ Wyvern analysis partial for project: {ProjectName}. {PendingCount}/{TotalCount} area(s) pending reprocessing.",
+                            project.Name, pendingAreas.Count, allAreas.Count);
+                    }
+                }
+
+                _repository.Update(project);
 
                 return analysis;
             }
@@ -186,6 +271,39 @@ namespace DraCode.KoboldLair.Server.Services
 
             _repository.Update(project);
             _logger.LogInformation("Updated project {ProjectId} status to {Status}", projectId, status);
+        }
+
+        /// <summary>
+        /// Marks a project's specification as modified, triggering reprocessing by Wyvern.
+        /// Called when Dragon updates an existing specification.
+        /// </summary>
+        public void MarkSpecificationModified(string specificationPath)
+        {
+            var project = _repository.GetBySpecificationPath(specificationPath);
+            if (project == null)
+            {
+                _logger.LogDebug("No project found for specification: {Path}", specificationPath);
+                return;
+            }
+
+            // Only mark as modified if already analyzed
+            if (project.Status == ProjectStatus.Analyzed ||
+                project.Status == ProjectStatus.InProgress ||
+                project.Status == ProjectStatus.Completed)
+            {
+                project.Status = ProjectStatus.SpecificationModified;
+                project.UpdatedAt = DateTime.UtcNow;
+                _repository.Update(project);
+                _logger.LogInformation("📝 Specification modified for project: {ProjectName} - will be reprocessed", project.Name);
+            }
+        }
+
+        /// <summary>
+        /// Gets a project by its specification path
+        /// </summary>
+        public Project? GetProjectBySpecificationPath(string specificationPath)
+        {
+            return _repository.GetBySpecificationPath(specificationPath);
         }
 
         /// <summary>
@@ -224,6 +342,7 @@ namespace DraCode.KoboldLair.Server.Services
                 NewProjects = allProjects.Count(p => p.Status == ProjectStatus.New),
                 WyvernAssignedProjects = allProjects.Count(p => p.Status == ProjectStatus.WyvernAssigned),
                 AnalyzedProjects = allProjects.Count(p => p.Status == ProjectStatus.Analyzed),
+                SpecificationModifiedProjects = allProjects.Count(p => p.Status == ProjectStatus.SpecificationModified),
                 InProgressProjects = allProjects.Count(p => p.Status == ProjectStatus.InProgress),
                 CompletedProjects = allProjects.Count(p => p.Status == ProjectStatus.Completed),
                 FailedProjects = allProjects.Count(p => p.Status == ProjectStatus.Failed)
@@ -241,6 +360,17 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
+        /// Computes a hash of content for change detection
+        /// </summary>
+        private static string ComputeContentHash(string content)
+        {
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            var hash = sha256.ComputeHash(bytes);
+            return Convert.ToBase64String(hash);
+        }
+
+        /// <summary>
         /// Sets provider configuration for a project
         /// </summary>
         public void SetProjectProviders(string projectId, string agentType, string? provider, string? model = null)
@@ -252,7 +382,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             _projectConfigService.SetProjectProvider(projectId, agentType, provider, model);
-            _logger.LogInformation("Updated {AgentType} provider to {Provider} for project: {ProjectName}", 
+            _logger.LogInformation("Updated {AgentType} provider to {Provider} for project: {ProjectName}",
                 agentType, provider, project.Name);
         }
 
@@ -283,7 +413,7 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     // Create default configuration
                     var newConfig = _projectConfigService.GetOrCreateProjectConfig(project.Id, project.Name);
-                    
+
                     // Initialize with global defaults if not set
                     if (string.IsNullOrEmpty(newConfig.WyvernProvider))
                     {
@@ -292,7 +422,7 @@ namespace DraCode.KoboldLair.Server.Services
                         newConfig.KoboldProvider = globalConfig.GetProviderForAgent("kobold");
                         _projectConfigService.UpdateProjectConfig(newConfig);
                     }
-                    
+
                     _logger.LogInformation("Initialized configuration for project: {ProjectName}", project.Name);
                 }
             }
@@ -310,7 +440,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             _projectConfigService.SetAgentEnabled(projectId, agentType, enabled);
-            _logger.LogInformation("{AgentType} {Status} for project: {ProjectName}", 
+            _logger.LogInformation("{AgentType} {Status} for project: {ProjectName}",
                 agentType, enabled ? "enabled" : "disabled", project.Name);
         }
 
@@ -345,7 +475,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             _projectConfigService.SetMaxParallelKobolds(projectId, maxParallel);
-            _logger.LogInformation("Updated MaxParallelKobolds to {Max} for project: {ProjectName}", 
+            _logger.LogInformation("Updated MaxParallelKobolds to {Max} for project: {ProjectName}",
                 maxParallel, project.Name);
         }
 
@@ -373,14 +503,16 @@ namespace DraCode.KoboldLair.Server.Services
         public int NewProjects { get; set; }
         public int WyvernAssignedProjects { get; set; }
         public int AnalyzedProjects { get; set; }
+        public int SpecificationModifiedProjects { get; set; }
         public int InProgressProjects { get; set; }
         public int CompletedProjects { get; set; }
         public int FailedProjects { get; set; }
 
         public override string ToString()
         {
+            var modifiedStr = SpecificationModifiedProjects > 0 ? $", {SpecificationModifiedProjects} modified" : "";
             return $"Projects: {TotalProjects} total, {NewProjects} new, {WyvernAssignedProjects} assigned, " +
-                   $"{AnalyzedProjects} analyzed, {InProgressProjects} in progress, " +
+                   $"{AnalyzedProjects} analyzed{modifiedStr}, {InProgressProjects} in progress, " +
                    $"{CompletedProjects} completed, {FailedProjects} failed";
         }
     }

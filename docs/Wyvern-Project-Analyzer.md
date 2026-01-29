@@ -17,7 +17,7 @@ WyvernProcessingService checks every 60 seconds
     ↓
 Detects new project → Creates Wyvern instance
     ↓
-WyvernAnalyzerAgent analyzes specification
+WyvernAgent analyzes specification
     ↓
 Categorizes into work areas:
   • Backend
@@ -40,7 +40,7 @@ Drakes monitor & assign to Kobolds
 
 ## Components
 
-### 1. Wyvern (`Projects/Wyvern.cs`)
+### 1. Wyvern (`Orchestrators/Wyvern.cs`)
 
 Main class that orchestrates the entire analysis and task creation process.
 
@@ -74,7 +74,7 @@ var report = Wyvern.GenerateReport();
 File.WriteAllText("./Wyvern-analysis-report.md", report);
 ```
 
-### 2. WyvernAnalyzerAgent (`Agents/WyvernAnalyzerAgent.cs`)
+### 2. WyvernAgent (`Agents/WyvernAgent.cs`)
 
 Specialized agent that analyzes specifications and produces structured JSON output.
 
@@ -454,7 +454,7 @@ public class Wyvern
     public Wyvern(
         string projectName,
         string specificationPath,
-        WyvernAnalyzerAgent analyzerAgent,
+        WyvernAgent analyzerAgent,
         string provider,
         Dictionary<string, string> config,
         AgentOptions options,
@@ -513,6 +513,25 @@ public class WyvernAnalysis
     public DateTime AnalyzedAt { get; set; }
     public string SpecificationPath { get; set; }
 }
+```
+
+## File Structure
+
+```
+DraCode.KoboldLair.Server/
+├── Agents/
+│   └── WyvernAgent.cs        # Project analyzer agent
+├── Factories/
+│   └── WyvernFactory.cs      # Creates Wyvern instances
+├── Orchestrators/
+│   ├── Wyvern.cs             # Main orchestration class
+│   └── WyrmRunner.cs         # Task running orchestrator
+├── Services/
+│   ├── WyrmService.cs        # Wyrm analysis service
+│   └── WyvernProcessingService.cs  # Background processing (60s)
+└── Models/
+    ├── TaskRecord.cs         # Individual task record
+    └── TaskTracker.cs        # Task tracking
 ```
 
 ## Summary

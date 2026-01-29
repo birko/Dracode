@@ -5,7 +5,7 @@ using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Server.Models;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
-namespace DraCode.KoboldLair.Server.Agents.Dragon
+namespace DraCode.KoboldLair.Server.Agents
 {
     /// <summary>
     /// DragonAgent is a specialized agent for gathering project/task requirements from users.
@@ -16,6 +16,9 @@ namespace DraCode.KoboldLair.Server.Agents.Dragon
     {
         private readonly string _specificationsPath;
         private readonly Dictionary<string, Specification> _specifications = new();
+        private List<Message> _conversationHistory = new();
+        private readonly Action<string>? _onSpecificationUpdated;
+        private readonly Func<List<ProjectInfo>>? _getProjects;
 
         protected override string SystemPrompt => GetDragonSystemPrompt();
 
@@ -25,13 +28,19 @@ namespace DraCode.KoboldLair.Server.Agents.Dragon
         /// <param name="provider">LLM provider to use</param>
         /// <param name="options">Agent options</param>
         /// <param name="specificationsPath">Path where specifications should be stored (default: ./specifications)</param>
+        /// <param name="onSpecificationUpdated">Callback invoked when a specification is updated (receives full path)</param>
+        /// <param name="getProjects">Function to get list of all projects for listing</param>
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
-            string specificationsPath = "./specifications")
+            string specificationsPath = "./specifications",
+            Action<string>? onSpecificationUpdated = null,
+            Func<List<ProjectInfo>>? getProjects = null)
             : base(provider, options)
         {
             _specificationsPath = specificationsPath ?? "./specifications";
+            _onSpecificationUpdated = onSpecificationUpdated;
+            _getProjects = getProjects;
 
             // Ensure specifications directory exists
             try
@@ -54,7 +63,8 @@ namespace DraCode.KoboldLair.Server.Agents.Dragon
         protected override List<Tool> CreateTools()
         {
             var tools = base.CreateTools();
-            tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications));
+            tools.Add(new ListProjectsTool(_getProjects));
+            tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications, _onSpecificationUpdated));
             tools.Add(new FeatureManagementTool(_specifications));
             return tools;
         }
@@ -68,12 +78,33 @@ namespace DraCode.KoboldLair.Server.Agents.Dragon
 
 Your role is to have an interactive conversation with the user to deeply understand their project requirements, then create or update specifications and manage features.
 
+## Welcome Behavior (IMPORTANT - do this on first message):
+
+When a user first connects, you MUST:
+1. Use the 'list_projects' tool to see all existing projects and their status
+2. Greet the user warmly and present their options:
+   - If projects exist: Show the list and ask if they want to continue on an existing project or start a new one
+   - If no projects: Welcome them and ask what new project they'd like to create
+3. Keep the welcome message concise but informative
+
+Example welcome (if projects exist):
+""Hello! I'm Dragon 🐉, your requirements analyst.
+
+I found these existing projects:
+- **TodoApp** (Analyzed, 5 features)
+- **WebStore** (In Progress, 12 features)
+
+Would you like to:
+1. Continue working on an existing project?
+2. Start a new project?
+
+Just let me know!""
+
 ## Your Workflow:
 
-1. **Check for Existing Specification**
-   - First, use manage_specification with action:'list' to see what already exists
-   - If working on an existing project, use manage_specification with action:'load' to get the current state
-   - You can update existing specifications or create new ones
+1. **Check Existing Projects**
+   - Use 'list_projects' to see all registered projects with their status
+   - Use manage_specification with action:'load' to get details of a specific project
 
 2. **Understand Requirements**
    - Ask what project or feature they want to work on
@@ -83,7 +114,7 @@ Your role is to have an interactive conversation with the user to deeply underst
 3. **Manage Features**
    - Create features for new functionality using manage_feature with action:'create'
    - Update features ONLY if they have status ""New"" using manage_feature with action:'update'
-   - If a feature is already assigned to Wyrm or in progress, create a NEW feature instead
+   - If a feature is already assigned to Wyvern or in progress, create a NEW feature instead
    - List features to see current status using manage_feature with action:'list'
 
 4. **Create or Update Specification**
@@ -94,17 +125,27 @@ Your role is to have an interactive conversation with the user to deeply underst
 
 ## Feature Status Lifecycle:
 - **New**: Just created by Dragon, can be updated by Dragon
-- **AssignedToWyvern**: Wyrm has taken ownership, Dragon cannot modify (create new feature instead)
+- **AssignedToWyvern**: Wyvern has taken ownership, Dragon cannot modify (create new feature instead)
 - **InProgress**: Being worked on by Kobolds
 - **Completed**: Implementation finished
 
+## Project Status Meanings:
+- **New**: Just registered, waiting for Wyvern assignment
+- **WyvernAssigned**: Wyvern is ready to analyze
+- **Analyzed**: Tasks have been created from specification
+- **SpecificationModified**: Spec was updated, Wyvern will reprocess
+- **InProgress**: Kobolds are working on tasks
+- **Completed**: All tasks finished
+- **Failed**: Error occurred during processing
+
 ## Tools Available:
+- **list_projects**: List all registered projects with their status and feature counts
 - **manage_specification**: Manage specifications (actions: list, load, create, update)
 - **manage_feature**: Manage features (actions: list, create, update)
 
 ## Style:
 - Be conversational and friendly
-- Check existing state before creating duplicates
+- Always check existing projects on first message
 - Guide users through the feature workflow
 - Be thorough but efficient
 
@@ -120,10 +161,17 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
         {
             if (string.IsNullOrEmpty(initialMessage))
             {
-                initialMessage = "I'd like to start a new project.";
+                // Default message triggers the welcome behavior
+                initialMessage = "Hello, I just connected. Please welcome me and show me my options.";
             }
 
-            var messages = await RunAsync(initialMessage, maxIterations: 1);
+            // Clear conversation history for new session
+            _conversationHistory = new List<Message>();
+
+            var messages = await RunAsync(initialMessage, maxIterations: 5);
+
+            // Store conversation history for future continuations
+            _conversationHistory = messages;
 
             // Return the last assistant message
             var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
@@ -142,7 +190,11 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
         /// <returns>Dragon's response</returns>
         public async Task<string> ContinueSessionAsync(string userMessage)
         {
-            var messages = await RunAsync(userMessage, maxIterations: 10);
+            // Continue conversation with full history preserved
+            var messages = await ContinueAsync(_conversationHistory, userMessage, maxIterations: 15);
+
+            // Update stored conversation history
+            _conversationHistory = messages;
 
             var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
             if (lastMessage?.Content == null)
@@ -193,6 +245,19 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
         /// Gets all specifications
         /// </summary>
         public IReadOnlyDictionary<string, Specification> GetAllSpecifications() => _specifications;
+
+        /// <summary>
+        /// Gets the number of messages in the current conversation
+        /// </summary>
+        public int ConversationMessageCount => _conversationHistory.Count;
+
+        /// <summary>
+        /// Clears the conversation history (useful for starting fresh without creating new agent)
+        /// </summary>
+        public void ClearConversationHistory()
+        {
+            _conversationHistory = new List<Message>();
+        }
     }
 
     /// <summary>
@@ -202,11 +267,16 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
     {
         private readonly string _specificationsPath;
         private readonly Dictionary<string, Specification> _specifications;
+        private readonly Action<string>? _onSpecificationUpdated;
 
-        public SpecificationManagementTool(string specificationsPath, Dictionary<string, Specification> specifications)
+        public SpecificationManagementTool(
+            string specificationsPath,
+            Dictionary<string, Specification> specifications,
+            Action<string>? onSpecificationUpdated = null)
         {
             _specificationsPath = specificationsPath;
             _specifications = specifications;
+            _onSpecificationUpdated = onSpecificationUpdated;
         }
 
         public override string Name => "manage_specification";
@@ -411,8 +481,11 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
 
                 _specifications[name] = spec;
 
+                // Notify that specification was updated (triggers Wyvern reprocessing)
+                _onSpecificationUpdated?.Invoke(fullPath);
+
                 SendMessage("success", $"Specification updated: {name}");
-                return $"✅ Specification '{name}' updated successfully (version {spec.Version})";
+                return $"✅ Specification '{name}' updated successfully (version {spec.Version}). Wyvern will reprocess changes.";
             }
             catch (Exception ex)
             {
@@ -650,6 +723,93 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
             };
 
             return _managementTool.Execute(workingDirectory, managementInput);
+        }
+    }
+
+    /// <summary>
+    /// Simplified project information for Dragon to display
+    /// </summary>
+    public class ProjectInfo
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Status { get; set; } = "";
+        public int FeatureCount { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Tool for listing all registered projects
+    /// </summary>
+    public class ListProjectsTool : Tool
+    {
+        private readonly Func<List<ProjectInfo>>? _getProjects;
+
+        public ListProjectsTool(Func<List<ProjectInfo>>? getProjects)
+        {
+            _getProjects = getProjects;
+        }
+
+        public override string Name => "list_projects";
+
+        public override string Description =>
+            "Lists all registered projects in KoboldLair with their status and feature counts. " +
+            "Use this to show the user what projects exist and offer to continue or start new.";
+
+        public override object? InputSchema => new
+        {
+            type = "object",
+            properties = new { },
+            required = Array.Empty<string>()
+        };
+
+        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        {
+            if (_getProjects == null)
+            {
+                return "No projects found. You can create a new project by gathering requirements.";
+            }
+
+            try
+            {
+                var projects = _getProjects();
+
+                if (projects.Count == 0)
+                {
+                    return "No projects found. This appears to be a fresh start - you can help the user create their first project!";
+                }
+
+                var result = new System.Text.StringBuilder();
+                result.AppendLine($"Found {projects.Count} project(s):\n");
+
+                foreach (var project in projects.OrderByDescending(p => p.UpdatedAt))
+                {
+                    var statusIcon = project.Status switch
+                    {
+                        "New" => "🆕",
+                        "WyvernAssigned" => "📋",
+                        "Analyzed" => "✅",
+                        "SpecificationModified" => "📝",
+                        "InProgress" => "🔨",
+                        "Completed" => "🎉",
+                        "Failed" => "❌",
+                        _ => "❓"
+                    };
+
+                    result.AppendLine($"{statusIcon} **{project.Name}**");
+                    result.AppendLine($"   Status: {project.Status}");
+                    result.AppendLine($"   Features: {project.FeatureCount}");
+                    result.AppendLine($"   Last Updated: {project.UpdatedAt:yyyy-MM-dd HH:mm}");
+                    result.AppendLine();
+                }
+
+                return result.ToString();
+            }
+            catch (Exception ex)
+            {
+                return $"Error listing projects: {ex.Message}";
+            }
         }
     }
 }

@@ -328,11 +328,27 @@ public class WyvernService
 
 ```
 DraCode.KoboldLair.Server/
-├── Models/
+├── Agents/                    # Agent Implementations
+│   ├── AgentFactory.cs        # Creates Dragon, Wyrm, Drake agents
+│   ├── DragonAgent.cs         # Interactive requirements gathering
+│   ├── WyrmAgent.cs           # Project analyzer
+│   └── WyvernAgent.cs         # Task delegator
+├── Factories/                 # Factory Pattern - Resource Creation
+│   ├── KoboldFactory.cs       # Creates Kobolds with parallel limits
+│   ├── DrakeFactory.cs        # Creates Drake supervisors
+│   └── WyvernFactory.cs       # Creates Wyvern orchestrators
+├── Orchestrators/             # High-Level Orchestration
+│   ├── Drake.cs               # Task supervisor
+│   ├── WyrmRunner.cs          # Task running orchestrator
+│   └── Wyvern.cs              # Task delegation orchestrator
+├── Models/                    # Data Models
 │   ├── Kobold.cs              # Worker agent wrapper
-│   └── KoboldStatus.cs        # Status enumeration
-└── Factories/
-    └── KoboldFactory.cs       # Factory and statistics
+│   ├── KoboldStatus.cs        # Status enumeration
+│   ├── TaskRecord.cs          # Individual task record
+│   ├── TaskTracker.cs         # Task tracking
+│   └── ...                    # Other domain models
+└── Services/                  # Business Logic Services
+    └── ...                    # Various services
 ```
 
 ## Future Enhancements

@@ -111,7 +111,7 @@ ASPNETCORE_ENVIRONMENT=Development|Production
 
 ### WebSocket Endpoints
 
-- `/wywern` - Wywern task delegation endpoint
+- `/wyvern` - Wyvern task delegation endpoint
 - `/dragon` - Dragon requirements gathering chat
 - Token auth: `ws://server/dragon?token=your-token`
 - Keep-alive: 30 seconds
@@ -131,9 +131,10 @@ provider-config.json             # Provider configuration
 
 ### Factory Pattern
 - `AgentFactory.Create(provider, options, config, agentType)` - Creates specialized agents
-- `KoboldLairAgentFactory` - Creates Dragon, Wyrm, Drake agents with system prompts
-- `KoboldFactory` - Creates Kobolds with parallel limit enforcement
-- `DrakeFactory` - Creates and manages Drake supervisors
+- `AgentFactory` (in `Agents/`) - Creates Dragon, Wyrm, Drake agents with system prompts
+- `KoboldFactory` (in `Factories/`) - Creates Kobolds with parallel limit enforcement
+- `DrakeFactory` (in `Factories/`) - Creates and manages Drake supervisors
+- `WyvernFactory` (in `Factories/`) - Creates Wyvern orchestrators
 
 ### Configuration Layering
 1. `appsettings.json` - Base config with all providers disabled

@@ -613,6 +613,11 @@ DraCode.KoboldLair.Client/
   └── Program.cs             ← Proxy + /api/config
 
 DraCode.KoboldLair.Server/
+  ├── Agents/
+  │   ├── AgentFactory.cs    ← Creates Dragon, Wyrm, Drake agents
+  │   └── DragonAgent.cs     ← Dragon agent implementation
+  ├── Services/
+  │   └── DragonService.cs   ← WebSocket service for Dragon
   └── Program.cs             ← API endpoints + WebSocket /dragon
 ```
 

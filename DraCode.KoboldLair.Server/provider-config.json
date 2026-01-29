@@ -7,6 +7,7 @@
       "DefaultModel": "gpt-4o",
       "CompatibleAgents": [
         "dragon",
+        "wyvern",
         "wyrm",
         "kobold"
       ],
@@ -25,6 +26,7 @@
       "DefaultModel": "gpt-5-mini",
       "CompatibleAgents": [
         "dragon",
+        "wyvern",
         "wyrm",
         "kobold"
       ],
@@ -43,6 +45,7 @@
       "DefaultModel": "claude-haiku-4.5",
       "CompatibleAgents": [
         "dragon",
+        "wyvern",
         "wyrm",
         "kobold"
       ],
@@ -61,6 +64,7 @@
       "DefaultModel": "claude-3-haiku-20240307",
       "CompatibleAgents": [
         "dragon",
+        "wyvern",
         "wyrm",
         "kobold"
       ],
@@ -78,6 +82,7 @@
       "DefaultModel": "GLM-4.7-Flash-Q4_K.gguf",
       "CompatibleAgents": [
         "dragon",
+        "wyvern",
         "wyrm",
         "kobold"
       ],
@@ -91,9 +96,11 @@
   ],
   "AgentProviders": {
     "DragonProvider": "norainhosellamacpp",
+    "WyvernProvider": "norainhosellamacpp",
     "WyrmProvider": "norainhosellamacpp",
     "KoboldProvider": "norainhosellamacpp",
     "DragonModel": null,
+    "WyvernModel": null,
     "WyrmModel": null,
     "KoboldModel": null
   }

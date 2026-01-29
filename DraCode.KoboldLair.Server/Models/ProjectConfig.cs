@@ -22,6 +22,21 @@ namespace DraCode.KoboldLair.Server.Models
         public int MaxParallelKobolds { get; set; } = 1;
 
         /// <summary>
+        /// Provider used for the Wyrm agent analyzing this task
+        /// </summary>
+        public string? WyrmProvider { get; set; }
+
+        /// <summary>
+        /// Model override for Wyrm (if any)
+        /// </summary>
+        public string? WyrmModel { get; set; }
+
+        /// <summary>
+        /// Whether Wyrm analysis is enabled for this project
+        /// </summary>
+        public bool WyrmEnabled { get; set; } = false;
+
+        /// <summary>
         /// Provider used for the Wyvern agent analyzing this project
         /// </summary>
         public string? WyvernProvider { get; set; }

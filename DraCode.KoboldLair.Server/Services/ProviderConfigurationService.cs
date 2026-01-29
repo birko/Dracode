@@ -95,7 +95,8 @@ namespace DraCode.KoboldLair.Server.Services
                 return agentType.ToLowerInvariant() switch
                 {
                     "dragon" => _configuration.AgentProviders.DragonProvider,
-                    "wyrm" => _configuration.AgentProviders.WyvernProvider,
+                    "wyvern" => _configuration.AgentProviders.WyvernProvider,
+                    "wyrm" => _configuration.AgentProviders.WyrmProvider,
                     "kobold" => _configuration.AgentProviders.KoboldProvider,
                     _ => _configuration.AgentProviders.KoboldProvider
                 };
@@ -126,7 +127,8 @@ namespace DraCode.KoboldLair.Server.Services
                 var modelOverride = agentType.ToLowerInvariant() switch
                 {
                     "dragon" => _configuration.AgentProviders.DragonModel,
-                    "wyrm" => _configuration.AgentProviders.WyvernModel,
+                    "wyvern" => _configuration.AgentProviders.WyvernModel,
+                    "wyrm" => _configuration.AgentProviders.WyrmModel,
                     "kobold" => _configuration.AgentProviders.KoboldModel,
                     _ => null
                 };
@@ -194,9 +196,13 @@ namespace DraCode.KoboldLair.Server.Services
                         _configuration.AgentProviders.DragonProvider = providerName;
                         _configuration.AgentProviders.DragonModel = modelOverride;
                         break;
-                    case "wyrm":
+                    case "wyvern":
                         _configuration.AgentProviders.WyvernProvider = providerName;
                         _configuration.AgentProviders.WyvernModel = modelOverride;
+                        break;
+                    case "wyrm":
+                        _configuration.AgentProviders.WyrmProvider = providerName;
+                        _configuration.AgentProviders.WyrmModel = modelOverride;
                         break;
                     case "kobold":
                         _configuration.AgentProviders.KoboldProvider = providerName;

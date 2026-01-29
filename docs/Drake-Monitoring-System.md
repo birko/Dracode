@@ -521,6 +521,21 @@ Task<(List<AgentMessage> messages, Kobold kobold)> ExecuteTaskAsync(
 DrakeStatistics GetStatistics()
 ```
 
+## File Structure
+
+```
+DraCode.KoboldLair.Server/
+├── Factories/
+│   └── DrakeFactory.cs           # Creates and manages Drake instances
+├── Orchestrators/
+│   └── Drake.cs                  # Task supervisor implementation
+├── Services/
+│   └── DrakeMonitoringService.cs # Background monitoring service (60s)
+└── Models/
+    ├── TaskRecord.cs             # Individual task record
+    └── TaskTracker.cs            # Task tracking
+```
+
 ## Examples
 
 See:

@@ -85,7 +85,7 @@ export class DragonView {
             } else if (data.type === 'dragon_typing') {
                 // Could show typing indicator here
             } else if (data.type === 'error') {
-                this.addMessage('system', `Error: ${data.message}`);
+                this.addErrorMessage(data);
             } else {
                 this.addMessage('assistant', data.content || JSON.stringify(data));
             }
@@ -161,5 +161,58 @@ export class DragonView {
             messagesContainer.appendChild(messageEl);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
+    }
+
+    addErrorMessage(errorData) {
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (!messagesContainer) return;
+
+        const errorType = errorData.errorType || 'general';
+        const message = errorData.message || 'An error occurred';
+        const details = errorData.details || '';
+
+        // Store in messages array
+        this.messages.push({ role: 'error', content: message, details });
+
+        // Create error message element with distinct styling
+        const messageEl = document.createElement('div');
+        messageEl.className = 'chat-message error';
+        messageEl.style.cssText = `
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border: 1px solid #f87171;
+            border-left: 4px solid #dc2626;
+        `;
+
+        // Icon based on error type
+        const icon = errorType === 'llm_connection' ? '🔌' :
+                     errorType === 'llm_timeout' ? '⏱️' :
+                     errorType === 'llm_error' ? '🤖' :
+                     errorType === 'llm_response' ? '📄' : '⚠️';
+
+        const errorTitle = errorType === 'llm_connection' ? 'Connection Error' :
+                          errorType === 'llm_timeout' ? 'Timeout Error' :
+                          errorType === 'llm_error' ? 'LLM Provider Error' :
+                          errorType === 'llm_response' ? 'Response Error' :
+                          errorType === 'startup_error' ? 'Startup Error' : 'Error';
+
+        messageEl.innerHTML = `
+            <div class="chat-message-icon" style="color: #dc2626;">${icon}</div>
+            <div class="chat-message-content">
+                <div class="chat-message-role" style="color: #dc2626; font-weight: bold;">${errorTitle}</div>
+                <div class="chat-message-text" style="color: #7f1d1d;">
+                    <strong>${this.escapeHtml(message)}</strong>
+                    ${details ? `<div style="margin-top: 8px; font-size: 0.9em; color: #991b1b;">${this.escapeHtml(details)}</div>` : ''}
+                </div>
+            </div>
+        `;
+
+        messagesContainer.appendChild(messageEl);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }

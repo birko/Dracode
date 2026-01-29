@@ -1,10 +1,9 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
-using DraCode.KoboldLair.Server.Agents.Kobold;
-using DraCode.KoboldLair.Server.Supervisors;
+using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Orchestrators;
 using DraCode.KoboldLair.Server.Services;
 
-namespace DraCode.KoboldLair.Server.Supervisors
+namespace DraCode.KoboldLair.Server.Factories
 {
     /// <summary>
     /// Factory for creating and managing Drake supervisors.

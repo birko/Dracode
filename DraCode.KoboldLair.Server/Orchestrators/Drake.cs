@@ -1,11 +1,9 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents.Kobold;
+using DraCode.KoboldLair.Server.Factories;
 using DraCode.KoboldLair.Server.Models;
-using DraCode.KoboldLair.Server.Agents.Wyvern;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
-using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyrm.TaskStatus;
+using TaskStatus = DraCode.KoboldLair.Server.Models.TaskStatus;
 
-namespace DraCode.KoboldLair.Server.Supervisors
+namespace DraCode.KoboldLair.Server.Orchestrators
 {
     /// <summary>
     /// Drake is a supervisor that manages the lifecycle of Kobolds based on task status.
