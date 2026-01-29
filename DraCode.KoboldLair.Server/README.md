@@ -5,7 +5,7 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
 ## Features
 
 - **WebSocket Endpoints**:
-  - `/ws` - Wyvern task delegation endpoint
+  - `/wyvern` - Wyvern project analysis endpoint
   - `/dragon` - Dragon requirements gathering endpoint
 - **Token-based Authentication** with IP binding support
 - **REST API** for project management and provider configuration
@@ -37,7 +37,7 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
         "DisplayName": "Display Name",
         "Type": "openai|claude|gemini|ollama|llamacpp|githubcopilot",
         "DefaultModel": "model-name",
-        "CompatibleAgents": ["dragon", "wyrm", "drake", "kobold"],
+        "CompatibleAgents": ["dragon", "wyvern", "drake", "kobold"],
         "IsEnabled": true,
         "RequiresApiKey": true|false,
         "Description": "Description text",
@@ -50,7 +50,7 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
     ],
     "AgentProviders": {
       "DragonProvider": "providerkey",
-      "WyvernProvider": "providerkey",
+      "WyvernProvider": "providerkey",  // Used for Wyrm (task delegator)
       "KoboldProvider": "providerkey"
     }
   }
@@ -203,7 +203,7 @@ All connections are allowed without authentication.
   }
 }
 ```
-Clients must provide a valid token in the query string: `ws://server/ws?token=your-secret-token-here`
+Clients must provide a valid token in the query string: `ws://server/wyvern?token=your-secret-token-here`
 
 #### 3. Token with IP Binding (Recommended for Production)
 ```json
@@ -275,7 +275,7 @@ dotnet run --project DraCode.KoboldLair.Server --configuration Release
 
 ### Connection
 ```
-ws://server:port/ws?token=your-token-here
+ws://server:port/wyvern?token=your-token-here
 ws://server:port/dragon?token=your-token-here
 ```
 

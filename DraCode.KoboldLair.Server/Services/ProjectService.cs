@@ -1,29 +1,29 @@
 using DraCode.KoboldLair.Server.Models;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
+using DraCode.KoboldLair.Server.Agents.Wyvern;
 
 namespace DraCode.KoboldLair.Server.Services
 {
     /// <summary>
-    /// Service for managing project lifecycle, from specification creation to Wyrm assignment.
-    /// Coordinates between Dragon (requirements), Wyrm (analysis), and Drake (execution).
+    /// Service for managing project lifecycle, from specification creation to wyvern assignment.
+    /// Coordinates between Dragon (requirements), wyvern (analysis), and Drake (execution).
     /// </summary>
     public class ProjectService
     {
         private readonly ProjectRepository _repository;
-        private readonly WyrmFactory _wyrmFactory;
+        private readonly WyvernFactory _wyvernFactory;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ILogger<ProjectService> _logger;
         private readonly string _defaultOutputPathBase;
 
         public ProjectService(
             ProjectRepository repository,
-            WyrmFactory wyrmFactory,
+            WyvernFactory wyvernFactory,
             ProjectConfigurationService projectConfigService,
             ILogger<ProjectService> logger,
             string defaultOutputPathBase = "./workspace")
         {
             _repository = repository;
-            _wyrmFactory = wyrmFactory;
+            _wyvernFactory = wyvernFactory;
             _projectConfigService = projectConfigService;
             _logger = logger;
             _defaultOutputPathBase = defaultOutputPathBase;
@@ -65,9 +65,9 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Assigns a Wyrm to a project for specification analysis
+        /// Assigns a Wyvern to a project for specification analysis
         /// </summary>
-        public async Task<Wyrm> AssignWyrmAsync(string projectId)
+        public async Task<Wyvern> AssignWyvernAsync(string projectId)
         {
             var project = _repository.GetById(projectId);
             if (project == null)
@@ -77,46 +77,46 @@ namespace DraCode.KoboldLair.Server.Services
 
             if (project.Status != ProjectStatus.New)
             {
-                _logger.LogWarning("Project {ProjectId} already has status {Status}, skipping Wyrm assignment", projectId, project.Status);
-                var existingWyrm = _wyrmFactory.GetWyrm(project.Name);
-                if (existingWyrm != null)
+                _logger.LogWarning("Project {ProjectId} already has status {Status}, skipping Wyvern assignment", projectId, project.Status);
+                var existingWyvern = _wyvernFactory.GetWyvern(project.Name);
+                if (existingWyvern != null)
                 {
-                    return existingWyrm;
+                    return existingWyvern;
                 }
             }
 
             try
             {
-                // Create Wyrm for this project
-                var wyrm = _wyrmFactory.CreateWyrm(
+                // Create wyvern for this project
+                var wyvern = _wyvernFactory.CreateWyvern(
                     project.Name,
                     project.SpecificationPath,
                     project.OutputPath
                 );
 
                 // Update project
-                project.WyrmId = wyrm.ProjectName; // Using project name as Wyrm ID
-                project.Status = ProjectStatus.WyrmAssigned;
+                project.WyvernId = wyvern.ProjectName; // Using project name as wyvern ID
+                project.Status = ProjectStatus.WyvernAssigned;
                 _repository.Update(project);
 
-                _logger.LogInformation("🐉 Assigned Wyrm to project: {ProjectName}", project.Name);
+                _logger.LogInformation("🐉 Assigned wyvern to project: {ProjectName}", project.Name);
 
-                return wyrm;
+                return wyvern;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to assign Wyrm to project: {ProjectId}", projectId);
+                _logger.LogError(ex, "Failed to assign Wyvern to project: {ProjectId}", projectId);
                 project.Status = ProjectStatus.Failed;
-                project.ErrorMessage = $"Wyrm assignment failed: {ex.Message}";
+                project.ErrorMessage = $"Wyvern assignment failed: {ex.Message}";
                 _repository.Update(project);
                 throw;
             }
         }
 
         /// <summary>
-        /// Runs Wyrm analysis on a project's specification
+        /// Runs Wyvern analysis on a project's specification
         /// </summary>
-        public async Task<WyrmAnalysis> AnalyzeProjectAsync(string projectId)
+        public async Task<WyvernAnalysis> AnalyzeProjectAsync(string projectId)
         {
             var project = _repository.GetById(projectId);
             if (project == null)
@@ -124,26 +124,26 @@ namespace DraCode.KoboldLair.Server.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            var wyrm = _wyrmFactory.GetWyrm(project.Name);
-            if (wyrm == null)
+            var wyvern = _wyvernFactory.GetWyvern(project.Name);
+            if (wyvern == null)
             {
-                throw new InvalidOperationException($"No Wyrm assigned to project: {project.Name}");
+                throw new InvalidOperationException($"No Wyvern assigned to project: {project.Name}");
             }
 
             try
             {
-                _logger.LogInformation("🔍 Starting Wyrm analysis for project: {ProjectName}", project.Name);
+                _logger.LogInformation("🔍 Starting wyvern analysis for project: {ProjectName}", project.Name);
 
                 // Run analysis
-                var analysis = await wyrm.AnalyzeProjectAsync();
+                var analysis = await wyvern.AnalyzeProjectAsync();
 
                 // Save analysis report
                 var analysisReportPath = Path.Combine(project.OutputPath, $"{project.Name}-analysis.md");
-                var report = wyrm.GenerateReport();
+                var report = wyvern.GenerateReport();
                 await File.WriteAllTextAsync(analysisReportPath, report);
 
                 // Create tasks
-                var taskFiles = await wyrm.CreateTasksAsync();
+                var taskFiles = await wyvern.CreateTasksAsync();
 
                 // Update project
                 project.Status = ProjectStatus.Analyzed;
@@ -152,14 +152,14 @@ namespace DraCode.KoboldLair.Server.Services
                 project.TaskFiles = taskFiles;
                 _repository.Update(project);
 
-                _logger.LogInformation("✅ Wyrm analysis completed for project: {ProjectName}. Tasks: {TaskCount}", 
+                _logger.LogInformation("✅ Wyvern analysis completed for project: {ProjectName}. Tasks: {TaskCount}", 
                     project.Name, analysis.TotalTasks);
 
                 return analysis;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Wyrm analysis failed for project: {ProjectId}", projectId);
+                _logger.LogError(ex, "Wyvern analysis failed for project: {ProjectId}", projectId);
                 project.Status = ProjectStatus.Failed;
                 project.ErrorMessage = $"Analysis failed: {ex.Message}";
                 _repository.Update(project);
@@ -222,7 +222,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 TotalProjects = allProjects.Count,
                 NewProjects = allProjects.Count(p => p.Status == ProjectStatus.New),
-                WyrmAssignedProjects = allProjects.Count(p => p.Status == ProjectStatus.WyrmAssigned),
+                WyvernAssignedProjects = allProjects.Count(p => p.Status == ProjectStatus.WyvernAssigned),
                 AnalyzedProjects = allProjects.Count(p => p.Status == ProjectStatus.Analyzed),
                 InProgressProjects = allProjects.Count(p => p.Status == ProjectStatus.InProgress),
                 CompletedProjects = allProjects.Count(p => p.Status == ProjectStatus.Completed),
@@ -285,9 +285,9 @@ namespace DraCode.KoboldLair.Server.Services
                     var newConfig = _projectConfigService.GetOrCreateProjectConfig(project.Id, project.Name);
                     
                     // Initialize with global defaults if not set
-                    if (string.IsNullOrEmpty(newConfig.WyrmProvider))
+                    if (string.IsNullOrEmpty(newConfig.WyvernProvider))
                     {
-                        newConfig.WyrmProvider = globalConfig.GetProviderForAgent("wyvern");
+                        newConfig.WyvernProvider = globalConfig.GetProviderForAgent("wyvern");
                         newConfig.DrakeProvider = globalConfig.GetProviderForAgent("wyvern");
                         newConfig.KoboldProvider = globalConfig.GetProviderForAgent("kobold");
                         _projectConfigService.UpdateProjectConfig(newConfig);
@@ -371,7 +371,7 @@ namespace DraCode.KoboldLair.Server.Services
     {
         public int TotalProjects { get; set; }
         public int NewProjects { get; set; }
-        public int WyrmAssignedProjects { get; set; }
+        public int WyvernAssignedProjects { get; set; }
         public int AnalyzedProjects { get; set; }
         public int InProgressProjects { get; set; }
         public int CompletedProjects { get; set; }
@@ -379,7 +379,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         public override string ToString()
         {
-            return $"Projects: {TotalProjects} total, {NewProjects} new, {WyrmAssignedProjects} assigned, " +
+            return $"Projects: {TotalProjects} total, {NewProjects} new, {WyvernAssignedProjects} assigned, " +
                    $"{AnalyzedProjects} analyzed, {InProgressProjects} in progress, " +
                    $"{CompletedProjects} completed, {FailedProjects} failed";
         }

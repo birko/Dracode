@@ -1,19 +1,19 @@
 using DraCode.Agent;
-using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyvern.TaskStatus;
+using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyrm.TaskStatus;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyvern
+namespace DraCode.KoboldLair.Server.Agents.Wyrm
 {
     /// <summary>
-    /// Helper class for running tasks through the wyvern pattern.
-    /// The wyvern analyzes the task and automatically delegates to the most appropriate specialized agent.
+    /// Helper class for running tasks through the task delegation pattern.
+    /// The delegator analyzes the task and automatically delegates to the most appropriate specialized agent.
     /// </summary>
-    public static class WyvernRunner
+    public static class WyrmRunner
     {
         /// <summary>
-        /// Runs a task through the wyvern, which will select and delegate to the appropriate specialized agent.
+        /// Runs a task through the delegator, which will select and delegate to the appropriate specialized agent.
         /// Tracks task status and saves results to a markdown file.
         /// </summary>
-        public static async Task<(string selectedAgentType, List<Message> wyvernConversation, List<Message>? delegatedConversation, TaskTracker tracker)> RunAsync(
+        public static async Task<(string selectedAgentType, List<Message> WyrmConversation, List<Message>? delegatedConversation, TaskTracker tracker)> RunAsync(
             string provider,
             string task,
             AgentOptions? options = null,
@@ -32,7 +32,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
             // Save initial state
             if (outputMarkdownPath != null)
             {
-                tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
+                tracker.SaveToFile(outputMarkdownPath, "KoboldLair Wyrm Task Report");
             }
             
             // Clear any previous selection
@@ -40,28 +40,28 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
 
             try
             {
-                // Create and run wyvern using KoboldLairAgentFactory
-                var wyvern = KoboldLairAgentFactory.Create(provider, options, config, "wyvern");
+                // Create and run Wyrm using KoboldLairAgentFactory
+                var wyrm = KoboldLairAgentFactory.Create(provider, options, config, "wyrm");
                 if (messageCallback != null)
                 {
-                    wyvern.SetMessageCallback(messageCallback);
+                    wyrm.SetMessageCallback(messageCallback);
                 }
 
-                messageCallback?.Invoke("info", "🎯 wyvern: Analyzing task to select the best agent...\n");
-                
-                var wyvernConversation = await wyvern.RunAsync(task, maxIterations: 5);
+                messageCallback?.Invoke("info", "🎯 Wyrm: Analyzing task to select the best agent...\n");
+
+                var wyrmConversation = await wyrm.RunAsync(task, maxIterations: 5);
 
                 // Get the agent selection
                 var selection = SelectAgentTool.GetLastSelection();
                 if (selection == null || !selection.TryGetValue("agent_type", out var agentTypeObj))
                 {
-                    tracker.SetError(taskRecord, "wyvern failed to select an agent");
+                    tracker.SetError(taskRecord, "Wyrm failed to select an agent");
                     if (outputMarkdownPath != null)
                     {
-                        tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
+                        tracker.SaveToFile(outputMarkdownPath, "KoboldLair Wyrm Task Report");
                     }
-                    messageCallback?.Invoke("error", "wyvern failed to select an agent.");
-                    return ("unknown", wyvernConversation, null, tracker);
+                    messageCallback?.Invoke("error", "Wyrm failed to select an agent.");
+                    return ("unknown", wyrmConversation, null, tracker);
                 }
 
                 var selectedAgentType = agentTypeObj.ToString()!;
@@ -72,7 +72,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                 tracker.UpdateTask(taskRecord, TaskStatus.NotInitialized, selectedAgentType);
                 if (outputMarkdownPath != null)
                 {
-                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
+                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair Wyrm Task Report");
                 }
 
                 messageCallback?.Invoke("success", $"\n✓ Selected Agent: {selectedAgentType}");
@@ -83,7 +83,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                 tracker.UpdateTask(taskRecord, TaskStatus.Working);
                 if (outputMarkdownPath != null)
                 {
-                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
+                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair Wyrm Task Report");
                 }
 
                 // Create and run the selected specialized agent using KoboldLairAgentFactory
@@ -99,19 +99,19 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
                 tracker.UpdateTask(taskRecord, TaskStatus.Done);
                 if (outputMarkdownPath != null)
                 {
-                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
+                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair Wyrm Task Report");
                 }
 
                 messageCallback?.Invoke("success", $"\n✓ Task completed by {selectedAgentType} agent");
 
-                return (selectedAgentType, wyvernConversation, delegatedConversation, tracker);
+                return (selectedAgentType, wyrmConversation, delegatedConversation, tracker);
             }
             catch (Exception ex)
             {
                 tracker.SetError(taskRecord, ex.Message);
                 if (outputMarkdownPath != null)
                 {
-                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair wyvern Task Report");
+                    tracker.SaveToFile(outputMarkdownPath, "KoboldLair Wyrm Task Report");
                 }
                 messageCallback?.Invoke("error", $"Error during orchestration: {ex.Message}");
                 throw;
@@ -119,7 +119,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
         }
 
         /// <summary>
-        /// Runs multiple tasks through the wyvern in sequence.
+        /// Runs multiple tasks through the delegator in sequence.
         /// All tasks are tracked in a single markdown report.
         /// </summary>
         public static async Task<(List<(string task, string agentType, List<Message>? conversation)> results, TaskTracker tracker)> RunMultipleAsync(
@@ -154,7 +154,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
         }
 
         /// <summary>
-        /// Runs a task with just an wyvern to get agent recommendation without execution.
+        /// Runs a task with just a delegator to get agent recommendation without execution.
         /// Useful for testing or when you want to manually handle the delegation.
         /// </summary>
         public static async Task<(string? selectedAgentType, string? reasoning)> GetRecommendationAsync(
@@ -168,13 +168,13 @@ namespace DraCode.KoboldLair.Server.Agents.Wyvern
             
             SelectAgentTool.ClearSelection();
 
-            var wyvern = KoboldLairAgentFactory.Create(provider, options, config, "wyvern");
+            var wyrm = KoboldLairAgentFactory.Create(provider, options, config, "wyrm");
             if (messageCallback != null)
             {
-                wyvern.SetMessageCallback(messageCallback);
+                wyrm.SetMessageCallback(messageCallback);
             }
 
-            await wyvern.RunAsync(task, maxIterations: 5);
+            await wyrm.RunAsync(task, maxIterations: 5);
 
             var selection = SelectAgentTool.GetLastSelection();
             if (selection == null)

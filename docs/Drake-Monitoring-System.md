@@ -9,7 +9,7 @@ Components:
 - **DrakeMonitoringService**: Background service that monitors Drakes and updates task status
 - **Drake**: Supervisor that manages Kobolds and synchronizes with markdown task files
 
-**Drake is NOT interactive** - it automatically manages Kobold workers based on task files created by Wyrm.
+**Drake is NOT interactive** - it automatically manages Kobold workers based on task files created by Wyvern.
 
 ## Architecture
 

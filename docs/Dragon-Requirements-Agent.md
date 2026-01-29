@@ -2,9 +2,9 @@
 
 ## Overview
 
-Dragon is a specialized AI agent designed for interactive requirements gathering. It conducts conversations with users to understand project goals, technical requirements, and specifications, then produces comprehensive documentation that triggers the KoboldLair automated workflow (Wyrm → Drake → Kobold).
+Dragon is a specialized AI agent designed for interactive requirements gathering. It conducts conversations with users to understand project goals, technical requirements, and specifications, then produces comprehensive documentation that triggers the KoboldLair automated workflow (Wyvern → Drake → Kobold).
 
-**Dragon is the ONLY interactive interface in KoboldLair.** All other agents (Wyrm, Drake, Kobold) work automatically in the background.
+**Dragon is the ONLY interactive interface in KoboldLair.** All other agents (Wyvern, Drake, Kobold) work automatically in the background.
 
 ## Architecture
 
@@ -21,9 +21,9 @@ SpecificationWriterTool
     ↓ Triggers
 ProjectService registers project
     ↓ Automatic Background Processing
-WyrmProcessingService (every 60s) detects spec
+WyvernProcessingService (every 60s) detects spec
     ↓
-Assigns Wyrm → Analyzes → Creates tasks
+Assigns Wyvern → Analyzes → Creates tasks
     ↓
 DrakeMonitoringService assigns Kobolds
     ↓
@@ -633,7 +633,7 @@ See `Examples/DragonExample.cs` (to be created) for programmatic usage examples.
 
 ## Related Documentation
 
-- [Wyrm Project Analyzer](Wyrm-Project-Analyzer.md) - Breaking specifications into tasks
+- [Wyvern Project Analyzer](Wyvern-Project-Analyzer.md) - Breaking specifications into tasks
 - [Drake Monitoring System](Drake-Monitoring-System.md) - Managing task execution
 - [Kobold System](Kobold-System.md) - Worker agents
 - [KoboldLair Server README](../DraCode.KoboldLair.Server/README.md) - Complete system overview

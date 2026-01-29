@@ -350,4 +350,4 @@ DraCode.KoboldLair.Server/
 
 - [KoboldLair Server README](../DraCode.KoboldLair.Server/README.md) - Complete server documentation
 - [Drake Monitoring System](./Drake-Monitoring-System.md) - Task supervision
-- [Wyrm Project Analyzer](./Wyrm-Project-Analyzer.md) - Task organization
+- [Wyvern Project Analyzer](./Wyvern-Project-Analyzer.md) - Task organization

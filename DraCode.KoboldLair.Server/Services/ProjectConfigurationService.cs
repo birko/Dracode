@@ -107,7 +107,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 case "wyrm":
                 case "wyvern":
-                    config.WyrmEnabled = enabled;
+                    config.WyvernEnabled = enabled;
                     break;
                 case "drake":
                     config.DrakeEnabled = enabled;
@@ -136,7 +136,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             return agentType.ToLowerInvariant() switch
             {
-                "wyrm" or "wyvern" => config.WyrmEnabled,
+                "wyrm" or "wyvern" => config.WyvernEnabled,
                 "drake" => config.DrakeEnabled,
                 "kobold" => config.KoboldEnabled,
                 _ => false
@@ -154,8 +154,8 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 case "wyrm":
                 case "wyvern":
-                    config.WyrmProvider = provider;
-                    config.WyrmModel = model;
+                    config.WyvernProvider = provider;
+                    config.WyvernModel = model;
                     break;
                 case "drake":
                     config.DrakeProvider = provider;
@@ -186,7 +186,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             return agentType.ToLowerInvariant() switch
             {
-                "wyrm" or "wyvern" => config.WyrmProvider,
+                "wyrm" or "wyvern" => config.WyvernProvider,
                 "drake" => config.DrakeProvider,
                 "kobold" => config.KoboldProvider,
                 _ => null

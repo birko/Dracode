@@ -11,9 +11,9 @@ namespace DraCode.KoboldLair.Server.Models
         New = 0,
 
         /// <summary>
-        /// Feature has been assigned to Wyrm for task breakdown
+        /// Feature has been assigned to Wyvern for task breakdown
         /// </summary>
-        AssignedToWyrm = 1,
+        AssignedToWyvern = 1,
 
         /// <summary>
         /// Feature is being worked on by Kobolds

@@ -1,8 +1,8 @@
+using System.Text.Json;
 using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Server.Models;
-using System.Text.Json;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Server.Agents.Dragon
@@ -32,7 +32,7 @@ namespace DraCode.KoboldLair.Server.Agents.Dragon
             : base(provider, options)
         {
             _specificationsPath = specificationsPath ?? "./specifications";
-            
+
             // Ensure specifications directory exists
             try
             {
@@ -94,7 +94,7 @@ Your role is to have an interactive conversation with the user to deeply underst
 
 ## Feature Status Lifecycle:
 - **New**: Just created by Dragon, can be updated by Dragon
-- **AssignedToWyrm**: Wyrm has taken ownership, Dragon cannot modify (create new feature instead)
+- **AssignedToWyvern**: Wyrm has taken ownership, Dragon cannot modify (create new feature instead)
 - **InProgress**: Being worked on by Kobolds
 - **Completed**: Implementation finished
 
@@ -124,7 +124,7 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
             }
 
             var messages = await RunAsync(initialMessage, maxIterations: 1);
-            
+
             // Return the last assistant message
             var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
             if (lastMessage?.Content == null)
@@ -142,8 +142,8 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
         /// <returns>Dragon's response</returns>
         public async Task<string> ContinueSessionAsync(string userMessage)
         {
-            var messages = await RunAsync(userMessage, maxIterations: 1);
-            
+            var messages = await RunAsync(userMessage, maxIterations: 10);
+
             var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
             if (lastMessage?.Content == null)
             {
@@ -172,7 +172,7 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
                     .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
                     .Select(b => b.Text));
             }
-            
+
             return content?.ToString() ?? "";
         }
 
@@ -607,7 +607,7 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
 
         public override string Name => "write_specification";
 
-        public override string Description => 
+        public override string Description =>
             "Writes a project or task specification to a markdown file in the specifications directory. " +
             "Use this when you have gathered enough information from the user.";
 
@@ -632,7 +632,7 @@ Remember: You manage specifications and features. Wyrm reads new features and cr
 
         public override string Execute(string workingDirectory, Dictionary<string, object> input)
         {
-            if (!input.TryGetValue("filename", out var filenameObj) || 
+            if (!input.TryGetValue("filename", out var filenameObj) ||
                 !input.TryGetValue("content", out var contentObj))
             {
                 return "Error: Both filename and content are required";

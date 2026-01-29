@@ -3,23 +3,23 @@ using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyrm
+namespace DraCode.KoboldLair.Server.Agents.Wyvern
 {
     /// <summary>
-    /// WyrmAnalyzerAgent is a specialized agent for analyzing project specifications.
+    /// WyvernAnalyzerAgent is a specialized agent for analyzing project specifications.
     /// It reads specifications created by Dragon, divides work into areas (backend, frontend, etc.),
     /// and organizes tasks by dependencies.
     /// </summary>
-    public class WyrmAnalyzerAgent : AgentBase
+    public class WyvernAnalyzerAgent : AgentBase
     {
-        protected override string SystemPrompt => GetWyrmSystemPrompt();
+        protected override string SystemPrompt => GetWyvernSystemPrompt();
 
         /// <summary>
-        /// Creates a new Wyrm analyzer agent
+        /// Creates a new Wyvern analyzer agent
         /// </summary>
         /// <param name="provider">LLM provider to use</param>
         /// <param name="options">Agent options</param>
-        public WyrmAnalyzerAgent(
+        public WyvernAnalyzerAgent(
             ILlmProvider provider,
             AgentOptions? options = null)
             : base(provider, options)
@@ -27,11 +27,11 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
         }
 
         /// <summary>
-        /// Gets the specialized system prompt for the Wyrm analyzer
+        /// Gets the specialized system prompt for the Wyvern analyzer
         /// </summary>
-        private string GetWyrmSystemPrompt()
+        private string GetWyvernSystemPrompt()
         {
-            return @"You are Wyrm 🐲, a senior project architect and task planner for KoboldLair.
+            return @"You are Wyvern 🐲, a senior project architect and task planner for KoboldLair.
 
 Your role is to analyze project specifications created by Dragon and break them down into organized, dependency-aware task lists.
 

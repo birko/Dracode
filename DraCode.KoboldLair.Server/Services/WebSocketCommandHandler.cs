@@ -2,7 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using DraCode.KoboldLair.Server.Agents.Kobold;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
+using DraCode.KoboldLair.Server.Agents.Wyvern;
 using DraCode.KoboldLair.Server.Supervisors;
 using DraCode.KoboldLair.Server.Models;
 
@@ -19,7 +19,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly DrakeFactory _drakeFactory;
-        private readonly WyrmFactory _wyrmFactory;
+        private readonly WyvernFactory _wyvernFactory;
 
         public WebSocketCommandHandler(
             ILogger<WebSocketCommandHandler> logger,
@@ -28,7 +28,7 @@ namespace DraCode.KoboldLair.Server.Services
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
             DrakeFactory drakeFactory,
-            WyrmFactory wyrmFactory)
+            WyvernFactory wyvernFactory)
         {
             _logger = logger;
             _projectService = projectService;
@@ -36,7 +36,7 @@ namespace DraCode.KoboldLair.Server.Services
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
             _drakeFactory = drakeFactory;
-            _wyrmFactory = wyrmFactory;
+            _wyvernFactory = wyvernFactory;
         }
 
         public async Task HandleCommandAsync(WebSocket webSocket, string messageText)
@@ -98,7 +98,7 @@ namespace DraCode.KoboldLair.Server.Services
             var dragonStats = _dragonService.GetStatistics();
             var drakes = _drakeFactory.GetAllDrakes();
             var totalKobolds = drakes.Sum(d => d.GetStatistics().WorkingKobolds);
-            var totalWyrms = _wyrmFactory.TotalWyrms;
+            var TotalWyverns = _wyvernFactory.TotalWyverns;
 
             return new
             {
@@ -106,7 +106,7 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     dragonSessions = dragonStats.ActiveSessions,
                     projects = stats.TotalProjects,
-                    wyrms = totalWyrms,
+                    wyrms = TotalWyverns,
                     drakes = drakes.Count,
                     koboldsWorking = totalKobolds
                 },
@@ -115,7 +115,7 @@ namespace DraCode.KoboldLair.Server.Services
                     p.Id,
                     p.Name,
                     p.Status,
-                    p.WyrmId,
+                    p.WyvernId,
                     p.CreatedAt,
                     p.AnalyzedAt,
                     p.OutputPath,
@@ -132,23 +132,23 @@ namespace DraCode.KoboldLair.Server.Services
                         status = dragonStats.ActiveSessions > 0 ? "active" : "idle",
                         activeSessions = dragonStats.ActiveSessions
                     },
-                    projects = projects.Where(p => p.WyrmId != null).Select(p =>
+                    projects = projects.Where(p => p.WyvernId != null).Select(p =>
                     {
-                        var wyrm = _wyrmFactory.GetWyrm(p.Name);
+                        var wyvern = _wyvernFactory.GetWyvern(p.Name);
                         return new
                         {
                             id = p.Id,
                             name = p.Name,
                             icon = "📁",
                             status = p.Status.ToString().ToLower(),
-                            wyrm = wyrm != null ? new
+                            wyvern = wyvern != null ? new
                             {
-                                id = p.WyrmId,
-                                name = $"Wyrm ({p.Name})",
+                                id = p.WyvernId,
+                                name = $"wyvern ({p.Name})",
                                 icon = "🐲",
                                 status = p.Status == ProjectStatus.Analyzed ? "active" : "working",
                                 analyzed = p.Status >= ProjectStatus.Analyzed,
-                                totalTasks = wyrm.Analysis?.TotalTasks ?? 0
+                                totalTasks = wyvern.Analysis?.TotalTasks ?? 0
                             } : null
                         };
                     }).ToList()
@@ -173,7 +173,7 @@ namespace DraCode.KoboldLair.Server.Services
                 projects = projectStats,
                 dragon = dragonStats,
                 drakes = drakes.Count,
-                wyrms = _wyrmFactory.TotalWyrms,
+                wyrms = _wyvernFactory.TotalWyverns,
                 koboldsWorking = drakes.Sum(d => d.GetStatistics().WorkingKobolds)
             };
         }
@@ -294,9 +294,9 @@ namespace DraCode.KoboldLair.Server.Services
                 projectName = project.Name,
                 providers = new
                 {
-                    wyrmProvider = config.WyrmProvider,
-                    wyrmModel = config.WyrmModel,
-                    wyrmEnabled = config.WyrmEnabled,
+                    WyvernProvider = config.WyvernProvider,
+                    WyvernModel = config.WyvernModel,
+                    WyvernEnabled = config.WyvernEnabled,
                     drakeProvider = config.DrakeProvider,
                     drakeModel = config.DrakeModel,
                     drakeEnabled = config.DrakeEnabled,
@@ -422,11 +422,11 @@ namespace DraCode.KoboldLair.Server.Services
 
             var agentConfig = agentType!.ToLowerInvariant() switch
             {
-                "wyrm" or "wyvern" => new
+                "wyvern" or "wyvern" => new
                 {
-                    provider = config.WyrmProvider,
-                    model = config.WyrmModel,
-                    enabled = config.WyrmEnabled
+                    provider = config.WyvernProvider,
+                    model = config.WyvernModel,
+                    enabled = config.WyvernEnabled
                 },
                 "drake" => new
                 {

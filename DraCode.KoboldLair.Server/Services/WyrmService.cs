@@ -1,21 +1,21 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents.Wyvern;
+using DraCode.KoboldLair.Server.Agents.Wyrm;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyvern.TaskStatus;
+using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyrm.TaskStatus;
 
 namespace DraCode.KoboldLair.Server.Services
 {
-    public class WyvernService
+    public class WyrmService
     {
         private readonly TaskTracker _taskTracker;
-        private readonly ILogger<WyvernService> _logger;
+        private readonly ILogger<WyrmService> _logger;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly WebSocketCommandHandler? _commandHandler;
 
-        public WyvernService(
-            ILogger<WyvernService> logger, 
+        public WyrmService(
+            ILogger<WyrmService> logger,
             ProviderConfigurationService providerConfigService,
             WebSocketCommandHandler? commandHandler = null)
         {
@@ -39,13 +39,13 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        _logger.LogInformation("Wyvern WebSocket close received");
+                        _logger.LogInformation("Wyrm WebSocket close received");
                         await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                         break;
                     }
 
                     var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    _logger.LogDebug("Wyvern received message ({Count} bytes): {Message}", result.Count, message);
+                    _logger.LogDebug("Wyrm received message ({Count} bytes): {Message}", result.Count, message);
 
                     await ProcessMessageAsync(webSocket, message);
                 }
@@ -139,11 +139,11 @@ namespace DraCode.KoboldLair.Server.Services
                 status = taskRecord.Status.ToString().ToLower()
             });
 
-            // Run wyvern in background
-            _ = Task.Run(async () => await RunwyvernAsync(webSocket, taskRecord));
+            // Run Wyrm in background
+            _ = Task.Run(async () => await RunWyrmAsync(webSocket, taskRecord));
         }
 
-        private async Task RunwyvernAsync(WebSocket webSocket, TaskRecord taskRecord)
+        private async Task RunWyrmAsync(WebSocket webSocket, TaskRecord taskRecord)
         {
             try
             {
@@ -158,7 +158,7 @@ namespace DraCode.KoboldLair.Server.Services
                 Action<string, string> messageCallback = async (type, content) =>
                 {
                     // Log all agent messages to console for debugging
-                    _logger.LogInformation("[Wyvern Agent] [{Type}] {Content}", type, content);
+                    _logger.LogInformation("[Wyrm Agent] [{Type}] {Content}", type, content);
                     
                     if (webSocket.State == WebSocketState.Open)
                     {
@@ -176,7 +176,7 @@ namespace DraCode.KoboldLair.Server.Services
                 var (provider, config, _) = _providerConfigService.GetProviderSettingsForAgent("wyvern", options.WorkingDirectory);
                 
                 // Get recommendation first
-                var result = await WyvernRunner.GetRecommendationAsync(
+                var result = await WyrmRunner.GetRecommendationAsync(
                     provider,
                     taskRecord.Task,
                     options,
@@ -212,7 +212,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error running wyvern for task {TaskId}", taskRecord.Id);
+                _logger.LogError(ex, "Error running Wyrm for task {TaskId}", taskRecord.Id);
                 _taskTracker.SetError(taskRecord, ex.Message);
                 await SendStatusUpdateAsync(webSocket, taskRecord);
             }
@@ -267,7 +267,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         private async Task HandleGetMarkdownAsync(WebSocket webSocket)
         {
-            var markdown = _taskTracker.GenerateMarkdown("KoboldLair wyvern Tasks");
+            var markdown = _taskTracker.GenerateMarkdown("KoboldLair Wyrm Tasks");
             await SendMessageAsync(webSocket, new
             {
                 type = "markdown_report",
@@ -300,7 +300,7 @@ namespace DraCode.KoboldLair.Server.Services
                 WriteIndented = false
             };
             var json = JsonSerializer.Serialize(data, options);
-            _logger.LogDebug("Wyvern sending message: {Message}", json);
+            _logger.LogDebug("Wyrm sending message: {Message}", json);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }

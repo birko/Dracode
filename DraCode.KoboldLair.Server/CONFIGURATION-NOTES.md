@@ -50,7 +50,7 @@ Environment-specific files only override what's needed:
         "DisplayName": "GitHub Copilot",
         "Type": "githubcopilot",
         "DefaultModel": "gpt-4o",
-        "CompatibleAgents": ["dragon", "wyvern", "kobold"],
+        "CompatibleAgents": ["dragon", "Wyvern", "kobold"],
         "IsEnabled": false,
         "RequiresApiKey": true,
         "Description": "GitHub Copilot API",
@@ -62,7 +62,7 @@ Environment-specific files only override what's needed:
     ],
     "AgentProviders": {
       "DragonProvider": "claudehaiku",
-      "WyvernProvider": "claudehaiku",
+      "WyvernProvider": "claudehaiku",  // Note: WyvernProvider property is used for Wyrm (task delegator)
       "KoboldProvider": "claudehaiku"
     }
   }

@@ -307,7 +307,7 @@ var result = await bitmapAgent.RunAsync("Optimize all photos for web with retina
 16. `diagramming` - Diagrams
 
 **Special (1 type)**:
-17. `wyvern` - Task orchestration (KoboldLair internal)
+17. `wyrm` - Task delegation and agent selection (KoboldLair internal)
 
 ---
 
@@ -347,7 +347,7 @@ await bitmapAgent.RunAsync("Optimize product photos for web");
 ### KoboldLair Integration
 
 ```csharp
-// In KoboldLair, Wyvern automatically selects appropriate agent
+// In KoboldLair, Wyrm automatically selects appropriate agent
 // Drake then creates Kobolds with that agent type
 
 var factory = new KoboldFactory(options, config);
@@ -420,7 +420,7 @@ Where `agentType` can be any of the 17 types listed above.
 
 All new agents are integrated with KoboldLair:
 
-- **WyvernAgent**: Validates and recommends new agent types
+- **WyrmAgent**: Validates and recommends new agent types
 - **KoboldFactory**: Creates Kobolds with new agent types
 - **Drake**: Assigns tasks to new agent Kobolds
 - **Background Services**: Process tasks with new agents automatically

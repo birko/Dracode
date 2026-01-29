@@ -1,34 +1,34 @@
 using System.Text.Json;
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents.Wyvern;
+using DraCode.KoboldLair.Server.Agents.Wyrm;
 using DraCode.KoboldLair.Server.Models;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyrm
+namespace DraCode.KoboldLair.Server.Agents.Wyvern
 {
     /// <summary>
-    /// Wyrm analyzes project specifications and creates organized, dependency-aware task lists.
-    /// One Wyrm per project - reads Dragon specifications, categorizes work, and creates tasks for Drakes.
+    /// Wyvern analyzes project specifications and creates organized, dependency-aware task lists.
+    /// One Wyvern per project - reads Dragon specifications, categorizes work, and creates tasks for Drakes.
     /// </summary>
-    public class Wyrm
+    public class Wyvern
     {
         private readonly string _projectName;
         private readonly string _specificationPath;
-        private readonly WyrmAnalyzerAgent _analyzerAgent;
+        private readonly WyvernAnalyzerAgent _analyzerAgent;
         private readonly string _provider;
         private readonly Dictionary<string, string> _config;
         private readonly AgentOptions _options;
         private readonly string _outputPath;
         private Specification? _specification;
 
-        private WyrmAnalysis? _analysis;
+        private WyvernAnalysis? _analysis;
 
         /// <summary>
-        /// Creates a new Wyrm for a project
+        /// Creates a new Wyvern for a project
         /// </summary>
-        public Wyrm(
+        public Wyvern(
             string projectName,
             string specificationPath,
-            WyrmAnalyzerAgent analyzerAgent,
+            WyvernAnalyzerAgent analyzerAgent,
             string provider,
             Dictionary<string, string> config,
             AgentOptions options,
@@ -53,13 +53,13 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
         }
 
         /// <summary>
-        /// Marks features as assigned to Wyrm
+        /// Marks features as assigned to Wyvern
         /// </summary>
         public void AssignFeatures(List<Feature> features)
         {
             foreach (var feature in features)
             {
-                feature.Status = FeatureStatus.AssignedToWyrm;
+                feature.Status = FeatureStatus.AssignedToWyvern;
                 feature.UpdatedAt = DateTime.UtcNow;
             }
         }
@@ -68,7 +68,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
         /// Updates feature status based on task completion
         /// </summary>
         /// <param name="taskStatuses">Dictionary of task IDs to their status</param>
-        public void UpdateFeatureStatus(Dictionary<string, Wyvern.TaskStatus> taskStatuses)
+        public void UpdateFeatureStatus(Dictionary<string, Wyrm.TaskStatus> taskStatuses)
         {
             if (_specification == null || _analysis == null)
                 return;
@@ -83,12 +83,12 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
                 // Check if any task is being worked on
                 var hasWorkingTasks = featureTasks.Any(taskId => 
                     taskStatuses.TryGetValue(taskId, out var status) && 
-                    (status == Wyvern.TaskStatus.Working || status == Wyvern.TaskStatus.NotInitialized));
+                    (status == Wyrm.TaskStatus.Working || status == Wyrm.TaskStatus.NotInitialized));
 
                 // Check if all tasks are done
                 var allTasksDone = featureTasks.All(taskId =>
                     taskStatuses.TryGetValue(taskId, out var status) && 
-                    status == Wyvern.TaskStatus.Done);
+                    status == Wyrm.TaskStatus.Done);
 
                 // Update feature status
                 if (allTasksDone && feature.Status != FeatureStatus.Completed)
@@ -96,7 +96,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
                     feature.Status = FeatureStatus.Completed;
                     feature.UpdatedAt = DateTime.UtcNow;
                 }
-                else if (hasWorkingTasks && feature.Status == FeatureStatus.AssignedToWyrm)
+                else if (hasWorkingTasks && feature.Status == FeatureStatus.AssignedToWyvern)
                 {
                     feature.Status = FeatureStatus.InProgress;
                     feature.UpdatedAt = DateTime.UtcNow;
@@ -128,7 +128,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
             if (_specification == null || _analysis == null)
                 return;
 
-            foreach (var feature in _specification.Features.Where(f => f.Status == FeatureStatus.AssignedToWyrm))
+            foreach (var feature in _specification.Features.Where(f => f.Status == FeatureStatus.AssignedToWyvern))
             {
                 // Find tasks that mention this feature
                 var relatedTasks = _analysis.Areas
@@ -177,7 +177,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
                     var icon = group.Key switch
                     {
                         FeatureStatus.New => "🆕",
-                        FeatureStatus.AssignedToWyrm => "📋",
+                        FeatureStatus.AssignedToWyvern => "📋",
                         FeatureStatus.InProgress => "🔨",
                         FeatureStatus.Completed => "✅",
                         _ => "❓"
@@ -197,7 +197,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
         /// Analyzes the specification and creates organized task structure
         /// Includes new features in the analysis context
         /// </summary>
-        public async Task<WyrmAnalysis> AnalyzeProjectAsync(Specification? specification = null)
+        public async Task<WyvernAnalysis> AnalyzeProjectAsync(Specification? specification = null)
         {
             if (specification != null)
             {
@@ -233,14 +233,14 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
 
             try
             {
-                _analysis = JsonSerializer.Deserialize<WyrmAnalysis>(analysisJson, new JsonSerializerOptions
+                _analysis = JsonSerializer.Deserialize<WyvernAnalysis>(analysisJson, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
 
                 if (_analysis == null)
                 {
-                    throw new InvalidOperationException("Failed to parse Wyrm analysis");
+                    throw new InvalidOperationException("Failed to parse Wyvern analysis");
                 }
 
                 _analysis.AnalyzedAt = DateTime.UtcNow;
@@ -250,7 +250,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
                 if (_specification != null)
                 {
                     _analysis.ProcessedFeatures = _specification.Features
-                        .Where(f => f.Status == FeatureStatus.AssignedToWyrm)
+                        .Where(f => f.Status == FeatureStatus.AssignedToWyvern)
                         .Select(f => f.Id)
                         .ToList();
                 }
@@ -259,7 +259,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
             }
             catch (JsonException ex)
             {
-                throw new InvalidOperationException($"Failed to parse Wyrm analysis JSON: {ex.Message}");
+                throw new InvalidOperationException($"Failed to parse Wyvern analysis JSON: {ex.Message}");
             }
         }
 
@@ -280,8 +280,8 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
                 var areaOutputPath = Path.Combine(_outputPath, $"{_projectName}-{area.Name.ToLower()}-tasks.md");
                 var orchestratorInput = CreateOrchestratorInput(area);
                 
-                // Use WyvernRunner static method
-                await WyvernRunner.RunAsync(
+                // Use WyrmRunner static method
+                await WyrmRunner.RunAsync(
                     _provider,
                     orchestratorInput,
                     _options,
@@ -313,7 +313,7 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
             if (_analysis == null) return "No analysis available.";
 
             var report = new System.Text.StringBuilder();
-            report.AppendLine($"# Wyrm Analysis: {_analysis.ProjectName}");
+            report.AppendLine($"# Wyvern Analysis: {_analysis.ProjectName}");
             report.AppendLine($"Total Tasks: {_analysis.TotalTasks}");
 
             foreach (var area in _analysis.Areas)
@@ -328,12 +328,12 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
             return report.ToString();
         }
 
-        public WyrmAnalysis? Analysis => _analysis;
+        public WyvernAnalysis? Analysis => _analysis;
         public string ProjectName => _projectName;
         public string SpecificationPath => _specificationPath;
     }
 
-    public class WyrmAnalysis
+    public class WyvernAnalysis
     {
         public string ProjectName { get; set; } = "";
         public List<WorkArea> Areas { get; set; } = new();
@@ -347,10 +347,10 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
     public class WorkArea
     {
         public string Name { get; set; } = "";
-        public List<WyrmTask> Tasks { get; set; } = new();
+        public List<WyvernTask> Tasks { get; set; } = new();
     }
 
-    public class WyrmTask
+    public class WyvernTask
     {
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";

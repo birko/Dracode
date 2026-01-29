@@ -3,14 +3,14 @@ using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyvern
+namespace DraCode.KoboldLair.Server.Agents.Wyrm
 {
-    public class WyvernAgent : AgentBase
+    public class WyrmAgent : AgentBase
     {
         private readonly string _provider;
         private readonly Dictionary<string, string>? _config;
 
-        public WyvernAgent(ILlmProvider llmProvider, AgentOptions? options = null, string provider = "openai", Dictionary<string, string>? config = null)
+        public WyrmAgent(ILlmProvider llmProvider, AgentOptions? options = null, string provider = "openai", Dictionary<string, string>? config = null)
             : base(llmProvider, options)
         {
             _provider = provider;
@@ -37,7 +37,7 @@ Reasoning approach: Balanced
 - Choose the most appropriate agent"
                 };
 
-                return $@"You are an intelligent task wyvern working in a sandboxed workspace at {WorkingDirectory}.
+                return $@"You are an intelligent task delegator working in a sandboxed workspace at {WorkingDirectory}.
 
 Your role is to analyze task descriptions and decide which specialized agent should handle them.
 

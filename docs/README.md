@@ -16,7 +16,7 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 | Agent | Role | Interactive | Documentation |
 |-------|------|-------------|---------------|
 | 🐉 **Dragon** | Requirements gathering | ✅ Yes | [Dragon-Requirements-Agent.md](Dragon-Requirements-Agent.md) |
-| 🐲 **Wyrm** | Project analysis & task organization | ❌ Automatic | [Wyrm-Project-Analyzer.md](Wyrm-Project-Analyzer.md) |
+| 🐲 **Wyvern** | Project analysis & task organization | ❌ Automatic | [Wyvern-Project-Analyzer.md](Wyvern-Project-Analyzer.md) |
 | 🦅 **Drake** | Task supervision & Kobold management | ❌ Automatic | [Drake-Monitoring-System.md](Drake-Monitoring-System.md) |
 | 👹 **Kobold** | Code generation workers | ❌ Automatic | [Kobold-System.md](Kobold-System.md), [Kobold-State-Management.md](Kobold-State-Management.md) |
 
@@ -27,8 +27,8 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 ### How It Works
 1. **You interact with Dragon** (web chat) to describe project requirements
 2. **Dragon creates specification** → automatically registers project
-3. **Wyrm is assigned** → background service runs every 60s
-4. **Wyrm analyzes** → creates organized task files
+3. **Wyvern is assigned** → background service runs every 60s
+4. **Wyvern analyzes** → creates organized task files
 5. **Drake monitors** → assigns tasks to Kobolds
 6. **Kobolds generate code** → completely automatic
 
@@ -55,13 +55,13 @@ Projects in KoboldLair follow a complete lifecycle from creation through executi
    DragonService: Calls ProjectService.RegisterProject()
    ProjectRepository: Saves to ./projects/projects.json
    ↓
-5. WYRM ASSIGNED (Background Service)
-   WyrmProcessingService: Detects new project (every 60s)
-   ProjectService: Assigns Wyrm
-   Wyrm: Analyzes specification
+5. Wyvern ASSIGNED (Background Service)
+   WyvernProcessingService: Detects new project (every 60s)
+   ProjectService: Assigns Wyvern
+   Wyvern: Analyzes specification
    ↓
 6. TASKS GENERATED
-   Wyrm: Creates task breakdown
+   Wyvern: Creates task breakdown
    Project: status → "Analyzed"
    Tasks: Saved as task files
    ↓

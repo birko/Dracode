@@ -1,5 +1,5 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents.Wyvern;
+using DraCode.KoboldLair.Server.Agents.Wyrm;
 using DraCode.KoboldLair.Server.Agents.Kobold;
 using DraCode.KoboldLair.Server.Supervisors;
 using DraCode.KoboldLair.Server.Services;
@@ -36,9 +36,9 @@ namespace DraCode.KoboldLair.Server.Supervisors
         }
 
         /// <summary>
-        /// Creates a Drake supervisor that monitors tasks from a specific wyvern output path
+        /// Creates a Drake supervisor that monitors tasks from a specific Wyvern output path
         /// </summary>
-        /// <param name="taskFilePath">Path to the wyvern task markdown file</param>
+        /// <param name="taskFilePath">Path to the Wyvern task markdown file</param>
         /// <param name="drakeName">Optional name for the Drake (uses file path if not specified)</param>
         /// <param name="provider">Optional provider override</param>
         /// <param name="model">Optional model override</param>

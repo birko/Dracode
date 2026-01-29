@@ -2,33 +2,33 @@ using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.KoboldLair.Server.Services;
 
-namespace DraCode.KoboldLair.Server.Agents.Wyrm
+namespace DraCode.KoboldLair.Server.Agents.Wyvern
 {
     /// <summary>
-    /// Factory for creating and managing Wyrm instances.
-    /// One Wyrm per project - reads specifications and creates organized tasks.
+    /// Factory for creating and managing Wyvern instances.
+    /// One Wyvern per project - reads specifications and creates organized tasks.
     /// </summary>
-    public class WyrmFactory
+    public class WyvernFactory
     {
-        private readonly Dictionary<string, Wyrm> _wyrms;
+        private readonly Dictionary<string, Wyvern> _Wyverns;
         private readonly object _lock = new object();
         
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly AgentOptions _defaultOptions;
 
-        public WyrmFactory(
+        public WyvernFactory(
             ProviderConfigurationService providerConfigService,
             AgentOptions? defaultOptions = null)
         {
-            _wyrms = new Dictionary<string, Wyrm>(StringComparer.OrdinalIgnoreCase);
+            _Wyverns = new Dictionary<string, Wyvern>(StringComparer.OrdinalIgnoreCase);
             _providerConfigService = providerConfigService;
             _defaultOptions = defaultOptions ?? new AgentOptions { WorkingDirectory = "./workspace", Verbose = false };
         }
 
         /// <summary>
-        /// Creates a new Wyrm for a project
+        /// Creates a new Wyvern for a project
         /// </summary>
-        public Wyrm CreateWyrm(
+        public Wyvern CreateWyvern(
             string projectName,
             string specificationPath,
             string outputPath = "./tasks",
@@ -37,9 +37,9 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
         {
             lock (_lock)
             {
-                if (_wyrms.ContainsKey(projectName))
+                if (_Wyverns.ContainsKey(projectName))
                 {
-                    throw new InvalidOperationException($"Wyrm already exists for project: {projectName}");
+                    throw new InvalidOperationException($"Wyvern already exists for project: {projectName}");
                 }
 
                 // Get provider settings
@@ -64,9 +64,9 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
                 }
 
                 var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(effectiveProvider, config);
-                var analyzerAgent = new WyrmAnalyzerAgent(llmProvider, options);
+                var analyzerAgent = new WyvernAnalyzerAgent(llmProvider, options);
 
-                var wyrm = new Wyrm(
+                var Wyvern = new Wyvern(
                     projectName,
                     specificationPath,
                     analyzerAgent,
@@ -76,55 +76,55 @@ namespace DraCode.KoboldLair.Server.Agents.Wyrm
                     outputPath
                 );
 
-                _wyrms[projectName] = wyrm;
+                _Wyverns[projectName] = Wyvern;
 
-                return wyrm;
+                return Wyvern;
             }
         }
 
         /// <summary>
-        /// Gets an existing Wyrm by project name
+        /// Gets an existing Wyvern by project name
         /// </summary>
-        public Wyrm? GetWyrm(string projectName)
+        public Wyvern? GetWyvern(string projectName)
         {
             lock (_lock)
             {
-                return _wyrms.GetValueOrDefault(projectName);
+                return _Wyverns.GetValueOrDefault(projectName);
             }
         }
 
         /// <summary>
-        /// Gets all Wyrms
+        /// Gets all Wyverns
         /// </summary>
-        public IEnumerable<Wyrm> GetAllWyrms()
+        public IEnumerable<Wyvern> GetAllWyverns()
         {
             lock (_lock)
             {
-                return _wyrms.Values.ToList();
+                return _Wyverns.Values.ToList();
             }
         }
 
         /// <summary>
-        /// Removes a Wyrm
+        /// Removes a Wyvern
         /// </summary>
-        public bool RemoveWyrm(string projectName)
+        public bool RemoveWyvern(string projectName)
         {
             lock (_lock)
             {
-                return _wyrms.Remove(projectName);
+                return _Wyverns.Remove(projectName);
             }
         }
 
         /// <summary>
-        /// Total number of Wyrms
+        /// Total number of Wyverns
         /// </summary>
-        public int TotalWyrms
+        public int TotalWyverns
         {
             get
             {
                 lock (_lock)
                 {
-                    return _wyrms.Count;
+                    return _Wyverns.Count;
                 }
             }
         }

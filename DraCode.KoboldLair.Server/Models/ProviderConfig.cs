@@ -27,7 +27,7 @@ namespace DraCode.KoboldLair.Server.Models
 
         /// <summary>
         /// List of agents this provider can be used with
-        /// Examples: "dragon", "wyvern", "kobold", "all"
+        /// Examples: "dragon", "wyrm", "kobold", "all"
         /// </summary>
         public List<string> CompatibleAgents { get; set; } = new();
 
@@ -63,7 +63,7 @@ namespace DraCode.KoboldLair.Server.Models
         public string DragonProvider { get; set; } = "openai";
 
         /// <summary>
-        /// Provider to use for Wyvern (task delegation) agent
+        /// Provider to use for Wyrm (task delegation) agent
         /// </summary>
         public string WyvernProvider { get; set; } = "openai";
 
@@ -78,7 +78,7 @@ namespace DraCode.KoboldLair.Server.Models
         public string? DragonModel { get; set; }
 
         /// <summary>
-        /// Optional: Override model for Wyvern
+        /// Optional: Override model for Wyrm
         /// </summary>
         public string? WyvernModel { get; set; }
 

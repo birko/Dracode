@@ -1,9 +1,9 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Server.Agents.Kobold;
 using DraCode.KoboldLair.Server.Models;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
 using DraCode.KoboldLair.Server.Agents.Wyvern;
-using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyvern.TaskStatus;
+using DraCode.KoboldLair.Server.Agents.Wyrm;
+using TaskStatus = DraCode.KoboldLair.Server.Agents.Wyrm.TaskStatus;
 
 namespace DraCode.KoboldLair.Server.Supervisors
 {
@@ -22,7 +22,7 @@ namespace DraCode.KoboldLair.Server.Supervisors
         private readonly string? _specificationPath;
         private readonly string? _projectId;
         private readonly ILogger<Drake>? _logger;
-        private Wyrm? _wyrm;
+        private Wyvern? _wyvern;
 
         /// <summary>
         /// Maps TaskId to KoboldId for tracking active assignments
@@ -65,11 +65,11 @@ namespace DraCode.KoboldLair.Server.Supervisors
         }
 
         /// <summary>
-        /// Sets the Wyrm for this Drake to enable feature status updates
+        /// Sets the Wyvern for this Drake to enable feature status updates
         /// </summary>
-        public void SetWyrm(Wyrm wyrm)
+        public void SetWyvern(Wyvern wyvern)
         {
-            _wyrm = wyrm;
+            _wyvern = wyvern;
         }
 
         /// <summary>
@@ -284,7 +284,7 @@ namespace DraCode.KoboldLair.Server.Supervisors
             // Final sync of task status from Kobold
             SyncTaskFromKobold(kobold);
             
-            // Update feature status if Wyrm is available
+            // Update feature status if Wyvern is available
             UpdateFeatureStatus();
 
             return (messages, kobold);
@@ -293,7 +293,7 @@ namespace DraCode.KoboldLair.Server.Supervisors
         /// <summary>
         /// Monitors all tasks and syncs their status from associated Kobolds.
         /// Drake observes Kobold states but does not force state changes.
-        /// Also updates feature status through Wyrm if available.
+        /// Also updates feature status through Wyvern if available.
         /// </summary>
         public void MonitorTasks()
         {
@@ -329,13 +329,13 @@ namespace DraCode.KoboldLair.Server.Supervisors
         /// </summary>
         private void UpdateFeatureStatus()
         {
-            if (_wyrm == null)
+            if (_wyvern == null)
                 return;
 
             var allTasks = _taskTracker.GetAllTasks();
             var taskStatuses = allTasks.ToDictionary(t => t.Id, t => t.Status);
             
-            _wyrm.UpdateFeatureStatus(taskStatuses);
+            _wyvern.UpdateFeatureStatus(taskStatuses);
         }
 
         /// <summary>

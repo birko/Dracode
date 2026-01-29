@@ -1,8 +1,8 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Services;
-using DraCode.KoboldLair.Server.Models;
-using DraCode.KoboldLair.Server.Agents.Wyrm;
 using DraCode.KoboldLair.Server.Agents.Kobold;
+using DraCode.KoboldLair.Server.Agents.Wyvern;
+using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Services;
 using DraCode.KoboldLair.Server.Supervisors;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,10 +34,10 @@ builder.Services.AddSingleton<ProjectRepository>(sp =>
     return new ProjectRepository("./projects", logger);
 });
 
-builder.Services.AddSingleton<WyrmFactory>(sp =>
+builder.Services.AddSingleton<WyvernFactory>(sp =>
 {
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    return new WyrmFactory(
+    return new WyvernFactory(
         providerConfigService,
         defaultOptions: new AgentOptions
         {
@@ -50,10 +50,10 @@ builder.Services.AddSingleton<WyrmFactory>(sp =>
 builder.Services.AddSingleton<ProjectService>(sp =>
 {
     var repository = sp.GetRequiredService<ProjectRepository>();
-    var wyrmFactory = sp.GetRequiredService<WyrmFactory>();
+    var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
-    return new ProjectService(repository, wyrmFactory, projectConfigService, logger, "./workspace");
+    return new ProjectService(repository, wyvernFactory, projectConfigService, logger, "./workspace");
 });
 
 // Register factories as singletons
@@ -79,12 +79,12 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
 
 // Register services
 builder.Services.AddSingleton<WebSocketCommandHandler>();
-builder.Services.AddSingleton<WyvernService>(sp =>
+builder.Services.AddSingleton<WyrmService>(sp =>
 {
-    var logger = sp.GetRequiredService<ILogger<WyvernService>>();
+    var logger = sp.GetRequiredService<ILogger<WyrmService>>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
     var commandHandler = sp.GetRequiredService<WebSocketCommandHandler>();
-    return new WyvernService(logger, providerConfigService, commandHandler);
+    return new WyrmService(logger, providerConfigService, commandHandler);
 });
 builder.Services.AddSingleton<DragonService>(sp =>
 {
@@ -102,12 +102,12 @@ builder.Services.AddHostedService<DrakeMonitoringService>(sp =>
     return new DrakeMonitoringService(logger, drakeFactory, monitoringIntervalSeconds: 60);
 });
 
-// Register Wyrm processing background service (checks every 60 seconds)
-builder.Services.AddHostedService<WyrmProcessingService>(sp =>
+// Register Wyvern processing background service (checks every 60 seconds)
+builder.Services.AddHostedService<WyvernProcessingService>(sp =>
 {
-    var logger = sp.GetRequiredService<ILogger<WyrmProcessingService>>();
+    var logger = sp.GetRequiredService<ILogger<WyvernProcessingService>>();
     var projectService = sp.GetRequiredService<ProjectService>();
-    return new WyrmProcessingService(logger, projectService, "./specifications", checkIntervalSeconds: 60);
+    return new WyvernProcessingService(logger, projectService, "./specifications", checkIntervalSeconds: 60);
 });
 
 // Add CORS for web client
@@ -130,10 +130,16 @@ using (var scope = app.Services.CreateScope())
     var providerConfigService = scope.ServiceProvider.GetRequiredService<ProviderConfigurationService>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    logger.LogInformation("Environment: {EnvironmentName}", builder.Environment.EnvironmentName);
-    logger.LogInformation("Initializing configurations for existing projects...");
+    if (logger?.IsEnabled(LogLevel.Information) ?? false)
+    {
+        logger.LogInformation("Environment: {EnvironmentName}", builder.Environment.EnvironmentName);
+        logger.LogInformation("Initializing configurations for existing projects...");
+    }
     projectService.InitializeProjectConfigurations(providerConfigService);
-    logger.LogInformation("Configuration initialization complete");
+    if (logger?.IsEnabled(LogLevel.Information) ?? false)
+    {
+        logger.LogInformation("Configuration initialization complete");
+    }
 }
 
 app.MapDefaultEndpoints();
@@ -148,8 +154,8 @@ var webSocketOptions = new WebSocketOptions
 };
 app.UseWebSockets(webSocketOptions);
 
-// WebSocket endpoint for Wyvern (task delegation) with authentication
-app.Map("/ws", async context =>
+// WebSocket endpoint for Wyvern (project analysis) with authentication
+app.Map("/wyvern", async context =>
 {
     if (context.WebSockets.IsWebSocketRequest)
     {
@@ -167,9 +173,9 @@ app.Map("/ws", async context =>
             return;
         }
 
-        var wyvernService = context.RequestServices.GetRequiredService<WyvernService>();
+        var wyrmService = context.RequestServices.GetRequiredService<WyrmService>();
         var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-        await wyvernService.HandleWebSocketAsync(webSocket);
+        await wyrmService.HandleWebSocketAsync(webSocket);
     }
     else
     {

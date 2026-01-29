@@ -1,10 +1,10 @@
-# 🐲 Wyrm - Project Analyzer & Task Organizer
+# 🐲 Wyvern - Project Analyzer & Task Organizer
 
 ## Overview
 
-Wyrm is a specialized project analyzer that reads Dragon specifications and transforms them into organized, dependency-aware task lists. **One Wyrm per project** - it categorizes work into areas (backend, frontend, etc.), identifies dependencies, and creates executable tasks for Drakes to monitor.
+Wyvern is a specialized project analyzer that reads Dragon specifications and transforms them into organized, dependency-aware task lists. **One Wyvern per project** - it categorizes work into areas (backend, frontend, etc.), identifies dependencies, and creates executable tasks for Drakes to monitor.
 
-**Wyrms work automatically** - they're created and assigned by WyrmProcessingService (background service running every 60 seconds) when new specifications are detected.
+**Wyverns work automatically** - they're created and assigned by WyvernProcessingService (background service running every 60 seconds) when new specifications are detected.
 
 ## Architecture
 
@@ -13,11 +13,11 @@ Dragon creates specification (./specifications/*.md)
     ↓
 ProjectService.RegisterProject() (automatic)
     ↓
-WyrmProcessingService checks every 60 seconds
+WyvernProcessingService checks every 60 seconds
     ↓
-Detects new project → Creates Wyrm instance
+Detects new project → Creates Wyvern instance
     ↓
-WyrmAnalyzerAgent analyzes specification
+WyvernAnalyzerAgent analyzes specification
     ↓
 Categorizes into work areas:
   • Backend
@@ -40,11 +40,11 @@ Drakes monitor & assign to Kobolds
 
 ## Components
 
-### 1. Wyrm (`Projects/Wyrm.cs`)
+### 1. Wyvern (`Projects/Wyvern.cs`)
 
 Main class that orchestrates the entire analysis and task creation process.
 
-**One Wyrm per Project** - manages the complete lifecycle from specification to executable tasks.
+**One Wyvern per Project** - manages the complete lifecycle from specification to executable tasks.
 
 **Key Methods:**
 - `AnalyzeProjectAsync()` - Analyzes specification, returns organized structure
@@ -53,28 +53,28 @@ Main class that orchestrates the entire analysis and task creation process.
 
 **Usage:**
 ```csharp
-var wyrm = wyrmFactory.CreateWyrm(
+var wyvern = WyvernFactory.CreateWyvern(
     "my-web-app",
     "./specifications/web-app-spec.md",
     outputPath: "./tasks"
 );
 
 // Analyze
-var analysis = await wyrm.AnalyzeProjectAsync();
+var analysis = await Wyvern.AnalyzeProjectAsync();
 Console.WriteLine($"Found {analysis.TotalTasks} tasks across {analysis.Areas.Count} areas");
 
 // Create tasks
-var taskFiles = await wyrm.CreateTasksAsync();
+var taskFiles = await Wyvern.CreateTasksAsync();
 // Creates: ./tasks/my-web-app-backend-tasks.md
 //          ./tasks/my-web-app-frontend-tasks.md
 //          etc.
 
 // Generate report
-var report = wyrm.GenerateReport();
-File.WriteAllText("./wyrm-analysis-report.md", report);
+var report = Wyvern.GenerateReport();
+File.WriteAllText("./Wyvern-analysis-report.md", report);
 ```
 
-### 2. WyrmAnalyzerAgent (`Agents/WyrmAnalyzerAgent.cs`)
+### 2. WyvernAnalyzerAgent (`Agents/WyvernAnalyzerAgent.cs`)
 
 Specialized agent that analyzes specifications and produces structured JSON output.
 
@@ -112,19 +112,19 @@ Specialized agent that analyzes specifications and produces structured JSON outp
 }
 ```
 
-### 3. WyrmFactory (`Factories/WyrmFactory.cs`)
+### 3. WyvernFactory (`Factories/WyvernFactory.cs`)
 
-Factory for creating and managing Wyrm instances.
+Factory for creating and managing Wyvern instances.
 
 **Features:**
 - Thread-safe with lock
-- One Wyrm per project (enforced)
-- Tracks all Wyrms by project name
+- One Wyvern per project (enforced)
+- Tracks all Wyverns by project name
 - Configurable LLM provider
 
 **Usage:**
 ```csharp
-var wyrmFactory = new WyrmFactory(
+var WyvernFactory = new WyvernFactory(
     defaultProvider: "openai",
     defaultConfig: new Dictionary<string, string>
     {
@@ -133,16 +133,16 @@ var wyrmFactory = new WyrmFactory(
     }
 );
 
-// Create Wyrm
-var wyrm = wyrmFactory.CreateWyrm(
+// Create Wyvern
+var wyvern = WyvernFactory.CreateWyvern(
     "my-project",
     "./specifications/my-project.md"
 );
 
 // Query
-var existingWyrm = wyrmFactory.GetWyrm("my-project");
-var allWyrms = wyrmFactory.GetAllWyrms();
-Console.WriteLine($"Total Wyrms: {wyrmFactory.TotalWyrms}");
+var existingWyvern = WyvernFactory.GetWyvern("my-project");
+var allWyverns = WyvernFactory.GetAllWyverns();
+Console.WriteLine($"Total Wyrms: {WyvernFactory.TotalWyverns}");
 ```
 
 ## Workflow
@@ -155,14 +155,14 @@ Console.WriteLine($"Total Wyrms: {wyrmFactory.TotalWyrms}");
 2. Dragon creates specification
      → ./specifications/web-app.md
      ↓
-3. Create Wyrm for project
-     wyrm = wyrmFactory.CreateWyrm("web-app", "./specifications/web-app.md")
+3. Create Wyvern for project
+     Wyvern = WyvernFactory.CreateWyvern("web-app", "./specifications/web-app.md")
      ↓
-4. Wyrm analyzes specification
-     analysis = await wyrm.AnalyzeProjectAsync()
+4. Wyvern analyzes specification
+     analysis = await Wyvern.AnalyzeProjectAsync()
      ↓
-5. Wyrm creates organized tasks
-     taskFiles = await wyrm.CreateTasksAsync()
+5. Wyvern creates organized tasks
+     taskFiles = await Wyvern.CreateTasksAsync()
      → ./tasks/web-app-backend-tasks.md
      → ./tasks/web-app-frontend-tasks.md
      → ./tasks/web-app-database-tasks.md
@@ -198,10 +198,10 @@ Console.WriteLine($"Total Wyrms: {wyrmFactory.TotalWyrms}");
 - Database: PostgreSQL
 ```
 
-**Step 2: Wyrm Analysis**
+**Step 2: Wyvern Analysis**
 ```csharp
-var wyrm = wyrmFactory.CreateWyrm("ecommerce", "./specifications/ecommerce.md");
-var analysis = await wyrm.AnalyzeProjectAsync();
+var wyvern = WyvernFactory.CreateWyvern("ecommerce", "./specifications/ecommerce.md");
+var analysis = await Wyvern.AnalyzeProjectAsync();
 ```
 
 **Result:**
@@ -224,7 +224,7 @@ Areas:
 
 **Step 3: Create Tasks**
 ```csharp
-var taskFiles = await wyrm.CreateTasksAsync();
+var taskFiles = await Wyvern.CreateTasksAsync();
 // → ./tasks/ecommerce-backend-tasks.md
 // → ./tasks/ecommerce-frontend-tasks.md
 // → ./tasks/ecommerce-database-tasks.md
@@ -241,7 +241,7 @@ var frontendDrake = drakeFactory.CreateDrake(taskFiles["Frontend"], "frontend-dr
 
 ## Work Area Categorization
 
-Wyrm divides projects into standard areas:
+Wyvern divides projects into standard areas:
 
 ### Backend
 - API endpoints
@@ -319,7 +319,7 @@ Wyrm divides projects into standard areas:
 
 ### Dependency Levels
 
-Wyrm organizes tasks by dependency level:
+Wyvern organizes tasks by dependency level:
 
 ```
 Level 0: No dependencies
@@ -374,9 +374,9 @@ Level 1:
 ### Program.cs Registration (Optional)
 
 ```csharp
-builder.Services.AddSingleton<WyrmFactory>(sp =>
+builder.Services.AddSingleton<WyvernFactory>(sp =>
 {
-    return new WyrmFactory(
+    return new WyvernFactory(
         defaultProvider: "openai",
         defaultConfig: new Dictionary<string, string>
         {
@@ -406,10 +406,10 @@ export AZURE_OPENAI_ENDPOINT="https://..."
 
 ## Generated Reports
 
-Wyrm generates comprehensive analysis reports:
+Wyvern generates comprehensive analysis reports:
 
 ```markdown
-# 🐲 Wyrm Analysis Report: Web App
+# 🐲 Wyvern Analysis Report: Web App
 
 **Analyzed At:** 2026-01-26 19:00:00
 **Specification:** ./specifications/web-app.md
@@ -445,16 +445,16 @@ Backend:
 
 ## API Reference
 
-### Wyrm
+### Wyvern
 
 ```csharp
-public class Wyrm
+public class Wyvern
 {
-    // Constructor (use WyrmFactory instead)
-    public Wyrm(
+    // Constructor (use WyvernFactory instead)
+    public Wyvern(
         string projectName,
         string specificationPath,
-        WyrmAnalyzerAgent analyzerAgent,
+        WyvernAnalyzerAgent analyzerAgent,
         string provider,
         Dictionary<string, string> config,
         AgentOptions options,
@@ -462,49 +462,49 @@ public class Wyrm
     )
 
     // Methods
-    public async Task<WyrmAnalysis> AnalyzeProjectAsync()
+    public async Task<WyvernAnalysis> AnalyzeProjectAsync()
     public async Task<Dictionary<string, string>> CreateTasksAsync()
     public string GenerateReport()
 
     // Properties
-    public WyrmAnalysis? Analysis { get; }
+    public WyvernAnalysis? Analysis { get; }
     public string ProjectName { get; }
     public string SpecificationPath { get; }
 }
 ```
 
-### WyrmFactory
+### WyvernFactory
 
 ```csharp
-public class WyrmFactory
+public class WyvernFactory
 {
     // Constructor
-    public WyrmFactory(
+    public WyvernFactory(
         string defaultProvider = "openai",
         Dictionary<string, string>? defaultConfig = null,
         AgentOptions? defaultOptions = null
     )
 
     // Methods
-    public Wyrm CreateWyrm(
+    public Wyvern CreateWyrm(
         string projectName,
         string specificationPath,
         string outputPath = "./tasks",
         string? provider = null
     )
-    public Wyrm? GetWyrm(string projectName)
-    public IEnumerable<Wyrm> GetAllWyrms()
-    public bool RemoveWyrm(string projectName)
+    public Wyvern? GetWyvern(string projectName)
+    public IEnumerable<Wyvern> GetAllWyverns()
+    public bool RemoveWyvern(string projectName)
 
     // Properties
-    public int TotalWyrms { get; }
+    public int TotalWyverns { get; }
 }
 ```
 
-### WyrmAnalysis
+### WyvernAnalysis
 
 ```csharp
-public class WyrmAnalysis
+public class WyvernAnalysis
 {
     public string ProjectName { get; set; }
     public List<WorkArea> Areas { get; set; }
@@ -517,7 +517,7 @@ public class WyrmAnalysis
 
 ## Summary
 
-**Wyrm's Role in KoboldLair:**
+**Wyvern's Role in KoboldLair:**
 - 🐲 **Analyzes** Dragon specifications
 - 📊 **Categorizes** work into logical areas
 - 🔗 **Identifies** task dependencies
@@ -526,10 +526,10 @@ public class WyrmAnalysis
 - 🐉 **Enables** Drakes to monitor organized work
 
 **Key Benefits:**
-- ✅ One Wyrm per project (clear ownership)
+- ✅ One Wyvern per project (clear ownership)
 - ✅ Automatic work categorization
 - ✅ Dependency-aware task ordering
 - ✅ Seamless integration with Drakes
 - ✅ Comprehensive analysis reports
 
-Start your project organization with Wyrm! 🐲
+Start your project organization with Wyvern! 🐲

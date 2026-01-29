@@ -44,16 +44,15 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 // Get provider settings from configuration
                 var (provider, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
-                var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(provider, config);
-                
-                var dragon = new DragonAgent(llmProvider, options);
-                
+
+                var dragon = (DragonAgent)KoboldLairAgentFactory.Create(provider, options, config, "dragon");
+
                 // Set up message callback for debugging
                 dragon.SetMessageCallback((type, content) =>
                 {
                     _logger.LogInformation("[Dragon Agent] [{Type}] {Content}", type, content);
                 });
-                
+
                 _activeSessions[sessionId] = dragon;
                 _sessionWebSockets[sessionId] = webSocket;
 
@@ -61,7 +60,7 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogInformation("[Dragon] Starting session...");
                 var welcomeResponse = await dragon.StartSessionAsync();
                 _logger.LogInformation("[Dragon] Welcome response: {Response}", welcomeResponse);
-                
+
                 await SendMessageAsync(webSocket, new
                 {
                     type = "dragon_message",
@@ -194,7 +193,7 @@ namespace DraCode.KoboldLair.Server.Services
                                 {
                                     var projectName = Path.GetFileNameWithoutExtension(latestSpec);
                                     var project = _projectService.RegisterProject(projectName, latestSpec);
-                                    _logger.LogInformation("✨ Auto-registered project: {ProjectName} (ID: {ProjectId})", 
+                                    _logger.LogInformation("✨ Auto-registered project: {ProjectName} (ID: {ProjectId})",
                                         projectName, project.Id);
                                 }
                                 catch (Exception ex)
@@ -244,7 +243,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         public async Task ReloadAgentAsync(string sessionId, string? providerOverride = null)
         {
-            _logger.LogInformation("Reloading Dragon agent for session: {SessionId} with provider: {Provider}", 
+            _logger.LogInformation("Reloading Dragon agent for session: {SessionId} with provider: {Provider}",
                 sessionId, providerOverride ?? "default");
 
             if (!_activeSessions.TryGetValue(sessionId, out var oldAgent))
@@ -265,7 +264,7 @@ namespace DraCode.KoboldLair.Server.Services
                 string providerName;
                 Dictionary<string, string> config;
                 AgentOptions options;
-                
+
                 if (!string.IsNullOrEmpty(providerOverride))
                 {
                     // Use the specified provider
@@ -277,25 +276,24 @@ namespace DraCode.KoboldLair.Server.Services
                     // Use configured provider
                     (providerName, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
                 }
-                
-                var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(providerName, config);
-                
+
+
                 // Create new agent with clean context
-                var dragon = new DragonAgent(llmProvider, options);
-                
+                var dragon = (DragonAgent)KoboldLairAgentFactory.Create(providerName, options, config, "dragon");
+
                 // Set up message callback for debugging
                 dragon.SetMessageCallback((type, content) =>
                 {
                     _logger.LogInformation("[Dragon Agent] [{Type}] {Content}", type, content);
                 });
-                
+
                 _activeSessions[sessionId] = dragon;
 
                 // Send welcome message from new agent
                 _logger.LogInformation("[Dragon] Reloading session - starting fresh...");
                 var welcomeResponse = await dragon.StartSessionAsync();
                 _logger.LogInformation("[Dragon] Reload welcome response: {Response}", welcomeResponse);
-                
+
                 await SendMessageAsync(webSocket, new
                 {
                     type = "dragon_reloaded",
@@ -303,6 +301,7 @@ namespace DraCode.KoboldLair.Server.Services
                     message = $"Agent reloaded with provider: {providerName}\n\n{welcomeResponse}",
                     timestamp = DateTime.UtcNow
                 });
+                oldAgent = null; // Allow old agent to be garbage collected
 
                 _logger.LogInformation("Dragon agent reloaded successfully: {SessionId}", sessionId);
             }
@@ -327,8 +326,8 @@ namespace DraCode.KoboldLair.Server.Services
             return new DragonStatistics
             {
                 ActiveSessions = _activeSessions.Count,
-                TotalSpecifications = Directory.Exists("./specifications") 
-                    ? Directory.GetFiles("./specifications", "*.md").Length 
+                TotalSpecifications = Directory.Exists("./specifications")
+                    ? Directory.GetFiles("./specifications", "*.md").Length
                     : 0
             };
         }

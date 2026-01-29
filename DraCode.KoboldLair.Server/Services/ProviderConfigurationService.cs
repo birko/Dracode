@@ -40,7 +40,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
             _logger.LogInformation("Agent Assignments:");
             _logger.LogInformation("  - Dragon: {Provider}", _configuration.AgentProviders.DragonProvider);
-            _logger.LogInformation("  - Wyvern: {Provider}", _configuration.AgentProviders.WyvernProvider);
+            _logger.LogInformation("  - Wyrm: {Provider}", _configuration.AgentProviders.WyvernProvider);
             _logger.LogInformation("  - Kobold: {Provider}", _configuration.AgentProviders.KoboldProvider);
             _logger.LogInformation("========================================");
 
@@ -95,7 +95,7 @@ namespace DraCode.KoboldLair.Server.Services
                 return agentType.ToLowerInvariant() switch
                 {
                     "dragon" => _configuration.AgentProviders.DragonProvider,
-                    "wyvern" => _configuration.AgentProviders.WyvernProvider,
+                    "wyrm" => _configuration.AgentProviders.WyvernProvider,
                     "kobold" => _configuration.AgentProviders.KoboldProvider,
                     _ => _configuration.AgentProviders.KoboldProvider
                 };
@@ -126,7 +126,7 @@ namespace DraCode.KoboldLair.Server.Services
                 var modelOverride = agentType.ToLowerInvariant() switch
                 {
                     "dragon" => _configuration.AgentProviders.DragonModel,
-                    "wyvern" => _configuration.AgentProviders.WyvernModel,
+                    "wyrm" => _configuration.AgentProviders.WyvernModel,
                     "kobold" => _configuration.AgentProviders.KoboldModel,
                     _ => null
                 };
@@ -194,7 +194,7 @@ namespace DraCode.KoboldLair.Server.Services
                         _configuration.AgentProviders.DragonProvider = providerName;
                         _configuration.AgentProviders.DragonModel = modelOverride;
                         break;
-                    case "wyvern":
+                    case "wyrm":
                         _configuration.AgentProviders.WyvernProvider = providerName;
                         _configuration.AgentProviders.WyvernModel = modelOverride;
                         break;

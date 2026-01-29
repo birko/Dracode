@@ -118,10 +118,10 @@ export class DragonView {
     sendMessage() {
         const input = document.getElementById('dragonInput');
         const message = input.value.trim();
-        
+
         if (message && this.ws) {
             this.addMessage('user', message);
-            this.ws.send({ 
+            this.ws.send({
                 message: message,
                 sessionId: this.sessionId
             });
@@ -131,7 +131,7 @@ export class DragonView {
 
     reloadAgent() {
         if (this.ws && this.sessionId) {
-            this.ws.send({ 
+            this.ws.send({
                 type: 'reload',
                 sessionId: this.sessionId,
                 provider: this.selectedProvider
@@ -147,7 +147,7 @@ export class DragonView {
             if (role === 'system' && content.includes('reloaded')) {
                 messagesContainer.innerHTML = '';
             }
-            
+            if (content === '') return;
             const messageEl = document.createElement('div');
             messageEl.className = `chat-message ${role}`;
             const icon = role === 'user' ? '👤' : role === 'system' ? 'ℹ️' : '🐉';

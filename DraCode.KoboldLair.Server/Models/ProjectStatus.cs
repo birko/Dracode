@@ -6,17 +6,17 @@ namespace DraCode.KoboldLair.Server.Models
     public enum ProjectStatus
     {
         /// <summary>
-        /// Specification just created, no Wyrm assigned yet
+        /// Specification just created, no Wyvern assigned yet
         /// </summary>
         New,
 
         /// <summary>
-        /// Wyrm has been assigned to the project
+        /// Wyvern has been assigned to the project
         /// </summary>
-        WyrmAssigned,
+        WyvernAssigned,
 
         /// <summary>
-        /// Wyrm has analyzed the specification
+        /// Wyvern has analyzed the specification
         /// </summary>
         Analyzed,
 

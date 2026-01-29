@@ -1,6 +1,6 @@
 using DraCode.Agent;
 using DraCode.Agent.Agents;
-using DraCode.KoboldLair.Server.Agents.Wyvern;
+using DraCode.KoboldLair.Server.Agents.Wyrm;
 using DraCode.KoboldLair.Server.Agents.Dragon;
 
 namespace DraCode.KoboldLair.Server.Agents
@@ -17,7 +17,7 @@ namespace DraCode.KoboldLair.Server.Agents
         /// <param name="provider">LLM provider: "openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "githubcopilot"</param>
         /// <param name="options">Agent options (working directory, verbose, etc.)</param>
         /// <param name="config">Provider configuration (API keys, models, etc.)</param>
-        /// <param name="agentType">Type of agent to create: "dragon", "wyvern", "coding", "csharp", "cpp", "php", "python", "svg", "bitmap", etc.</param>
+        /// <param name="agentType">Type of agent to create: "dragon", "wyrm", "coding", "csharp", "cpp", "php", "python", "svg", "bitmap", etc.</param>
         /// <returns>Agent instance</returns>
         public static Agent.Agents.Agent Create(
             string provider,
@@ -29,11 +29,11 @@ namespace DraCode.KoboldLair.Server.Agents
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             // Handle KoboldLair-specific agents locally
-            if (agentType.Equals("wyvern", StringComparison.OrdinalIgnoreCase))
+            if (agentType.Equals("wyrm", StringComparison.OrdinalIgnoreCase))
             {
                 // Create LLM provider
                 var llmProvider = CreateLlmProvider(provider, config);
-                return new WyvernAgent(llmProvider, options, provider, config);
+                return new WyrmAgent(llmProvider, options, provider, config);
             }
             else if (agentType.Equals("dragon", StringComparison.OrdinalIgnoreCase))
             {
