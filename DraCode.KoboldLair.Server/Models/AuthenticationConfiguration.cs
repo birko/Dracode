@@ -6,10 +6,4 @@ namespace DraCode.KoboldLair.Server.Models
         public List<string> Tokens { get; set; } = new();
         public List<TokenIpBinding> TokenBindings { get; set; } = new();
     }
-
-    public class TokenIpBinding
-    {
-        public string Token { get; set; } = string.Empty;
-        public List<string> AllowedIps { get; set; } = new();
-    }
 }

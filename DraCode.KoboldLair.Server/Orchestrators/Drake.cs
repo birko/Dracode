@@ -234,7 +234,7 @@ namespace DraCode.KoboldLair.Server.Orchestrators
         {
             // Summon Kobold (may return null if resource limit reached)
             var kobold = SummonKobold(task, agentType, provider);
-            
+
             if (kobold == null)
             {
                 // Resource limit reached - task remains in queue for retry on next cycle
@@ -258,7 +258,7 @@ namespace DraCode.KoboldLair.Server.Orchestrators
                 // Start work (Kobold automatically manages its state transitions)
                 messageCallback?.Invoke("info", $"⚡ Kobold {kobold.Id.ToString()[..8]} started working on: {kobold.TaskDescription}");
                 messages = await StartKoboldWorkAsync(kobold.Id, maxIterations);
-                
+
                 // Check Kobold's final state
                 if (kobold.IsSuccess)
                 {
@@ -273,7 +273,7 @@ namespace DraCode.KoboldLair.Server.Orchestrators
             {
                 messageCallback?.Invoke("error", $"✗ Kobold {kobold.Id.ToString()[..8]} execution error: {ex.Message}");
                 messages = new List<Message>();
-                
+
                 // Sync status from Kobold (it should have captured the error)
                 SyncTaskFromKobold(kobold);
                 throw;
@@ -281,7 +281,7 @@ namespace DraCode.KoboldLair.Server.Orchestrators
 
             // Final sync of task status from Kobold
             SyncTaskFromKobold(kobold);
-            
+
             // Update feature status if Wyvern is available
             UpdateFeatureStatus();
 
@@ -317,7 +317,7 @@ namespace DraCode.KoboldLair.Server.Orchestrators
             }
 
             SaveTasksToFile();
-            
+
             // Update feature status if Wyrm is available
             UpdateFeatureStatus();
         }
@@ -332,7 +332,7 @@ namespace DraCode.KoboldLair.Server.Orchestrators
 
             var allTasks = _taskTracker.GetAllTasks();
             var taskStatuses = allTasks.ToDictionary(t => t.Id, t => t.Status);
-            
+
             _wyvern.UpdateFeatureStatus(taskStatuses);
         }
 
@@ -406,30 +406,6 @@ namespace DraCode.KoboldLair.Server.Orchestrators
         public void UpdateTasksFile()
         {
             SaveTasksToFile();
-        }
-    }
-
-    /// <summary>
-    /// Statistics about the Drake's managed resources
-    /// </summary>
-    public class DrakeStatistics
-    {
-        public int TotalKobolds { get; init; }
-        public int UnassignedKobolds { get; init; }
-        public int AssignedKobolds { get; init; }
-        public int WorkingKobolds { get; init; }
-        public int DoneKobolds { get; init; }
-        public int TotalTasks { get; init; }
-        public int UnassignedTasks { get; init; }
-        public int WorkingTasks { get; init; }
-        public int DoneTasks { get; init; }
-        public int ActiveAssignments { get; init; }
-
-        public override string ToString()
-        {
-            return $"Kobolds: {TotalKobolds} (Working: {WorkingKobolds}, Done: {DoneKobolds}) | " +
-                   $"Tasks: {TotalTasks} (Working: {WorkingTasks}, Done: {DoneTasks}) | " +
-                   $"Active: {ActiveAssignments}";
         }
     }
 }

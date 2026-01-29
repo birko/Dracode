@@ -1,4 +1,5 @@
 using DraCode.Agent;
+using DraCode.KoboldLair.Server.Agents;
 using DraCode.KoboldLair.Server.Models;
 using DraCode.KoboldLair.Server.Orchestrators;
 using System.Net.WebSockets;
@@ -85,23 +86,23 @@ namespace DraCode.KoboldLair.Server.Services
                     case "ping":
                         await SendMessageAsync(webSocket, new { type = "pong" });
                         break;
-                    
+
                     case "submit_task":
                         await HandleSubmitTaskAsync(webSocket, request);
                         break;
-                    
+
                     case "get_tasks":
                         await HandleGetTasksAsync(webSocket);
                         break;
-                    
+
                     case "get_task":
                         await HandleGetTaskAsync(webSocket, request);
                         break;
-                    
+
                     case "get_markdown":
                         await HandleGetMarkdownAsync(webSocket);
                         break;
-                    
+
                     default:
                         // Try to handle as API command if command handler is available
                         if (_commandHandler != null && actionOrCommand != null)
@@ -131,7 +132,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             var taskRecord = _taskTracker.AddTask(request.Task);
-            
+
             await SendMessageAsync(webSocket, new
             {
                 type = "task_created",
@@ -160,7 +161,7 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     // Log all agent messages to console for debugging
                     _logger.LogInformation("[Wyrm Agent] [{Type}] {Content}", type, content);
-                    
+
                     if (webSocket.State == WebSocketState.Open)
                     {
                         await SendMessageAsync(webSocket, new
@@ -175,7 +176,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                 // Get provider settings from configuration
                 var (provider, config, _) = _providerConfigService.GetProviderSettingsForAgent("wyvern", options.WorkingDirectory);
-                
+
                 // Get recommendation first
                 var result = await WyrmRunner.GetRecommendationAsync(
                     provider,
@@ -184,7 +185,7 @@ namespace DraCode.KoboldLair.Server.Services
                     config,
                     messageCallback
                 );
-                
+
                 var agentType = result.selectedAgentType;
                 var reasoning = result.reasoning;
 
@@ -196,12 +197,12 @@ namespace DraCode.KoboldLair.Server.Services
                     // For demo purposes, mark as done after a short delay
                     // In production, you would actually run the agent
                     await Task.Delay(2000);
-                    
+
                     _taskTracker.UpdateTask(taskRecord, TaskStatus.Working);
                     await SendStatusUpdateAsync(webSocket, taskRecord);
 
                     await Task.Delay(3000);
-                    
+
                     _taskTracker.UpdateTask(taskRecord, TaskStatus.Done);
                     await SendStatusUpdateAsync(webSocket, taskRecord);
                 }
@@ -310,13 +311,5 @@ namespace DraCode.KoboldLair.Server.Services
         {
             await SendMessageAsync(webSocket, new { type = "error", error });
         }
-    }
-
-    public class WebSocketRequest
-    {
-        public string? Action { get; set; }
-        public string? Command { get; set; }
-        public string? Task { get; set; }
-        public string? TaskId { get; set; }
     }
 }

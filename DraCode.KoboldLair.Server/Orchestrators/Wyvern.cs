@@ -386,34 +386,4 @@ namespace DraCode.KoboldLair.Server.Orchestrators
         public string ProjectName => _projectName;
         public string SpecificationPath => _specificationPath;
     }
-
-    public class WyvernAnalysis
-    {
-        public string ProjectName { get; set; } = "";
-        public List<WorkArea> Areas { get; set; } = new();
-        public int TotalTasks { get; set; }
-        public string EstimatedComplexity { get; set; } = "medium";
-        public DateTime AnalyzedAt { get; set; }
-        public string SpecificationPath { get; set; } = "";
-        public List<string> ProcessedFeatures { get; set; } = new();
-    }
-
-    public class WorkArea
-    {
-        public string Name { get; set; } = "";
-        public List<WyvernTask> Tasks { get; set; } = new();
-    }
-
-    public class WyvernTask
-    {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Description { get; set; } = "";
-        public string AgentType { get; set; } = "coding";
-        public string Complexity { get; set; } = "medium";
-        public List<string> Dependencies { get; set; } = new();
-        public int DependencyLevel { get; set; }
-        public string Priority { get; set; } = "medium";
-        public string? FeatureId { get; set; }
-    }
 }

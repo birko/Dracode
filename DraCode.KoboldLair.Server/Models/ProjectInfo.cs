@@ -1,0 +1,15 @@
+namespace DraCode.KoboldLair.Server.Models
+{
+    /// <summary>
+    /// Simplified project information for Dragon to display
+    /// </summary>
+    public class ProjectInfo
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Status { get; set; } = "";
+        public int FeatureCount { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+}

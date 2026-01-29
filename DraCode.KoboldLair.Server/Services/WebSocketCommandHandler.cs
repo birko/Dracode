@@ -203,7 +203,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> ConfigureProviderAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var agentType = data.Value.GetProperty("agentType").GetString();
             var providerName = data.Value.GetProperty("providerName").GetString();
             var modelOverride = data.Value.TryGetProperty("modelOverride", out var model) ? model.GetString() : null;
@@ -215,7 +215,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> ValidateProviderAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var providerName = data.Value.GetProperty("providerName").GetString();
             var (isValid, message) = _providerConfigService.ValidateProvider(providerName!);
             return new { isValid, message, providerName };
@@ -224,7 +224,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> GetProvidersForAgentAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var agentType = data.Value.GetProperty("agentType").GetString();
             var providers = _providerConfigService.GetProvidersForAgent(agentType!);
             var currentProvider = _providerConfigService.GetProviderForAgent(agentType!);
@@ -247,7 +247,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> GetProjectConfigAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var project = _projectService.GetProject(projectId!);
             if (project == null)
@@ -266,7 +266,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> UpdateProjectConfigAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var maxParallelKobolds = data.Value.GetProperty("maxParallelKobolds").GetInt32();
 
@@ -277,7 +277,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> GetProjectProvidersAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var project = _projectService.GetProject(projectId!);
             if (project == null)
@@ -318,7 +318,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> UpdateProjectProvidersAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var agentType = data.Value.GetProperty("agentType").GetString();
             var providerName = data.Value.GetProperty("providerName").GetString();
@@ -331,7 +331,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> ToggleAgentAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var agentType = data.Value.GetProperty("agentType").GetString();
             var enabled = data.Value.GetProperty("enabled").GetBoolean();
@@ -344,7 +344,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> GetAgentStatusAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var agentType = data.Value.GetProperty("agentType").GetString();
 
@@ -367,7 +367,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> GetProjectConfigFullAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var config = _projectConfigService.GetProjectConfig(projectId!);
             if (config == null)
@@ -381,7 +381,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> UpdateProjectConfigFullAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var config = JsonSerializer.Deserialize<ProjectConfig>(data.Value.GetRawText());
             if (config != null)
@@ -396,7 +396,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> DeleteProjectConfigAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var deleted = _projectConfigService.DeleteProjectConfig(projectId!);
             if (!deleted)
@@ -410,7 +410,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> GetAgentConfigAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var agentType = data.Value.GetProperty("agentType").GetString();
             var config = _projectConfigService.GetProjectConfig(projectId!);
@@ -448,7 +448,7 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> UpdateAgentConfigAsync(JsonElement? data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            
+
             var projectId = data.Value.GetProperty("projectId").GetString();
             var agentType = data.Value.GetProperty("agentType").GetString();
             var provider = data.Value.TryGetProperty("provider", out var p) ? p.GetString() : null;
@@ -513,12 +513,5 @@ namespace DraCode.KoboldLair.Server.Services
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }
-    }
-
-    public class WebSocketCommand
-    {
-        public string? Id { get; set; }
-        public string? Command { get; set; }
-        public JsonElement? Data { get; set; }
     }
 }

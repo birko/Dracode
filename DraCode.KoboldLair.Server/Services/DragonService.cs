@@ -2,8 +2,8 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using DraCode.Agent;
-using DraCode.Agent.LLMs.Providers;
 using DraCode.KoboldLair.Server.Agents;
+using DraCode.KoboldLair.Server.Models;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -462,31 +462,6 @@ namespace DraCode.KoboldLair.Server.Services
                 CreatedAt = p.CreatedAt,
                 UpdatedAt = p.UpdatedAt
             }).ToList();
-        }
-    }
-
-    /// <summary>
-    /// Message format from Dragon frontend
-    /// </summary>
-    public class DragonMessage
-    {
-        public string? Type { get; set; }
-        public string Message { get; set; } = "";
-        public string? SessionId { get; set; }
-        public string? Provider { get; set; }
-    }
-
-    /// <summary>
-    /// Statistics about Dragon service
-    /// </summary>
-    public class DragonStatistics
-    {
-        public int ActiveSessions { get; set; }
-        public int TotalSpecifications { get; set; }
-
-        public override string ToString()
-        {
-            return $"Dragon Stats: {ActiveSessions} active sessions, {TotalSpecifications} specifications created";
         }
     }
 }

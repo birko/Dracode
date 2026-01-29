@@ -139,7 +139,7 @@ namespace DraCode.KoboldLair.Server.Factories
             }
 
             return _kobolds.Values
-                .Count(k => k.ProjectId == projectId && 
+                .Count(k => k.ProjectId == projectId &&
                            (k.Status == KoboldStatus.Assigned || k.Status == KoboldStatus.Working));
         }
 
@@ -150,7 +150,7 @@ namespace DraCode.KoboldLair.Server.Factories
         {
             var currentCount = GetActiveKoboldCountForProject(projectId);
             var maxAllowed = _getProjectMaxParallelKobolds(projectId);
-            
+
             return currentCount < maxAllowed;
         }
 
@@ -207,24 +207,6 @@ namespace DraCode.KoboldLair.Server.Factories
         public void Clear()
         {
             _kobolds.Clear();
-        }
-    }
-
-    /// <summary>
-    /// Statistics about Kobold instances
-    /// </summary>
-    public class KoboldStatistics
-    {
-        public int Total { get; init; }
-        public int Unassigned { get; init; }
-        public int Assigned { get; init; }
-        public int Working { get; init; }
-        public int Done { get; init; }
-        public Dictionary<string, int> ByAgentType { get; init; } = new();
-
-        public override string ToString()
-        {
-            return $"Total: {Total}, Unassigned: {Unassigned}, Assigned: {Assigned}, Working: {Working}, Done: {Done}";
         }
     }
 }
