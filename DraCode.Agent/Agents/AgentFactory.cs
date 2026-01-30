@@ -5,7 +5,7 @@ namespace DraCode.Agent.Agents
     public static class AgentFactory
     {
         // Create an Agent with a specific provider name and configuration using AgentOptions
-        // provider: "openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "githubcopilot"
+        // provider: "openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "vllm", "sglang", "githubcopilot"
         // agentType: "coding", "csharp", "cpp", "assembler", "javascript", "css", "html", "react", "angular", "php", "python", "diagramming", "media", "image", "svg", "bitmap"
         public static Agents.Agent Create(
             string provider,
@@ -26,7 +26,9 @@ namespace DraCode.Agent.Agents
                 "claude" => new ClaudeProvider(C("apiKey"), C("model", "claude-3-5-sonnet-latest"), C("baseUrl", "https://api.anthropic.com/v1/messages")),
                 "gemini" => new GeminiProvider(C("apiKey"), C("model", "gemini-2.0-flash-exp"), C("baseUrl", "https://generativelanguage.googleapis.com/v1beta/models/")),
                 "ollama" => new OllamaProvider(C("model", "llama3.2"), C("baseUrl", "http://localhost:11434")),
-                "llamacpp" => new LlamaCppProvider(C("model", "default"), C("baseUrl", "http://localhost:8080")),
+                "llamacpp" => new LlamaCppProvider(C("model", "default"), C("baseUrl", "http://localhost:8080"), C("apiKey")),
+                "vllm" => new VllmProvider(C("model", "default"), C("baseUrl", "http://localhost:8000"), C("apiKey")),
+                "sglang" => new SglangProvider(C("model", "default"), C("baseUrl", "http://localhost:30000"), C("apiKey")),
                 "githubcopilot" => new GitHubCopilotProvider(C("clientId"), C("model", "gpt-4o"), C("baseUrl", "https://api.githubcopilot.com/chat/completions")),
                 _ => throw new ArgumentException($"Unknown provider '{provider}'.")
             };
