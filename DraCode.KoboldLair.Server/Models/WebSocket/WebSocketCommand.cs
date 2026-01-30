@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.WebSocket
 {
     public class WebSocketCommand
     {

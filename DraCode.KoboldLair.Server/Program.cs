@@ -1,6 +1,6 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Server.Factories;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Configuration;
 using DraCode.KoboldLair.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +19,10 @@ builder.Services.AddSingleton<WebSocketAuthenticationService>();
 builder.Services.Configure<KoboldLairProviderConfiguration>(
     builder.Configuration.GetSection("KoboldLairProviders"));
 
+// Configure global agent limits
+builder.Services.Configure<AgentLimitsConfiguration>(
+    builder.Configuration.GetSection("AgentLimits"));
+
 // Register provider configuration service
 builder.Services.AddSingleton<ProviderConfigurationService>();
 
@@ -35,8 +39,10 @@ builder.Services.AddSingleton<ProjectRepository>(sp =>
 builder.Services.AddSingleton<WyvernFactory>(sp =>
 {
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     return new WyvernFactory(
         providerConfigService,
+        projectConfigService,
         defaultOptions: new AgentOptions
         {
             WorkingDirectory = "./workspace",
@@ -67,12 +73,18 @@ builder.Services.AddSingleton<KoboldFactory>(sp =>
 
     return new KoboldFactory(projectConfigService, getMaxParallel);
 });
+builder.Services.AddSingleton<WyrmFactory>(sp =>
+{
+    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    return new WyrmFactory(projectConfigService);
+});
 builder.Services.AddSingleton<DrakeFactory>(sp =>
 {
     var koboldFactory = sp.GetRequiredService<KoboldFactory>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-    return new DrakeFactory(koboldFactory, providerConfigService, loggerFactory);
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory);
 });
 
 // Register services

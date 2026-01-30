@@ -1,4 +1,4 @@
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Projects;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -193,9 +193,9 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Checks for new specification files that don't have projects yet
         /// </summary>
-        private async Task<List<Models.Project>> CheckForNewProjectsAsync(string[] specFiles)
+        private async Task<List<Project>> CheckForNewProjectsAsync(string[] specFiles)
         {
-            var newProjects = new List<Models.Project>();
+            var newProjects = new List<Project>();
 
             foreach (var specPath in specFiles)
             {
@@ -275,7 +275,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Assigns a Wyvern to a project
         /// </summary>
-        private async Task AssignWyvernToProjectAsync(Models.Project project)
+        private async Task AssignWyvernToProjectAsync(Project project)
         {
             _logger.LogInformation("🐲 Assigning Wyvern to project: {ProjectName}", project.Name);
 
@@ -287,7 +287,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Runs Wyvern analysis on a project
         /// </summary>
-        private async Task AnalyzeProjectAsync(Models.Project project)
+        private async Task AnalyzeProjectAsync(Project project)
         {
             _logger.LogInformation("🔍 Starting Wyvern analysis for project: {ProjectName}", project.Name);
 
@@ -301,7 +301,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// Reanalyzes a project whose specification was modified.
         /// First transitions back to WyvernAssigned, then runs normal analysis.
         /// </summary>
-        private async Task ReanalyzeModifiedProjectAsync(Models.Project project)
+        private async Task ReanalyzeModifiedProjectAsync(Project project)
         {
             _logger.LogInformation("🔄 Reanalyzing modified specification for project: {ProjectName}", project.Name);
 

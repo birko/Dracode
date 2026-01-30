@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Configuration
 {
     /// <summary>
     /// Configuration for an LLM provider

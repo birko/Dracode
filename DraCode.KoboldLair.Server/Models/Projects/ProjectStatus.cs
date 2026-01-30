@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Projects
 {
     /// <summary>
     /// Status of a project in the KoboldLair workflow

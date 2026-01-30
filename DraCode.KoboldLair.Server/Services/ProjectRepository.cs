@@ -1,5 +1,5 @@
 using System.Text.Json;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Projects;
 
 namespace DraCode.KoboldLair.Server.Services
 {

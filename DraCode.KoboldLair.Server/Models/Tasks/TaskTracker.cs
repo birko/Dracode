@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Tasks
 {
     /// <summary>
     /// Manages task tracking and markdown report generation

@@ -1,4 +1,4 @@
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Configuration;
 using Microsoft.Extensions.Options;
 using System.Net;
 

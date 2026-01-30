@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Agents
 {
     /// <summary>
     /// Represents the status of a Kobold worker agent.

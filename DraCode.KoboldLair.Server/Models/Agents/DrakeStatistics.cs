@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Agents
 {
     /// <summary>
     /// Statistics about the Drake's managed resources

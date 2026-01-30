@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Configuration
 {
     /// <summary>
     /// Configuration for which provider to use for each agent type

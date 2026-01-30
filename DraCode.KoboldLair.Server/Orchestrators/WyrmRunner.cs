@@ -1,8 +1,8 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Server.Agents;
 using DraCode.KoboldLair.Server.Agents.Tools;
-using DraCode.KoboldLair.Server.Models;
-using TaskStatus = DraCode.KoboldLair.Server.Models.TaskStatus;
+using DraCode.KoboldLair.Server.Models.Tasks;
+using TaskStatus = DraCode.KoboldLair.Server.Models.Tasks.TaskStatus;
 
 namespace DraCode.KoboldLair.Server.Orchestrators
 {

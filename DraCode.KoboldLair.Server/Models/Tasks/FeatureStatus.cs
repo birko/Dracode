@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Tasks
 {
     /// <summary>
     /// Status of a feature in the development lifecycle

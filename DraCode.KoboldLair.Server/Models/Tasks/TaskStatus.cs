@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Tasks
 {
     /// <summary>
     /// Represents the status of a task in the orchestrator

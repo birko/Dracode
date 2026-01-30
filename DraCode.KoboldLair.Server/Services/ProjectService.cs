@@ -1,5 +1,7 @@
 using DraCode.KoboldLair.Server.Factories;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Agents;
+using DraCode.KoboldLair.Server.Models.Configuration;
+using DraCode.KoboldLair.Server.Models.Projects;
 using DraCode.KoboldLair.Server.Orchestrators;
 
 namespace DraCode.KoboldLair.Server.Services

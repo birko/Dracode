@@ -1,5 +1,5 @@
 using DraCode.Agent.Tools;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Projects;
 
 namespace DraCode.KoboldLair.Server.Agents.Tools
 {

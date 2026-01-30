@@ -1,4 +1,6 @@
-namespace DraCode.KoboldLair.Server.Models
+using DraCode.KoboldLair.Server.Models.Projects;
+
+namespace DraCode.KoboldLair.Server.Models.Agents
 {
     public class WyvernAnalysis
     {

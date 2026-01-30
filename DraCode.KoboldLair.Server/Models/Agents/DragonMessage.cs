@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Agents
 {
     /// <summary>
     /// Message format from Dragon frontend

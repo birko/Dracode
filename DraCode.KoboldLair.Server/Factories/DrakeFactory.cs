@@ -1,5 +1,5 @@
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Tasks;
 using DraCode.KoboldLair.Server.Orchestrators;
 using DraCode.KoboldLair.Server.Services;
 
@@ -13,8 +13,10 @@ namespace DraCode.KoboldLair.Server.Factories
     {
         private readonly KoboldFactory _koboldFactory;
         private readonly ProviderConfigurationService _providerConfigService;
+        private readonly ProjectConfigurationService _projectConfigService;
         private readonly ILoggerFactory? _loggerFactory;
         private readonly Dictionary<string, Drake> _drakes;
+        private readonly Dictionary<string, string?> _drakeProjectIds; // Maps drake name to project ID
         private readonly object _lock = new object();
 
         /// <summary>
@@ -22,16 +24,20 @@ namespace DraCode.KoboldLair.Server.Factories
         /// </summary>
         /// <param name="koboldFactory">Kobold factory for creating workers</param>
         /// <param name="providerConfigService">Provider configuration service</param>
+        /// <param name="projectConfigService">Project configuration service for parallel limits</param>
         /// <param name="loggerFactory">Optional logger factory for Drake logging</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
             ProviderConfigurationService providerConfigService,
+            ProjectConfigurationService projectConfigService,
             ILoggerFactory? loggerFactory = null)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
+            _projectConfigService = projectConfigService;
             _loggerFactory = loggerFactory;
             _drakes = new Dictionary<string, Drake>();
+            _drakeProjectIds = new Dictionary<string, string?>();
         }
 
         /// <summary>
@@ -105,9 +111,31 @@ namespace DraCode.KoboldLair.Server.Factories
                 );
 
                 _drakes[name] = drake;
+                _drakeProjectIds[name] = projectId;
 
                 return drake;
             }
+        }
+
+        /// <summary>
+        /// Gets the count of active drakes for a specific project
+        /// </summary>
+        public int GetActiveDrakeCountForProject(string? projectId)
+        {
+            lock (_lock)
+            {
+                return _drakeProjectIds.Count(kvp => kvp.Value == projectId);
+            }
+        }
+
+        /// <summary>
+        /// Checks if a new drake can be created for the specified project based on the parallel limit
+        /// </summary>
+        public bool CanCreateDrakeForProject(string? projectId)
+        {
+            var currentCount = GetActiveDrakeCountForProject(projectId);
+            var maxAllowed = _projectConfigService.GetMaxParallelDrakes(projectId ?? string.Empty);
+            return currentCount < maxAllowed;
         }
 
         /// <summary>
@@ -139,6 +167,7 @@ namespace DraCode.KoboldLair.Server.Factories
         {
             lock (_lock)
             {
+                _drakeProjectIds.Remove(drakeName);
                 return _drakes.Remove(drakeName);
             }
         }

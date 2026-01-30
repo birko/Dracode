@@ -1,4 +1,6 @@
-namespace DraCode.KoboldLair.Server.Models
+using DraCode.KoboldLair.Server.Models.Tasks;
+
+namespace DraCode.KoboldLair.Server.Models.Projects
 {
     /// <summary>
     /// Represents a project specification with associated features

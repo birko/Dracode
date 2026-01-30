@@ -2,7 +2,7 @@ using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Server.Agents.Tools;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Projects;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Server.Agents

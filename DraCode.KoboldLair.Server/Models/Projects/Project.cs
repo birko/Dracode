@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Projects
 {
     /// <summary>
     /// Represents a project in the KoboldLair system.

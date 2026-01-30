@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Projects
 {
     /// <summary>
     /// Simplified project information for Dragon to display

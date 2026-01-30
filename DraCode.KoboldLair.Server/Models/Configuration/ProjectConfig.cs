@@ -1,4 +1,4 @@
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Configuration
 {
     /// <summary>
     /// Configuration for a specific project including resource limits, providers, and agent settings
@@ -20,6 +20,24 @@ namespace DraCode.KoboldLair.Server.Models
         /// Default: 1
         /// </summary>
         public int MaxParallelKobolds { get; set; } = 1;
+
+        /// <summary>
+        /// Maximum number of drakes that can run in parallel for this project.
+        /// Default: 1
+        /// </summary>
+        public int MaxParallelDrakes { get; set; } = 1;
+
+        /// <summary>
+        /// Maximum number of wyrms that can run in parallel for this project.
+        /// Default: 1
+        /// </summary>
+        public int MaxParallelWyrms { get; set; } = 1;
+
+        /// <summary>
+        /// Maximum number of wyverns that can run in parallel for this project.
+        /// Default: 1
+        /// </summary>
+        public int MaxParallelWyverns { get; set; } = 1;
 
         /// <summary>
         /// Provider used for the Wyrm agent analyzing this task

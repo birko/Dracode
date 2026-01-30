@@ -3,7 +3,8 @@ using System.Text;
 using System.Text.Json;
 using DraCode.Agent;
 using DraCode.KoboldLair.Server.Agents;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Agents;
+using DraCode.KoboldLair.Server.Models.Projects;
 
 namespace DraCode.KoboldLair.Server.Services
 {

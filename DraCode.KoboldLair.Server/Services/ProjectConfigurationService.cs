@@ -1,5 +1,5 @@
 using System.Text.Json;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Configuration;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -9,6 +9,7 @@ namespace DraCode.KoboldLair.Server.Services
     public class ProjectConfigurationService
     {
         private readonly ProjectConfigurations _configurations;
+        private readonly AgentLimitsConfiguration _globalLimits;
         private readonly ILogger<ProjectConfigurationService> _logger;
         private readonly string? _configPath;
 
@@ -18,7 +19,46 @@ namespace DraCode.KoboldLair.Server.Services
         {
             _logger = logger;
             _configPath = configuration["ProjectConfigurationsPath"];
+
+            // Load global limits from appsettings.json AgentLimits section
+            _globalLimits = new AgentLimitsConfiguration();
+            configuration.GetSection("AgentLimits").Bind(_globalLimits);
+
             _configurations = LoadConfigurations(_configPath);
+
+            // Apply global limits as defaults if not set in project-configs.json
+            ApplyGlobalLimitsAsDefaults();
+        }
+
+        /// <summary>
+        /// Applies global limits from appsettings.json as defaults if project-configs.json doesn't specify them
+        /// </summary>
+        private void ApplyGlobalLimitsAsDefaults()
+        {
+            // Use global limits as base defaults
+            if (_configurations.DefaultMaxParallelKobolds == 1 && _globalLimits.DefaultMaxParallelKobolds != 1)
+            {
+                _configurations.DefaultMaxParallelKobolds = _globalLimits.DefaultMaxParallelKobolds;
+            }
+            if (_configurations.DefaultMaxParallelDrakes == 1 && _globalLimits.DefaultMaxParallelDrakes != 1)
+            {
+                _configurations.DefaultMaxParallelDrakes = _globalLimits.DefaultMaxParallelDrakes;
+            }
+            if (_configurations.DefaultMaxParallelWyrms == 1 && _globalLimits.DefaultMaxParallelWyrms != 1)
+            {
+                _configurations.DefaultMaxParallelWyrms = _globalLimits.DefaultMaxParallelWyrms;
+            }
+            if (_configurations.DefaultMaxParallelWyverns == 1 && _globalLimits.DefaultMaxParallelWyverns != 1)
+            {
+                _configurations.DefaultMaxParallelWyverns = _globalLimits.DefaultMaxParallelWyverns;
+            }
+
+            _logger.LogInformation(
+                "Agent limits configured - Kobolds: {Kobolds}, Drakes: {Drakes}, Wyrms: {Wyrms}, Wyverns: {Wyverns}",
+                _configurations.DefaultMaxParallelKobolds,
+                _configurations.DefaultMaxParallelDrakes,
+                _configurations.DefaultMaxParallelWyrms,
+                _configurations.DefaultMaxParallelWyverns);
         }
 
         /// <summary>
@@ -47,7 +87,10 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     ProjectId = projectId,
                     ProjectName = projectName,
-                    MaxParallelKobolds = _configurations.DefaultMaxParallelKobolds
+                    MaxParallelKobolds = _configurations.DefaultMaxParallelKobolds,
+                    MaxParallelDrakes = _configurations.DefaultMaxParallelDrakes,
+                    MaxParallelWyrms = _configurations.DefaultMaxParallelWyrms,
+                    MaxParallelWyverns = _configurations.DefaultMaxParallelWyverns
                 };
                 _configurations.Projects.Add(config);
                 SaveConfigurations();
@@ -83,6 +126,48 @@ namespace DraCode.KoboldLair.Server.Services
 
             var config = GetProjectConfig(projectId);
             return config?.MaxParallelKobolds ?? _configurations.DefaultMaxParallelKobolds;
+        }
+
+        /// <summary>
+        /// Gets the maximum parallel drakes allowed for a specific project
+        /// </summary>
+        public int GetMaxParallelDrakes(string projectId)
+        {
+            if (string.IsNullOrEmpty(projectId))
+            {
+                return _configurations.DefaultMaxParallelDrakes;
+            }
+
+            var config = GetProjectConfig(projectId);
+            return config?.MaxParallelDrakes ?? _configurations.DefaultMaxParallelDrakes;
+        }
+
+        /// <summary>
+        /// Gets the maximum parallel wyrms allowed for a specific project
+        /// </summary>
+        public int GetMaxParallelWyrms(string projectId)
+        {
+            if (string.IsNullOrEmpty(projectId))
+            {
+                return _configurations.DefaultMaxParallelWyrms;
+            }
+
+            var config = GetProjectConfig(projectId);
+            return config?.MaxParallelWyrms ?? _configurations.DefaultMaxParallelWyrms;
+        }
+
+        /// <summary>
+        /// Gets the maximum parallel wyverns allowed for a specific project
+        /// </summary>
+        public int GetMaxParallelWyverns(string projectId)
+        {
+            if (string.IsNullOrEmpty(projectId))
+            {
+                return _configurations.DefaultMaxParallelWyverns;
+            }
+
+            var config = GetProjectConfig(projectId);
+            return config?.MaxParallelWyverns ?? _configurations.DefaultMaxParallelWyverns;
         }
 
         /// <summary>
@@ -259,6 +344,30 @@ namespace DraCode.KoboldLair.Server.Services
         public int GetDefaultMaxParallelKobolds()
         {
             return _configurations.DefaultMaxParallelKobolds;
+        }
+
+        /// <summary>
+        /// Gets the default maximum parallel drakes
+        /// </summary>
+        public int GetDefaultMaxParallelDrakes()
+        {
+            return _configurations.DefaultMaxParallelDrakes;
+        }
+
+        /// <summary>
+        /// Gets the default maximum parallel wyrms
+        /// </summary>
+        public int GetDefaultMaxParallelWyrms()
+        {
+            return _configurations.DefaultMaxParallelWyrms;
+        }
+
+        /// <summary>
+        /// Gets the default maximum parallel wyverns
+        /// </summary>
+        public int GetDefaultMaxParallelWyverns()
+        {
+            return _configurations.DefaultMaxParallelWyverns;
         }
 
         private ProjectConfigurations LoadConfigurations(string? configPath)

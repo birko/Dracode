@@ -1,6 +1,6 @@
 using System.Text.Json;
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace DraCode.KoboldLair.Server.Services

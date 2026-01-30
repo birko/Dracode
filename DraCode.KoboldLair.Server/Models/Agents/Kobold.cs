@@ -2,7 +2,7 @@ using DraCode.Agent;
 using DraCode.Agent.Agents;
 using DraCode.KoboldLair.Server.Agents;
 
-namespace DraCode.KoboldLair.Server.Models
+namespace DraCode.KoboldLair.Server.Models.Agents
 {
     /// <summary>
     /// Represents a Kobold worker agent that works on a specific task.

@@ -12,17 +12,22 @@ namespace DraCode.KoboldLair.Server.Factories
     public class WyvernFactory
     {
         private readonly Dictionary<string, Wyvern> _Wyverns;
+        private readonly Dictionary<string, string?> _wyvernProjectIds; // Maps wyvern name to project ID
         private readonly object _lock = new object();
 
         private readonly ProviderConfigurationService _providerConfigService;
+        private readonly ProjectConfigurationService _projectConfigService;
         private readonly AgentOptions _defaultOptions;
 
         public WyvernFactory(
             ProviderConfigurationService providerConfigService,
+            ProjectConfigurationService projectConfigService,
             AgentOptions? defaultOptions = null)
         {
             _Wyverns = new Dictionary<string, Wyvern>(StringComparer.OrdinalIgnoreCase);
+            _wyvernProjectIds = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             _providerConfigService = providerConfigService;
+            _projectConfigService = projectConfigService;
             _defaultOptions = defaultOptions ?? new AgentOptions { WorkingDirectory = "./workspace", Verbose = false };
         }
 
@@ -36,6 +41,7 @@ namespace DraCode.KoboldLair.Server.Factories
         /// <param name="wyvernModel">Optional override for Wyvern model</param>
         /// <param name="wyrmProvider">Optional override for Wyrm provider</param>
         /// <param name="wyrmModel">Optional override for Wyrm model</param>
+        /// <param name="projectId">Optional project identifier for resource limiting</param>
         public Wyvern CreateWyvern(
             string projectName,
             string specificationPath,
@@ -43,7 +49,8 @@ namespace DraCode.KoboldLair.Server.Factories
             string? wyvernProvider = null,
             string? wyvernModel = null,
             string? wyrmProvider = null,
-            string? wyrmModel = null)
+            string? wyrmModel = null,
+            string? projectId = null)
         {
             lock (_lock)
             {
@@ -100,9 +107,31 @@ namespace DraCode.KoboldLair.Server.Factories
                 );
 
                 _Wyverns[projectName] = wyvern;
+                _wyvernProjectIds[projectName] = projectId ?? projectName;
 
                 return wyvern;
             }
+        }
+
+        /// <summary>
+        /// Gets the count of active wyverns for a specific project
+        /// </summary>
+        public int GetActiveWyvernCountForProject(string? projectId)
+        {
+            lock (_lock)
+            {
+                return _wyvernProjectIds.Count(kvp => kvp.Value == projectId);
+            }
+        }
+
+        /// <summary>
+        /// Checks if a new wyvern can be created for the specified project based on the parallel limit
+        /// </summary>
+        public bool CanCreateWyvernForProject(string? projectId)
+        {
+            var currentCount = GetActiveWyvernCountForProject(projectId);
+            var maxAllowed = _projectConfigService.GetMaxParallelWyverns(projectId ?? string.Empty);
+            return currentCount < maxAllowed;
         }
 
         /// <summary>
@@ -134,6 +163,7 @@ namespace DraCode.KoboldLair.Server.Factories
         {
             lock (_lock)
             {
+                _wyvernProjectIds.Remove(projectName);
                 return _Wyverns.Remove(projectName);
             }
         }

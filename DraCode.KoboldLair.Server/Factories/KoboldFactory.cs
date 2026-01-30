@@ -1,9 +1,9 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Server.Agents;
-using DraCode.KoboldLair.Server.Models;
+using DraCode.KoboldLair.Server.Models.Agents;
 using DraCode.KoboldLair.Server.Services;
 using System.Collections.Concurrent;
-using KoboldModel = DraCode.KoboldLair.Server.Models.Kobold;
+using KoboldModel = DraCode.KoboldLair.Server.Models.Agents.Kobold;
 
 namespace DraCode.KoboldLair.Server.Factories
 {
