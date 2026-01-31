@@ -1,21 +1,20 @@
 {
-  // Project resource configurations for KoboldLair
-  // Controls how many kobolds can run in parallel per project
-  
-  // Default limit for projects not explicitly configured
-  "defaultMaxParallelKobolds": 1,
-  
-  // Per-project configurations
   "projects": [
     {
       "projectId": "example-project",
       "projectName": "Example Project",
-      "maxParallelKobolds": 2
+      "maxParallelKobolds": 2,
+      "maxParallelDrakes": 1,
+      "maxParallelWyrms": 2,
+      "maxParallelWyverns": 1
     },
     {
       "projectId": "high-priority-project",
       "projectName": "High Priority Project",
-      "maxParallelKobolds": 4
+      "maxParallelKobolds": 4,
+      "maxParallelDrakes": 2,
+      "maxParallelWyrms": 4,
+      "maxParallelWyverns": 1
     }
   ]
 }

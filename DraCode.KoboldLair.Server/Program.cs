@@ -5,28 +5,27 @@ using DraCode.KoboldLair.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load local configuration (not committed to git)
+builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+
 // Add services
 builder.AddServiceDefaults();
 
-// Bind Authentication configuration from appsettings.json
+// Bind Authentication configuration
 builder.Services.Configure<AuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication"));
 
 // Register authentication service
 builder.Services.AddSingleton<WebSocketAuthenticationService>();
 
-// Configure provider settings
-builder.Services.Configure<KoboldLairProviderConfiguration>(
-    builder.Configuration.GetSection("KoboldLairProviders"));
+// Configure KoboldLair settings (providers, defaults, limits - all in one place)
+builder.Services.Configure<KoboldLairConfiguration>(
+    builder.Configuration.GetSection("KoboldLair"));
 
-// Configure global agent limits
-builder.Services.Configure<AgentLimitsConfiguration>(
-    builder.Configuration.GetSection("AgentLimits"));
-
-// Register provider configuration service
+// Register provider configuration service (must be registered before ProjectConfigurationService)
 builder.Services.AddSingleton<ProviderConfigurationService>();
 
-// Register project configuration service for resource limits
+// Register project configuration service (depends on ProviderConfigurationService for defaults)
 builder.Services.AddSingleton<ProjectConfigurationService>();
 
 // Register project management components

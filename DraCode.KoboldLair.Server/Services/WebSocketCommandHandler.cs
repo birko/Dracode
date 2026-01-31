@@ -181,8 +181,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         private async Task<object> GetProvidersAsync()
         {
-            var config = _providerConfigService.GetConfiguration();
-            var providers = config.Providers.Select(p => new
+            var providers = _providerConfigService.GetAllProviders().Select(p => new
             {
                 p.Name,
                 p.DisplayName,
@@ -195,10 +194,23 @@ namespace DraCode.KoboldLair.Server.Services
                 IsConfigured = _providerConfigService.ValidateProvider(p.Name).isValid
             });
 
+            var userSettings = _providerConfigService.GetUserSettings();
+
             return new
             {
                 providers,
-                agentProviders = config.AgentProviders
+                defaultProvider = _providerConfigService.GetDefaultProvider(),
+                agentProviders = new
+                {
+                    dragonProvider = userSettings.DragonProvider,
+                    wyrmProvider = userSettings.WyrmProvider,
+                    wyvernProvider = userSettings.WyvernProvider,
+                    koboldProvider = userSettings.KoboldProvider,
+                    dragonModel = userSettings.DragonModel,
+                    wyrmModel = userSettings.WyrmModel,
+                    wyvernModel = userSettings.WyvernModel,
+                    koboldModel = userSettings.KoboldModel
+                }
             };
         }
 
@@ -357,11 +369,17 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task<object> GetAllProjectConfigsAsync()
         {
             var configs = _projectConfigService.GetAllProjectConfigs();
-            var defaults = _projectConfigService.GetDefaultConfiguration();
+            var limits = _providerConfigService.GetDefaultLimits();
 
             return new
             {
-                defaults = new { maxParallelKobolds = defaults },
+                defaults = new
+                {
+                    maxParallelKobolds = limits.MaxParallelKobolds,
+                    maxParallelDrakes = limits.MaxParallelDrakes,
+                    maxParallelWyrms = limits.MaxParallelWyrms,
+                    maxParallelWyverns = limits.MaxParallelWyverns
+                },
                 projects = configs
             };
         }

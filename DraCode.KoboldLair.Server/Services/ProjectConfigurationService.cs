@@ -4,61 +4,35 @@ using DraCode.KoboldLair.Server.Models.Configuration;
 namespace DraCode.KoboldLair.Server.Services
 {
     /// <summary>
-    /// Service for loading and managing project configurations
+    /// Service for managing per-project configurations.
+    /// Default limits come from ProviderConfigurationService (appsettings.json).
+    /// Per-project overrides are stored in project-configs.json.
     /// </summary>
     public class ProjectConfigurationService
     {
-        private readonly ProjectConfigurations _configurations;
-        private readonly AgentLimitsConfiguration _globalLimits;
+        private readonly ProviderConfigurationService _providerConfig;
         private readonly ILogger<ProjectConfigurationService> _logger;
-        private readonly string? _configPath;
+        private readonly string _configPath;
+        private ProjectConfigurations _configurations;
+        private readonly object _lock = new();
 
         public ProjectConfigurationService(
-            IConfiguration configuration,
-            ILogger<ProjectConfigurationService> logger)
+            ProviderConfigurationService providerConfig,
+            ILogger<ProjectConfigurationService> logger,
+            string configPath = "./project-configs.json")
         {
+            _providerConfig = providerConfig;
             _logger = logger;
-            _configPath = configuration["ProjectConfigurationsPath"];
+            _configPath = configPath;
+            _configurations = LoadConfigurations();
 
-            // Load global limits from appsettings.json AgentLimits section
-            _globalLimits = new AgentLimitsConfiguration();
-            configuration.GetSection("AgentLimits").Bind(_globalLimits);
-
-            _configurations = LoadConfigurations(_configPath);
-
-            // Apply global limits as defaults if not set in project-configs.json
-            ApplyGlobalLimitsAsDefaults();
-        }
-
-        /// <summary>
-        /// Applies global limits from appsettings.json as defaults if project-configs.json doesn't specify them
-        /// </summary>
-        private void ApplyGlobalLimitsAsDefaults()
-        {
-            // Use global limits as base defaults
-            if (_configurations.DefaultMaxParallelKobolds == 1 && _globalLimits.DefaultMaxParallelKobolds != 1)
-            {
-                _configurations.DefaultMaxParallelKobolds = _globalLimits.DefaultMaxParallelKobolds;
-            }
-            if (_configurations.DefaultMaxParallelDrakes == 1 && _globalLimits.DefaultMaxParallelDrakes != 1)
-            {
-                _configurations.DefaultMaxParallelDrakes = _globalLimits.DefaultMaxParallelDrakes;
-            }
-            if (_configurations.DefaultMaxParallelWyrms == 1 && _globalLimits.DefaultMaxParallelWyrms != 1)
-            {
-                _configurations.DefaultMaxParallelWyrms = _globalLimits.DefaultMaxParallelWyrms;
-            }
-            if (_configurations.DefaultMaxParallelWyverns == 1 && _globalLimits.DefaultMaxParallelWyverns != 1)
-            {
-                _configurations.DefaultMaxParallelWyverns = _globalLimits.DefaultMaxParallelWyverns;
-            }
-
+            var limits = _providerConfig.GetDefaultLimits();
             _logger.LogInformation(
-                "Agent limits configured - Kobolds: {Kobolds}, Drakes: {Drakes}, Wyrms: {Wyrms}, Wyverns: {Wyverns}",
-                _configurations.DefaultMaxParallelKobolds,
-                _configurations.DefaultMaxParallelDrakes,
-                _configurations.DefaultMaxParallelWyrms,
-                _configurations.DefaultMaxParallelWyverns);
+                "Agent limits - Kobolds: {Kobolds}, Drakes: {Drakes}, Wyrms: {Wyrms}, Wyverns: {Wyverns}",
+                limits.MaxParallelKobolds,
+                limits.MaxParallelDrakes,
+                limits.MaxParallelWyrms,
+                limits.MaxParallelWyverns);
         }
 
         /// <summary>
@@ -67,12 +41,13 @@ namespace DraCode.KoboldLair.Server.Services
         public ProjectConfig? GetProjectConfig(string projectId)
         {
             if (string.IsNullOrEmpty(projectId))
-            {
                 return null;
-            }
 
-            return _configurations.Projects
-                .FirstOrDefault(p => p.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+            lock (_lock)
+            {
+                return _configurations.Projects
+                    .FirstOrDefault(p => p.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+            }
         }
 
         /// <summary>
@@ -80,22 +55,26 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         public ProjectConfig GetOrCreateProjectConfig(string projectId, string? projectName = null)
         {
-            var config = GetProjectConfig(projectId);
-            if (config == null)
+            lock (_lock)
             {
-                config = new ProjectConfig
+                var config = GetProjectConfig(projectId);
+                if (config == null)
                 {
-                    ProjectId = projectId,
-                    ProjectName = projectName,
-                    MaxParallelKobolds = _configurations.DefaultMaxParallelKobolds,
-                    MaxParallelDrakes = _configurations.DefaultMaxParallelDrakes,
-                    MaxParallelWyrms = _configurations.DefaultMaxParallelWyrms,
-                    MaxParallelWyverns = _configurations.DefaultMaxParallelWyverns
-                };
-                _configurations.Projects.Add(config);
-                SaveConfigurations();
+                    var limits = _providerConfig.GetDefaultLimits();
+                    config = new ProjectConfig
+                    {
+                        ProjectId = projectId,
+                        ProjectName = projectName,
+                        MaxParallelKobolds = limits.MaxParallelKobolds,
+                        MaxParallelDrakes = limits.MaxParallelDrakes,
+                        MaxParallelWyrms = limits.MaxParallelWyrms,
+                        MaxParallelWyverns = limits.MaxParallelWyverns
+                    };
+                    _configurations.Projects.Add(config);
+                    SaveConfigurations();
+                }
+                return config;
             }
-            return config;
         }
 
         /// <summary>
@@ -103,71 +82,55 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         public void UpdateProjectConfig(ProjectConfig config)
         {
-            var existing = GetProjectConfig(config.ProjectId);
-            if (existing != null)
+            lock (_lock)
             {
-                _configurations.Projects.Remove(existing);
-            }
+                var existing = _configurations.Projects
+                    .FirstOrDefault(p => p.ProjectId.Equals(config.ProjectId, StringComparison.OrdinalIgnoreCase));
+                if (existing != null)
+                {
+                    _configurations.Projects.Remove(existing);
+                }
 
-            config.LastUpdated = DateTime.UtcNow;
-            _configurations.Projects.Add(config);
-            SaveConfigurations();
+                config.LastUpdated = DateTime.UtcNow;
+                _configurations.Projects.Add(config);
+                SaveConfigurations();
+            }
         }
 
         /// <summary>
-        /// Gets the maximum parallel kobolds allowed for a specific project
+        /// Gets the maximum parallel kobolds for a project (project override or default)
         /// </summary>
         public int GetMaxParallelKobolds(string projectId)
         {
-            if (string.IsNullOrEmpty(projectId))
-            {
-                return _configurations.DefaultMaxParallelKobolds;
-            }
-
             var config = GetProjectConfig(projectId);
-            return config?.MaxParallelKobolds ?? _configurations.DefaultMaxParallelKobolds;
+            return config?.MaxParallelKobolds ?? _providerConfig.GetDefaultLimits().MaxParallelKobolds;
         }
 
         /// <summary>
-        /// Gets the maximum parallel drakes allowed for a specific project
+        /// Gets the maximum parallel drakes for a project (project override or default)
         /// </summary>
         public int GetMaxParallelDrakes(string projectId)
         {
-            if (string.IsNullOrEmpty(projectId))
-            {
-                return _configurations.DefaultMaxParallelDrakes;
-            }
-
             var config = GetProjectConfig(projectId);
-            return config?.MaxParallelDrakes ?? _configurations.DefaultMaxParallelDrakes;
+            return config?.MaxParallelDrakes ?? _providerConfig.GetDefaultLimits().MaxParallelDrakes;
         }
 
         /// <summary>
-        /// Gets the maximum parallel wyrms allowed for a specific project
+        /// Gets the maximum parallel wyrms for a project (project override or default)
         /// </summary>
         public int GetMaxParallelWyrms(string projectId)
         {
-            if (string.IsNullOrEmpty(projectId))
-            {
-                return _configurations.DefaultMaxParallelWyrms;
-            }
-
             var config = GetProjectConfig(projectId);
-            return config?.MaxParallelWyrms ?? _configurations.DefaultMaxParallelWyrms;
+            return config?.MaxParallelWyrms ?? _providerConfig.GetDefaultLimits().MaxParallelWyrms;
         }
 
         /// <summary>
-        /// Gets the maximum parallel wyverns allowed for a specific project
+        /// Gets the maximum parallel wyverns for a project (project override or default)
         /// </summary>
         public int GetMaxParallelWyverns(string projectId)
         {
-            if (string.IsNullOrEmpty(projectId))
-            {
-                return _configurations.DefaultMaxParallelWyverns;
-            }
-
             var config = GetProjectConfig(projectId);
-            return config?.MaxParallelWyverns ?? _configurations.DefaultMaxParallelWyverns;
+            return config?.MaxParallelWyverns ?? _providerConfig.GetDefaultLimits().MaxParallelWyverns;
         }
 
         /// <summary>
@@ -217,9 +180,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             var config = GetProjectConfig(projectId);
             if (config == null)
-            {
-                return false; // Disabled by default
-            }
+                return false;
 
             return agentType.ToLowerInvariant() switch
             {
@@ -232,7 +193,7 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Sets provider configuration for a project
+        /// Sets provider override for a project
         /// </summary>
         public void SetProjectProvider(string projectId, string agentType, string? provider, string? model = null)
         {
@@ -265,15 +226,13 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Gets provider for a specific agent type in a project
+        /// Gets provider override for a specific agent type in a project
         /// </summary>
         public string? GetProjectProvider(string projectId, string agentType)
         {
             var config = GetProjectConfig(projectId);
             if (config == null)
-            {
                 return null;
-            }
 
             return agentType.ToLowerInvariant() switch
             {
@@ -286,15 +245,13 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Gets model for a specific agent type in a project
+        /// Gets model override for a specific agent type in a project
         /// </summary>
         public string? GetProjectModel(string projectId, string agentType)
         {
             var config = GetProjectConfig(projectId);
             if (config == null)
-            {
                 return null;
-            }
 
             return agentType.ToLowerInvariant() switch
             {
@@ -311,15 +268,10 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         public IReadOnlyList<ProjectConfig> GetAllProjectConfigs()
         {
-            return _configurations.Projects.AsReadOnly();
-        }
-
-        /// <summary>
-        /// Gets the default configuration
-        /// </summary>
-        public int GetDefaultConfiguration()
-        {
-            return _configurations.DefaultMaxParallelKobolds;
+            lock (_lock)
+            {
+                return _configurations.Projects.AsReadOnly();
+            }
         }
 
         /// <summary>
@@ -327,109 +279,86 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         public bool DeleteProjectConfig(string projectId)
         {
-            var config = GetProjectConfig(projectId);
-            if (config == null)
+            lock (_lock)
             {
-                return false;
-            }
+                var config = _configurations.Projects
+                    .FirstOrDefault(p => p.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+                if (config == null)
+                    return false;
 
-            _configurations.Projects.Remove(config);
-            SaveConfigurations();
-            return true;
+                _configurations.Projects.Remove(config);
+                SaveConfigurations();
+                return true;
+            }
         }
 
         /// <summary>
         /// Gets the default maximum parallel kobolds
         /// </summary>
-        public int GetDefaultMaxParallelKobolds()
-        {
-            return _configurations.DefaultMaxParallelKobolds;
-        }
+        public int GetDefaultMaxParallelKobolds() => _providerConfig.GetDefaultLimits().MaxParallelKobolds;
 
         /// <summary>
         /// Gets the default maximum parallel drakes
         /// </summary>
-        public int GetDefaultMaxParallelDrakes()
-        {
-            return _configurations.DefaultMaxParallelDrakes;
-        }
+        public int GetDefaultMaxParallelDrakes() => _providerConfig.GetDefaultLimits().MaxParallelDrakes;
 
         /// <summary>
         /// Gets the default maximum parallel wyrms
         /// </summary>
-        public int GetDefaultMaxParallelWyrms()
-        {
-            return _configurations.DefaultMaxParallelWyrms;
-        }
+        public int GetDefaultMaxParallelWyrms() => _providerConfig.GetDefaultLimits().MaxParallelWyrms;
 
         /// <summary>
         /// Gets the default maximum parallel wyverns
         /// </summary>
-        public int GetDefaultMaxParallelWyverns()
-        {
-            return _configurations.DefaultMaxParallelWyverns;
-        }
+        public int GetDefaultMaxParallelWyverns() => _providerConfig.GetDefaultLimits().MaxParallelWyverns;
 
-        private ProjectConfigurations LoadConfigurations(string? configPath)
+        private ProjectConfigurations LoadConfigurations()
         {
-            if (string.IsNullOrEmpty(configPath))
+            if (!File.Exists(_configPath))
             {
-                _logger.LogInformation("No ProjectConfigurationsPath specified, using default settings (MaxParallelKobolds=1)");
-                return new ProjectConfigurations();
-            }
-
-            if (!File.Exists(configPath))
-            {
-                _logger.LogWarning("ProjectConfigurationsPath specified but file not found: {Path}. Using default settings.", configPath);
+                _logger.LogInformation("No project configurations file found at {Path}, starting fresh", _configPath);
                 return new ProjectConfigurations();
             }
 
             try
             {
-                var jsonContent = File.ReadAllText(configPath);
-                var configurations = JsonSerializer.Deserialize<ProjectConfigurations>(jsonContent, new JsonSerializerOptions
+                var json = File.ReadAllText(_configPath);
+                var configs = JsonSerializer.Deserialize<ProjectConfigurations>(json, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
                     ReadCommentHandling = JsonCommentHandling.Skip,
                     AllowTrailingCommas = true
                 });
 
-                if (configurations == null)
+                if (configs == null)
                 {
-                    _logger.LogWarning("Failed to deserialize project configurations from {Path}. Using default settings.", configPath);
+                    _logger.LogWarning("Failed to parse project configurations, starting fresh");
                     return new ProjectConfigurations();
                 }
 
-                _logger.LogInformation("Loaded project configurations from {Path}. Default: {Default}, Projects: {Count}",
-                    configPath, configurations.DefaultMaxParallelKobolds, configurations.Projects.Count);
-
-                return configurations;
+                _logger.LogInformation("Loaded {Count} project configurations from {Path}",
+                    configs.Projects.Count, _configPath);
+                return configs;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error loading project configurations from {Path}. Using default settings.", configPath);
+                _logger.LogError(ex, "Error loading project configurations from {Path}", _configPath);
                 return new ProjectConfigurations();
             }
         }
 
         private void SaveConfigurations()
         {
-            if (string.IsNullOrEmpty(_configPath))
-            {
-                _logger.LogWarning("Cannot save project configurations: no path configured");
-                return;
-            }
-
             try
             {
-                var jsonContent = JsonSerializer.Serialize(_configurations, new JsonSerializerOptions
+                var json = JsonSerializer.Serialize(_configurations, new JsonSerializerOptions
                 {
                     WriteIndented = true,
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
 
-                File.WriteAllText(_configPath, jsonContent);
-                _logger.LogInformation("Saved project configurations to {Path}", _configPath);
+                File.WriteAllText(_configPath, json);
+                _logger.LogDebug("Saved project configurations to {Path}", _configPath);
             }
             catch (Exception ex)
             {

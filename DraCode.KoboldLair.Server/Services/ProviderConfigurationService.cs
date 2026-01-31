@@ -6,67 +6,70 @@ using Microsoft.Extensions.Options;
 namespace DraCode.KoboldLair.Server.Services
 {
     /// <summary>
-    /// Service for managing provider configuration and providing provider settings
+    /// Service for managing provider configuration.
+    ///
+    /// Configuration sources (in order of precedence):
+    /// 1. appsettings.json - Provider definitions and default provider
+    /// 2. user-settings.json - Runtime agent-to-provider selections (persisted)
+    /// 3. Project config - Per-project overrides (handled by ProjectConfigurationService)
     /// </summary>
     public class ProviderConfigurationService
     {
         private readonly ILogger<ProviderConfigurationService> _logger;
-        private readonly string _configPath;
-        private KoboldLairProviderConfiguration _configuration;
+        private readonly KoboldLairConfiguration _config;
+        private readonly string _userSettingsPath;
+        private UserSettings _userSettings;
         private readonly object _lock = new();
 
         public ProviderConfigurationService(
             ILogger<ProviderConfigurationService> logger,
-            IOptions<KoboldLairProviderConfiguration> defaultConfig,
-            string configPath = "./provider-config.json")
+            IOptions<KoboldLairConfiguration> config,
+            string userSettingsPath = "./user-settings.json")
         {
             _logger = logger;
-            _configPath = configPath;
-            _configuration = defaultConfig.Value;
+            _config = config.Value;
+            _userSettingsPath = userSettingsPath;
+            _userSettings = new UserSettings();
 
-            // Log loaded providers from appsettings
-            _logger.LogInformation("========================================");
-            _logger.LogInformation("Provider Configuration Loaded");
-            _logger.LogInformation("========================================");
-            _logger.LogInformation("Total Providers: {Count}", _configuration.Providers.Count);
-            foreach (var provider in _configuration.Providers)
-            {
-                _logger.LogInformation("  - {Name} ({DisplayName}): Enabled={IsEnabled}, Model={Model}, Agents={Agents}",
-                    provider.Name,
-                    provider.DisplayName,
-                    provider.IsEnabled,
-                    provider.DefaultModel,
-                    string.Join(", ", provider.CompatibleAgents));
-            }
-            _logger.LogInformation("Agent Assignments:");
-            _logger.LogInformation("  - Dragon: {Provider}", _configuration.AgentProviders.DragonProvider);
-            _logger.LogInformation("  - Wyvern: {Provider}", _configuration.AgentProviders.WyvernProvider);
-            _logger.LogInformation("  - Kobold: {Provider}", _configuration.AgentProviders.KoboldProvider);
-            _logger.LogInformation("========================================");
-
-            // Try to load saved configuration, otherwise use defaults
-            LoadConfiguration();
+            LogConfiguration();
+            LoadUserSettings();
         }
 
-        /// <summary>
-        /// Gets the current provider configuration
-        /// </summary>
-        public KoboldLairProviderConfiguration GetConfiguration()
+        private void LogConfiguration()
         {
-            lock (_lock)
+            _logger.LogInformation("========================================");
+            _logger.LogInformation("Provider Configuration");
+            _logger.LogInformation("========================================");
+            _logger.LogInformation("Default Provider: {Default}", _config.DefaultProvider);
+            _logger.LogInformation("Providers ({Count}):", _config.Providers.Count);
+            foreach (var provider in _config.Providers)
             {
-                return _configuration;
+                var status = provider.IsEnabled ? "enabled" : "disabled";
+                _logger.LogInformation("  - {Name}: {Status}, model={Model}",
+                    provider.Name, status, provider.DefaultModel);
             }
+            _logger.LogInformation("========================================");
         }
 
         /// <summary>
-        /// Gets all available providers
+        /// Gets all available (enabled) providers
         /// </summary>
         public List<ProviderConfig> GetAvailableProviders()
         {
             lock (_lock)
             {
-                return _configuration.Providers.Where(p => p.IsEnabled).ToList();
+                return _config.Providers.Where(p => p.IsEnabled).ToList();
+            }
+        }
+
+        /// <summary>
+        /// Gets all providers regardless of enabled status
+        /// </summary>
+        public List<ProviderConfig> GetAllProviders()
+        {
+            lock (_lock)
+            {
+                return _config.Providers.ToList();
             }
         }
 
@@ -77,29 +80,32 @@ namespace DraCode.KoboldLair.Server.Services
         {
             lock (_lock)
             {
-                return _configuration.Providers
+                var type = agentType.ToLowerInvariant();
+                return _config.Providers
                     .Where(p => p.IsEnabled &&
-                           (p.CompatibleAgents.Contains(agentType.ToLowerInvariant()) ||
+                           (p.CompatibleAgents.Contains(type) ||
                             p.CompatibleAgents.Contains("all")))
                     .ToList();
             }
         }
 
         /// <summary>
-        /// Gets the configured provider for a specific agent type
+        /// Gets the configured provider name for an agent type
         /// </summary>
         public string GetProviderForAgent(string agentType)
         {
             lock (_lock)
             {
-                return agentType.ToLowerInvariant() switch
+                var userProvider = agentType.ToLowerInvariant() switch
                 {
-                    "dragon" => _configuration.AgentProviders.DragonProvider,
-                    "wyvern" => _configuration.AgentProviders.WyvernProvider,
-                    "wyrm" => _configuration.AgentProviders.WyrmProvider,
-                    "kobold" => _configuration.AgentProviders.KoboldProvider,
-                    _ => _configuration.AgentProviders.KoboldProvider
+                    "dragon" => _userSettings.DragonProvider,
+                    "wyvern" => _userSettings.WyvernProvider,
+                    "wyrm" => _userSettings.WyrmProvider,
+                    "kobold" => _userSettings.KoboldProvider,
+                    _ => null
                 };
+
+                return userProvider ?? _config.DefaultProvider;
             }
         }
 
@@ -113,7 +119,7 @@ namespace DraCode.KoboldLair.Server.Services
             lock (_lock)
             {
                 var providerName = GetProviderForAgent(agentType);
-                var providerConfig = _configuration.Providers.FirstOrDefault(p => p.Name == providerName);
+                var providerConfig = _config.Providers.FirstOrDefault(p => p.Name == providerName);
 
                 if (providerConfig == null)
                 {
@@ -123,19 +129,19 @@ namespace DraCode.KoboldLair.Server.Services
                 // Build configuration dictionary
                 var config = new Dictionary<string, string>(providerConfig.Configuration);
 
-                // Add model override if specified
+                // Get model override from user settings
                 var modelOverride = agentType.ToLowerInvariant() switch
                 {
-                    "dragon" => _configuration.AgentProviders.DragonModel,
-                    "wyvern" => _configuration.AgentProviders.WyvernModel,
-                    "wyrm" => _configuration.AgentProviders.WyrmModel,
-                    "kobold" => _configuration.AgentProviders.KoboldModel,
+                    "dragon" => _userSettings.DragonModel,
+                    "wyvern" => _userSettings.WyvernModel,
+                    "wyrm" => _userSettings.WyrmModel,
+                    "kobold" => _userSettings.KoboldModel,
                     _ => null
                 };
 
                 config["model"] = modelOverride ?? providerConfig.DefaultModel;
 
-                // Add API key from environment if needed (overrides config file)
+                // Add API key from environment if needed
                 if (providerConfig.RequiresApiKey)
                 {
                     var apiKeyEnvVar = GetApiKeyEnvironmentVariable(providerConfig.Type);
@@ -143,17 +149,14 @@ namespace DraCode.KoboldLair.Server.Services
                     if (!string.IsNullOrWhiteSpace(apiKey))
                     {
                         config["apiKey"] = apiKey;
-                        _logger.LogDebug("Using API key from environment variable {EnvVar} for provider {Provider}",
-                            apiKeyEnvVar, providerName);
                     }
                     else if (!config.ContainsKey("apiKey") || string.IsNullOrWhiteSpace(config["apiKey"]))
                     {
-                        _logger.LogWarning("Provider {Provider} requires API key but none found in environment variable {EnvVar} or configuration",
+                        _logger.LogWarning("Provider {Provider} requires API key but none found in {EnvVar}",
                             providerName, apiKeyEnvVar);
                     }
                 }
 
-                // Create agent options
                 var options = new AgentOptions
                 {
                     WorkingDirectory = workingDirectory ?? "./workspace",
@@ -165,14 +168,14 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Updates the provider for a specific agent type
+        /// Updates the provider selection for an agent type (persisted to user-settings.json)
         /// </summary>
         public void SetProviderForAgent(string agentType, string providerName, string? modelOverride = null)
         {
             lock (_lock)
             {
-                // Validate provider exists and is compatible
-                var provider = _configuration.Providers.FirstOrDefault(p => p.Name == providerName);
+                // Validate provider exists and is enabled
+                var provider = _config.Providers.FirstOrDefault(p => p.Name == providerName);
                 if (provider == null)
                 {
                     throw new ArgumentException($"Provider '{providerName}' not found");
@@ -183,56 +186,37 @@ namespace DraCode.KoboldLair.Server.Services
                     throw new ArgumentException($"Provider '{providerName}' is not enabled");
                 }
 
-                if (!provider.CompatibleAgents.Contains(agentType.ToLowerInvariant()) &&
-                    !provider.CompatibleAgents.Contains("all"))
+                var type = agentType.ToLowerInvariant();
+                if (!provider.CompatibleAgents.Contains(type) && !provider.CompatibleAgents.Contains("all"))
                 {
-                    throw new ArgumentException($"Provider '{providerName}' is not compatible with agent type '{agentType}'");
+                    throw new ArgumentException($"Provider '{providerName}' is not compatible with '{agentType}'");
                 }
 
-                // Update configuration
-                switch (agentType.ToLowerInvariant())
+                // Update user settings
+                switch (type)
                 {
                     case "dragon":
-                        _configuration.AgentProviders.DragonProvider = providerName;
-                        _configuration.AgentProviders.DragonModel = modelOverride;
+                        _userSettings.DragonProvider = providerName;
+                        _userSettings.DragonModel = modelOverride;
                         break;
                     case "wyvern":
-                        _configuration.AgentProviders.WyvernProvider = providerName;
-                        _configuration.AgentProviders.WyvernModel = modelOverride;
+                        _userSettings.WyvernProvider = providerName;
+                        _userSettings.WyvernModel = modelOverride;
                         break;
                     case "wyrm":
-                        _configuration.AgentProviders.WyrmProvider = providerName;
-                        _configuration.AgentProviders.WyrmModel = modelOverride;
+                        _userSettings.WyrmProvider = providerName;
+                        _userSettings.WyrmModel = modelOverride;
                         break;
                     case "kobold":
-                        _configuration.AgentProviders.KoboldProvider = providerName;
-                        _configuration.AgentProviders.KoboldModel = modelOverride;
+                        _userSettings.KoboldProvider = providerName;
+                        _userSettings.KoboldModel = modelOverride;
                         break;
                     default:
                         throw new ArgumentException($"Unknown agent type '{agentType}'");
                 }
 
-                SaveConfiguration();
-                _logger.LogInformation("Updated provider for {AgentType} to {Provider}", agentType, providerName);
-            }
-        }
-
-        /// <summary>
-        /// Enables or disables a provider
-        /// </summary>
-        public void SetProviderEnabled(string providerName, bool enabled)
-        {
-            lock (_lock)
-            {
-                var provider = _configuration.Providers.FirstOrDefault(p => p.Name == providerName);
-                if (provider == null)
-                {
-                    throw new ArgumentException($"Provider '{providerName}' not found");
-                }
-
-                provider.IsEnabled = enabled;
-                SaveConfiguration();
-                _logger.LogInformation("Provider {Provider} enabled={Enabled}", providerName, enabled);
+                SaveUserSettings();
+                _logger.LogInformation("Set {AgentType} provider to {Provider}", agentType, providerName);
             }
         }
 
@@ -243,7 +227,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             lock (_lock)
             {
-                var provider = _configuration.Providers.FirstOrDefault(p => p.Name == providerName);
+                var provider = _config.Providers.FirstOrDefault(p => p.Name == providerName);
                 if (provider == null)
                 {
                     return (false, $"Provider '{providerName}' not found");
@@ -254,7 +238,6 @@ namespace DraCode.KoboldLair.Server.Services
                     return (false, $"Provider '{providerName}' is disabled");
                 }
 
-                // Check API key if required
                 if (provider.RequiresApiKey)
                 {
                     var apiKeyEnvVar = GetApiKeyEnvironmentVariable(provider.Type);
@@ -264,50 +247,94 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (string.IsNullOrWhiteSpace(apiKey) && !configHasKey)
                     {
-                        return (false, $"API key not found. Please set environment variable: {apiKeyEnvVar} or add apiKey to configuration");
+                        return (false, $"API key required. Set environment variable: {apiKeyEnvVar}");
                     }
                 }
 
-                return (true, "Provider is properly configured");
+                return (true, "Provider is configured correctly");
             }
         }
 
-        private void LoadConfiguration()
+        /// <summary>
+        /// Gets the default provider name
+        /// </summary>
+        public string GetDefaultProvider() => _config.DefaultProvider;
+
+        /// <summary>
+        /// Gets the default agent limits
+        /// </summary>
+        public AgentLimits GetDefaultLimits() => _config.Limits;
+
+        /// <summary>
+        /// Gets current user settings (for API responses)
+        /// </summary>
+        public UserSettings GetUserSettings()
+        {
+            lock (_lock)
+            {
+                return new UserSettings
+                {
+                    DragonProvider = _userSettings.DragonProvider,
+                    WyrmProvider = _userSettings.WyrmProvider,
+                    WyvernProvider = _userSettings.WyvernProvider,
+                    KoboldProvider = _userSettings.KoboldProvider,
+                    DragonModel = _userSettings.DragonModel,
+                    WyrmModel = _userSettings.WyrmModel,
+                    WyvernModel = _userSettings.WyvernModel,
+                    KoboldModel = _userSettings.KoboldModel
+                };
+            }
+        }
+
+        private void LoadUserSettings()
         {
             try
             {
-                if (File.Exists(_configPath))
+                if (File.Exists(_userSettingsPath))
                 {
-                    var json = File.ReadAllText(_configPath);
-                    var savedConfig = JsonSerializer.Deserialize<KoboldLairProviderConfiguration>(json);
-                    if (savedConfig != null)
+                    var json = File.ReadAllText(_userSettingsPath);
+                    var settings = JsonSerializer.Deserialize<UserSettings>(json, new JsonSerializerOptions
                     {
-                        // Merge with defaults - use saved agent providers but keep default provider list
-                        _configuration.AgentProviders = savedConfig.AgentProviders;
-                        _logger.LogInformation("Loaded provider configuration from {Path}", _configPath);
+                        PropertyNameCaseInsensitive = true
+                    });
+                    if (settings != null)
+                    {
+                        _userSettings = settings;
+                        _logger.LogInformation("Loaded user settings from {Path}", _userSettingsPath);
+                        LogUserSettings();
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to load provider configuration, using defaults");
+                _logger.LogWarning(ex, "Failed to load user settings, using defaults");
             }
         }
 
-        private void SaveConfiguration()
+        private void LogUserSettings()
+        {
+            _logger.LogInformation("User agent assignments:");
+            _logger.LogInformation("  Dragon: {Provider}", _userSettings.DragonProvider ?? "(default)");
+            _logger.LogInformation("  Wyrm: {Provider}", _userSettings.WyrmProvider ?? "(default)");
+            _logger.LogInformation("  Wyvern: {Provider}", _userSettings.WyvernProvider ?? "(default)");
+            _logger.LogInformation("  Kobold: {Provider}", _userSettings.KoboldProvider ?? "(default)");
+        }
+
+        private void SaveUserSettings()
         {
             try
             {
-                var json = JsonSerializer.Serialize(_configuration, new JsonSerializerOptions
+                var json = JsonSerializer.Serialize(_userSettings, new JsonSerializerOptions
                 {
-                    WriteIndented = true
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
-                File.WriteAllText(_configPath, json);
-                _logger.LogInformation("Saved provider configuration to {Path}", _configPath);
+                File.WriteAllText(_userSettingsPath, json);
+                _logger.LogInformation("Saved user settings to {Path}", _userSettingsPath);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to save provider configuration");
+                _logger.LogError(ex, "Failed to save user settings");
             }
         }
 
@@ -321,6 +348,8 @@ namespace DraCode.KoboldLair.Server.Services
                 "azureopenai" => "AZURE_OPENAI_API_KEY",
                 "githubcopilot" => "GITHUB_COPILOT_TOKEN",
                 "llamacpp" => "LLAMACPP_API_KEY",
+                "vllm" => "VLLM_API_KEY",
+                "zai" => "ZAI_API_KEY",
                 _ => $"{providerType.ToUpperInvariant()}_API_KEY"
             };
         }

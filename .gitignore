@@ -102,8 +102,13 @@ ScaffoldingReadMe.txt
 
 # Local configuration
 appsettings.local.json
+appsettings.Local.json
 appsettings.*.local.json
 appsettings.Development.json
+
+# KoboldLair runtime data (user-specific)
+**/user-settings.json
+**/project-configs.json
 
 # OAuth tokens and secrets
 .dracode/
