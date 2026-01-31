@@ -28,6 +28,11 @@ namespace DraCode.KoboldLair.Server.Models.Projects
         public string FilePath { get; set; } = "";
 
         /// <summary>
+        /// Path to the project folder containing this specification and related files
+        /// </summary>
+        public string ProjectFolder { get; set; } = "";
+
+        /// <summary>
         /// ID of the project this specification belongs to
         /// </summary>
         public string ProjectId { get; set; } = "";

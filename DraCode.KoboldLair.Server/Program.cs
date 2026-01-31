@@ -116,7 +116,7 @@ builder.Services.AddHostedService<WyvernProcessingService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<WyvernProcessingService>>();
     var projectService = sp.GetRequiredService<ProjectService>();
-    return new WyvernProcessingService(logger, projectService, "./specifications", checkIntervalSeconds: 60);
+    return new WyvernProcessingService(logger, projectService, checkIntervalSeconds: 60);
 });
 
 // Add CORS for web client

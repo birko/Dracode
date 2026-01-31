@@ -21,6 +21,7 @@ namespace DraCode.KoboldLair.Server.Agents
         private readonly Func<List<ProjectInfo>>? _getProjects;
         private readonly Func<string, bool>? _approveProject;
         private readonly Func<string, string, string?>? _registerExistingProject;
+        private readonly Func<string, string>? _getProjectFolder;
 
         protected override string SystemPrompt => GetDragonSystemPrompt();
 
@@ -29,11 +30,12 @@ namespace DraCode.KoboldLair.Server.Agents
         /// </summary>
         /// <param name="provider">LLM provider to use</param>
         /// <param name="options">Agent options</param>
-        /// <param name="specificationsPath">Path where specifications should be stored (default: ./specifications)</param>
+        /// <param name="specificationsPath">Path where specifications should be stored (default: ./specifications) - used as fallback</param>
         /// <param name="onSpecificationUpdated">Callback invoked when a specification is updated (receives full path)</param>
         /// <param name="getProjects">Function to get list of all projects for listing</param>
         /// <param name="approveProject">Function to approve a project (change from Prototype to New)</param>
         /// <param name="registerExistingProject">Function to register an existing project from disk (name, sourcePath) => projectId</param>
+        /// <param name="getProjectFolder">Function to create/get project folder for consolidated structure (projectName) => folderPath</param>
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
@@ -41,7 +43,8 @@ namespace DraCode.KoboldLair.Server.Agents
             Action<string>? onSpecificationUpdated = null,
             Func<List<ProjectInfo>>? getProjects = null,
             Func<string, bool>? approveProject = null,
-            Func<string, string, string?>? registerExistingProject = null)
+            Func<string, string, string?>? registerExistingProject = null,
+            Func<string, string>? getProjectFolder = null)
             : base(provider, options)
         {
             _specificationsPath = specificationsPath ?? "./specifications";
@@ -49,8 +52,9 @@ namespace DraCode.KoboldLair.Server.Agents
             _getProjects = getProjects;
             _approveProject = approveProject;
             _registerExistingProject = registerExistingProject;
+            _getProjectFolder = getProjectFolder;
 
-            // Ensure specifications directory exists
+            // Ensure specifications directory exists (for legacy fallback)
             try
             {
                 if (!Directory.Exists(_specificationsPath))
@@ -72,7 +76,7 @@ namespace DraCode.KoboldLair.Server.Agents
         {
             var tools = base.CreateTools();
             tools.Add(new ListProjectsTool(_getProjects));
-            tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications, _onSpecificationUpdated));
+            tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications, _onSpecificationUpdated, _getProjectFolder));
             tools.Add(new FeatureManagementTool(_specifications, _specificationsPath));
             tools.Add(new ProjectApprovalTool(_approveProject));
             tools.Add(new AddExistingProjectTool(_registerExistingProject));

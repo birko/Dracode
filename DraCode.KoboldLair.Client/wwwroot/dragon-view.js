@@ -37,19 +37,18 @@ class DragonSession {
             console.log(`[Session ${this.id}] Session ID updated:`, this.sessionId);
         }
 
-        // Skip replay messages
-        if (data.isReplay) {
-            console.log(`[Session ${this.id}] Skipping replay message:`, data.messageId);
-            return;
-        }
-
-        // Deduplicate by messageId
+        // Deduplicate by messageId - this handles both replay and regular duplicate messages
         if (data.messageId && this.receivedMessageIds.has(data.messageId)) {
-            console.log(`[Session ${this.id}] Skipping duplicate message:`, data.messageId);
+            console.log(`[Session ${this.id}] Skipping duplicate message:`, data.messageId, data.isReplay ? '(replay)' : '');
             return;
         }
         if (data.messageId) {
             this.receivedMessageIds.add(data.messageId);
+        }
+
+        // Log replay messages that were accepted (not already in local state)
+        if (data.isReplay) {
+            console.log(`[Session ${this.id}] Accepted replay message:`, data.messageId);
         }
 
         if (data.type === 'session_resumed') {

@@ -339,13 +339,18 @@ namespace DraCode.KoboldLair.Server.Services
                     timestamp = DateTime.UtcNow
                 });
 
-                // Check if specification was created
-                var specPath = dragon.SpecificationsPath;
-                if (Directory.Exists(specPath))
+                // Check if specification was created - look in consolidated project folders
+                var projectsDir = "./projects";
+                if (Directory.Exists(projectsDir))
                 {
-                    var latestSpec = Directory.GetFiles(specPath, "*.md")
+                    // Find most recently modified specification.md in any project folder
+                    var specFiles = Directory.GetDirectories(projectsDir)
+                        .Select(dir => Path.Combine(dir, "specification.md"))
+                        .Where(File.Exists)
                         .OrderByDescending(File.GetLastWriteTime)
-                        .FirstOrDefault();
+                        .ToList();
+
+                    var latestSpec = specFiles.FirstOrDefault();
 
                     if (latestSpec != null)
                     {
@@ -353,12 +358,16 @@ namespace DraCode.KoboldLair.Server.Services
                         if ((DateTime.UtcNow - specInfo.LastWriteTime).TotalSeconds < 5)
                         {
                             // Specification was just created
+                            var projectFolder = Path.GetDirectoryName(latestSpec)!;
+                            var projectName = Path.GetFileName(projectFolder);
+
                             await SendTrackedMessageAsync(webSocket, session, "specification_created", new
                             {
                                 type = "specification_created",
                                 sessionId,
-                                filename = Path.GetFileName(latestSpec),
+                                filename = "specification.md",
                                 path = latestSpec,
+                                projectFolder = projectFolder,
                                 timestamp = DateTime.UtcNow
                             });
 
@@ -367,7 +376,6 @@ namespace DraCode.KoboldLair.Server.Services
                             {
                                 try
                                 {
-                                    var projectName = Path.GetFileNameWithoutExtension(latestSpec);
                                     var project = _projectService.RegisterProject(projectName, latestSpec);
                                     _logger.LogInformation("✨ Auto-registered project: {ProjectName} (ID: {ProjectId})",
                                         projectName, project.Id);
@@ -607,12 +615,18 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         public DragonStatistics GetStatistics()
         {
+            // Count specifications in consolidated project folders
+            var totalSpecs = 0;
+            if (Directory.Exists("./projects"))
+            {
+                totalSpecs = Directory.GetDirectories("./projects")
+                    .Count(dir => File.Exists(Path.Combine(dir, "specification.md")));
+            }
+
             return new DragonStatistics
             {
                 ActiveSessions = _sessions.Count,
-                TotalSpecifications = Directory.Exists("./specifications")
-                    ? Directory.GetFiles("./specifications", "*.md").Length
-                    : 0
+                TotalSpecifications = totalSpecs
             };
         }
 
@@ -645,7 +659,13 @@ namespace DraCode.KoboldLair.Server.Services
                 ? (name, sourcePath) => _projectService.RegisterExistingProject(name, sourcePath)
                 : null;
 
-            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects, approveProject, registerExistingProject);
+            // Create project folder callback for consolidated structure
+            // This ensures the project folder exists before the specification is saved
+            Func<string, string>? getProjectFolder = _projectService != null
+                ? (projectName) => _projectService.CreateProjectFolder(projectName)
+                : null;
+
+            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects, approveProject, registerExistingProject, getProjectFolder);
         }
 
         /// <summary>

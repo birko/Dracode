@@ -11,6 +11,7 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 
 ## Latest Updates (v2.2.0)
 
+- **Dragon Multi-Session**: Persistent sessions with 10-minute timeout, message history replay on reconnect
 - **New LLM Providers**: Z.AI (GLM models), vLLM, SGLang
 - **Dragon Tools**: Add existing projects, specification approval workflow
 - **Architecture**: Model reorganization, WyrmFactory, configuration overhaul

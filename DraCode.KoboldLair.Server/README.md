@@ -367,18 +367,69 @@ DraCode.KoboldLair.Server/
 └── project-configs.json            # Per-project resource limits
 ```
 
+## Dragon Session Management
+
+Dragon supports multi-session with persistent connections and automatic reconnection:
+
+**Session Features:**
+- **Multi-session**: Multiple concurrent sessions per WebSocket connection
+- **Persistence**: Sessions survive disconnects for 10 minutes
+- **History Replay**: Up to 100 messages stored and replayed on reconnect
+- **Automatic Cleanup**: Expired sessions removed every 60 seconds
+
+**Session Protocol:**
+```json
+// Resume existing session
+{ "sessionId": "abc123", "message": "continue conversation" }
+
+// Session resumed response
+{ "type": "session_resumed", "sessionId": "abc123", "messageCount": 5, "lastMessageId": "xyz" }
+
+// Historical messages replayed with isReplay flag
+{ "type": "dragon_message", "isReplay": true, "messageId": "...", "message": "..." }
+```
+
+**Provider Reload:**
+```json
+// Reload agent with different provider (clears context)
+{ "type": "reload", "provider": "claude" }
+
+// Response
+{ "type": "dragon_reloaded", "message": "Agent reloaded with provider: claude\n\n..." }
+```
+
 ## Dragon Tools
 
 Dragon uses specialized tools for project management:
 
 | Tool | Description |
 |------|-------------|
-| `add_existing_project` | Scan and import existing projects from disk with auto-detected technologies |
+| `add_existing_project` | Scan and import existing projects from disk with auto-detected technologies (50+ tech stacks) |
 | `approve_specification` | Approve a specification (Prototype → New status) to trigger Wyvern processing |
 | `write_specification` | Create or update project specification files |
 | `manage_specification` | Edit and manage specification content |
 | `manage_features` | Add, update, or remove project features |
 | `list_projects` | List all registered projects with status |
+
+### Tool Details
+
+**add_existing_project**
+- Scans directory for project files (.sln, .slnx, package.json, requirements.txt, etc.)
+- Auto-detects 50+ technologies (C#, TypeScript, Python, Go, Rust, etc.)
+- Analyzes project structure and dependencies
+- Generates initial specification from existing code
+- Registers project in ProjectService
+
+**approve_specification** (Two-Stage Workflow)
+1. Dragon creates specification with **Prototype** status
+2. User reviews and confirms requirements
+3. Dragon calls `approve_specification` tool
+4. Status changes to **New** → WyvernProcessingService picks up
+5. Prevents accidental task generation from incomplete specs
+
+**list_projects**
+- Returns all registered projects with: ID, Name, Status, FeatureCount, CreatedAt, UpdatedAt
+- Used by Dragon to show available projects during conversation
 
 ## Related
 

@@ -53,16 +53,16 @@ Drake (Automatic)        ← Supervises task execution (background service, 60s)
 Kobold (Automatic)       ← Code generation workers (per-project parallel limits)
 ```
 
-- **Dragon**: Interactive chat for requirements → creates `./specifications/{project}_specification.md`
-- **Wyrm**: Reads specs, breaks into tasks → creates `./tasks/{project}/*-tasks.md`
+- **Dragon**: Interactive chat for requirements → creates project folder and `specification.md`
+- **Wyrm**: Reads specs, breaks into tasks → creates `{area}-tasks.md` files
 - **Drake**: Monitors tasks, summons Kobolds → updates task status
-- **Kobold**: Executes code generation → outputs to `./workspace/{project}/`
+- **Kobold**: Executes code generation → outputs to `workspace/` subfolder
 
 ### Agent Types (17 total)
 
-**Coding (11)**: `coding`, `csharp`, `cpp`, `assembler`, `javascript`, `typescript`, `css`, `html`, `react`, `angular`, `php`, `python`
+**Coding (12)**: `coding`, `csharp`, `cpp`, `assembler`, `javascript`, `typescript`, `css`, `html`, `react`, `angular`, `php`, `python`
 
-**Media (4)**: `media`, `image`, `svg`, `bitmap`
+**Media (3)**: `media`, `image`, `svg`, `bitmap` (bitmap extends image, image extends media)
 
 **Other (2)**: `diagramming`, `wyrm`
 
@@ -121,19 +121,33 @@ ASPNETCORE_ENVIRONMENT=Development|Production
 ### WebSocket Endpoints
 
 - `/wyvern` - Wyvern task delegation endpoint
-- `/dragon` - Dragon requirements gathering chat
+- `/dragon` - Dragon requirements gathering chat (multi-session support)
 - Token auth: `ws://server/dragon?token=your-token`
 - Keep-alive: 30 seconds
 
-### Data Storage Locations
+### Dragon Multi-Session Support
+
+Dragon supports multiple concurrent sessions per WebSocket connection with automatic reconnection:
+- **Session Management**: `ConcurrentDictionary<string, DragonSession>` tracks sessions
+- **Session Timeout**: 10 minutes of inactivity before cleanup
+- **Message History**: Up to 100 messages stored per session for replay
+- **Cleanup**: Automatic cleanup timer runs every 60 seconds
+- **Reconnection**: Sessions persist across disconnects; message history replayed on reconnect
+- **Message Types**: `session_resumed`, `dragon_message`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`
+
+### Data Storage Locations (Consolidated Per-Project Folders)
 
 ```
-./projects/projects.json         # Project registry
-./specifications/                # Generated specification files
-./tasks/{projectId}/             # Task files per project
-./workspace/{projectId}/         # Generated code output
-project-configs.json             # Per-project kobold limits
-provider-config.json             # Provider configuration
+./projects/
+    projects.json                     # Project registry
+    {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
+        specification.md              # Project specification
+        specification.features.json   # Feature list
+        {area}-tasks.md               # Task files (e.g., backend-tasks.md)
+        analysis.md                   # Wyvern analysis report
+        workspace/                    # Generated code output
+project-configs.json                  # Per-project kobold limits
+provider-config.json                  # Provider configuration
 ```
 
 ## Important Patterns

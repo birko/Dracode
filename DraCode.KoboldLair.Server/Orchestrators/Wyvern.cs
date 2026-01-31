@@ -319,7 +319,8 @@ namespace DraCode.KoboldLair.Server.Orchestrators
             {
                 try
                 {
-                    var areaOutputPath = Path.Combine(_outputPath, $"{_projectName}-{area.Name.ToLower()}-tasks.md");
+                    // Simplified naming: {area}-tasks.md (project folder provides context)
+                    var areaOutputPath = Path.Combine(_outputPath, $"{area.Name.ToLower()}-tasks.md");
                     var orchestratorInput = CreateOrchestratorInput(area);
 
                     // Use WyrmRunner with Wyrm-specific provider/config settings

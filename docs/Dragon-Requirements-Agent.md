@@ -76,15 +76,44 @@ var nextResponse = await dragon.ContinueSessionAsync("It should have user login"
 
 ### 2. DragonService (`Services/DragonService.cs`)
 
-WebSocket service for real-time Dragon conversations.
+WebSocket service for real-time Dragon conversations with multi-session support.
 
 **Features:**
-- Session management (one Dragon per WebSocket connection)
+- **Multi-session management** - Multiple concurrent sessions per WebSocket connection
+- **Session persistence** - Sessions survive disconnects and can be resumed
+- **Message history** - Up to 100 messages stored per session for replay on reconnect
+- **Automatic cleanup** - Expired sessions cleaned up after 10 minutes of inactivity
 - Bi-directional messaging
 - Typing indicators
 - Automatic specification detection
 - **Project registration** - Automatically registers projects when specs are created
 - Error handling and reconnection support
+
+**Session Architecture:**
+```csharp
+// Session tracking
+ConcurrentDictionary<string, DragonSession> _sessions;
+ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
+
+// Session record
+public class DragonSession {
+    public string SessionId { get; init; }
+    public DragonAgent? Agent { get; set; }
+    public DateTime LastActivity { get; set; }
+    public List<SessionMessage> MessageHistory { get; }
+    public string? LastMessageId { get; set; }
+}
+
+// Message tracking for replay
+public record SessionMessage(string MessageId, string Type, object Data, DateTime Timestamp);
+```
+
+**Session Lifecycle:**
+1. **New Session**: Created on first connection, assigned unique SessionId
+2. **Active**: Messages tracked, LastActivity updated on each interaction
+3. **Disconnected**: Session preserved in memory for potential reconnection
+4. **Resumed**: On reconnect with sessionId, agent context restored, message history replayed
+5. **Expired**: Cleaned up after 10 minutes of inactivity by cleanup timer
 
 **WebSocket Protocol:**
 
@@ -92,7 +121,9 @@ WebSocket service for real-time Dragon conversations.
 ```json
 {
   "message": "I want to build a REST API",
-  "sessionId": "optional-session-id"
+  "sessionId": "optional-session-id",
+  "type": "message",
+  "provider": "optional-provider-override"
 }
 ```
 
@@ -100,6 +131,7 @@ WebSocket service for real-time Dragon conversations.
 ```json
 {
   "type": "dragon_message",
+  "messageId": "unique-message-id",
   "sessionId": "abc123",
   "message": "Great! Tell me more about...",
   "timestamp": "2026-01-26T18:42:25.779Z"
@@ -110,7 +142,15 @@ WebSocket service for real-time Dragon conversations.
 - `dragon_message` - Dragon's response
 - `dragon_typing` - Typing indicator (Dragon is thinking)
 - `specification_created` - Specification file was created
-- `error` - Error occurred
+- `session_resumed` - Session reconnection with history replay info
+- `dragon_reloaded` - Agent reloaded with new provider
+- `error` - Error occurred (includes errorType: `llm_connection`, `llm_timeout`, `llm_response`, `llm_error`, `general`)
+
+**Session Resume Protocol:**
+1. Client reconnects with `sessionId` in query string or message
+2. Server sends `session_resumed` with `messageCount` and `lastMessageId`
+3. Server replays message history with `isReplay: true` flag
+4. Client can filter replayed messages to avoid duplicates
 
 ### 3. Dragon Tools (`Agents/Tools/`)
 
@@ -513,19 +553,35 @@ public class DragonAgent : Agent
 ### DragonService
 
 ```csharp
-public class DragonService
+public class DragonService : IDisposable
 {
     // Constructor
     public DragonService(
         ILogger<DragonService> logger,
-        string defaultProvider = "openai",
-        Dictionary<string, string>? defaultConfig = null
+        ProviderConfigurationService providerConfigService,
+        ProjectService? projectService = null
     )
 
     // Methods
-    public async Task HandleWebSocketAsync(WebSocket webSocket)
+    public async Task HandleWebSocketAsync(WebSocket webSocket, string? existingSessionId = null)
     public DragonStatistics GetStatistics()
+    public void Dispose()
+
+    // Session Configuration
+    private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
+    private readonly int _maxMessageHistory = 100;
 }
+
+public class DragonSession
+{
+    public string SessionId { get; init; }
+    public DragonAgent? Agent { get; set; }
+    public DateTime LastActivity { get; set; }
+    public List<SessionMessage> MessageHistory { get; }
+    public string? LastMessageId { get; set; }
+}
+
+public record SessionMessage(string MessageId, string Type, object Data, DateTime Timestamp);
 
 public class DragonStatistics
 {

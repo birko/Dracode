@@ -33,7 +33,35 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Registers a new project when Dragon creates a specification
+        /// Creates a project folder under ./projects/{sanitized-name}/ and returns the folder path.
+        /// This should be called before Dragon saves the specification so files go to the right place.
+        /// </summary>
+        /// <param name="projectName">Name of the project</param>
+        /// <returns>The full path to the project folder</returns>
+        public string CreateProjectFolder(string projectName)
+        {
+            var sanitizedName = SanitizeProjectName(projectName);
+            var folder = Path.Combine("./projects", sanitizedName);
+
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+                _logger.LogInformation("Created project folder: {Path}", folder);
+            }
+
+            // Also create the workspace subfolder for generated code
+            var workspaceFolder = Path.Combine(folder, "workspace");
+            if (!Directory.Exists(workspaceFolder))
+            {
+                Directory.CreateDirectory(workspaceFolder);
+            }
+
+            return folder;
+        }
+
+        /// <summary>
+        /// Registers a new project when Dragon creates a specification.
+        /// With consolidated folders, the specification should already be at {projectFolder}/specification.md
         /// </summary>
         public Project RegisterProject(string projectName, string specificationPath)
         {
@@ -45,19 +73,32 @@ namespace DraCode.KoboldLair.Server.Services
                 return existing;
             }
 
-            // Create output directory for project
-            var outputPath = Path.Combine(_defaultOutputPathBase, SanitizeProjectName(projectName));
-            if (!Directory.Exists(outputPath))
+            // Also check by name to avoid duplicates
+            var byName = _repository.GetByName(projectName);
+            if (byName != null)
             {
-                Directory.CreateDirectory(outputPath);
-                _logger.LogInformation("Created output directory: {Path}", outputPath);
+                _logger.LogWarning("Project already exists with name: {Name} (ID: {Id})", projectName, byName.Id);
+                return byName;
+            }
+
+            // Determine the project folder from the specification path
+            // Expected: ./projects/{sanitized-name}/specification.md
+            var projectFolder = Path.GetDirectoryName(specificationPath) ?? CreateProjectFolder(projectName);
+
+            // Output path is the project folder itself (task files go here)
+            // Workspace for generated code is a subfolder
+            var workspacePath = Path.Combine(projectFolder, "workspace");
+            if (!Directory.Exists(workspacePath))
+            {
+                Directory.CreateDirectory(workspacePath);
+                _logger.LogInformation("Created workspace directory: {Path}", workspacePath);
             }
 
             var project = new Project
             {
                 Name = projectName,
                 SpecificationPath = specificationPath,
-                OutputPath = outputPath,
+                OutputPath = projectFolder, // Task files and analysis go here
                 Status = ProjectStatus.Prototype
             };
 
@@ -169,8 +210,8 @@ namespace DraCode.KoboldLair.Server.Services
                     // Run full analysis
                     analysis = await wyvern.AnalyzeProjectAsync();
 
-                    // Save analysis report
-                    var analysisReportPath = Path.Combine(project.OutputPath, $"{project.Name}-analysis.md");
+                    // Save analysis report (simplified name - project folder provides context)
+                    var analysisReportPath = Path.Combine(project.OutputPath, "analysis.md");
                     var report = wyvern.GenerateReport();
                     await File.WriteAllTextAsync(analysisReportPath, report);
                     project.AnalysisOutputPath = analysisReportPath;
@@ -389,19 +430,14 @@ namespace DraCode.KoboldLair.Server.Services
                 return byName.Id;
             }
 
-            // Create output directory for generated code (separate from source)
-            var outputPath = Path.Combine(_defaultOutputPathBase, SanitizeProjectName(projectName));
-            if (!Directory.Exists(outputPath))
-            {
-                Directory.CreateDirectory(outputPath);
-                _logger.LogInformation("Created output directory: {Path}", outputPath);
-            }
+            // Create consolidated project folder under ./projects/
+            var projectFolder = CreateProjectFolder(projectName);
 
             var project = new Project
             {
                 Name = projectName,
                 SpecificationPath = "", // Will be set when Dragon creates the specification
-                OutputPath = outputPath,
+                OutputPath = projectFolder, // Task files and analysis go here
                 Status = ProjectStatus.Prototype,
                 Metadata = new Dictionary<string, string>
                 {

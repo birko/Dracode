@@ -181,16 +181,30 @@ namespace DraCode.KoboldLair.Server.Agents.Tools
         }
 
         /// <summary>
-        /// Saves features to a JSON file alongside the specification
+        /// Saves features to a JSON file in the project folder.
+        /// Uses consolidated structure: {projectFolder}/specification.features.json
         /// </summary>
         private void SaveFeatures(Specification spec)
         {
-            if (string.IsNullOrEmpty(_specificationsPath) || string.IsNullOrEmpty(spec.Name))
+            if (string.IsNullOrEmpty(spec.Name))
+                return;
+
+            // Determine the folder to save features to
+            var folder = spec.ProjectFolder;
+            if (string.IsNullOrEmpty(folder))
+            {
+                folder = !string.IsNullOrEmpty(spec.FilePath)
+                    ? Path.GetDirectoryName(spec.FilePath)
+                    : _specificationsPath;
+            }
+
+            if (string.IsNullOrEmpty(folder))
                 return;
 
             try
             {
-                var featuresPath = Path.Combine(_specificationsPath, $"{spec.Name}.features.json");
+                // Use consolidated naming: specification.features.json (no project name prefix)
+                var featuresPath = Path.Combine(folder, "specification.features.json");
                 var options = new JsonSerializerOptions { WriteIndented = true };
                 var json = JsonSerializer.Serialize(spec.Features, options);
                 File.WriteAllText(featuresPath, json);
@@ -202,16 +216,31 @@ namespace DraCode.KoboldLair.Server.Agents.Tools
         }
 
         /// <summary>
-        /// Loads features from JSON file if it exists
+        /// Loads features from JSON file if it exists.
+        /// Tries consolidated structure first, falls back to legacy naming.
         /// </summary>
-        public static void LoadFeatures(Specification spec, string specificationsPath)
+        /// <param name="spec">The specification to load features into</param>
+        /// <param name="folderPath">The project folder or specifications path</param>
+        public static void LoadFeatures(Specification spec, string folderPath)
         {
-            if (string.IsNullOrEmpty(specificationsPath) || string.IsNullOrEmpty(spec.Name))
+            if (string.IsNullOrEmpty(folderPath))
                 return;
 
             try
             {
-                var featuresPath = Path.Combine(specificationsPath, $"{spec.Name}.features.json");
+                // Try consolidated naming first: specification.features.json
+                var featuresPath = Path.Combine(folderPath, "specification.features.json");
+
+                // Fall back to legacy naming if consolidated doesn't exist
+                if (!File.Exists(featuresPath) && !string.IsNullOrEmpty(spec.Name))
+                {
+                    var legacyPath = Path.Combine(folderPath, $"{spec.Name}.features.json");
+                    if (File.Exists(legacyPath))
+                    {
+                        featuresPath = legacyPath;
+                    }
+                }
+
                 if (File.Exists(featuresPath))
                 {
                     var json = File.ReadAllText(featuresPath);

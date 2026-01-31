@@ -57,11 +57,28 @@ All notable changes to this project will be documented in this file.
 - **Project Config View**: New dedicated view for project configuration
 - **Dragon View**: Shows only non-empty messages on reload
 
+### 🔌 Added - Dragon Multi-Session Support
+
+**Enhanced Dragon service with persistent session management:**
+
+- **Multi-session per connection** - Multiple concurrent sessions tracked in `ConcurrentDictionary`
+- **Session persistence** - Sessions survive disconnects for 10 minutes
+- **Message history** - Up to 100 messages stored per session
+- **Automatic replay** - Message history replayed on reconnect with `isReplay` flag
+- **Provider reload** - Switch providers mid-conversation with `type: "reload"` message
+- **Cleanup timer** - Expired sessions automatically cleaned every 60 seconds
+
+**New Message Types:**
+- `session_resumed` - Session reconnection with history replay info
+- `dragon_reloaded` - Agent reloaded with new provider
+- Enhanced `error` types: `llm_connection`, `llm_timeout`, `llm_response`, `llm_error`, `general`
+
 ### 🐛 Fixed
 
 - Provider configuration loading and validation
 - Serialization issues in WebSocket communication
 - Client ID handling in multi-session scenarios
+- Session state preservation on WebSocket disconnect
 
 ---
 
