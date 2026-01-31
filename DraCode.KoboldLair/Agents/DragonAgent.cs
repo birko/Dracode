@@ -15,6 +15,7 @@ namespace DraCode.KoboldLair.Agents
     public class DragonAgent : AgentBase
     {
         private readonly string _specificationsPath;
+        private readonly string _projectsPath;
         private readonly Dictionary<string, Specification> _specifications = new();
         private List<Message> _conversationHistory = new();
         private readonly Action<string>? _onSpecificationUpdated;
@@ -36,6 +37,7 @@ namespace DraCode.KoboldLair.Agents
         /// <param name="approveProject">Function to approve a project (change from Prototype to New)</param>
         /// <param name="registerExistingProject">Function to register an existing project from disk (name, sourcePath) => projectId</param>
         /// <param name="getProjectFolder">Function to create/get project folder for consolidated structure (projectName) => folderPath</param>
+        /// <param name="projectsPath">Path where projects are stored (default: ./projects)</param>
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
@@ -44,10 +46,12 @@ namespace DraCode.KoboldLair.Agents
             Func<List<ProjectInfo>>? getProjects = null,
             Func<string, bool>? approveProject = null,
             Func<string, string, string?>? registerExistingProject = null,
-            Func<string, string>? getProjectFolder = null)
+            Func<string, string>? getProjectFolder = null,
+            string projectsPath = "./projects")
             : base(provider, options)
         {
             _specificationsPath = specificationsPath ?? "./specifications";
+            _projectsPath = projectsPath ?? "./projects";
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjects = getProjects;
             _approveProject = approveProject;
@@ -76,7 +80,7 @@ namespace DraCode.KoboldLair.Agents
         {
             var tools = base.CreateTools();
             tools.Add(new ListProjectsTool(_getProjects));
-            tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications, _onSpecificationUpdated, _getProjectFolder));
+            tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath));
             tools.Add(new FeatureManagementTool(_specifications, _specificationsPath));
             tools.Add(new ProjectApprovalTool(_approveProject));
             tools.Add(new AddExistingProjectTool(_registerExistingProject));

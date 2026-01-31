@@ -9,6 +9,7 @@ namespace DraCode.KoboldLair.Agents.Tools
     public class SpecificationManagementTool : Tool
     {
         private readonly string _specificationsPath;
+        private readonly string _projectsPath;
         private readonly Dictionary<string, Specification> _specifications;
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<string, string>? _getProjectFolder;
@@ -17,12 +18,14 @@ namespace DraCode.KoboldLair.Agents.Tools
             string specificationsPath,
             Dictionary<string, Specification> specifications,
             Action<string>? onSpecificationUpdated = null,
-            Func<string, string>? getProjectFolder = null)
+            Func<string, string>? getProjectFolder = null,
+            string projectsPath = "./projects")
         {
             _specificationsPath = specificationsPath;
             _specifications = specifications;
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjectFolder = getProjectFolder;
+            _projectsPath = projectsPath;
         }
 
         public override string Name => "manage_specification";
@@ -126,8 +129,8 @@ namespace DraCode.KoboldLair.Agents.Tools
                 }
             }
 
-            // Try consolidated structure first: ./projects/{name}/specification.md
-            var projectFolder2 = Path.Combine("./projects", SanitizeProjectName(name));
+            // Try consolidated structure first: {projectsPath}/{name}/specification.md
+            var projectFolder2 = Path.Combine(_projectsPath, SanitizeProjectName(name));
             var consolidatedPath = Path.Combine(projectFolder2, "specification.md");
 
             string? fullPath = null;
@@ -275,7 +278,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             else
             {
                 // Try consolidated structure
-                var projectFolder = Path.Combine("./projects", SanitizeProjectName(name));
+                var projectFolder = Path.Combine(_projectsPath, SanitizeProjectName(name));
                 var consolidatedPath = Path.Combine(projectFolder, "specification.md");
 
                 if (File.Exists(consolidatedPath))

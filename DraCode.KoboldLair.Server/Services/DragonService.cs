@@ -38,6 +38,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectService? _projectService;
+        private readonly string _projectsPath;
         private readonly Timer _cleanupTimer;
         private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
         private readonly int _maxMessageHistory = 100;
@@ -46,13 +47,15 @@ namespace DraCode.KoboldLair.Server.Services
         public DragonService(
             ILogger<DragonService> logger,
             ProviderConfigurationService providerConfigService,
-            ProjectService? projectService = null)
+            ProjectService? projectService = null,
+            string projectsPath = "./projects")
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
             _sessionWebSockets = new ConcurrentDictionary<string, WebSocket>();
             _providerConfigService = providerConfigService;
             _projectService = projectService;
+            _projectsPath = projectsPath;
 
             // Start cleanup timer to remove expired sessions every minute
             _cleanupTimer = new Timer(CleanupExpiredSessions, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
@@ -341,7 +344,7 @@ namespace DraCode.KoboldLair.Server.Services
                 });
 
                 // Check if specification was created - look in consolidated project folders
-                var projectsDir = "./projects";
+                var projectsDir = _projectsPath;
                 if (Directory.Exists(projectsDir))
                 {
                     // Find most recently modified specification.md in any project folder
@@ -618,9 +621,9 @@ namespace DraCode.KoboldLair.Server.Services
         {
             // Count specifications in consolidated project folders
             var totalSpecs = 0;
-            if (Directory.Exists("./projects"))
+            if (Directory.Exists(_projectsPath))
             {
-                totalSpecs = Directory.GetDirectories("./projects")
+                totalSpecs = Directory.GetDirectories(_projectsPath)
                     .Count(dir => File.Exists(Path.Combine(dir, "specification.md")));
             }
 
@@ -666,7 +669,7 @@ namespace DraCode.KoboldLair.Server.Services
                 ? (projectName) => _projectService.CreateProjectFolder(projectName)
                 : null;
 
-            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects, approveProject, registerExistingProject, getProjectFolder);
+            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects, approveProject, registerExistingProject, getProjectFolder, _projectsPath);
         }
 
         /// <summary>

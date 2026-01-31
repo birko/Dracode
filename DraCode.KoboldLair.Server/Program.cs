@@ -34,7 +34,9 @@ builder.Services.AddSingleton<ProjectConfigurationService>();
 builder.Services.AddSingleton<ProjectRepository>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<ProjectRepository>>();
-    return new ProjectRepository("./projects", logger);
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var projectsPath = config.ProjectsPath ?? "./projects";
+    return new ProjectRepository(projectsPath, logger);
 });
 
 builder.Services.AddSingleton<WyvernFactory>(sp =>
@@ -43,12 +45,7 @@ builder.Services.AddSingleton<WyvernFactory>(sp =>
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     return new WyvernFactory(
         providerConfigService,
-        projectConfigService,
-        defaultOptions: new AgentOptions
-        {
-            WorkingDirectory = "./workspace",
-            Verbose = false
-        }
+        projectConfigService
     );
 });
 
@@ -58,7 +55,9 @@ builder.Services.AddSingleton<ProjectService>(sp =>
     var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
-    return new ProjectService(repository, wyvernFactory, projectConfigService, logger, "./workspace");
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var projectsPath = config.ProjectsPath ?? "./projects";
+    return new ProjectService(repository, wyvernFactory, projectConfigService, logger, projectsPath);
 });
 
 // Register factories as singletons
@@ -102,7 +101,9 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var logger = sp.GetRequiredService<ILogger<DragonService>>();
     var projectService = sp.GetRequiredService<ProjectService>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    return new DragonService(logger, providerConfigService, projectService);
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var projectsPath = config.ProjectsPath ?? "./projects";
+    return new DragonService(logger, providerConfigService, projectService, projectsPath);
 });
 
 // Register background monitoring service (checks every 60 seconds)

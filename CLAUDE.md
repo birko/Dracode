@@ -138,8 +138,11 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
 
 ### Data Storage Locations (Consolidated Per-Project Folders)
 
+The projects path is configurable via `appsettings.json` under `KoboldLair`:
+- `ProjectsPath`: Where projects are stored (default: `./projects`)
+
 ```
-./projects/
+{ProjectsPath}/                       # Configurable, defaults to ./projects
     projects.json                     # Project registry
     {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
         specification.md              # Project specification

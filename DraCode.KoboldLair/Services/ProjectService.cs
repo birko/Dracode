@@ -16,21 +16,26 @@ namespace DraCode.KoboldLair.Services
         private readonly WyvernFactory _wyvernFactory;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ILogger<ProjectService> _logger;
-        private readonly string _defaultOutputPathBase;
+        private readonly string _projectsPath;
 
         public ProjectService(
             ProjectRepository repository,
             WyvernFactory wyvernFactory,
             ProjectConfigurationService projectConfigService,
             ILogger<ProjectService> logger,
-            string defaultOutputPathBase = "./workspace")
+            string projectsPath = "./projects")
         {
             _repository = repository;
             _wyvernFactory = wyvernFactory;
             _projectConfigService = projectConfigService;
             _logger = logger;
-            _defaultOutputPathBase = defaultOutputPathBase;
+            _projectsPath = projectsPath;
         }
+
+        /// <summary>
+        /// Gets the configured projects path
+        /// </summary>
+        public string ProjectsPath => _projectsPath;
 
         /// <summary>
         /// Creates a project folder under ./projects/{sanitized-name}/ and returns the folder path.
@@ -41,7 +46,7 @@ namespace DraCode.KoboldLair.Services
         public string CreateProjectFolder(string projectName)
         {
             var sanitizedName = SanitizeProjectName(projectName);
-            var folder = Path.Combine("./projects", sanitizedName);
+            var folder = Path.Combine(_projectsPath, sanitizedName);
 
             if (!Directory.Exists(folder))
             {

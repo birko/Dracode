@@ -20,6 +20,11 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Default parallel execution limits for agents
         /// </summary>
         public AgentLimits Limits { get; set; } = new();
+
+        /// <summary>
+        /// Path for storing projects. Defaults to current working directory + "./projects"
+        /// </summary>
+        public string ProjectsPath { get; set; } = "./projects";
     }
 
     /// <summary>
