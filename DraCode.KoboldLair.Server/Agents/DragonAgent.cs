@@ -209,7 +209,7 @@ Remember: You manage specifications and features. Projects in 'Prototype' status
             // Clear conversation history for new session
             _conversationHistory = new List<Message>();
 
-            var messages = await RunAsync(initialMessage, maxIterations: 5);
+            var messages = await RunAsync(initialMessage, maxIterations: 15);
 
             // Store conversation history for future continuations
             _conversationHistory = messages;
@@ -232,7 +232,7 @@ Remember: You manage specifications and features. Projects in 'Prototype' status
         public async Task<string> ContinueSessionAsync(string userMessage)
         {
             // Continue conversation with full history preserved
-            var messages = await ContinueAsync(_conversationHistory, userMessage, maxIterations: 15);
+            var messages = await ContinueAsync(_conversationHistory, userMessage, maxIterations: 25);
 
             // Update stored conversation history
             _conversationHistory = messages;
