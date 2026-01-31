@@ -15,9 +15,15 @@ export class WebSocketClient {
         this.pongTimeout = null;
         this.missedPongs = 0;
         this.maxMissedPongs = 3;
+        this.sessionId = null;
+        this.receivedMessageIds = new Set();
     }
 
-    connect() {
+    /**
+     * Connect to the WebSocket server
+     * @param {string|null} sessionId - Optional session ID to resume an existing session
+     */
+    connect(sessionId = null) {
         if (this.ws?.readyState === WebSocket.OPEN) {
             return Promise.resolve();
         }
@@ -26,20 +32,31 @@ export class WebSocketClient {
             return this.connectPromise;
         }
 
+        // Store sessionId for reconnection attempts
+        if (sessionId) {
+            this.sessionId = sessionId;
+        }
+
         this.connectPromise = new Promise((resolve, reject) => {
             // Connect directly to backend server using serverUrl from CONFIG
             const serverUrl = CONFIG.serverUrl;
             const token = CONFIG.authToken;
-            
+
             // Normalize endpoint - remove leading slash
             const endpoint = this.endpoint.replace(/^\/+/, '');
-            
+
             // Build full URL: serverUrl + endpoint
             const baseUrl = serverUrl.replace(/\/+$/, ''); // Remove trailing slashes
             const fullUrl = `${baseUrl}/${endpoint}`;
-            
-            this.url = token ? `${fullUrl}?token=${token}` : fullUrl;
-            
+
+            // Build query string with token and sessionId
+            const params = new URLSearchParams();
+            if (token) params.set('token', token);
+            if (this.sessionId) params.set('sessionId', this.sessionId);
+
+            const queryString = params.toString();
+            this.url = queryString ? `${fullUrl}?${queryString}` : fullUrl;
+
             console.log('Connecting to backend:', this.url);
 
             this.setStatus('connecting');
@@ -81,14 +98,35 @@ export class WebSocketClient {
             this.ws.onmessage = (event) => {
                 try {
                     const message = JSON.parse(event.data);
-                    
+
                     // Handle pong responses
                     if (message.type === 'pong') {
                         this.missedPongs = 0;
                         clearTimeout(this.pongTimeout);
                         return;
                     }
-                    
+
+                    // Track sessionId from server messages
+                    if (message.sessionId && !this.sessionId) {
+                        this.sessionId = message.sessionId;
+                        console.log('Session ID received:', this.sessionId);
+                    }
+
+                    // Deduplicate messages using messageId
+                    if (message.messageId) {
+                        if (this.receivedMessageIds.has(message.messageId)) {
+                            console.log('Skipping duplicate message:', message.messageId);
+                            return;
+                        }
+                        this.receivedMessageIds.add(message.messageId);
+
+                        // Limit set size to prevent memory bloat
+                        if (this.receivedMessageIds.size > 1000) {
+                            const entries = Array.from(this.receivedMessageIds);
+                            this.receivedMessageIds = new Set(entries.slice(-500));
+                        }
+                    }
+
                     this.handleMessage(message);
                 } catch (error) {
                     console.error('Failed to parse message:', error);
@@ -97,6 +135,27 @@ export class WebSocketClient {
         });
 
         return this.connectPromise;
+    }
+
+    /**
+     * Get the current session ID
+     */
+    getSessionId() {
+        return this.sessionId;
+    }
+
+    /**
+     * Set the session ID (for resuming sessions)
+     */
+    setSessionId(sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    /**
+     * Clear received message IDs (for when session is reset)
+     */
+    clearMessageHistory() {
+        this.receivedMessageIds.clear();
     }
 
     disconnect() {

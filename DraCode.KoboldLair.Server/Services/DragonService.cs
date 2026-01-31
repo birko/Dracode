@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -9,16 +10,37 @@ using DraCode.KoboldLair.Server.Models.Projects;
 namespace DraCode.KoboldLair.Server.Services
 {
     /// <summary>
+    /// Represents a stored message for session replay on reconnect
+    /// </summary>
+    public record SessionMessage(string MessageId, string Type, object Data, DateTime Timestamp);
+
+    /// <summary>
+    /// Tracks session state including agent, last activity, and message history
+    /// </summary>
+    public class DragonSession
+    {
+        public string SessionId { get; init; } = "";
+        public DragonAgent? Agent { get; set; }
+        public DateTime LastActivity { get; set; } = DateTime.UtcNow;
+        public List<SessionMessage> MessageHistory { get; } = new();
+        public string? LastMessageId { get; set; }
+    }
+
+    /// <summary>
     /// Service for handling Dragon agent interactions via WebSocket.
     /// Dragon gathers project requirements from users and creates specifications.
     /// </summary>
-    public class DragonService
+    public class DragonService : IDisposable
     {
         private readonly ILogger<DragonService> _logger;
-        private readonly Dictionary<string, DragonAgent> _activeSessions;
-        private readonly Dictionary<string, WebSocket> _sessionWebSockets;
+        private readonly ConcurrentDictionary<string, DragonSession> _sessions;
+        private readonly ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectService? _projectService;
+        private readonly Timer _cleanupTimer;
+        private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
+        private readonly int _maxMessageHistory = 100;
+        private bool _disposed;
 
         public DragonService(
             ILogger<DragonService> logger,
@@ -26,81 +48,193 @@ namespace DraCode.KoboldLair.Server.Services
             ProjectService? projectService = null)
         {
             _logger = logger;
-            _activeSessions = new Dictionary<string, DragonAgent>();
-            _sessionWebSockets = new Dictionary<string, WebSocket>();
+            _sessions = new ConcurrentDictionary<string, DragonSession>();
+            _sessionWebSockets = new ConcurrentDictionary<string, WebSocket>();
             _providerConfigService = providerConfigService;
             _projectService = projectService;
+
+            // Start cleanup timer to remove expired sessions every minute
+            _cleanupTimer = new Timer(CleanupExpiredSessions, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+        }
+
+        /// <summary>
+        /// Cleanup expired sessions that haven't had activity within the timeout period
+        /// </summary>
+        private void CleanupExpiredSessions(object? state)
+        {
+            var expiredSessions = _sessions
+                .Where(kvp => DateTime.UtcNow - kvp.Value.LastActivity > _sessionTimeout)
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var sessionId in expiredSessions)
+            {
+                if (_sessions.TryRemove(sessionId, out var session))
+                {
+                    _logger.LogInformation("Cleaned up expired session: {SessionId} (inactive for {Minutes} minutes)",
+                        sessionId, (DateTime.UtcNow - session.LastActivity).TotalMinutes);
+                }
+                _sessionWebSockets.TryRemove(sessionId, out _);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _cleanupTimer.Dispose();
+                _disposed = true;
+            }
         }
 
         /// <summary>
         /// Handles WebSocket connection for Dragon chat
         /// </summary>
-        public async Task HandleWebSocketAsync(WebSocket webSocket)
+        /// <param name="webSocket">The WebSocket connection</param>
+        /// <param name="existingSessionId">Optional session ID to resume an existing session</param>
+        public async Task HandleWebSocketAsync(WebSocket webSocket, string? existingSessionId = null)
         {
-            var sessionId = Guid.NewGuid().ToString();
-            _logger.LogInformation("Dragon session started: {SessionId}", sessionId);
+            DragonSession? session = null;
+            var isResuming = false;
+
+            // Try to resume existing session if sessionId provided
+            if (!string.IsNullOrEmpty(existingSessionId) && _sessions.TryGetValue(existingSessionId, out session))
+            {
+                // Check if session hasn't expired
+                if (DateTime.UtcNow - session.LastActivity <= _sessionTimeout)
+                {
+                    isResuming = true;
+                    session.LastActivity = DateTime.UtcNow;
+                    _sessionWebSockets[existingSessionId] = webSocket;
+                    _logger.LogInformation("Dragon session resumed: {SessionId}", existingSessionId);
+                }
+                else
+                {
+                    // Session expired, will create new one
+                    _sessions.TryRemove(existingSessionId, out _);
+                    session = null;
+                    _logger.LogInformation("Session {SessionId} expired, creating new session", existingSessionId);
+                }
+            }
+
+            // Create new session if not resuming
+            if (session == null)
+            {
+                var sessionId = Guid.NewGuid().ToString();
+                session = new DragonSession { SessionId = sessionId };
+                _sessions[sessionId] = session;
+                _sessionWebSockets[sessionId] = webSocket;
+                _logger.LogInformation("Dragon session started: {SessionId}", sessionId);
+            }
+
+            var currentSessionId = session.SessionId;
 
             try
             {
-                // Get provider settings from configuration
-                var (provider, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
+                DragonAgent dragon;
 
-                // Create callback for spec updates that notifies ProjectService
-                Action<string>? onSpecUpdated = _projectService != null
-                    ? specPath => _projectService.MarkSpecificationModified(specPath)
-                    : null;
-
-                var dragon = CreateDragonAgent(provider, options, config, onSpecUpdated);
-
-                // Set up message callback for debugging
-                dragon.SetMessageCallback((type, content) =>
+                if (isResuming && session.Agent != null)
                 {
-                    _logger.LogInformation("[Dragon Agent] [{Type}] {Content}", type, content);
-                });
+                    // Use existing agent with conversation history
+                    dragon = session.Agent;
+                    _logger.LogInformation("[Dragon] Resuming existing conversation for session {SessionId}", currentSessionId);
 
-                _activeSessions[sessionId] = dragon;
-                _sessionWebSockets[sessionId] = webSocket;
-
-                // Send welcome message
-                _logger.LogInformation("[Dragon] Starting session...");
-                try
-                {
-                    var welcomeResponse = await dragon.StartSessionAsync();
-                    _logger.LogInformation("[Dragon] Welcome response: {Response}", welcomeResponse);
-
-                    await SendMessageAsync(webSocket, new
+                    // Send session_resumed message with history replay info
+                    await SendTrackedMessageAsync(webSocket, session, "session_resumed", new
                     {
-                        type = "dragon_message",
-                        sessionId,
-                        message = welcomeResponse,
+                        type = "session_resumed",
+                        sessionId = currentSessionId,
+                        messageCount = session.MessageHistory.Count,
+                        lastMessageId = session.LastMessageId,
                         timestamp = DateTime.UtcNow
                     });
+
+                    // Replay message history for client to catch up
+                    foreach (var msg in session.MessageHistory)
+                    {
+                        // Send with replay flag so client knows these are historical
+                        var replayData = new Dictionary<string, object>
+                        {
+                            ["type"] = msg.Type,
+                            ["messageId"] = msg.MessageId,
+                            ["isReplay"] = true,
+                            ["sessionId"] = currentSessionId,
+                            ["timestamp"] = msg.Timestamp
+                        };
+
+                        // Merge in original data properties
+                        if (msg.Data is IDictionary<string, object> dataDict)
+                        {
+                            foreach (var kvp in dataDict.Where(k => k.Key != "type" && k.Key != "messageId" && k.Key != "sessionId" && k.Key != "timestamp"))
+                            {
+                                replayData[kvp.Key] = kvp.Value;
+                            }
+                        }
+
+                        await SendMessageAsync(webSocket, replayData);
+                    }
                 }
-                catch (HttpRequestException ex)
+                else
                 {
-                    _logger.LogError(ex, "Failed to start Dragon session - LLM connection error");
-                    await SendMessageAsync(webSocket, new
+                    // Get provider settings from configuration
+                    var (provider, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
+
+                    // Create callback for spec updates that notifies ProjectService
+                    Action<string>? onSpecUpdated = _projectService != null
+                        ? specPath => _projectService.MarkSpecificationModified(specPath)
+                        : null;
+
+                    dragon = CreateDragonAgent(provider, options, config, onSpecUpdated);
+
+                    // Set up message callback for debugging
+                    dragon.SetMessageCallback((type, content) =>
                     {
-                        type = "error",
-                        errorType = "llm_connection",
-                        sessionId,
-                        message = $"Failed to connect to LLM provider: {ex.Message}",
-                        details = "Please check that your API key is valid and the provider service is available.",
-                        timestamp = DateTime.UtcNow
+                        _logger.LogInformation("[Dragon Agent] [{Type}] {Content}", type, content);
                     });
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to start Dragon session");
-                    await SendMessageAsync(webSocket, new
+
+                    session.Agent = dragon;
+
+                    // Send welcome message
+                    _logger.LogInformation("[Dragon] Starting session...");
+                    try
                     {
-                        type = "error",
-                        errorType = "startup_error",
-                        sessionId,
-                        message = $"Failed to initialize Dragon: {ex.Message}",
-                        details = "There was a problem starting the requirements agent. Please check provider configuration.",
-                        timestamp = DateTime.UtcNow
-                    });
+                        var welcomeResponse = await dragon.StartSessionAsync();
+                        _logger.LogInformation("[Dragon] Welcome response: {Response}", welcomeResponse);
+
+                        await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                        {
+                            type = "dragon_message",
+                            sessionId = currentSessionId,
+                            message = welcomeResponse,
+                            timestamp = DateTime.UtcNow
+                        });
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        _logger.LogError(ex, "Failed to start Dragon session - LLM connection error");
+                        await SendTrackedMessageAsync(webSocket, session, "error", new
+                        {
+                            type = "error",
+                            errorType = "llm_connection",
+                            sessionId = currentSessionId,
+                            message = $"Failed to connect to LLM provider: {ex.Message}",
+                            details = "Please check that your API key is valid and the provider service is available.",
+                            timestamp = DateTime.UtcNow
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to start Dragon session");
+                        await SendTrackedMessageAsync(webSocket, session, "error", new
+                        {
+                            type = "error",
+                            errorType = "startup_error",
+                            sessionId = currentSessionId,
+                            message = $"Failed to initialize Dragon: {ex.Message}",
+                            details = "There was a problem starting the requirements agent. Please check provider configuration.",
+                            timestamp = DateTime.UtcNow
+                        });
+                    }
                 }
 
                 // Handle incoming messages
@@ -113,7 +247,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        _logger.LogInformation("WebSocket close received for session {SessionId}", sessionId);
+                        _logger.LogInformation("WebSocket close received for session {SessionId}", currentSessionId);
                         await webSocket.CloseAsync(
                             WebSocketCloseStatus.NormalClosure,
                             "Closing",
@@ -123,18 +257,20 @@ namespace DraCode.KoboldLair.Server.Services
 
                     var messageText = Encoding.UTF8.GetString(buffer, 0, result.Count);
                     _logger.LogDebug("Dragon received message ({Count} bytes): {Message}", result.Count, messageText);
-                    await HandleMessageAsync(webSocket, sessionId, messageText, dragon);
+                    session.LastActivity = DateTime.UtcNow;
+                    await HandleMessageAsync(webSocket, session, messageText, dragon);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in Dragon WebSocket session {SessionId}", sessionId);
+                _logger.LogError(ex, "Error in Dragon WebSocket session {SessionId}", currentSessionId);
             }
             finally
             {
-                _activeSessions.Remove(sessionId);
-                _sessionWebSockets.Remove(sessionId);
-                _logger.LogInformation("Dragon session ended: {SessionId}", sessionId);
+                // Don't remove session on disconnect - keep it for potential reconnection
+                // Session will be cleaned up by the cleanup timer after timeout
+                _sessionWebSockets.TryRemove(currentSessionId, out _);
+                _logger.LogInformation("Dragon WebSocket disconnected (session preserved): {SessionId}", currentSessionId);
             }
         }
 
@@ -143,10 +279,12 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task HandleMessageAsync(
             WebSocket webSocket,
-            string sessionId,
+            DragonSession session,
             string messageText,
             DragonAgent dragon)
         {
+            var sessionId = session.SessionId;
+
             try
             {
                 var options = new JsonSerializerOptions
@@ -160,8 +298,9 @@ namespace DraCode.KoboldLair.Server.Services
                     return;
                 }
 
-                // Handle ping/pong for keep-alive
-                if (message.Type == "ping")
+                // Handle ping/pong for keep-alive (client may send type or action)
+                var messageType = message.Type ?? message.Action;
+                if (messageType?.Equals("ping", StringComparison.OrdinalIgnoreCase) == true)
                 {
                     await SendMessageAsync(webSocket, new { type = "pong" });
                     return;
@@ -170,13 +309,16 @@ namespace DraCode.KoboldLair.Server.Services
                 // Check for reload command
                 if (message.Type == "reload")
                 {
-                    await ReloadAgentAsync(sessionId, message.Provider);
+                    await ReloadAgentAsync(session, message.Provider);
                     return;
                 }
 
                 _logger.LogInformation("Dragon received: {Message}", message.Message);
 
-                // Send typing indicator
+                // Track user message in history (for context on reconnect)
+                TrackMessage(session, "user_message", new { role = "user", content = message.Message });
+
+                // Send typing indicator (not tracked - ephemeral)
                 await SendMessageAsync(webSocket, new
                 {
                     type = "dragon_typing",
@@ -188,8 +330,8 @@ namespace DraCode.KoboldLair.Server.Services
                 var response = await dragon.ContinueSessionAsync(message.Message);
                 _logger.LogInformation("[Dragon] Response: {Response}", response);
 
-                // Send response
-                await SendMessageAsync(webSocket, new
+                // Send response with message ID for deduplication
+                await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
                 {
                     type = "dragon_message",
                     sessionId,
@@ -211,7 +353,7 @@ namespace DraCode.KoboldLair.Server.Services
                         if ((DateTime.UtcNow - specInfo.LastWriteTime).TotalSeconds < 5)
                         {
                             // Specification was just created
-                            await SendMessageAsync(webSocket, new
+                            await SendTrackedMessageAsync(webSocket, session, "specification_created", new
                             {
                                 type = "specification_created",
                                 sessionId,
@@ -242,7 +384,7 @@ namespace DraCode.KoboldLair.Server.Services
             catch (HttpRequestException ex)
             {
                 _logger.LogError(ex, "HTTP error communicating with LLM provider");
-                await SendMessageAsync(webSocket, new
+                await SendTrackedMessageAsync(webSocket, session, "error", new
                 {
                     type = "error",
                     errorType = "llm_connection",
@@ -255,7 +397,7 @@ namespace DraCode.KoboldLair.Server.Services
             catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
             {
                 _logger.LogError(ex, "Timeout communicating with LLM provider");
-                await SendMessageAsync(webSocket, new
+                await SendTrackedMessageAsync(webSocket, session, "error", new
                 {
                     type = "error",
                     errorType = "llm_timeout",
@@ -268,7 +410,7 @@ namespace DraCode.KoboldLair.Server.Services
             catch (JsonException ex)
             {
                 _logger.LogError(ex, "JSON parsing error in LLM response");
-                await SendMessageAsync(webSocket, new
+                await SendTrackedMessageAsync(webSocket, session, "error", new
                 {
                     type = "error",
                     errorType = "llm_response",
@@ -288,7 +430,7 @@ namespace DraCode.KoboldLair.Server.Services
                                  ex.Message.Contains("401") || ex.Message.Contains("403") ||
                                  ex.Message.Contains("429") || ex.Message.Contains("500");
 
-                await SendMessageAsync(webSocket, new
+                await SendTrackedMessageAsync(webSocket, session, "error", new
                 {
                     type = "error",
                     errorType = isLlmError ? "llm_error" : "general",
@@ -325,18 +467,67 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
+        /// Sends a message through WebSocket and tracks it in session history with a unique messageId
+        /// </summary>
+        private async Task SendTrackedMessageAsync(WebSocket webSocket, DragonSession session, string messageType, object data)
+        {
+            var messageId = Guid.NewGuid().ToString();
+
+            // Add messageId to the data
+            var trackedData = new Dictionary<string, object>
+            {
+                ["messageId"] = messageId
+            };
+
+            // Merge in the original data using reflection or serialization
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            };
+            var dataJson = JsonSerializer.Serialize(data, jsonOptions);
+            var dataDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(dataJson, jsonOptions);
+            if (dataDict != null)
+            {
+                foreach (var kvp in dataDict)
+                {
+                    trackedData[kvp.Key] = kvp.Value;
+                }
+            }
+
+            // Track in session history
+            TrackMessage(session, messageType, trackedData, messageId);
+
+            // Send the message
+            await SendMessageAsync(webSocket, trackedData);
+        }
+
+        /// <summary>
+        /// Tracks a message in session history for replay on reconnect
+        /// </summary>
+        private void TrackMessage(DragonSession session, string messageType, object data, string? messageId = null)
+        {
+            messageId ??= Guid.NewGuid().ToString();
+            var timestamp = DateTime.UtcNow;
+
+            session.MessageHistory.Add(new SessionMessage(messageId, messageType, data, timestamp));
+            session.LastMessageId = messageId;
+
+            // Trim history if it exceeds max
+            while (session.MessageHistory.Count > _maxMessageHistory)
+            {
+                session.MessageHistory.RemoveAt(0);
+            }
+        }
+
+        /// <summary>
         /// Reloads a Dragon agent - clears context and reloads provider settings
         /// </summary>
-        public async Task ReloadAgentAsync(string sessionId, string? providerOverride = null)
+        private async Task ReloadAgentAsync(DragonSession session, string? providerOverride = null)
         {
+            var sessionId = session.SessionId;
             _logger.LogInformation("Reloading Dragon agent for session: {SessionId} with provider: {Provider}",
                 sessionId, providerOverride ?? "default");
-
-            if (!_activeSessions.TryGetValue(sessionId, out var oldAgent))
-            {
-                _logger.LogWarning("Session not found for reload: {SessionId}", sessionId);
-                return;
-            }
 
             if (!_sessionWebSockets.TryGetValue(sessionId, out var webSocket))
             {
@@ -378,28 +569,30 @@ namespace DraCode.KoboldLair.Server.Services
                     _logger.LogInformation("[Dragon Agent] [{Type}] {Content}", type, content);
                 });
 
-                _activeSessions[sessionId] = dragon;
+                session.Agent = dragon;
+                // Clear message history on reload
+                session.MessageHistory.Clear();
+                session.LastMessageId = null;
 
                 // Send welcome message from new agent
                 _logger.LogInformation("[Dragon] Reloading session - starting fresh...");
                 var welcomeResponse = await dragon.StartSessionAsync();
                 _logger.LogInformation("[Dragon] Reload welcome response: {Response}", welcomeResponse);
 
-                await SendMessageAsync(webSocket, new
+                await SendTrackedMessageAsync(webSocket, session, "dragon_reloaded", new
                 {
                     type = "dragon_reloaded",
                     sessionId,
                     message = $"Agent reloaded with provider: {providerName}\n\n{welcomeResponse}",
                     timestamp = DateTime.UtcNow
                 });
-                oldAgent = null; // Allow old agent to be garbage collected
 
                 _logger.LogInformation("Dragon agent reloaded successfully: {SessionId}", sessionId);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error reloading Dragon agent for session: {SessionId}", sessionId);
-                await SendMessageAsync(webSocket, new
+                await SendTrackedMessageAsync(webSocket, session, "error", new
                 {
                     type = "error",
                     sessionId,
@@ -416,7 +609,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             return new DragonStatistics
             {
-                ActiveSessions = _activeSessions.Count,
+                ActiveSessions = _sessions.Count,
                 TotalSpecifications = Directory.Exists("./specifications")
                     ? Directory.GetFiles("./specifications", "*.md").Length
                     : 0

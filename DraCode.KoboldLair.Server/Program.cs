@@ -211,9 +211,12 @@ app.Map("/dragon", async context =>
             return;
         }
 
+        // Extract sessionId from query string for session resumption
+        var sessionId = context.Request.Query["sessionId"].FirstOrDefault();
+
         var dragonService = context.RequestServices.GetRequiredService<DragonService>();
         var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-        await dragonService.HandleWebSocketAsync(webSocket);
+        await dragonService.HandleWebSocketAsync(webSocket, sessionId);
     }
     else
     {

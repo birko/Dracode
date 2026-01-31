@@ -1,5 +1,8 @@
 import { WebSocketClient } from './websocket.js';
 
+const DRAGON_SESSION_KEY = 'dragon_session_id';
+const DRAGON_MESSAGES_KEY = 'dragon_messages';
+
 export class DragonView {
     constructor(api) {
         this.api = api;
@@ -8,6 +11,65 @@ export class DragonView {
         this.sessionId = null;
         this.providers = [];
         this.selectedProvider = null;
+        this.receivedMessageIds = new Set();
+
+        // Load session from localStorage
+        this.loadSession();
+    }
+
+    /**
+     * Load session data from localStorage
+     */
+    loadSession() {
+        try {
+            const storedSessionId = localStorage.getItem(DRAGON_SESSION_KEY);
+            if (storedSessionId) {
+                this.sessionId = storedSessionId;
+                console.log('Loaded session ID from storage:', this.sessionId);
+            }
+
+            const storedMessages = localStorage.getItem(DRAGON_MESSAGES_KEY);
+            if (storedMessages) {
+                this.messages = JSON.parse(storedMessages);
+                // Rebuild receivedMessageIds from stored messages
+                this.messages.forEach(msg => {
+                    if (msg.messageId) {
+                        this.receivedMessageIds.add(msg.messageId);
+                    }
+                });
+                console.log('Loaded', this.messages.length, 'messages from storage');
+            }
+        } catch (error) {
+            console.error('Failed to load session from storage:', error);
+            this.clearSession();
+        }
+    }
+
+    /**
+     * Save session data to localStorage
+     */
+    saveSession() {
+        try {
+            if (this.sessionId) {
+                localStorage.setItem(DRAGON_SESSION_KEY, this.sessionId);
+            }
+            // Only keep the last 100 messages in storage
+            const messagesToStore = this.messages.slice(-100);
+            localStorage.setItem(DRAGON_MESSAGES_KEY, JSON.stringify(messagesToStore));
+        } catch (error) {
+            console.error('Failed to save session to storage:', error);
+        }
+    }
+
+    /**
+     * Clear session data from localStorage
+     */
+    clearSession() {
+        localStorage.removeItem(DRAGON_SESSION_KEY);
+        localStorage.removeItem(DRAGON_MESSAGES_KEY);
+        this.sessionId = null;
+        this.messages = [];
+        this.receivedMessageIds.clear();
     }
 
     async render() {
@@ -72,22 +134,61 @@ export class DragonView {
 
     onMount() {
         this.ws = new WebSocketClient('/dragon');
-        this.ws.connect();
+
+        // Pass stored sessionId when connecting
+        this.ws.connect(this.sessionId);
 
         this.ws.on('message', (data) => {
-            if (data.type === 'dragon_message') {
+            // Track sessionId from server
+            if (data.sessionId && data.sessionId !== this.sessionId) {
                 this.sessionId = data.sessionId;
-                this.addMessage('assistant', data.message);
+                this.ws.setSessionId(this.sessionId);
+                this.saveSession();
+                console.log('Session ID updated:', this.sessionId);
+            }
+
+            // Skip replay messages - they're just for catching up the connection
+            // We already have these in our local message history
+            if (data.isReplay) {
+                console.log('Skipping replay message:', data.messageId);
+                return;
+            }
+
+            // Deduplicate by messageId
+            if (data.messageId && this.receivedMessageIds.has(data.messageId)) {
+                console.log('Skipping duplicate message:', data.messageId);
+                return;
+            }
+            if (data.messageId) {
+                this.receivedMessageIds.add(data.messageId);
+            }
+
+            if (data.type === 'session_resumed') {
+                console.log('Session resumed, message count:', data.messageCount);
+                // Session was resumed, we already have messages loaded from localStorage
+                return;
+            } else if (data.type === 'dragon_message') {
+                this.addMessage('assistant', data.message, data.messageId);
             } else if (data.type === 'dragon_reloaded') {
+                // Clear session on reload
+                this.clearSession();
                 this.sessionId = data.sessionId;
-                this.messages = []; // Clear message history
-                this.addMessage('system', data.message);
+                this.ws.setSessionId(this.sessionId);
+                this.ws.clearMessageHistory();
+                this.addMessage('system', data.message, data.messageId);
+                this.saveSession();
+                // Clear and re-render messages container
+                const messagesContainer = document.getElementById('dragonMessages');
+                if (messagesContainer) {
+                    messagesContainer.innerHTML = '';
+                }
             } else if (data.type === 'dragon_typing') {
                 // Could show typing indicator here
             } else if (data.type === 'error') {
                 this.addErrorMessage(data);
-            } else {
-                this.addMessage('assistant', data.content || JSON.stringify(data));
+            } else if (data.type !== 'user_message') {
+                // Ignore user_message type (tracked but not displayed as server message)
+                this.addMessage('assistant', data.content || JSON.stringify(data), data.messageId);
             }
         });
 
@@ -111,6 +212,7 @@ export class DragonView {
     }
 
     onUnmount() {
+        this.saveSession();
         this.ws?.disconnect();
         this.ws = null;
     }
@@ -126,6 +228,7 @@ export class DragonView {
                 sessionId: this.sessionId
             });
             input.value = '';
+            this.saveSession();
         }
     }
 
@@ -139,8 +242,13 @@ export class DragonView {
         }
     }
 
-    addMessage(role, content) {
-        this.messages.push({ role, content });
+    addMessage(role, content, messageId = null) {
+        const msg = { role, content };
+        if (messageId) {
+            msg.messageId = messageId;
+        }
+        this.messages.push(msg);
+        this.saveSession();
         const messagesContainer = document.getElementById('dragonMessages');
         if (messagesContainer) {
             // Clear if it's a system message from reload
