@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.2.1] - 2026-01-31
+
+### 📚 Added - DraCode.KoboldLair README
+
+**Comprehensive documentation for the multi-agent core library:**
+
+- **Overview** - Multi-agent hierarchy diagram (Dragon → Wyvern → Drake → Kobold)
+- **Project Structure** - Complete folder layout with descriptions
+- **Agents** - Dragon, Wyvern, Wyrm with responsibilities and available tools
+- **Orchestrators** - Drake (task supervisor) and Wyvern (analyzer) documentation
+- **Models** - Lifecycle states for Projects, Features, Kobolds, and Tasks
+- **Services** - Usage examples for ProjectService and ProjectRepository
+- **Factories** - Code examples for KoboldFactory, DrakeFactory, WyvernFactory
+- **Configuration** - JSON configuration format and options
+- **Data Storage** - Per-project folder structure documentation
+- **Thread Safety** - Concurrency patterns and considerations
+
+**Files Created:**
+- `DraCode.KoboldLair/README.md` - New comprehensive README
+
+**Files Updated:**
+- `README.md` - Added KoboldLair core library link, updated project structure
+- `docs/README.md` - Added KoboldLair core library reference
+
+---
+
 ## [2.2.0] - 2026-01-31
 
 ### 🚀 Added - New LLM Providers
@@ -497,6 +523,7 @@ Execute multiple tasks sequentially with fresh agent instances for each task.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.2.1 | Jan 2026 | DraCode.KoboldLair README documentation |
 | 2.2.0 | Jan 2026 | Z.AI/vLLM/SGLang providers, Dragon tools, model reorganization |
 | 2.1 | Jan 2026 | Multi-task execution, batch processing |
 | 2.0.5 | Jan 2026 | WebSocket authentication with IP binding |

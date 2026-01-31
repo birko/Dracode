@@ -5,12 +5,14 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 ## Quick Links
 
 - **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete spec for regenerating the project
-- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.2.0 - January 2026)
-- **[KoboldLair Server README](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
-- **[KoboldLair Client README](../DraCode.KoboldLair.Client/README.md)** - Multi-agent web UI
+- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.2.1 - January 2026)
+- **[KoboldLair Core Library](../DraCode.KoboldLair/README.md)** - Multi-agent orchestration library
+- **[KoboldLair Server](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
+- **[KoboldLair Client](../DraCode.KoboldLair.Client/README.md)** - Multi-agent web UI
 
-## Latest Updates (v2.2.0)
+## Latest Updates (v2.2.1)
 
+- **KoboldLair Core Library README**: Comprehensive documentation for the multi-agent orchestration library
 - **Dragon Multi-Session**: Persistent sessions with 10-minute timeout, message history replay on reconnect
 - **New LLM Providers**: Z.AI (GLM models), vLLM, SGLang
 - **Dragon Tools**: Add existing projects, specification approval workflow
@@ -92,6 +94,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
 ## Project-Specific Documentation
 
 Each project has its own README:
+- [DraCode.KoboldLair README](../DraCode.KoboldLair/README.md) - Multi-agent core library (agents, factories, orchestrators, services)
 - [DraCode.KoboldLair.Server README](../DraCode.KoboldLair.Server/README.md) - Multi-agent backend
 - [DraCode.KoboldLair.Client README](../DraCode.KoboldLair.Client/README.md) - Multi-agent web UI
 - [DraCode.WebSocket README](../DraCode.WebSocket/README.md) - WebSocket API server

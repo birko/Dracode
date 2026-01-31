@@ -44,7 +44,7 @@ dotnet run --project DraCode.AppHost
 # Open KoboldLair from the Aspire dashboard
 ```
 
-📖 **Learn More**: [KoboldLair Server README](DraCode.KoboldLair.Server/README.md) | [KoboldLair Client README](DraCode.KoboldLair.Client/README.md)
+📖 **Learn More**: [KoboldLair Core Library](DraCode.KoboldLair/README.md) | [KoboldLair Server](DraCode.KoboldLair.Server/README.md) | [KoboldLair Client](DraCode.KoboldLair.Client/README.md)
 
 ## 🚀 Features
 
@@ -304,8 +304,9 @@ For complete documentation, see the [docs](docs/) directory.
 - **[WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md)** - Get started with multi-agent system
 - **[Architecture Specification](docs/architecture/ARCHITECTURE_SPECIFICATION.md)** - System architecture and design
 - **[Technical Specification](docs/architecture/TECHNICAL_SPECIFICATION.md)** - Comprehensive technical documentation
-- **[KoboldLair Server README](DraCode.KoboldLair.Server/README.md)** - Multi-agent system backend
-- **[KoboldLair Client README](DraCode.KoboldLair.Client/README.md)** - Multi-agent system web UI
+- **[KoboldLair Core Library](DraCode.KoboldLair/README.md)** - Multi-agent orchestration library
+- **[KoboldLair Server](DraCode.KoboldLair.Server/README.md)** - Multi-agent system backend
+- **[KoboldLair Client](DraCode.KoboldLair.Client/README.md)** - Multi-agent system web UI
 
 ### Setup Guides
 - **[Claude Setup](docs/setup-guides/CLAUDE_SETUP.md)** - Anthropic Claude configuration
@@ -364,12 +365,15 @@ DraCode/
 │   ├── LLMs/                    # LLM provider implementations
 │   ├── Tools/                   # Tool system
 │   └── Helpers/                 # Utility classes
-├── DraCode.KoboldLair.Server/    # Multi-agent autonomous coding system
-│   ├── Agents/                  # Dragon, Wyrm, Drake, Kobold agents
-│   ├── Projects/                # Wyrm project management
+├── DraCode.KoboldLair/           # Multi-agent core library
+│   ├── Agents/                  # Dragon, Wyrm, Wyvern agents
+│   ├── Factories/               # Agent, Kobold, Drake, Wyvern factories
+│   ├── Models/                  # Data models (Agents, Config, Projects, Tasks)
+│   ├── Orchestrators/           # Drake, Wyvern, WyrmRunner
+│   └── Services/                # ProjectService, ProjectRepository
+├── DraCode.KoboldLair.Server/    # Multi-agent WebSocket server
 │   ├── Services/                # Background processing, DragonService
-│   ├── Models/                  # Project, ProjectStatus data models
-│   └── Factories/               # Agent factories
+│   └── Models/                  # WebSocket message models
 ├── DraCode.KoboldLair.Client/    # KoboldLair Web UI
 │   └── wwwroot/                 # Web UI (Status, Dragon Chat, Hierarchy)
 ├── DraCode.WebSocket/            # WebSocket API server
