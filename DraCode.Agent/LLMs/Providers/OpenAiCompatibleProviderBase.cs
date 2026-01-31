@@ -126,8 +126,10 @@ namespace DraCode.Agent.LLMs.Providers
             var choice = choices[0];
             var message = choice.GetProperty("message");
 
-            // Check for tool calls
-            if (message.TryGetProperty("tool_calls", out var toolCalls) && toolCalls.GetArrayLength() > 0)
+            // Check for tool calls (vLLM can return tool_calls: null instead of an array)
+            if (message.TryGetProperty("tool_calls", out var toolCalls)
+                && toolCalls.ValueKind == JsonValueKind.Array
+                && toolCalls.GetArrayLength() > 0)
             {
                 llmResponse.StopReason = "tool_use";
                 foreach (var toolCall in toolCalls.EnumerateArray())

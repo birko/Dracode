@@ -8,20 +8,17 @@ namespace DraCode.KoboldLair.Agents.Tools
     /// </summary>
     public class SpecificationManagementTool : Tool
     {
-        private readonly string _specificationsPath;
         private readonly string _projectsPath;
         private readonly Dictionary<string, Specification> _specifications;
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<string, string>? _getProjectFolder;
 
         public SpecificationManagementTool(
-            string specificationsPath,
             Dictionary<string, Specification> specifications,
             Action<string>? onSpecificationUpdated = null,
             Func<string, string>? getProjectFolder = null,
             string projectsPath = "./projects")
         {
-            _specificationsPath = specificationsPath;
             _specifications = specifications;
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjectFolder = getProjectFolder;
@@ -84,23 +81,28 @@ namespace DraCode.KoboldLair.Agents.Tools
 
         private string ListSpecifications()
         {
-            if (string.IsNullOrEmpty(_specificationsPath))
+            if (string.IsNullOrEmpty(_projectsPath))
             {
-                return "Error: Specifications path is not configured.";
+                return "Error: Projects path is not configured.";
             }
 
-            if (!Directory.Exists(_specificationsPath))
-            {
-                return "No specifications found.";
-            }
-
-            var files = Directory.GetFiles(_specificationsPath, "*.md");
-            if (files.Length == 0)
+            if (!Directory.Exists(_projectsPath))
             {
                 return "No specifications found.";
             }
 
-            var list = string.Join("\n", files.Select(f => $"- {Path.GetFileNameWithoutExtension(f)}"));
+            // List projects that have specification.md in their folder
+            var projectFolders = Directory.GetDirectories(_projectsPath)
+                .Where(dir => File.Exists(Path.Combine(dir, "specification.md")))
+                .Select(dir => Path.GetFileName(dir))
+                .ToList();
+
+            if (projectFolders.Count == 0)
+            {
+                return "No specifications found.";
+            }
+
+            var list = string.Join("\n", projectFolders.Select(f => $"- {f}"));
             return $"Specifications:\n{list}";
         }
 
@@ -122,60 +124,40 @@ namespace DraCode.KoboldLair.Agents.Tools
                     existingSpec.Content = content;
 
                     // Load features from project folder
-                    var projectFolder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingSpec.FilePath) ?? _specificationsPath;
-                    FeatureManagementTool.LoadFeatures(existingSpec, projectFolder);
+                    var projectFolder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingSpec.FilePath) ?? "";
+                    if (!string.IsNullOrEmpty(projectFolder))
+                    {
+                        FeatureManagementTool.LoadFeatures(existingSpec, projectFolder);
+                    }
 
                     return $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {existingSpec.Features.Count}";
                 }
             }
 
-            // Try consolidated structure first: {projectsPath}/{name}/specification.md
+            // Try consolidated structure: {projectsPath}/{name}/specification.md
             var projectFolder2 = Path.Combine(_projectsPath, SanitizeProjectName(name));
-            var consolidatedPath = Path.Combine(projectFolder2, "specification.md");
+            var specPath = Path.Combine(projectFolder2, "specification.md");
 
-            string? fullPath = null;
-            string? folder = null;
-
-            if (File.Exists(consolidatedPath))
-            {
-                fullPath = consolidatedPath;
-                folder = projectFolder2;
-            }
-            else if (!string.IsNullOrEmpty(_specificationsPath))
-            {
-                // Fallback to legacy structure
-                var filename = name.EndsWith(".md") ? name : $"{name}.md";
-                var legacyPath = Path.Combine(_specificationsPath, filename);
-                if (File.Exists(legacyPath))
-                {
-                    fullPath = legacyPath;
-                    folder = _specificationsPath;
-                }
-            }
-
-            if (fullPath == null)
+            if (!File.Exists(specPath))
             {
                 return $"Error: Specification '{name}' not found";
             }
 
             try
             {
-                var content = File.ReadAllText(fullPath);
+                var content = File.ReadAllText(specPath);
                 var spec = new Specification
                 {
                     Name = name,
-                    FilePath = fullPath,
-                    ProjectFolder = folder ?? "",
+                    FilePath = specPath,
+                    ProjectFolder = projectFolder2,
                     Content = content
                 };
 
                 _specifications[name] = spec;
 
                 // Load features from project folder
-                if (!string.IsNullOrEmpty(folder))
-                {
-                    FeatureManagementTool.LoadFeatures(spec, folder);
-                }
+                FeatureManagementTool.LoadFeatures(spec, projectFolder2);
 
                 return $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {spec.Features.Count}";
             }
@@ -208,22 +190,21 @@ namespace DraCode.KoboldLair.Agents.Tools
             string fullPath;
             string projectFolder;
 
-            // Use callback to get project folder if available (consolidated structure)
+            // Use callback to get project folder if available
             if (_getProjectFolder != null)
             {
                 projectFolder = _getProjectFolder(name);
                 fullPath = Path.Combine(projectFolder, "specification.md");
             }
-            else if (!string.IsNullOrEmpty(_specificationsPath))
-            {
-                // Fallback to legacy structure
-                projectFolder = _specificationsPath;
-                var filename = name.EndsWith(".md") ? name : $"{name}.md";
-                fullPath = Path.Combine(_specificationsPath, filename);
-            }
             else
             {
-                return "Error: No project folder callback or specifications path configured.";
+                // Create project folder directly in projectsPath
+                projectFolder = Path.Combine(_projectsPath, SanitizeProjectName(name));
+                if (!Directory.Exists(projectFolder))
+                {
+                    Directory.CreateDirectory(projectFolder);
+                }
+                fullPath = Path.Combine(projectFolder, "specification.md");
             }
 
             if (File.Exists(fullPath))
@@ -279,23 +260,12 @@ namespace DraCode.KoboldLair.Agents.Tools
             {
                 // Try consolidated structure
                 var projectFolder = Path.Combine(_projectsPath, SanitizeProjectName(name));
-                var consolidatedPath = Path.Combine(projectFolder, "specification.md");
+                var specPath = Path.Combine(projectFolder, "specification.md");
 
-                if (File.Exists(consolidatedPath))
+                if (File.Exists(specPath))
                 {
-                    fullPath = consolidatedPath;
+                    fullPath = specPath;
                     folder = projectFolder;
-                }
-                else if (!string.IsNullOrEmpty(_specificationsPath))
-                {
-                    // Fallback to legacy structure
-                    var filename = name.EndsWith(".md") ? name : $"{name}.md";
-                    var legacyPath = Path.Combine(_specificationsPath, filename);
-                    if (File.Exists(legacyPath))
-                    {
-                        fullPath = legacyPath;
-                        folder = _specificationsPath;
-                    }
                 }
             }
 

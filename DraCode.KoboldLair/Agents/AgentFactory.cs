@@ -36,10 +36,7 @@ namespace DraCode.KoboldLair.Agents
             else if (agentType.Equals("dragon", StringComparison.OrdinalIgnoreCase))
             {
                 var llmProvider = CreateLlmProvider(provider, config);
-                var specificationsPath = config.TryGetValue("specificationsPath", out var path)
-                    ? path
-                    : "./specifications";
-                return new DragonAgent(llmProvider, options, specificationsPath);
+                return new DragonAgent(llmProvider, options);
             }
             else if (agentType.Equals("wyvern", StringComparison.OrdinalIgnoreCase))
             {

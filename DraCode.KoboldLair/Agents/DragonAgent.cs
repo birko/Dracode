@@ -14,7 +14,6 @@ namespace DraCode.KoboldLair.Agents
     /// </summary>
     public class DragonAgent : AgentBase
     {
-        private readonly string _specificationsPath;
         private readonly string _projectsPath;
         private readonly Dictionary<string, Specification> _specifications = new();
         private List<Message> _conversationHistory = new();
@@ -31,7 +30,6 @@ namespace DraCode.KoboldLair.Agents
         /// </summary>
         /// <param name="provider">LLM provider to use</param>
         /// <param name="options">Agent options</param>
-        /// <param name="specificationsPath">Path where specifications should be stored (default: ./specifications) - used as fallback</param>
         /// <param name="onSpecificationUpdated">Callback invoked when a specification is updated (receives full path)</param>
         /// <param name="getProjects">Function to get list of all projects for listing</param>
         /// <param name="approveProject">Function to approve a project (change from Prototype to New)</param>
@@ -41,7 +39,6 @@ namespace DraCode.KoboldLair.Agents
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
-            string specificationsPath = "./specifications",
             Action<string>? onSpecificationUpdated = null,
             Func<List<ProjectInfo>>? getProjects = null,
             Func<string, bool>? approveProject = null,
@@ -50,27 +47,12 @@ namespace DraCode.KoboldLair.Agents
             string projectsPath = "./projects")
             : base(provider, options)
         {
-            _specificationsPath = specificationsPath ?? "./specifications";
             _projectsPath = projectsPath ?? "./projects";
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjects = getProjects;
             _approveProject = approveProject;
             _registerExistingProject = registerExistingProject;
             _getProjectFolder = getProjectFolder;
-
-            // Ensure specifications directory exists (for legacy fallback)
-            try
-            {
-                if (!Directory.Exists(_specificationsPath))
-                {
-                    Directory.CreateDirectory(_specificationsPath);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Log but don't fail - the tool methods will handle missing path gracefully
-                Console.WriteLine($"Warning: Could not create specifications directory '{_specificationsPath}': {ex.Message}");
-            }
         }
 
         /// <summary>
@@ -80,8 +62,8 @@ namespace DraCode.KoboldLair.Agents
         {
             var tools = base.CreateTools();
             tools.Add(new ListProjectsTool(_getProjects));
-            tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath));
-            tools.Add(new FeatureManagementTool(_specifications, _specificationsPath));
+            tools.Add(new SpecificationManagementTool(_specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath));
+            tools.Add(new FeatureManagementTool(_specifications));
             tools.Add(new ProjectApprovalTool(_approveProject));
             tools.Add(new AddExistingProjectTool(_registerExistingProject));
             return tools;
@@ -281,11 +263,6 @@ Remember: You manage specifications and features. Projects in 'Prototype' status
 
             return content?.ToString() ?? "";
         }
-
-        /// <summary>
-        /// Gets the path where specifications are stored
-        /// </summary>
-        public string SpecificationsPath => _specificationsPath;
 
         /// <summary>
         /// Gets a specification by name

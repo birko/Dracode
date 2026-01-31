@@ -11,12 +11,10 @@ namespace DraCode.KoboldLair.Agents.Tools
     public class FeatureManagementTool : Tool
     {
         private readonly Dictionary<string, Specification> _specifications;
-        private readonly string? _specificationsPath;
 
-        public FeatureManagementTool(Dictionary<string, Specification> specifications, string? specificationsPath = null)
+        public FeatureManagementTool(Dictionary<string, Specification> specifications)
         {
             _specifications = specifications;
-            _specificationsPath = specificationsPath;
         }
 
         public override string Name => "manage_feature";
@@ -191,11 +189,9 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             // Determine the folder to save features to
             var folder = spec.ProjectFolder;
-            if (string.IsNullOrEmpty(folder))
+            if (string.IsNullOrEmpty(folder) && !string.IsNullOrEmpty(spec.FilePath))
             {
-                folder = !string.IsNullOrEmpty(spec.FilePath)
-                    ? Path.GetDirectoryName(spec.FilePath)
-                    : _specificationsPath;
+                folder = Path.GetDirectoryName(spec.FilePath);
             }
 
             if (string.IsNullOrEmpty(folder))
@@ -217,10 +213,10 @@ namespace DraCode.KoboldLair.Agents.Tools
 
         /// <summary>
         /// Loads features from JSON file if it exists.
-        /// Tries consolidated structure first, falls back to legacy naming.
+        /// Uses consolidated structure: {projectFolder}/specification.features.json
         /// </summary>
         /// <param name="spec">The specification to load features into</param>
-        /// <param name="folderPath">The project folder or specifications path</param>
+        /// <param name="folderPath">The project folder path</param>
         public static void LoadFeatures(Specification spec, string folderPath)
         {
             if (string.IsNullOrEmpty(folderPath))
@@ -228,18 +224,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                // Try consolidated naming first: specification.features.json
                 var featuresPath = Path.Combine(folderPath, "specification.features.json");
-
-                // Fall back to legacy naming if consolidated doesn't exist
-                if (!File.Exists(featuresPath) && !string.IsNullOrEmpty(spec.Name))
-                {
-                    var legacyPath = Path.Combine(folderPath, $"{spec.Name}.features.json");
-                    if (File.Exists(legacyPath))
-                    {
-                        featuresPath = legacyPath;
-                    }
-                }
 
                 if (File.Exists(featuresPath))
                 {

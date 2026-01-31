@@ -644,9 +644,6 @@ namespace DraCode.KoboldLair.Server.Services
             Action<string>? onSpecificationUpdated)
         {
             var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(provider, config);
-            var specificationsPath = config.TryGetValue("specificationsPath", out var path)
-                ? path
-                : "./specifications";
 
             // Create project listing function if ProjectService is available
             Func<List<ProjectInfo>>? getProjects = _projectService != null
@@ -669,7 +666,7 @@ namespace DraCode.KoboldLair.Server.Services
                 ? (projectName) => _projectService.CreateProjectFolder(projectName)
                 : null;
 
-            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects, approveProject, registerExistingProject, getProjectFolder, _projectsPath);
+            return new DragonAgent(llmProvider, options, onSpecificationUpdated, getProjects, approveProject, registerExistingProject, getProjectFolder, _projectsPath);
         }
 
         /// <summary>
