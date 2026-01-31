@@ -13,8 +13,11 @@ This guide covers setup for all supported LLM providers in DraCode.
 | Gemini | `gemini` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | `gemini-2.0-flash-exp` |
 | Azure OpenAI | `azureopenai` | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` | Deployment name |
 | Ollama | `ollama` | None (local) | `llama3.2` |
-| llama.cpp | `llamacpp` | None (local) | Custom |
+| llama.cpp | `llamacpp` | `LLAMACPP_BASE_URL` (local) | Custom |
 | GitHub Copilot | `githubcopilot` | `GITHUB_COPILOT_TOKEN` | `gpt-4o` |
+| Z.AI | `zai` | `ZHIPU_API_KEY` | `glm-4.5-flash` |
+| vLLM | `vllm` | `VLLM_BASE_URL` (local) | Custom |
+| SGLang | `sglang` | `SGLANG_BASE_URL` (local) | Custom |
 
 ---
 
@@ -233,6 +236,169 @@ ollama serve         # Start server
 
 ---
 
+## Z.AI (Zhipu AI)
+
+Z.AI (formerly Zhipu AI) offers GLM models with OpenAI-compatible API.
+
+### Setup
+1. Get API key from https://open.bigmodel.cn/ (China) or https://z.ai/ (International)
+2. Set environment variable:
+   ```bash
+   export ZHIPU_API_KEY="your-api-key"
+   ```
+
+### Configuration
+```json
+{
+  "zai": {
+    "type": "zai",
+    "apiKey": "${ZHIPU_API_KEY}",
+    "model": "glm-4.5-flash",
+    "baseUrl": "https://api.z.ai/api/paas/v4"
+  }
+}
+```
+
+### Available Models
+- `glm-4.5-flash` - Fast and cost-effective (recommended)
+- `glm-4.6-flash` - Improved capabilities
+- `glm-4.7` - Latest model with Deep Thinking support
+
+### Endpoints
+- **International**: `https://api.z.ai/api/paas/v4`
+- **China Mainland**: `https://open.bigmodel.cn/api/paas/v4`
+
+### Features
+- Deep Thinking mode for complex reasoning (supported on GLM-4.7)
+- Tool calling support
+- Long context windows
+
+---
+
+## vLLM (Local Inference)
+
+vLLM is a high-throughput inference server for LLMs.
+
+### Setup
+1. Install vLLM:
+   ```bash
+   pip install vllm
+   ```
+
+2. Start the server:
+   ```bash
+   python -m vllm.entrypoints.openai.api_server \
+     --model meta-llama/Llama-2-7b-chat-hf \
+     --port 8000
+   ```
+
+3. Set environment variable (optional):
+   ```bash
+   export VLLM_BASE_URL="http://localhost:8000"
+   ```
+
+### Configuration
+```json
+{
+  "vllm": {
+    "type": "vllm",
+    "model": "meta-llama/Llama-2-7b-chat-hf",
+    "baseUrl": "http://localhost:8000/v1"
+  }
+}
+```
+
+### Benefits
+- High throughput with continuous batching
+- OpenAI-compatible API
+- Support for many open-source models
+- GPU memory optimization
+
+### Resources
+- GitHub: https://github.com/vllm-project/vllm
+- Docs: https://docs.vllm.ai/
+
+---
+
+## SGLang (Local Inference)
+
+SGLang is a structured generation language runtime for LLMs.
+
+### Setup
+1. Install SGLang:
+   ```bash
+   pip install "sglang[all]"
+   ```
+
+2. Start the server:
+   ```bash
+   python -m sglang.launch_server --model-path meta-llama/Llama-2-7b-chat-hf --port 30000
+   ```
+
+3. Set environment variable (optional):
+   ```bash
+   export SGLANG_BASE_URL="http://localhost:30000"
+   ```
+
+### Configuration
+```json
+{
+  "sglang": {
+    "type": "sglang",
+    "model": "meta-llama/Llama-2-7b-chat-hf",
+    "baseUrl": "http://localhost:30000/v1"
+  }
+}
+```
+
+### Benefits
+- Structured generation with RadixAttention
+- OpenAI-compatible API
+- Efficient KV cache management
+- Multi-modal support
+
+### Resources
+- GitHub: https://github.com/sgl-project/sglang
+- Docs: https://sgl-project.github.io/
+
+---
+
+## llama.cpp (Local Inference)
+
+llama.cpp runs GGUF models locally with minimal dependencies.
+
+### Setup
+1. Download llama.cpp from https://github.com/ggerganov/llama.cpp
+2. Build or download prebuilt server
+3. Download a GGUF model
+4. Start the server:
+   ```bash
+   ./llama-server -m model.gguf --port 8080
+   ```
+
+### Configuration
+```json
+{
+  "llamacpp": {
+    "type": "llamacpp",
+    "model": "custom",
+    "baseUrl": "http://localhost:8080/v1"
+  }
+}
+```
+
+### Benefits
+- Lightweight and fast
+- CPU and GPU support
+- Quantized models for lower memory
+- No Python dependencies
+
+### Resources
+- GitHub: https://github.com/ggerganov/llama.cpp
+- Models: https://huggingface.co/models?search=gguf
+
+---
+
 ## Configuration Best Practices
 
 ### Security
@@ -335,6 +501,10 @@ dotnet run
 | Best quality | Claude `claude-3-5-sonnet-latest` or OpenAI `gpt-4o` |
 | Fast iteration | Gemini `gemini-2.0-flash-exp` or Ollama `llama3.2` |
 | Cost-effective | Gemini free tier or Ollama (free) |
-| Privacy-focused | Ollama (local) |
+| Privacy-focused | Ollama, vLLM, SGLang, or llama.cpp (all local) |
 | Enterprise | Azure OpenAI |
 | Large context | Gemini 1.5 Pro (2M tokens) |
+| High throughput | vLLM (local with GPU) |
+| Structured output | SGLang (local) |
+| China region | Z.AI `glm-4.5-flash` |
+| Complex reasoning | Z.AI `glm-4.7` with Deep Thinking |

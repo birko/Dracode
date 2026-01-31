@@ -48,7 +48,7 @@ dotnet run --project DraCode.AppHost
 
 ## 🚀 Features
 
-- **Multi-Provider LLM Support**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot
+- **Multi-Provider LLM Support**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp
 - **17 Specialized Agent Types**: Coding (C#, C++, JavaScript, TypeScript, PHP, Python, etc.), Web (HTML, CSS, React, Angular), Media (SVG, Bitmap, Image), and Diagramming
 - **Multi-Task Execution**: Define and execute multiple tasks sequentially with fresh agent instances
 - **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
@@ -135,6 +135,10 @@ export OPENAI_API_KEY="sk-your-api-key"
 | **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` | Custom deployments | [Setup Guide](docs/setup-guides/AZURE_OPENAI_SETUP.md) |
 | **Ollama** | None (local) | llama3.2, mistral, codellama | [Setup Guide](docs/setup-guides/OLLAMA_SETUP.md) |
 | **GitHub Copilot** | `GITHUB_CLIENT_ID` (OAuth) | gpt-4o, gpt-4-turbo | [Setup Guide](docs/setup-guides/GITHUB_OAUTH_SETUP.md) |
+| **Z.AI** | `ZHIPU_API_KEY` | glm-4.5-flash, glm-4.6-flash, glm-4.7 | [Setup Guide](docs/setup-guides/PROVIDER_SETUP.md) |
+| **vLLM** | `VLLM_BASE_URL` (local) | Any supported model | [Setup Guide](docs/setup-guides/PROVIDER_SETUP.md) |
+| **SGLang** | `SGLANG_BASE_URL` (local) | Any supported model | [Setup Guide](docs/setup-guides/PROVIDER_SETUP.md) |
+| **LlamaCpp** | `LLAMACPP_BASE_URL` (local) | GGUF models | [Setup Guide](docs/setup-guides/PROVIDER_SETUP.md) |
 
 ## 🎯 Usage
 

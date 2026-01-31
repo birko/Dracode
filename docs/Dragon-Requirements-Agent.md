@@ -14,20 +14,37 @@ User (via WebSocket)
 DragonService (/dragon endpoint)
     ↓
 DragonAgent (Interactive conversation)
-    ↓ Uses
-SpecificationWriterTool
+    ↓ Uses tools:
+┌─────────────────────────────────────┐
+│ write_specification    → Creates spec (Prototype status)
+│ add_existing_project   → Imports existing code
+│ approve_specification  → Changes status (Prototype → New)
+│ manage_features        → Add/edit features
+│ list_projects          → Show all projects
+└─────────────────────────────────────┘
     ↓ Creates
-./specifications/{project-name}.md
-    ↓ Triggers
-ProjectService registers project
+./specifications/{project-name}.md (Status: Prototype)
+    ↓ User confirms
+Dragon calls approve_specification
+    ↓ Status changes to "New"
+ProjectService triggers processing
     ↓ Automatic Background Processing
-WyvernProcessingService (every 60s) detects spec
+WyvernProcessingService (every 60s) detects "New" specs
     ↓
 Assigns Wyvern → Analyzes → Creates tasks
     ↓
 DrakeMonitoringService assigns Kobolds
     ↓
 Kobolds generate code
+```
+
+### Project Status Flow
+
+```
+Prototype → New → Analyzing → Active → Completed
+    ↑           ↑
+    │           └── Wyvern picks up
+    └── Dragon creates spec (awaiting user approval)
 ```
 
 ## Components
@@ -95,11 +112,13 @@ WebSocket service for real-time Dragon conversations.
 - `specification_created` - Specification file was created
 - `error` - Error occurred
 
-### 3. SpecificationWriterTool (`Agents/DragonAgent.cs`)
+### 3. Dragon Tools (`Agents/Tools/`)
 
-Custom tool that writes specifications to markdown files.
+Dragon uses several specialized tools for project management:
 
-**Tool Definition:**
+#### SpecificationWriterTool
+Writes specifications to markdown files.
+
 ```json
 {
   "name": "write_specification",
@@ -111,11 +130,57 @@ Custom tool that writes specifications to markdown files.
 }
 ```
 
+#### AddExistingProjectTool (NEW)
+Scans and imports existing projects from disk.
+
+```json
+{
+  "name": "add_existing_project",
+  "description": "Scans a directory, analyzes its structure, and registers it as a project",
+  "parameters": {
+    "path": "/path/to/existing/project",
+    "project_name": "optional-name"
+  }
+}
+```
+
 **Features:**
-- Automatic `.md` extension
-- Filename sanitization
-- Directory creation
-- Error handling
+- Auto-detect 50+ technologies (C#, TypeScript, Python, etc.)
+- Analyze project structure and dependencies
+- Generate initial specification from existing code
+- Support for solution files (.sln, .slnx), package managers, configs
+
+#### ProjectApprovalTool (NEW)
+Approves specifications to trigger Wyvern processing.
+
+```json
+{
+  "name": "approve_specification",
+  "description": "Approves a project specification (Prototype → New status)",
+  "parameters": {
+    "project_name": "my-project",
+    "confirmation": "yes"
+  }
+}
+```
+
+**Two-Stage Specification Workflow:**
+1. Dragon creates **Prototype** specification
+2. User reviews and confirms
+3. Dragon uses `approve_specification` tool
+4. Status changes to **New** → Wyvern processes
+
+This prevents accidental task generation from incomplete specifications.
+
+**All Tools:**
+| Tool | Purpose |
+|------|---------|
+| `write_specification` | Create/update specification files |
+| `add_existing_project` | Import existing projects from disk |
+| `approve_specification` | Approve specs (Prototype → New) |
+| `manage_specification` | Edit specification content |
+| `manage_features` | Add/update/remove project features |
+| `list_projects` | List all registered projects |
 
 ### 4. Frontend (`wwwroot/dragon.html`, `dragon.js`, `dragon.css`)
 

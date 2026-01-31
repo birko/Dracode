@@ -4,7 +4,68 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased] - 2026-01-26
+## [2.2.0] - 2026-01-31
+
+### 🚀 Added - New LLM Providers
+
+**Expanded from 7 to 10+ LLM providers with OpenAI-compatible base:**
+
+#### New Providers
+- **ZAiProvider** (`zai`) - Z.AI (formerly Zhipu AI) GLM models
+  - GLM-4.5-flash, GLM-4.6-flash, GLM-4.7 models
+  - International and China endpoints
+  - Deep Thinking mode support
+  - Environment: `ZHIPU_API_KEY`
+- **VllmProvider** (`vllm`) - vLLM local inference server
+  - High-performance local LLM serving
+  - OpenAI-compatible API
+- **SglangProvider** (`sglang`) - SGLang inference server
+  - Structured generation support
+  - OpenAI-compatible API
+- **OpenAiCompatibleProviderBase** - Base class for OpenAI-compatible APIs
+  - Shared implementation for vLLM, SGLang, LlamaCpp
+  - Easy extension for other OpenAI-compatible servers
+
+### 🐉 Added - Dragon Enhancement Tools
+
+**New tools for Dragon interactive agent:**
+
+- **AddExistingProjectTool** (`add_existing_project`)
+  - Scan existing directories and import as projects
+  - Auto-detect technologies (50+ file extensions mapped)
+  - Analyze project structure and dependencies
+  - Generate initial specifications from existing code
+- **ProjectApprovalTool** (`approve_specification`)
+  - Two-stage specification workflow: Prototype → Approved
+  - User must explicitly approve before Wyvern processes
+  - Prevents accidental task generation from incomplete specs
+
+### 🔧 Changed - Architecture Improvements
+
+- **Model Reorganization**: Models split into logical subdirectories
+  - `Models/Agents/` - DragonMessage, DrakeStatistics, Kobold, etc.
+  - `Models/Configuration/` - ProjectConfig, ProviderConfig, UserSettings
+  - `Models/Projects/` - Project, ProjectInfo, Specification, WorkArea
+  - `Models/Tasks/` - Feature, TaskRecord, TaskStatus, TaskTracker
+  - `Models/WebSocket/` - WebSocketCommand, WebSocketRequest
+- **WyrmFactory**: New factory for creating Wyrm analyzers
+- **Configuration Overhaul**: Simplified appsettings.json, local config example
+
+### 🎨 Changed - UI Improvements
+
+- **Compacted UI**: Streamlined interface with better space utilization
+- **Project Config View**: New dedicated view for project configuration
+- **Dragon View**: Shows only non-empty messages on reload
+
+### 🐛 Fixed
+
+- Provider configuration loading and validation
+- Serialization issues in WebSocket communication
+- Client ID handling in multi-session scenarios
+
+---
+
+## [Unreleased]
 
 ### 🎨 Added - New Specialized Agent Types
 
@@ -419,7 +480,11 @@ Execute multiple tasks sequentially with fresh agent instances for each task.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.2.0 | Jan 2026 | Z.AI/vLLM/SGLang providers, Dragon tools, model reorganization |
 | 2.1 | Jan 2026 | Multi-task execution, batch processing |
+| 2.0.5 | Jan 2026 | WebSocket authentication with IP binding |
+| 2.0.4 | Jan 2026 | Multiple connections to same provider |
+| 2.0.3 | Jan 2026 | Clickable links in activity log |
 | 2.0.2 | Jan 2026 | Bug fixes (case sensitivity, message handler) |
 | 2.0.1 | Jan 2026 | Web client modernization (TypeScript, CSS) |
 | 2.0 | Jan 2026 | WebSocket multi-agent system |

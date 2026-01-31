@@ -5,9 +5,16 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 ## Quick Links
 
 - **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete spec for regenerating the project
-- **[Changelog](CHANGELOG.md)** - Version history and release notes
+- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.2.0 - January 2026)
 - **[KoboldLair Server README](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
 - **[KoboldLair Client README](../DraCode.KoboldLair.Client/README.md)** - Multi-agent web UI
+
+## Latest Updates (v2.2.0)
+
+- **New LLM Providers**: Z.AI (GLM models), vLLM, SGLang
+- **Dragon Tools**: Add existing projects, specification approval workflow
+- **Architecture**: Model reorganization, WyrmFactory, configuration overhaul
+- **UI**: Compacted interface, project configuration view
 
 ---
 

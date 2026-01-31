@@ -8,12 +8,13 @@
 
 **DraCode** is a multi-provider AI coding agent system with:
 - Real-time WebSocket-based multi-agent orchestration
-- Support for 6 LLM providers (OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot)
+- Support for 10 LLM providers (OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp)
 - Modern TypeScript web client with zero frontend dependencies
 - Tool-based autonomous code manipulation
 - Interactive user prompts via ask_user tool
 - .NET Aspire orchestration for service discovery
 - Optional token-based authentication with IP address binding
+- KoboldLair multi-agent autonomous coding system (Dragon, Wyrm, Drake, Kobold)
 
 ---
 
@@ -56,12 +57,17 @@ DraCode.sln
 │   │   └── Providers/
 │   │       ├── ILlmProvider.cs   # Provider interface
 │   │       ├── LlmProviderBase.cs # Base class for OpenAI-style message handling
+│   │       ├── OpenAiCompatibleProviderBase.cs # Base for OpenAI-compatible APIs
 │   │       ├── OpenAiProvider.cs
 │   │       ├── ClaudeProvider.cs
 │   │       ├── GeminiProvider.cs
 │   │       ├── AzureOpenAiProvider.cs
 │   │       ├── OllamaProvider.cs
-│   │       └── GitHubCopilotProvider.cs
+│   │       ├── GitHubCopilotProvider.cs
+│   │       ├── ZAiProvider.cs    # Z.AI (Zhipu) GLM models
+│   │       ├── VllmProvider.cs   # vLLM local inference
+│   │       ├── SglangProvider.cs # SGLang inference
+│   │       └── LlamaCppProvider.cs # llama.cpp server
 │   ├── Tools/
 │   │   ├── Tool.cs               # Abstract base tool
 │   │   ├── ListFilesTool.cs      # Directory listing

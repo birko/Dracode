@@ -11,11 +11,17 @@ Wyvern is a specialized project analyzer that reads Dragon specifications and tr
 ```
 Dragon creates specification (./specifications/*.md)
     ↓
-ProjectService.RegisterProject() (automatic)
+ProjectService.RegisterProject() (Status: Prototype)
+    ↓
+User reviews spec with Dragon
+    ↓
+Dragon calls approve_specification tool
+    ↓
+Status changes to "New"
     ↓
 WyvernProcessingService checks every 60 seconds
     ↓
-Detects new project → Creates Wyvern instance
+Detects project with "New" status → Creates Wyvern instance
     ↓
 WyvernAgent analyzes specification
     ↓
@@ -31,12 +37,24 @@ Identifies dependencies
     ↓
 Orders tasks by dependency level
     ↓
-Creates task files (./workspace/{project}/*-tasks.md)
+Creates task files (./tasks/{project}/*-tasks.md)
     ↓
 DrakeMonitoringService detects tasks
     ↓
 Drakes monitor & assign to Kobolds
 ```
+
+### Project Status Requirements
+
+Wyvern only processes projects with **"New"** status:
+
+| Status | Description | Wyvern Action |
+|--------|-------------|---------------|
+| `Prototype` | Dragon created spec, awaiting approval | Skip |
+| `New` | User approved spec | **Process** |
+| `Analyzing` | Wyvern currently processing | Skip |
+| `Active` | Tasks created, Kobolds working | Skip |
+| `Completed` | All tasks finished | Skip |
 
 ## Components
 

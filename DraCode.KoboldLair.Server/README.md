@@ -9,7 +9,7 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
   - `/dragon` - Dragon requirements gathering endpoint
 - **Token-based Authentication** with IP binding support
 - **REST API** for project management and provider configuration
-- **Multi-provider AI support** (OpenAI, Claude, Gemini, Ollama, Azure OpenAI, GitHub Copilot)
+- **Multi-provider AI support** (OpenAI, Claude, Gemini, Ollama, Azure OpenAI, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp)
 - **Per-project resource limiting** to control parallel kobold execution
 
 ## Configuration
@@ -59,12 +59,15 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
 
 **Provider Types:**
 - `openai` - OpenAI GPT models
-- `claude` - Anthropic Claude models  
+- `claude` - Anthropic Claude models
 - `gemini` - Google Gemini models
 - `ollama` - Local Ollama server
 - `llamacpp` - Local llama.cpp server
 - `azureopenai` - Azure OpenAI Service
 - `githubcopilot` - GitHub Copilot API
+- `zai` - Z.AI (Zhipu) GLM models
+- `vllm` - vLLM local inference server
+- `sglang` - SGLang inference server
 
 **Checking Configuration:**
 
@@ -305,35 +308,77 @@ DraCode.KoboldLair.Server/
 │   ├── AgentFactory.cs             # Creates Dragon, Wyrm, Drake agents
 │   ├── DragonAgent.cs              # Interactive requirements gathering
 │   ├── WyrmAgent.cs                # Project analyzer
-│   └── WyvernAgent.cs              # Task delegator
+│   ├── WyvernAgent.cs              # Task delegator
+│   └── Tools/                      # Dragon-specific tools
+│       ├── AddExistingProjectTool.cs    # Import existing projects from disk
+│       ├── ProjectApprovalTool.cs       # Approve specs (Prototype → New)
+│       ├── SpecificationWriterTool.cs   # Write specification files
+│       ├── SpecificationManagementTool.cs
+│       ├── FeatureManagementTool.cs
+│       └── ListProjectsTool.cs
 ├── Factories/                      # Factory Pattern - Resource Creation
 │   ├── KoboldFactory.cs            # Creates Kobolds with parallel limits
 │   ├── DrakeFactory.cs             # Creates Drake supervisors
-│   └── WyvernFactory.cs            # Creates Wyvern orchestrators
+│   ├── WyvernFactory.cs            # Creates Wyvern orchestrators
+│   └── WyrmFactory.cs              # Creates Wyrm analyzers
 ├── Orchestrators/                  # High-Level Orchestration
 │   ├── Drake.cs                    # Task supervisor
 │   ├── WyrmRunner.cs               # Task running orchestrator
 │   └── Wyvern.cs                   # Task delegation orchestrator
-├── Models/                         # Data Models
-│   ├── Project.cs                  # Project entity
-│   ├── ProjectConfig.cs            # Project configuration
-│   ├── Kobold.cs                   # Worker agent wrapper
-│   ├── TaskRecord.cs               # Individual task record
-│   ├── TaskTracker.cs              # Task tracking
-│   └── ...                         # Other domain models
+├── Models/                         # Data Models (organized by domain)
+│   ├── Agents/                     # Agent-related models
+│   │   ├── DragonMessage.cs
+│   │   ├── DragonStatistics.cs
+│   │   ├── DrakeStatistics.cs
+│   │   ├── Kobold.cs
+│   │   ├── KoboldStatistics.cs
+│   │   └── WyvernAnalysis.cs
+│   ├── Configuration/              # Configuration models
+│   │   ├── ProjectConfig.cs
+│   │   ├── ProviderConfig.cs
+│   │   ├── KoboldLairConfiguration.cs
+│   │   └── UserSettings.cs
+│   ├── Projects/                   # Project models
+│   │   ├── Project.cs
+│   │   ├── ProjectInfo.cs
+│   │   ├── ProjectStatistics.cs
+│   │   ├── Specification.cs
+│   │   └── WorkArea.cs
+│   ├── Tasks/                      # Task models
+│   │   ├── TaskRecord.cs
+│   │   ├── TaskStatus.cs
+│   │   ├── TaskTracker.cs
+│   │   └── Feature.cs
+│   └── WebSocket/                  # WebSocket models
+│       ├── WebSocketCommand.cs
+│       └── WebSocketRequest.cs
 ├── Services/                       # Business Logic Services
 │   ├── DragonService.cs            # Dragon WebSocket service
 │   ├── WyrmService.cs              # Wyrm analysis service
 │   ├── WyvernProcessingService.cs  # Wyvern background processing (60s)
 │   ├── DrakeMonitoringService.cs   # Drake background monitoring (60s)
 │   ├── ProjectService.cs           # Project management
-│   └── ...                         # Other services
+│   ├── ProjectConfigurationService.cs
+│   ├── ProviderConfigurationService.cs
+│   └── WebSocketCommandHandler.cs
 ├── Program.cs                      # ASP.NET Core startup & DI
-├── appsettings.json                # Base configuration
-├── appsettings.Development.json    # Development overrides
-├── project-configs.json            # Per-project resource limits
-└── provider-config.json            # Provider configuration
+├── appsettings.json                # Base configuration (simplified)
+├── appsettings.local.example.json  # Example local configuration
+└── project-configs.json            # Per-project resource limits
 ```
+
+## Dragon Tools
+
+Dragon uses specialized tools for project management:
+
+| Tool | Description |
+|------|-------------|
+| `add_existing_project` | Scan and import existing projects from disk with auto-detected technologies |
+| `approve_specification` | Approve a specification (Prototype → New status) to trigger Wyvern processing |
+| `write_specification` | Create or update project specification files |
+| `manage_specification` | Edit and manage specification content |
+| `manage_features` | Add, update, or remove project features |
+| `list_projects` | List all registered projects with status |
 
 ## Related
 

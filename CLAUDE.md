@@ -66,16 +66,19 @@ Kobold (Automatic)       ← Code generation workers (per-project parallel limit
 
 **Other (2)**: `diagramming`, `wyrm`
 
-### LLM Providers (9)
+### LLM Providers (10)
 
-Located in `DraCode.Agent/LLMs/`:
+Located in `DraCode.Agent/LLMs/Providers/`:
 - `OpenAiProvider` - OpenAI GPT models
 - `ClaudeProvider` - Anthropic Claude models
 - `GeminiProvider` - Google Gemini models
 - `AzureOpenAiProvider` - Azure OpenAI Service
 - `OllamaProvider` - Local Ollama server
-- `LlamaCppProvider` - Local llama.cpp server
+- `LlamaCppProvider` - Local llama.cpp server (extends OpenAiCompatibleProviderBase)
 - `GithubCopilotProvider` - GitHub Copilot API
+- `ZAiProvider` - Z.AI (Zhipu) GLM models (glm-4.5, glm-4.6, glm-4.7)
+- `VllmProvider` - vLLM local inference (extends OpenAiCompatibleProviderBase)
+- `SglangProvider` - SGLang inference (extends OpenAiCompatibleProviderBase)
 
 ### Built-in Tools (7)
 
@@ -104,6 +107,12 @@ ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_API_KEY=...
 AZURE_OPENAI_API_KEY=...
 GITHUB_COPILOT_TOKEN=...
+ZHIPU_API_KEY=...                    # Z.AI provider
+
+# Local inference servers (optional)
+VLLM_BASE_URL=http://localhost:8000
+SGLANG_BASE_URL=http://localhost:30000
+LLAMACPP_BASE_URL=http://localhost:8080
 
 # Environment selection
 ASPNETCORE_ENVIRONMENT=Development|Production
@@ -135,6 +144,7 @@ provider-config.json             # Provider configuration
 - `KoboldFactory` (in `Factories/`) - Creates Kobolds with parallel limit enforcement
 - `DrakeFactory` (in `Factories/`) - Creates and manages Drake supervisors
 - `WyvernFactory` (in `Factories/`) - Creates Wyvern orchestrators
+- `WyrmFactory` (in `Factories/`) - Creates Wyrm analyzers for specification processing
 
 ### Configuration Layering
 1. `appsettings.json` - Base config with all providers disabled
