@@ -160,7 +160,7 @@ var wyvern = WyvernFactory.CreateWyvern(
 // Query
 var existingWyvern = WyvernFactory.GetWyvern("my-project");
 var allWyverns = WyvernFactory.GetAllWyverns();
-Console.WriteLine($"Total Wyrms: {WyvernFactory.TotalWyverns}");
+Console.WriteLine($"Total Wyverns: {WyvernFactory.TotalWyverns}");
 ```
 
 ## Workflow
@@ -504,7 +504,7 @@ public class WyvernFactory
     )
 
     // Methods
-    public Wyvern CreateWyrm(
+    public Wyvern CreateWyvern(
         string projectName,
         string specificationPath,
         string outputPath = "./tasks",

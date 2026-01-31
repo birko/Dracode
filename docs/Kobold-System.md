@@ -242,6 +242,66 @@ if (kobold != null)
 }
 ```
 
+## Per-Agent-Type Provider Configuration
+
+Configure different LLM providers for different Kobold agent types (e.g., use Claude for `csharp` Kobolds, OpenAI for `python` Kobolds).
+
+### Configuration Format (user-settings.json)
+
+```json
+{
+  "koboldProvider": "openai",
+  "koboldModel": null,
+  "koboldAgentTypeSettings": [
+    { "agentType": "csharp", "provider": "claude", "model": "claude-sonnet-4-20250514" },
+    { "agentType": "python", "provider": "openai", "model": "gpt-4o" },
+    { "agentType": "react", "provider": "gemini", "model": null }
+  ]
+}
+```
+
+### Resolution Precedence
+
+When Drake summons a Kobold, the provider is resolved in this order:
+
+1. **Explicit provider parameter** - If `SummonKobold(task, agentType, provider)` is called with a provider
+2. **Agent-type-specific setting** - `koboldAgentTypeSettings[agentType]` if matching entry exists
+3. **Global Kobold fallback** - `koboldProvider` / `koboldModel`
+4. **System default** - `defaultProvider` from appsettings.json
+
+### API Methods
+
+**ProviderConfigurationService**:
+
+```csharp
+// Get provider for a specific Kobold agent type
+string provider = providerConfigService.GetProviderForKoboldAgentType("csharp");
+
+// Get full provider settings (provider, config, options)
+var (provider, config, options) = providerConfigService
+    .GetProviderSettingsForKoboldAgentType("csharp", "./workspace");
+
+// Set provider for a specific agent type (persisted to user-settings.json)
+providerConfigService.SetProviderForKoboldAgentType("csharp", "claude", "claude-sonnet-4-20250514");
+
+// Remove agent-type-specific setting (falls back to global)
+providerConfigService.SetProviderForKoboldAgentType("csharp", null, null);
+```
+
+### Example: Mixed Provider Strategy
+
+```csharp
+// Configure user-settings.json with mixed providers:
+// - Claude for C# (strong at .NET patterns)
+// - OpenAI for Python (extensive training data)
+// - Gemini for frontend (good CSS/React)
+
+// Drake automatically resolves the correct provider when summoning:
+var kobold = drake.SummonKobold(csharpTask, "csharp");  // Uses Claude
+var kobold2 = drake.SummonKobold(pythonTask, "python"); // Uses OpenAI
+var kobold3 = drake.SummonKobold(reactTask, "react");   // Uses Gemini
+```
+
 ### Pattern 4: Monitoring and Cleanup
 
 ```csharp

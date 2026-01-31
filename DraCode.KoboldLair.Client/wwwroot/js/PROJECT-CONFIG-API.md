@@ -316,10 +316,30 @@ try {
 | `drakeProvider` | string? | LLM provider for Drake supervisors |
 | `drakeModel` | string? | Model override for Drake |
 | `drakeEnabled` | bool | Whether Drake is enabled (default: false) |
-| `koboldProvider` | string? | LLM provider for Kobold workers |
-| `koboldModel` | string? | Model override for Kobolds |
+| `koboldProvider` | string? | LLM provider for Kobold workers (global default) |
+| `koboldModel` | string? | Model override for Kobolds (global default) |
 | `koboldEnabled` | bool | Whether Kobolds are enabled (default: false) |
+| `koboldAgentTypeSettings` | array | Per-agent-type provider settings (see below) |
 | `lastUpdated` | DateTime? | Last update timestamp (auto-set) |
+
+### Kobold Agent Type Settings
+
+Configure different LLM providers for different Kobold agent types:
+
+```json
+{
+  "koboldAgentTypeSettings": [
+    { "agentType": "csharp", "provider": "claude", "model": "claude-sonnet-4-20250514" },
+    { "agentType": "python", "provider": "openai", "model": "gpt-4o" }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agentType` | string | Agent type (e.g., "csharp", "python", "react") |
+| `provider` | string? | Provider name (null = use global koboldProvider) |
+| `model` | string? | Model override (null = use provider default) |
 
 ---
 

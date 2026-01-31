@@ -152,7 +152,31 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
         workspace/                    # Generated code output
 project-configs.json                  # Per-project kobold limits
 provider-config.json                  # Provider configuration
+user-settings.json                    # User runtime settings (agent providers)
 ```
+
+### User Settings (user-settings.json)
+
+Runtime settings that persist across restarts. Supports per-agent-type provider configuration for Kobolds:
+
+```json
+{
+  "dragonProvider": "claude",
+  "wyvernProvider": "openai",
+  "koboldProvider": "openai",
+  "koboldModel": null,
+  "koboldAgentTypeSettings": [
+    { "agentType": "csharp", "provider": "claude", "model": "claude-sonnet-4-20250514" },
+    { "agentType": "python", "provider": "openai", "model": "gpt-4o" },
+    { "agentType": "react", "provider": "gemini", "model": null }
+  ]
+}
+```
+
+**Resolution precedence for Kobold providers:**
+1. `koboldAgentTypeSettings[agentType]` (if matching entry exists)
+2. `koboldProvider` / `koboldModel` (global Kobold fallback)
+3. `defaultProvider` (system default)
 
 ## Important Patterns
 
@@ -182,7 +206,7 @@ provider-config.json                  # Provider configuration
 - `docs/setup-guides/` - Provider and feature setup guides
 - `docs/troubleshooting/` - Troubleshooting guides
 - `docs/Dragon-Requirements-Agent.md` - Dragon agent details
-- `docs/Wyvern-Project-Analyzer.md` - Wyrm/Wyvern analyzer details
+- `docs/Wyvern-Project-Analyzer.md` - Wyvern project analyzer details
 - `docs/Drake-Monitoring-System.md` - Drake supervisor details
 - `docs/Kobold-System.md` - Kobold worker details
 

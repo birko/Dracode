@@ -50,10 +50,25 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
     ],
     "AgentProviders": {
       "DragonProvider": "providerkey",
-      "WyvernProvider": "providerkey",  // Used for Wyrm (task delegator)
+      "WyvernProvider": "providerkey",
       "KoboldProvider": "providerkey"
     }
   }
+}
+```
+
+### Per-Agent-Type Kobold Providers (user-settings.json)
+
+Configure different LLM providers for different Kobold agent types:
+
+```json
+{
+  "koboldProvider": "openai",
+  "koboldAgentTypeSettings": [
+    { "agentType": "csharp", "provider": "claude", "model": "claude-sonnet-4-20250514" },
+    { "agentType": "python", "provider": "openai", "model": "gpt-4o" },
+    { "agentType": "react", "provider": "gemini", "model": null }
+  ]
 }
 ```
 

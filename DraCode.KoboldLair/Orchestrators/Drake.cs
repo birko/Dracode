@@ -327,7 +327,7 @@ namespace DraCode.KoboldLair.Orchestrators
 
             SaveTasksToFile();
 
-            // Update feature status if Wyrm is available
+            // Update feature status if Wyvern is available
             UpdateFeatureStatus();
         }
 

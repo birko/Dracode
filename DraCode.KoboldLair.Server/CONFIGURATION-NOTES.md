@@ -62,7 +62,7 @@ Environment-specific files only override what's needed:
     ],
     "AgentProviders": {
       "DragonProvider": "claudehaiku",
-      "WyvernProvider": "claudehaiku",  // Note: WyvernProvider property is used for Wyrm (task delegator)
+      "WyvernProvider": "claudehaiku",  // Provider for Wyvern (project analyzer)
       "KoboldProvider": "claudehaiku"
     }
   }
