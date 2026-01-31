@@ -214,10 +214,16 @@ namespace DraCode.KoboldLair.Server.Services
 
                     dragon = CreateDragonAgent(provider, options, config, onSpecUpdated);
 
-                    // Set up message callback for debugging
-                    dragon.SetMessageCallback((type, content) =>
+                    // Set up message callback for debugging and thinking indicator
+                    dragon.SetMessageCallback(async (type, content) =>
                     {
                         _logger.LogInformation("[Dragon Agent] [{Type}] {Content}", type, content);
+
+                        // Send thinking updates to client for tool-related events
+                        if (type == "tool_call" || type == "tool_result" || type == "info")
+                        {
+                            await SendThinkingUpdateAsync(webSocket, currentSessionId, type, content);
+                        }
                     });
 
                     session.Agent = dragon;
@@ -491,6 +497,69 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
+        /// Sends a thinking/processing update to the client
+        /// </summary>
+        private async Task SendThinkingUpdateAsync(WebSocket webSocket, string sessionId, string eventType, string content)
+        {
+            try
+            {
+                // Parse tool information from content
+                string? toolName = null;
+                string? description = null;
+
+                if (eventType == "tool_call")
+                {
+                    // Format: "Tool: tool_name\nInput: {...}"
+                    var lines = content.Split('\n', 2);
+                    if (lines.Length > 0 && lines[0].StartsWith("Tool: "))
+                    {
+                        toolName = lines[0].Substring(6).Trim();
+                        description = $"Calling {toolName}...";
+                    }
+                }
+                else if (eventType == "tool_result")
+                {
+                    // Format: "Result from tool_name:\n..."
+                    if (content.StartsWith("Result from "))
+                    {
+                        var colonIndex = content.IndexOf(':');
+                        if (colonIndex > 12)
+                        {
+                            toolName = content.Substring(12, colonIndex - 12);
+                            description = $"Processing {toolName} result...";
+                        }
+                    }
+                }
+                else if (eventType == "info")
+                {
+                    // Format: "ITERATION X" or other info
+                    if (content.StartsWith("ITERATION"))
+                    {
+                        description = "Thinking...";
+                    }
+                    else
+                    {
+                        description = content;
+                    }
+                }
+
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "dragon_thinking",
+                    sessionId,
+                    eventType,
+                    toolName,
+                    description = description ?? "Processing...",
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to send thinking update (client may have disconnected)");
+            }
+        }
+
+        /// <summary>
         /// Sends a message through WebSocket
         /// </summary>
         private async Task SendMessageAsync(WebSocket webSocket, object data)
@@ -685,10 +754,16 @@ namespace DraCode.KoboldLair.Server.Services
                 // Create new agent with clean context
                 var dragon = CreateDragonAgent(providerName, options, config, onSpecUpdated);
 
-                // Set up message callback for debugging
-                dragon.SetMessageCallback((type, content) =>
+                // Set up message callback for debugging and thinking indicator
+                dragon.SetMessageCallback(async (type, content) =>
                 {
                     _logger.LogInformation("[Dragon Agent] [{Type}] {Content}", type, content);
+
+                    // Send thinking updates to client for tool-related events
+                    if (type == "tool_call" || type == "tool_result" || type == "info")
+                    {
+                        await SendThinkingUpdateAsync(webSocket, sessionId, type, content);
+                    }
                 });
 
                 session.Agent = dragon;

@@ -1305,3 +1305,77 @@ body {
     padding: var(--spacing-md);
     text-align: center;
 }
+
+/* Thinking Indicator */
+.thinking-indicator {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(74, 158, 255, 0.05) 100%);
+    border: 1px solid rgba(74, 158, 255, 0.2);
+    margin-right: var(--spacing-lg);
+    animation: thinking-pulse 2s ease-in-out infinite;
+}
+
+@keyframes thinking-pulse {
+    0%, 100% {
+        opacity: 1;
+        border-color: rgba(74, 158, 255, 0.2);
+    }
+    50% {
+        opacity: 0.85;
+        border-color: rgba(74, 158, 255, 0.4);
+    }
+}
+
+.thinking-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.thinking-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(74, 158, 255, 0.3);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.thinking-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.thinking-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent-primary);
+}
+
+.thinking-details {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.thinking-tool {
+    display: inline-block;
+    background: rgba(74, 158, 255, 0.15);
+    color: var(--accent-primary);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 10px;
+    margin-right: 4px;
+}

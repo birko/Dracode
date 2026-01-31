@@ -106,9 +106,12 @@ class DragonSession {
             this.view.showNotification(`Failed to restore conversation: ${data.error}`, 'error');
             return;
         } else if (data.type === 'dragon_message') {
+            // Hide thinking indicator when response arrives
+            this.view.hideThinkingIndicator();
             this.addMessage('assistant', data.message, data.messageId);
         } else if (data.type === 'dragon_reloaded') {
-            // Clear session on reload
+            // Hide thinking indicator and clear session on reload
+            this.view.hideThinkingIndicator();
             this.clearMessages();
             this.sessionId = data.sessionId;
             this.ws.setSessionId(this.sessionId);
@@ -116,8 +119,14 @@ class DragonSession {
             this.addMessage('system', data.message, data.messageId);
             this.view.saveAllSessions();
         } else if (data.type === 'dragon_typing') {
-            // Could show typing indicator here
+            // Show initial thinking indicator
+            this.view.showThinkingIndicator();
+        } else if (data.type === 'dragon_thinking') {
+            // Update thinking indicator with tool/processing info
+            this.view.updateThinkingIndicator(data.description, data.toolName);
         } else if (data.type === 'error') {
+            // Hide thinking indicator on error
+            this.view.hideThinkingIndicator();
             this.addErrorMessage(data);
         } else if (data.type !== 'user_message') {
             this.addMessage('assistant', data.content || JSON.stringify(data), data.messageId);
@@ -662,6 +671,76 @@ export class DragonView {
             notification.classList.remove('show');
             setTimeout(() => notification.remove(), 300);
         }, 4000);
+    }
+
+    /**
+     * Show the thinking indicator
+     */
+    showThinkingIndicator() {
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (!messagesContainer) return;
+
+        // Remove existing indicator if present
+        this.hideThinkingIndicator();
+
+        // Clear empty state if present
+        const emptyState = messagesContainer.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.remove();
+        }
+
+        const indicator = document.createElement('div');
+        indicator.className = 'thinking-indicator';
+        indicator.id = 'dragonThinkingIndicator';
+        indicator.innerHTML = `
+            <div class="thinking-icon">
+                <span class="thinking-spinner"></span>
+            </div>
+            <div class="thinking-content">
+                <div class="thinking-label">Dragon is thinking...</div>
+                <div class="thinking-details" id="thinkingDetails"></div>
+            </div>
+        `;
+        messagesContainer.appendChild(indicator);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    /**
+     * Update the thinking indicator with current processing info
+     * @param {string} description - What the agent is doing
+     * @param {string|null} toolName - Name of the tool being used (optional)
+     */
+    updateThinkingIndicator(description, toolName = null) {
+        const indicator = document.getElementById('dragonThinkingIndicator');
+        if (!indicator) {
+            // If indicator doesn't exist yet, create it
+            this.showThinkingIndicator();
+        }
+
+        const detailsEl = document.getElementById('thinkingDetails');
+        if (detailsEl) {
+            if (toolName) {
+                detailsEl.innerHTML = `<span class="thinking-tool">${this.escapeHtml(toolName)}</span> ${this.escapeHtml(description)}`;
+            } else {
+                detailsEl.textContent = description;
+            }
+        }
+
+        // Ensure scroll to bottom
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+
+    /**
+     * Hide the thinking indicator
+     */
+    hideThinkingIndicator() {
+        const indicator = document.getElementById('dragonThinkingIndicator');
+        if (indicator) {
+            indicator.remove();
+        }
     }
 
     /**
