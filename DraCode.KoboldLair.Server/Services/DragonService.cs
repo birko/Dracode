@@ -447,7 +447,12 @@ namespace DraCode.KoboldLair.Server.Services
                 ? (projectName) => _projectService.ApproveProject(projectName)
                 : null;
 
-            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects, approveProject);
+            // Create existing project registration function if ProjectService is available
+            Func<string, string, string?>? registerExistingProject = _projectService != null
+                ? (name, sourcePath) => _projectService.RegisterExistingProject(name, sourcePath)
+                : null;
+
+            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects, approveProject, registerExistingProject);
         }
 
         /// <summary>

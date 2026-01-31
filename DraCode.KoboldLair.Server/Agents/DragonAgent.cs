@@ -20,6 +20,7 @@ namespace DraCode.KoboldLair.Server.Agents
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<List<ProjectInfo>>? _getProjects;
         private readonly Func<string, bool>? _approveProject;
+        private readonly Func<string, string, string?>? _registerExistingProject;
 
         protected override string SystemPrompt => GetDragonSystemPrompt();
 
@@ -32,19 +33,22 @@ namespace DraCode.KoboldLair.Server.Agents
         /// <param name="onSpecificationUpdated">Callback invoked when a specification is updated (receives full path)</param>
         /// <param name="getProjects">Function to get list of all projects for listing</param>
         /// <param name="approveProject">Function to approve a project (change from Prototype to New)</param>
+        /// <param name="registerExistingProject">Function to register an existing project from disk (name, sourcePath) => projectId</param>
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
             string specificationsPath = "./specifications",
             Action<string>? onSpecificationUpdated = null,
             Func<List<ProjectInfo>>? getProjects = null,
-            Func<string, bool>? approveProject = null)
+            Func<string, bool>? approveProject = null,
+            Func<string, string, string?>? registerExistingProject = null)
             : base(provider, options)
         {
             _specificationsPath = specificationsPath ?? "./specifications";
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjects = getProjects;
             _approveProject = approveProject;
+            _registerExistingProject = registerExistingProject;
 
             // Ensure specifications directory exists
             try
@@ -71,6 +75,7 @@ namespace DraCode.KoboldLair.Server.Agents
             tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications, _onSpecificationUpdated));
             tools.Add(new FeatureManagementTool(_specifications, _specificationsPath));
             tools.Add(new ProjectApprovalTool(_approveProject));
+            tools.Add(new AddExistingProjectTool(_registerExistingProject));
             return tools;
         }
 
@@ -90,7 +95,8 @@ When a user first connects, you MUST:
 2. Greet the user warmly and present their options:
    - If projects exist: Show the list and ask if they want to continue on an existing project or start a new one
    - If no projects: Welcome them and ask what new project they'd like to create
-3. Keep the welcome message concise but informative
+3. **Always mention the option to add an existing project from disk**
+4. Keep the welcome message concise but informative
 
 Example welcome (if projects exist):
 ""Hello! I'm Dragon 🐉, your requirements analyst.
@@ -101,7 +107,17 @@ I found these existing projects:
 
 Would you like to:
 1. Continue working on an existing project?
-2. Start a new project?
+2. Start a new project from scratch?
+3. **Add an existing project from your machine?** (I can scan and analyze an existing codebase)
+
+Just let me know!""
+
+Example welcome (if no projects):
+""Hello! I'm Dragon 🐉, your requirements analyst.
+
+Would you like to:
+1. Start a new project from scratch?
+2. **Add an existing project from your machine?** (I can scan and analyze an existing codebase)
 
 Just let me know!""
 
@@ -111,25 +127,33 @@ Just let me know!""
    - Use 'list_projects' to see all registered projects with their status
    - Use manage_specification with action:'load' to get details of a specific project
 
-2. **Understand Requirements**
+2. **Add Existing Project from Disk (when user chooses this option)**
+   - Use 'add_existing_project' with action:'scan' to analyze a directory path provided by the user
+   - Review the scan results: technologies, file structure, project type indicators
+   - Use 'add_existing_project' with action:'register' to add it as a project
+   - Then create a specification that documents the existing codebase
+   - The specification should describe what already exists AND planned improvements/features
+
+3. **Understand Requirements**
    - Ask what project or feature they want to work on
    - Understand the high-level goal and context
    - Ask targeted questions about purpose, scope, requirements, technical details, success criteria
 
-3. **Manage Features**
+4. **Manage Features**
    - Create features for new functionality using manage_feature with action:'create'
    - Update features ONLY if they have status ""New"" using manage_feature with action:'update'
    - If a feature is already assigned to Wyvern or in progress, create a NEW feature instead
    - List features to see current status using manage_feature with action:'list'
 
-4. **Create or Update Specification**
+5. **Create or Update Specification**
    - Use manage_specification with action:'create' for new projects
    - Use manage_specification with action:'update' for existing projects
    - Include comprehensive details: overview, requirements, architecture, success criteria
    - The specification provides context for all features
    - **NEW PROJECTS START IN 'Prototype' STATUS** - they need user approval before processing
+   - **For existing projects imported from disk**: Include a section describing the current codebase
 
-5. **CRITICAL: Get User Approval Before Processing**
+6. **CRITICAL: Get User Approval Before Processing**
    - After creating or updating a specification, you MUST ask the user to review and confirm
    - Show them a summary of what will be built
    - Ask explicitly: ""Is this specification correct and complete? Should I approve it for processing?""
@@ -154,6 +178,7 @@ Just let me know!""
 
 ## Tools Available:
 - **list_projects**: List all registered projects with their status and feature counts
+- **add_existing_project**: Scan and register existing projects from disk (actions: scan, register)
 - **manage_specification**: Manage specifications (actions: list, load, create, update)
 - **manage_feature**: Manage features (actions: list, create, update)
 - **approve_specification**: Approve a specification after user confirms (changes Prototype → New)

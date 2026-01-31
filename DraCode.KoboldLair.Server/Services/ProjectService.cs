@@ -353,6 +353,72 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
+        /// Registers an existing project from a source directory on disk.
+        /// Creates a project entry pointing to the existing codebase, ready for specification creation.
+        /// </summary>
+        /// <param name="projectName">Name for the project</param>
+        /// <param name="sourcePath">Path to the existing project source code</param>
+        /// <returns>Project ID if successful, null otherwise</returns>
+        public string? RegisterExistingProject(string projectName, string sourcePath)
+        {
+            // Normalize the path
+            sourcePath = Path.GetFullPath(sourcePath);
+
+            if (!Directory.Exists(sourcePath))
+            {
+                _logger.LogWarning("Cannot register project - source path does not exist: {Path}", sourcePath);
+                return null;
+            }
+
+            // Check if project already exists with this source path
+            var existing = _repository.GetAll()
+                .FirstOrDefault(p => p.Metadata.TryGetValue("SourcePath", out var sp) &&
+                    string.Equals(sp, sourcePath, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+            {
+                _logger.LogWarning("Project already exists for source path: {Path} (ID: {Id})", sourcePath, existing.Id);
+                return existing.Id;
+            }
+
+            // Also check by name
+            var byName = _repository.GetByName(projectName);
+            if (byName != null)
+            {
+                _logger.LogWarning("Project already exists with name: {Name} (ID: {Id})", projectName, byName.Id);
+                return byName.Id;
+            }
+
+            // Create output directory for generated code (separate from source)
+            var outputPath = Path.Combine(_defaultOutputPathBase, SanitizeProjectName(projectName));
+            if (!Directory.Exists(outputPath))
+            {
+                Directory.CreateDirectory(outputPath);
+                _logger.LogInformation("Created output directory: {Path}", outputPath);
+            }
+
+            var project = new Project
+            {
+                Name = projectName,
+                SpecificationPath = "", // Will be set when Dragon creates the specification
+                OutputPath = outputPath,
+                Status = ProjectStatus.Prototype,
+                Metadata = new Dictionary<string, string>
+                {
+                    ["SourcePath"] = sourcePath,
+                    ["IsExistingProject"] = "true",
+                    ["ImportedAt"] = DateTime.UtcNow.ToString("O")
+                }
+            };
+
+            _repository.Add(project);
+            _logger.LogInformation("✨ Registered existing project: {ProjectName} (ID: {ProjectId}) from {SourcePath}",
+                projectName, project.Id, sourcePath);
+
+            return project.Id;
+        }
+
+        /// <summary>
         /// Approves a project specification, changing status from Prototype to New.
         /// This allows Wyvern to start processing the project.
         /// </summary>
