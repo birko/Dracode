@@ -3,7 +3,13 @@
     "allow": [
       "Bash(grep:*)",
       "Bash(dir:*)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(git mv:*)",
+      "Bash(for:*)",
+      "Bash(do sed -i 's/namespace DraCode\\\\.KoboldLair\\\\.Server\\\\.Models$/namespace DraCode.KoboldLair.Server.Models.Projects/' \"$f\")",
+      "Bash(done)",
+      "Bash(do sed -i 's/namespace DraCode\\\\.KoboldLair\\\\.Server\\\\.Models$/namespace DraCode.KoboldLair.Server.Models.Tasks/' \"$f\")",
+      "Bash(do sed -i 's/namespace DraCode\\\\.KoboldLair\\\\.Server\\\\.Models$/namespace DraCode.KoboldLair.Server.Models.Configuration/' \"$f\")"
     ]
   }
 }

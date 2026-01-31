@@ -1,79 +1,290 @@
 import { WebSocketClient } from './websocket.js';
 
-const DRAGON_SESSION_KEY = 'dragon_session_id';
-const DRAGON_MESSAGES_KEY = 'dragon_messages';
+const DRAGON_SESSIONS_KEY = 'dragon_sessions';
 
-export class DragonView {
-    constructor(api) {
-        this.api = api;
+/**
+ * Represents a single Dragon session with its own WebSocket connection
+ */
+class DragonSession {
+    constructor(id, view) {
+        this.id = id;
+        this.view = view;
         this.ws = null;
         this.messages = [];
         this.sessionId = null;
-        this.providers = [];
-        this.selectedProvider = null;
         this.receivedMessageIds = new Set();
-
-        // Load session from localStorage
-        this.loadSession();
+        this.isConnected = false;
+        this.name = `Session ${id}`;
     }
 
-    /**
-     * Load session data from localStorage
-     */
-    loadSession() {
-        try {
-            const storedSessionId = localStorage.getItem(DRAGON_SESSION_KEY);
-            if (storedSessionId) {
-                this.sessionId = storedSessionId;
-                console.log('Loaded session ID from storage:', this.sessionId);
-            }
+    connect() {
+        this.ws = new WebSocketClient('/dragon');
+        this.ws.connect(this.sessionId);
 
-            const storedMessages = localStorage.getItem(DRAGON_MESSAGES_KEY);
-            if (storedMessages) {
-                this.messages = JSON.parse(storedMessages);
-                // Rebuild receivedMessageIds from stored messages
-                this.messages.forEach(msg => {
-                    if (msg.messageId) {
-                        this.receivedMessageIds.add(msg.messageId);
-                    }
-                });
-                console.log('Loaded', this.messages.length, 'messages from storage');
-            }
-        } catch (error) {
-            console.error('Failed to load session from storage:', error);
-            this.clearSession();
+        this.ws.on('message', (data) => this.handleMessage(data));
+        this.ws.onStatusChange((status) => {
+            this.isConnected = status === 'connected';
+            this.view.updateTabStatus(this.id, this.isConnected);
+        });
+    }
+
+    handleMessage(data) {
+        // Track sessionId from server
+        if (data.sessionId && data.sessionId !== this.sessionId) {
+            this.sessionId = data.sessionId;
+            this.ws.setSessionId(this.sessionId);
+            this.view.saveAllSessions();
+            console.log(`[Session ${this.id}] Session ID updated:`, this.sessionId);
+        }
+
+        // Skip replay messages
+        if (data.isReplay) {
+            console.log(`[Session ${this.id}] Skipping replay message:`, data.messageId);
+            return;
+        }
+
+        // Deduplicate by messageId
+        if (data.messageId && this.receivedMessageIds.has(data.messageId)) {
+            console.log(`[Session ${this.id}] Skipping duplicate message:`, data.messageId);
+            return;
+        }
+        if (data.messageId) {
+            this.receivedMessageIds.add(data.messageId);
+        }
+
+        if (data.type === 'session_resumed') {
+            console.log(`[Session ${this.id}] Session resumed, message count:`, data.messageCount);
+            return;
+        } else if (data.type === 'dragon_message') {
+            this.addMessage('assistant', data.message, data.messageId);
+        } else if (data.type === 'dragon_reloaded') {
+            // Clear session on reload
+            this.clearMessages();
+            this.sessionId = data.sessionId;
+            this.ws.setSessionId(this.sessionId);
+            this.ws.clearMessageHistory();
+            this.addMessage('system', data.message, data.messageId);
+            this.view.saveAllSessions();
+        } else if (data.type === 'dragon_typing') {
+            // Could show typing indicator here
+        } else if (data.type === 'error') {
+            this.addErrorMessage(data);
+        } else if (data.type !== 'user_message') {
+            this.addMessage('assistant', data.content || JSON.stringify(data), data.messageId);
         }
     }
 
-    /**
-     * Save session data to localStorage
-     */
-    saveSession() {
-        try {
-            if (this.sessionId) {
-                localStorage.setItem(DRAGON_SESSION_KEY, this.sessionId);
-            }
-            // Only keep the last 100 messages in storage
-            const messagesToStore = this.messages.slice(-100);
-            localStorage.setItem(DRAGON_MESSAGES_KEY, JSON.stringify(messagesToStore));
-        } catch (error) {
-            console.error('Failed to save session to storage:', error);
+    addMessage(role, content, messageId = null) {
+        const msg = { role, content };
+        if (messageId) {
+            msg.messageId = messageId;
+        }
+        this.messages.push(msg);
+        this.view.saveAllSessions();
+
+        // Only update UI if this is the active session
+        if (this.view.activeSessionId === this.id) {
+            this.view.appendMessageToUI(msg, role);
         }
     }
 
-    /**
-     * Clear session data from localStorage
-     */
-    clearSession() {
-        localStorage.removeItem(DRAGON_SESSION_KEY);
-        localStorage.removeItem(DRAGON_MESSAGES_KEY);
-        this.sessionId = null;
+    addErrorMessage(errorData) {
+        const errorType = errorData.errorType || 'general';
+        const message = errorData.message || 'An error occurred';
+        const details = errorData.details || '';
+
+        this.messages.push({ role: 'error', content: message, details, errorType });
+        this.view.saveAllSessions();
+
+        if (this.view.activeSessionId === this.id) {
+            this.view.appendErrorToUI(errorData);
+        }
+    }
+
+    clearMessages() {
         this.messages = [];
         this.receivedMessageIds.clear();
     }
 
+    sendMessage(message) {
+        if (message && this.ws) {
+            this.addMessage('user', message);
+            this.ws.send({
+                message: message,
+                sessionId: this.sessionId
+            });
+        }
+    }
+
+    reloadAgent(provider) {
+        if (this.ws && this.sessionId) {
+            this.ws.send({
+                type: 'reload',
+                sessionId: this.sessionId,
+                provider: provider
+            });
+        }
+    }
+
+    disconnect() {
+        this.ws?.disconnect();
+        this.ws = null;
+        this.isConnected = false;
+    }
+
+    toStorageObject() {
+        return {
+            id: this.id,
+            name: this.name,
+            sessionId: this.sessionId,
+            messages: this.messages.slice(-100) // Keep last 100 messages
+        };
+    }
+
+    loadFromStorage(data) {
+        this.name = data.name || `Session ${this.id}`;
+        this.sessionId = data.sessionId;
+        this.messages = data.messages || [];
+        // Rebuild receivedMessageIds
+        this.messages.forEach(msg => {
+            if (msg.messageId) {
+                this.receivedMessageIds.add(msg.messageId);
+            }
+        });
+    }
+}
+
+export class DragonView {
+    constructor(api) {
+        this.api = api;
+        this.sessions = new Map(); // id -> DragonSession
+        this.activeSessionId = null;
+        this.nextSessionId = 1;
+        this.providers = [];
+        this.selectedProvider = null;
+
+        // Load sessions from localStorage
+        this.loadAllSessions();
+    }
+
+    /**
+     * Load all sessions from localStorage
+     */
+    loadAllSessions() {
+        try {
+            const stored = localStorage.getItem(DRAGON_SESSIONS_KEY);
+            if (stored) {
+                const data = JSON.parse(stored);
+                this.nextSessionId = data.nextSessionId || 1;
+                this.activeSessionId = data.activeSessionId;
+
+                if (data.sessions && data.sessions.length > 0) {
+                    data.sessions.forEach(sessionData => {
+                        const session = new DragonSession(sessionData.id, this);
+                        session.loadFromStorage(sessionData);
+                        this.sessions.set(session.id, session);
+                    });
+                    console.log('Loaded', this.sessions.size, 'sessions from storage');
+                }
+            }
+
+            // Ensure we have at least one session
+            if (this.sessions.size === 0) {
+                this.createNewSession();
+            }
+
+            // Ensure activeSessionId is valid
+            if (!this.sessions.has(this.activeSessionId)) {
+                this.activeSessionId = this.sessions.keys().next().value;
+            }
+        } catch (error) {
+            console.error('Failed to load sessions from storage:', error);
+            this.sessions.clear();
+            this.createNewSession();
+        }
+    }
+
+    /**
+     * Save all sessions to localStorage
+     */
+    saveAllSessions() {
+        try {
+            const data = {
+                nextSessionId: this.nextSessionId,
+                activeSessionId: this.activeSessionId,
+                sessions: Array.from(this.sessions.values()).map(s => s.toStorageObject())
+            };
+            localStorage.setItem(DRAGON_SESSIONS_KEY, JSON.stringify(data));
+        } catch (error) {
+            console.error('Failed to save sessions to storage:', error);
+        }
+    }
+
+    /**
+     * Create a new session
+     */
+    createNewSession() {
+        const id = this.nextSessionId++;
+        const session = new DragonSession(id, this);
+        this.sessions.set(id, session);
+        this.activeSessionId = id;
+        this.saveAllSessions();
+        return session;
+    }
+
+    /**
+     * Close a session
+     */
+    closeSession(id) {
+        const session = this.sessions.get(id);
+        if (!session) return;
+
+        session.disconnect();
+        this.sessions.delete(id);
+
+        // If we closed the active session, switch to another
+        if (this.activeSessionId === id) {
+            if (this.sessions.size > 0) {
+                this.activeSessionId = this.sessions.keys().next().value;
+            } else {
+                // Create a new session if all closed
+                this.createNewSession();
+            }
+        }
+
+        this.saveAllSessions();
+        this.renderTabs();
+        this.renderActiveSessionMessages();
+    }
+
+    /**
+     * Switch to a session
+     */
+    switchToSession(id) {
+        if (!this.sessions.has(id)) return;
+        if (this.activeSessionId === id) return;
+
+        this.activeSessionId = id;
+        this.saveAllSessions();
+        this.renderTabs();
+        this.renderActiveSessionMessages();
+    }
+
+    /**
+     * Update tab connection status indicator
+     */
+    updateTabStatus(sessionId, isConnected) {
+        const tab = document.querySelector(`.dragon-tab[data-session-id="${sessionId}"]`);
+        if (tab) {
+            const statusDot = tab.querySelector('.tab-status-dot');
+            if (statusDot) {
+                statusDot.className = `tab-status-dot ${isConnected ? 'connected' : 'disconnected'}`;
+            }
+        }
+    }
+
     async render() {
-        // Load available providers for dragon
+        // Load available providers
         try {
             const providersData = await this.api.getProvidersForAgent('Dragon');
             this.providers = providersData.availableProviders || [];
@@ -100,26 +311,19 @@ export class DragonView {
                         </button>
                     </div>
                 </div>
+                <div class="dragon-tabs-container">
+                    <div class="dragon-tabs" id="dragonTabs">
+                        ${this.renderTabsHtml()}
+                    </div>
+                    <button class="dragon-tab-add" id="dragonAddTab" title="New Session">+</button>
+                </div>
                 <div class="chat-messages" id="dragonMessages">
-                    ${this.messages.length > 0 ? this.messages.filter(msg => msg.content).map(msg => `
-                        <div class="chat-message ${msg.role}">
-                            <div class="chat-message-icon">${msg.role === 'user' ? '👤' : '🐉'}</div>
-                            <div class="chat-message-content">
-                                <div class="chat-message-role">${msg.role}</div>
-                                <div class="chat-message-text">${msg.content}</div>
-                            </div>
-                        </div>
-                    `).join('') : `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🐉</div>
-                            <div>Start a conversation with Dragon</div>
-                        </div>
-                    `}
+                    ${this.renderMessagesHtml()}
                 </div>
                 <div class="chat-input-container">
-                    <textarea 
-                        class="chat-input" 
-                        id="dragonInput" 
+                    <textarea
+                        class="chat-input"
+                        id="dragonInput"
                         placeholder="Type your message here..."
                         rows="3"
                     ></textarea>
@@ -132,70 +336,105 @@ export class DragonView {
         `;
     }
 
+    renderTabsHtml() {
+        return Array.from(this.sessions.values()).map(session => `
+            <div class="dragon-tab ${session.id === this.activeSessionId ? 'active' : ''}"
+                 data-session-id="${session.id}">
+                <span class="tab-status-dot ${session.isConnected ? 'connected' : 'disconnected'}"></span>
+                <span class="tab-name">${this.escapeHtml(session.name)}</span>
+                ${this.sessions.size > 1 ? `
+                    <button class="tab-close" data-session-id="${session.id}" title="Close Session">×</button>
+                ` : ''}
+            </div>
+        `).join('');
+    }
+
+    renderMessagesHtml() {
+        const session = this.sessions.get(this.activeSessionId);
+        if (!session || session.messages.length === 0) {
+            return `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🐉</div>
+                    <div>Start a conversation with Dragon</div>
+                </div>
+            `;
+        }
+
+        return session.messages.filter(msg => msg.content).map(msg => {
+            if (msg.role === 'error') {
+                return this.renderErrorMessageHtml(msg);
+            }
+            return `
+                <div class="chat-message ${msg.role}">
+                    <div class="chat-message-icon">${msg.role === 'user' ? '👤' : msg.role === 'system' ? 'ℹ️' : '🐉'}</div>
+                    <div class="chat-message-content">
+                        <div class="chat-message-role">${msg.role}</div>
+                        <div class="chat-message-text">${msg.content}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    renderErrorMessageHtml(msg) {
+        const errorType = msg.errorType || 'general';
+        const icon = errorType === 'llm_connection' ? '🔌' :
+            errorType === 'llm_timeout' ? '⏱️' :
+                errorType === 'llm_error' ? '🤖' :
+                    errorType === 'llm_response' ? '📄' : '⚠️';
+
+        const errorTitle = errorType === 'llm_connection' ? 'Connection Error' :
+            errorType === 'llm_timeout' ? 'Timeout Error' :
+                errorType === 'llm_error' ? 'LLM Provider Error' :
+                    errorType === 'llm_response' ? 'Response Error' :
+                        errorType === 'startup_error' ? 'Startup Error' : 'Error';
+
+        return `
+            <div class="chat-message error" style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border: 1px solid #f87171; border-left: 4px solid #dc2626;">
+                <div class="chat-message-icon" style="color: #dc2626;">${icon}</div>
+                <div class="chat-message-content">
+                    <div class="chat-message-role" style="color: #dc2626; font-weight: bold;">${errorTitle}</div>
+                    <div class="chat-message-text" style="color: #7f1d1d;">
+                        <strong>${this.escapeHtml(msg.content)}</strong>
+                        ${msg.details ? `<div style="margin-top: 8px; font-size: 0.9em; color: #991b1b;">${this.escapeHtml(msg.details)}</div>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderTabs() {
+        const tabsContainer = document.getElementById('dragonTabs');
+        if (tabsContainer) {
+            tabsContainer.innerHTML = this.renderTabsHtml();
+            this.attachTabEventListeners();
+        }
+    }
+
+    renderActiveSessionMessages() {
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = this.renderMessagesHtml();
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+
     onMount() {
-        this.ws = new WebSocketClient('/dragon');
-
-        // Pass stored sessionId when connecting
-        this.ws.connect(this.sessionId);
-
-        this.ws.on('message', (data) => {
-            // Track sessionId from server
-            if (data.sessionId && data.sessionId !== this.sessionId) {
-                this.sessionId = data.sessionId;
-                this.ws.setSessionId(this.sessionId);
-                this.saveSession();
-                console.log('Session ID updated:', this.sessionId);
-            }
-
-            // Skip replay messages - they're just for catching up the connection
-            // We already have these in our local message history
-            if (data.isReplay) {
-                console.log('Skipping replay message:', data.messageId);
-                return;
-            }
-
-            // Deduplicate by messageId
-            if (data.messageId && this.receivedMessageIds.has(data.messageId)) {
-                console.log('Skipping duplicate message:', data.messageId);
-                return;
-            }
-            if (data.messageId) {
-                this.receivedMessageIds.add(data.messageId);
-            }
-
-            if (data.type === 'session_resumed') {
-                console.log('Session resumed, message count:', data.messageCount);
-                // Session was resumed, we already have messages loaded from localStorage
-                return;
-            } else if (data.type === 'dragon_message') {
-                this.addMessage('assistant', data.message, data.messageId);
-            } else if (data.type === 'dragon_reloaded') {
-                // Clear session on reload
-                this.clearSession();
-                this.sessionId = data.sessionId;
-                this.ws.setSessionId(this.sessionId);
-                this.ws.clearMessageHistory();
-                this.addMessage('system', data.message, data.messageId);
-                this.saveSession();
-                // Clear and re-render messages container
-                const messagesContainer = document.getElementById('dragonMessages');
-                if (messagesContainer) {
-                    messagesContainer.innerHTML = '';
-                }
-            } else if (data.type === 'dragon_typing') {
-                // Could show typing indicator here
-            } else if (data.type === 'error') {
-                this.addErrorMessage(data);
-            } else if (data.type !== 'user_message') {
-                // Ignore user_message type (tracked but not displayed as server message)
-                this.addMessage('assistant', data.content || JSON.stringify(data), data.messageId);
-            }
+        // Connect all sessions
+        this.sessions.forEach(session => {
+            session.connect();
         });
 
+        this.attachEventListeners();
+        this.attachTabEventListeners();
+    }
+
+    attachEventListeners() {
         const sendBtn = document.getElementById('dragonSendBtn');
         const input = document.getElementById('dragonInput');
         const reloadBtn = document.getElementById('dragonReloadBtn');
         const providerSelect = document.getElementById('dragonProviderSelect');
+        const addTabBtn = document.getElementById('dragonAddTab');
 
         sendBtn?.addEventListener('click', () => this.sendMessage());
         input?.addEventListener('keydown', (e) => {
@@ -209,69 +448,96 @@ export class DragonView {
             this.selectedProvider = e.target.value;
             this.reloadAgent();
         });
+        addTabBtn?.addEventListener('click', () => this.addNewTab());
+    }
+
+    attachTabEventListeners() {
+        // Tab click handlers
+        document.querySelectorAll('.dragon-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                // Don't switch if clicking close button
+                if (e.target.classList.contains('tab-close')) return;
+                const sessionId = parseInt(tab.dataset.sessionId);
+                this.switchToSession(sessionId);
+            });
+        });
+
+        // Close button handlers
+        document.querySelectorAll('.dragon-tab .tab-close').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sessionId = parseInt(btn.dataset.sessionId);
+                this.closeSession(sessionId);
+            });
+        });
+    }
+
+    addNewTab() {
+        const session = this.createNewSession();
+        session.connect();
+        this.renderTabs();
+        this.renderActiveSessionMessages();
     }
 
     onUnmount() {
-        this.saveSession();
-        this.ws?.disconnect();
-        this.ws = null;
+        this.saveAllSessions();
+        this.sessions.forEach(session => {
+            session.disconnect();
+        });
     }
 
     sendMessage() {
         const input = document.getElementById('dragonInput');
         const message = input.value.trim();
 
-        if (message && this.ws) {
-            this.addMessage('user', message);
-            this.ws.send({
-                message: message,
-                sessionId: this.sessionId
-            });
-            input.value = '';
-            this.saveSession();
+        if (message) {
+            const session = this.sessions.get(this.activeSessionId);
+            if (session) {
+                session.sendMessage(message);
+                input.value = '';
+            }
         }
     }
 
     reloadAgent() {
-        if (this.ws && this.sessionId) {
-            this.ws.send({
-                type: 'reload',
-                sessionId: this.sessionId,
-                provider: this.selectedProvider
-            });
+        const session = this.sessions.get(this.activeSessionId);
+        if (session) {
+            session.reloadAgent(this.selectedProvider);
         }
     }
 
-    addMessage(role, content, messageId = null) {
-        const msg = { role, content };
-        if (messageId) {
-            msg.messageId = messageId;
-        }
-        this.messages.push(msg);
-        this.saveSession();
+    appendMessageToUI(msg, role) {
         const messagesContainer = document.getElementById('dragonMessages');
-        if (messagesContainer) {
-            // Clear if it's a system message from reload
-            if (role === 'system' && content.includes('reloaded')) {
-                messagesContainer.innerHTML = '';
-            }
-            if (content === '') return;
-            const messageEl = document.createElement('div');
-            messageEl.className = `chat-message ${role}`;
-            const icon = role === 'user' ? '👤' : role === 'system' ? 'ℹ️' : '🐉';
-            messageEl.innerHTML = `
-                <div class="chat-message-icon">${icon}</div>
-                <div class="chat-message-content">
-                    <div class="chat-message-role">${role}</div>
-                    <div class="chat-message-text">${content}</div>
-                </div>
-            `;
-            messagesContainer.appendChild(messageEl);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        if (!messagesContainer) return;
+
+        // Clear empty state if present
+        const emptyState = messagesContainer.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.remove();
         }
+
+        if (msg.content === '') return;
+
+        // Clear if system reload message
+        if (role === 'system' && msg.content.includes('reloaded')) {
+            messagesContainer.innerHTML = '';
+        }
+
+        const messageEl = document.createElement('div');
+        messageEl.className = `chat-message ${role}`;
+        const icon = role === 'user' ? '👤' : role === 'system' ? 'ℹ️' : '🐉';
+        messageEl.innerHTML = `
+            <div class="chat-message-icon">${icon}</div>
+            <div class="chat-message-content">
+                <div class="chat-message-role">${role}</div>
+                <div class="chat-message-text">${msg.content}</div>
+            </div>
+        `;
+        messagesContainer.appendChild(messageEl);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    addErrorMessage(errorData) {
+    appendErrorToUI(errorData) {
         const messagesContainer = document.getElementById('dragonMessages');
         if (!messagesContainer) return;
 
@@ -279,10 +545,6 @@ export class DragonView {
         const message = errorData.message || 'An error occurred';
         const details = errorData.details || '';
 
-        // Store in messages array
-        this.messages.push({ role: 'error', content: message, details });
-
-        // Create error message element with distinct styling
         const messageEl = document.createElement('div');
         messageEl.className = 'chat-message error';
         messageEl.style.cssText = `
@@ -291,7 +553,6 @@ export class DragonView {
             border-left: 4px solid #dc2626;
         `;
 
-        // Icon based on error type
         const icon = errorType === 'llm_connection' ? '🔌' :
             errorType === 'llm_timeout' ? '⏱️' :
                 errorType === 'llm_error' ? '🤖' :
