@@ -4,6 +4,40 @@ namespace DraCode.Agent.Agents
 {
     public static class AgentFactory
     {
+        /// <summary>
+        /// Supported LLM provider names
+        /// </summary>
+        public static readonly string[] SupportedProviders =
+            ["openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "vllm", "sglang", "githubcopilot"];
+
+        /// <summary>
+        /// Creates an LLM provider instance based on provider name and configuration.
+        /// </summary>
+        /// <param name="provider">Provider name: openai, azureopenai, claude, gemini, ollama, llamacpp, vllm, sglang, githubcopilot</param>
+        /// <param name="config">Provider configuration (apiKey, model, baseUrl, etc.)</param>
+        /// <returns>ILlmProvider instance</returns>
+        public static ILlmProvider CreateLlmProvider(string provider, Dictionary<string, string>? config = null)
+        {
+            config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string C(string key, string def = "") =>
+                config.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : def;
+
+            return provider.ToLowerInvariant() switch
+            {
+                "openai" => new OpenAiProvider(C("apiKey"), C("model", "gpt-4o"), C("baseUrl", "https://api.openai.com/v1/chat/completions")),
+                "azureopenai" => new AzureOpenAiProvider(C("endpoint"), C("apiKey"), C("deployment", "gpt-4")),
+                "claude" => new ClaudeProvider(C("apiKey"), C("model", "claude-3-5-sonnet-latest"), C("baseUrl", "https://api.anthropic.com/v1/messages")),
+                "gemini" => new GeminiProvider(C("apiKey"), C("model", "gemini-2.0-flash-exp"), C("baseUrl", "https://generativelanguage.googleapis.com/v1beta/models/")),
+                "ollama" => new OllamaProvider(C("model", "llama3.2"), C("baseUrl", "http://localhost:11434")),
+                "llamacpp" => new LlamaCppProvider(C("model", "default"), C("baseUrl", "http://localhost:8080"), C("apiKey")),
+                "vllm" => new VllmProvider(C("model", "default"), C("baseUrl", "http://localhost:8000"), C("apiKey")),
+                "sglang" => new SglangProvider(C("model", "default"), C("baseUrl", "http://localhost:30000"), C("apiKey")),
+                "githubcopilot" => new GitHubCopilotProvider(C("clientId"), C("model", "gpt-4o"), C("baseUrl", "https://api.githubcopilot.com/chat/completions")),
+                _ => throw new ArgumentException($"Unknown provider '{provider}'. Supported: {string.Join(", ", SupportedProviders)}")
+            };
+        }
+
         // Create an Agent with a specific provider name and configuration using AgentOptions
         // provider: "openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "vllm", "sglang", "githubcopilot"
         // agentType: "coding", "csharp", "cpp", "assembler", "javascript", "css", "html", "react", "angular", "php", "python", "diagramming", "media", "image", "svg", "bitmap"
@@ -16,22 +50,7 @@ namespace DraCode.Agent.Agents
             options ??= new AgentOptions();
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            string C(string key, string def = "") =>
-                config.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : def;
-
-            ILlmProvider llm = provider.ToLowerInvariant() switch
-            {
-                "openai" => new OpenAiProvider(C("apiKey"), C("model", "gpt-4o"), C("baseUrl", "https://api.openai.com/v1/chat/completions")),
-                "azureopenai" => new AzureOpenAiProvider(C("endpoint"), C("apiKey"), C("deployment", "gpt-4")),
-                "claude" => new ClaudeProvider(C("apiKey"), C("model", "claude-3-5-sonnet-latest"), C("baseUrl", "https://api.anthropic.com/v1/messages")),
-                "gemini" => new GeminiProvider(C("apiKey"), C("model", "gemini-2.0-flash-exp"), C("baseUrl", "https://generativelanguage.googleapis.com/v1beta/models/")),
-                "ollama" => new OllamaProvider(C("model", "llama3.2"), C("baseUrl", "http://localhost:11434")),
-                "llamacpp" => new LlamaCppProvider(C("model", "default"), C("baseUrl", "http://localhost:8080"), C("apiKey")),
-                "vllm" => new VllmProvider(C("model", "default"), C("baseUrl", "http://localhost:8000"), C("apiKey")),
-                "sglang" => new SglangProvider(C("model", "default"), C("baseUrl", "http://localhost:30000"), C("apiKey")),
-                "githubcopilot" => new GitHubCopilotProvider(C("clientId"), C("model", "gpt-4o"), C("baseUrl", "https://api.githubcopilot.com/chat/completions")),
-                _ => throw new ArgumentException($"Unknown provider '{provider}'.")
-            };
+            ILlmProvider llm = CreateLlmProvider(provider, config);
 
             return agentType.ToLowerInvariant() switch
             {
