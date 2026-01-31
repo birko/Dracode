@@ -403,7 +403,11 @@ namespace DraCode.KoboldLair.Server.Services
             if (data == null) throw new ArgumentNullException(nameof(data));
 
             var projectId = data.Value.GetProperty("projectId").GetString();
-            var config = JsonSerializer.Deserialize<ProjectConfig>(data.Value.GetRawText());
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            var config = JsonSerializer.Deserialize<ProjectConfig>(data.Value.GetRawText(), options);
             if (config != null)
             {
                 config.ProjectId = projectId!;

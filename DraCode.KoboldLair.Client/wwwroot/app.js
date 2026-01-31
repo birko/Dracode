@@ -5,6 +5,7 @@ import { DragonView } from './dragon-view.js';
 import { HierarchyView } from './hierarchy-view.js';
 import { ProjectsView } from './projects-view.js';
 import { ProvidersView } from './providers-view.js';
+import { ProjectConfigView } from './project-config-view.js';
 import { ServerSelector } from './server-selector.js';
 import { refreshConfig } from './config.js';
 import CONFIG from './config.js';
@@ -20,7 +21,8 @@ class App {
             ['dragon', new DragonView(this.api)],
             ['hierarchy', new HierarchyView(this.api)],
             ['projects', new ProjectsView(this.api)],
-            ['providers', new ProvidersView(this.api)]
+            ['providers', new ProvidersView(this.api)],
+            ['settings', new ProjectConfigView(this.api)]
         ]);
 
         this.init();

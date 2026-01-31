@@ -148,6 +148,30 @@ export class ApiClient {
         return this.sendCommand('get_providers_for_agent', { agentType });
     }
 
+    async getAllProjectConfigs() {
+        return this.sendCommand('get_all_project_configs');
+    }
+
+    async getProjectConfigFull(projectId) {
+        return this.sendCommand('get_project_config_full', { projectId });
+    }
+
+    async updateProjectConfigFull(projectId, config) {
+        return this.sendCommand('update_project_config_full', { projectId, ...config });
+    }
+
+    async deleteProjectConfig(projectId) {
+        return this.sendCommand('delete_project_config', { projectId });
+    }
+
+    async getAgentConfig(projectId, agentType) {
+        return this.sendCommand('get_agent_config', { projectId, agentType });
+    }
+
+    async updateAgentConfig(projectId, agentType, provider, model, enabled) {
+        return this.sendCommand('update_agent_config', { projectId, agentType, provider, model, enabled });
+    }
+
     disconnect() {
         if (this.ws) {
             this.ws.disconnect();
