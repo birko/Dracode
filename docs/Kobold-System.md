@@ -327,28 +327,59 @@ public class WyvernService
 ## File Structure
 
 ```
-DraCode.KoboldLair.Server/
-├── Agents/                    # Agent Implementations
-│   ├── AgentFactory.cs        # Creates Dragon, Wyrm, Drake agents
-│   ├── DragonAgent.cs         # Interactive requirements gathering
-│   ├── WyrmAgent.cs           # Project analyzer
-│   └── WyvernAgent.cs         # Task delegator
-├── Factories/                 # Factory Pattern - Resource Creation
-│   ├── KoboldFactory.cs       # Creates Kobolds with parallel limits
-│   ├── DrakeFactory.cs        # Creates Drake supervisors
-│   └── WyvernFactory.cs       # Creates Wyvern orchestrators
-├── Orchestrators/             # High-Level Orchestration
-│   ├── Drake.cs               # Task supervisor
-│   ├── WyrmRunner.cs          # Task running orchestrator
-│   └── Wyvern.cs              # Task delegation orchestrator
-├── Models/                    # Data Models
-│   ├── Kobold.cs              # Worker agent wrapper
-│   ├── KoboldStatus.cs        # Status enumeration
-│   ├── TaskRecord.cs          # Individual task record
-│   ├── TaskTracker.cs         # Task tracking
-│   └── ...                    # Other domain models
-└── Services/                  # Business Logic Services
-    └── ...                    # Various services
+DraCode.KoboldLair/                    # Core Library
+├── Agents/                            # Agent Implementations
+│   ├── DragonAgent.cs                 # Interactive requirements gathering
+│   ├── WyrmAgent.cs                   # Project analyzer
+│   └── WyvernAgent.cs                 # Task delegator
+├── Factories/                         # Factory Pattern - Resource Creation
+│   ├── KoboldFactory.cs               # Creates Kobolds with parallel limits
+│   ├── DrakeFactory.cs                # Creates Drake supervisors
+│   ├── WyvernFactory.cs               # Creates Wyvern orchestrators
+│   └── WyrmFactory.cs                 # Creates Wyrm analyzers
+├── Orchestrators/                     # High-Level Orchestration
+│   ├── Drake.cs                       # Task supervisor
+│   ├── WyrmRunner.cs                  # Task running orchestrator
+│   └── Wyvern.cs                      # Task delegation orchestrator
+├── Models/                            # Data Models (Organized by Domain)
+│   ├── Agents/                        # Agent-related models
+│   │   ├── Kobold.cs                  # Worker agent wrapper
+│   │   ├── KoboldStatus.cs            # Status enumeration
+│   │   ├── KoboldStatistics.cs        # Statistics model
+│   │   └── DrakeStatistics.cs         # Drake statistics
+│   ├── Tasks/                         # Task-related models
+│   │   ├── TaskRecord.cs              # Individual task record
+│   │   └── TaskTracker.cs             # Task tracking
+│   ├── Projects/                      # Project models
+│   │   └── Project.cs                 # Project entity
+│   └── Configuration/                 # Config models
+│       └── ProjectConfig.cs           # Per-project settings
+└── Services/                          # Core Services
+    ├── ProjectService.cs              # Project management
+    └── ProviderConfigurationService.cs # Provider config
+
+DraCode.KoboldLair.Server/             # WebSocket Server
+├── Agents/
+│   └── AgentFactory.cs                # Creates agents with system prompts
+├── Services/                          # Server-side Services
+│   ├── DragonService.cs               # Dragon WebSocket service
+│   ├── DrakeMonitoringService.cs      # Background monitoring (60s)
+│   └── WyvernProcessingService.cs     # Background processing (60s)
+└── Program.cs                         # Service registration
+```
+
+### Data Storage
+
+All project data is stored in consolidated per-project folders:
+```
+{ProjectsPath}/                        # Configurable, default: ./projects
+├── projects.json                      # Project registry
+└── {project-name}/                    # Per-project folder
+    ├── specification.md               # Project specification
+    ├── specification.features.json    # Feature list
+    ├── {area}-tasks.md                # Task files
+    ├── analysis.md                    # Wyvern analysis
+    └── workspace/                     # Generated code output
 ```
 
 ## Future Enhancements

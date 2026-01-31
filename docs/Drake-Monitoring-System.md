@@ -64,9 +64,9 @@ var drakeFactory = new DrakeFactory(
     }
 );
 
-// Create Drake for a task file
+// Create Drake for a task file (stored in project folder)
 var drake = drakeFactory.CreateDrake(
-    "./tasks/Wyvern-output.md",
+    "./projects/my-project/backend-tasks.md",
     "my-drake"
 );
 
@@ -167,16 +167,16 @@ builder.Services.AddHostedService<DrakeMonitoringService>(...);
 ### 2. Create Drake for Task File
 
 ```csharp
-// Wyvern creates task file
+// Wyvern creates task files in project folder
 var WyvernRunner = new WyvernRunner(...);
 await WyvernRunner.RunAsync(
     "Create a web app with login",
-    outputPath: "./tasks/web-app-tasks.md"
+    outputPath: "./projects/web-app/backend-tasks.md"
 );
 
 // DrakeFactory creates Drake for this file
 var drake = drakeFactory.CreateDrake(
-    "./tasks/web-app-tasks.md",
+    "./projects/web-app/backend-tasks.md",
     "web-app-drake"
 );
 ```
@@ -362,21 +362,24 @@ var drakeFactory = new DrakeFactory(
 ### Multiple Drakes for Different Teams
 
 ```csharp
+// All task files are stored in project folders
+// {ProjectsPath}/{project-name}/{area}-tasks.md
+
 // Frontend team
 var frontendDrake = drakeFactory.CreateDrake(
-    "./tasks/frontend-tasks.md",
+    "./projects/my-app/frontend-tasks.md",
     "frontend-drake"
 );
 
 // Backend team
 var backendDrake = drakeFactory.CreateDrake(
-    "./tasks/backend-tasks.md",
+    "./projects/my-app/backend-tasks.md",
     "backend-drake"
 );
 
 // DevOps team
 var devopsDrake = drakeFactory.CreateDrake(
-    "./tasks/devops-tasks.md",
+    "./projects/my-app/devops-tasks.md",
     "devops-drake"
 );
 
@@ -387,10 +390,10 @@ var devopsDrake = drakeFactory.CreateDrake(
 
 ```csharp
 // Different providers per Drake
-var drake1 = drakeFactory.CreateDrake("./tasks/task1.md", "drake-gpt");
+var drake1 = drakeFactory.CreateDrake("./projects/my-app/backend-tasks.md", "drake-gpt");
 drake1.DefaultProvider = "openai";
 
-var drake2 = drakeFactory.CreateDrake("./tasks/task2.md", "drake-claude");
+var drake2 = drakeFactory.CreateDrake("./projects/my-app/frontend-tasks.md", "drake-claude");
 drake2.DefaultProvider = "anthropic";
 ```
 
@@ -441,10 +444,10 @@ new DrakeMonitoringService(logger, factory, monitoringIntervalSeconds: 120);
 
 ### Drake Not Finding Tasks
 
-Check task file path:
+Check task file path (tasks are stored in project folders):
 ```csharp
-var drake = drakeFactory.CreateDrake("./tasks/output.md", "drake");
-// File must exist: ./tasks/output.md
+var drake = drakeFactory.CreateDrake("./projects/my-project/backend-tasks.md", "drake");
+// File must exist: ./projects/my-project/backend-tasks.md
 ```
 
 Verify markdown format:
@@ -524,16 +527,34 @@ DrakeStatistics GetStatistics()
 ## File Structure
 
 ```
-DraCode.KoboldLair.Server/
+DraCode.KoboldLair/                    # Core Library
 ├── Factories/
-│   └── DrakeFactory.cs           # Creates and manages Drake instances
+│   └── DrakeFactory.cs                # Creates and manages Drake instances
 ├── Orchestrators/
-│   └── Drake.cs                  # Task supervisor implementation
-├── Services/
-│   └── DrakeMonitoringService.cs # Background monitoring service (60s)
+│   └── Drake.cs                       # Task supervisor implementation
 └── Models/
-    ├── TaskRecord.cs             # Individual task record
-    └── TaskTracker.cs            # Task tracking
+    ├── Tasks/
+    │   ├── TaskRecord.cs              # Individual task record
+    │   └── TaskTracker.cs             # Task tracking
+    └── Agents/
+        └── DrakeStatistics.cs         # Drake statistics model
+
+DraCode.KoboldLair.Server/             # WebSocket Server
+└── Services/
+    └── DrakeMonitoringService.cs      # Background monitoring service (60s)
+```
+
+### Data Storage
+
+Task files are stored in consolidated project folders:
+```
+{ProjectsPath}/                        # Configurable, default: ./projects
+└── {project-name}/                    # Per-project folder
+    ├── specification.md               # Project specification
+    ├── backend-tasks.md               # Backend task file
+    ├── frontend-tasks.md              # Frontend task file
+    ├── {area}-tasks.md                # Other area task files
+    └── workspace/                     # Generated code output
 ```
 
 ## Examples

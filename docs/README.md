@@ -43,12 +43,20 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 
 Only Dragon requires interaction - everything else is automatic!
 
-### Data Storage
+### Data Storage (Consolidated Per-Project Folders)
 
-- **Projects**: `./projects/projects.json`
-- **Specifications**: `./specifications/{project}_specification.md`
-- **Tasks**: `./tasks/{project}/`
-- **Output**: `./workspace/{project}/`
+The projects path is configurable via `appsettings.json` under `KoboldLair.ProjectsPath` (default: `./projects`).
+
+```
+{ProjectsPath}/
+    projects.json                     # Project registry
+    {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
+        specification.md              # Project specification
+        specification.features.json   # Feature list
+        {area}-tasks.md               # Task files (e.g., backend-tasks.md)
+        analysis.md                   # Wyvern analysis report
+        workspace/                    # Generated code output
+```
 
 ---
 

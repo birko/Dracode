@@ -23,7 +23,7 @@ DragonAgent (Interactive conversation)
 │ list_projects          → Show all projects
 └─────────────────────────────────────┘
     ↓ Creates
-./specifications/{project-name}.md (Status: Prototype)
+{ProjectsPath}/{project-name}/specification.md (Status: Prototype)
     ↓ User confirms
 Dragon calls approve_specification
     ↓ Status changes to "New"
@@ -65,7 +65,7 @@ Specialized agent that inherits from `Agent` with:
 **Usage:**
 ```csharp
 var provider = new OpenAiProvider(apiKey, "gpt-4o");
-var dragon = new DragonAgent(provider, options, specificationsPath: "./specifications");
+var dragon = new DragonAgent(provider, options, projectsPath: "./projects");
 
 // Start conversation
 var response = await dragon.StartSessionAsync("I want to build a web app");
@@ -278,26 +278,27 @@ Dragon has enough information
   ↓
 Calls write_specification tool
   ↓
-Creates: ./specifications/web-app-with-auth.md
+Creates: ./projects/web-app-with-auth/specification.md
   ↓
 Returns confirmation to user
   ↓
 Frontend shows notification
 ```
 
-### 4. Use Specification with Wyvern
+### 4. Automatic Processing by Wyvern
 
 ```
-User provides specification to Wyvern:
-  "Please break down ./specifications/web-app-with-auth.md into tasks"
+Once specification is approved (Prototype → New status):
+  ↓
+WyvernProcessingService detects new spec (runs every 60s)
   ↓
 Wyvern reads specification
   ↓
-Creates tasks (API endpoints, UI components, tests, etc.)
+Creates task files ({area}-tasks.md in project folder)
   ↓
 Drake supervisors assign Kobolds
   ↓
-Work gets done!
+Work gets done automatically!
 ```
 
 ## Specification Format
@@ -427,13 +428,18 @@ export AZURE_OPENAI_API_KEY="..."
 export AZURE_OPENAI_ENDPOINT="https://..."
 ```
 
-### Specifications Path
+### Projects Path
 
-Default: `./specifications`
+Default: `./projects` (configurable via `appsettings.json` under `KoboldLair.ProjectsPath`)
 
-Custom path in agent factory:
-```csharp
-var dragon = new DragonAgent(provider, options, specificationsPath: "/custom/path");
+Each project gets its own folder with all related files:
+```
+./projects/{project-name}/
+    specification.md              # Project specification
+    specification.features.json   # Feature list
+    {area}-tasks.md               # Task files
+    analysis.md                   # Wyvern analysis
+    workspace/                    # Generated code
 ```
 
 ## Dragon's Conversation Style
@@ -508,23 +514,25 @@ var dragon = new DragonAgent(provider, options, specificationsPath: "/custom/pat
 
 ```bash
 # Step 1: Gather requirements with Dragon
-# Visit http://localhost:5000/dragon.html
+# Visit http://localhost:{client-port}/dragon.html
 # Discuss project with Dragon
-# Dragon creates: ./specifications/my-api.md
+# Dragon creates: ./projects/my-api/specification.md (Status: Prototype)
 
-# Step 2: Use with Wyvern
-# Visit http://localhost:5000/index.html
-# Input: "Please implement the project described in ./specifications/my-api.md"
-# Wyvern breaks into tasks:
-#   - Create API project structure (C# agent)
-#   - Implement endpoints (C# agent)
-#   - Write tests (C# agent)
-#   - Create API documentation (Diagramming agent)
+# Step 2: Approve specification
+# Review spec with Dragon, then Dragon calls approve_specification
+# Status changes to "New"
 
-# Step 3: Execute via Drakes and Kobolds
-# Drakes monitor and manage Kobolds
-# Kobolds execute tasks
-# Project gets built!
+# Step 3: Automatic processing by Wyvern (background service)
+# WyvernProcessingService detects "New" status
+# Wyvern analyzes and creates:
+#   - ./projects/my-api/backend-tasks.md (C# agent)
+#   - ./projects/my-api/frontend-tasks.md (React agent)
+#   - ./projects/my-api/testing-tasks.md (C# agent)
+
+# Step 4: Automatic execution via Drakes and Kobolds
+# DrakeMonitoringService assigns Kobolds to tasks
+# Kobolds execute tasks → code output to ./projects/my-api/workspace/
+# Project gets built automatically!
 ```
 
 ## API Reference
@@ -614,9 +622,10 @@ public class SpecificationWriterTool : Tool
 - Check browser console for errors
 
 ### Specifications not being created
-- Verify `./specifications` directory permissions
+- Verify `{ProjectsPath}` directory exists and has write permissions
 - Check DragonAgent logs
-- Ensure tool is properly registered
+- Ensure ProjectService is properly configured
+- Verify `KoboldLair.ProjectsPath` setting in appsettings.json
 
 ### Frontend not connecting
 - Ensure `/dragon` endpoint is mapped in Program.cs

@@ -9,7 +9,7 @@ Wyvern is a specialized project analyzer that reads Dragon specifications and tr
 ## Architecture
 
 ```
-Dragon creates specification (./specifications/*.md)
+Dragon creates specification ({ProjectsPath}/{project}/specification.md)
     ↓
 ProjectService.RegisterProject() (Status: Prototype)
     ↓
@@ -37,7 +37,7 @@ Identifies dependencies
     ↓
 Orders tasks by dependency level
     ↓
-Creates task files (./tasks/{project}/*-tasks.md)
+Creates task files ({ProjectsPath}/{project}/{area}-tasks.md)
     ↓
 DrakeMonitoringService detects tasks
     ↓
@@ -73,8 +73,8 @@ Main class that orchestrates the entire analysis and task creation process.
 ```csharp
 var wyvern = WyvernFactory.CreateWyvern(
     "my-web-app",
-    "./specifications/web-app-spec.md",
-    outputPath: "./tasks"
+    "./projects/my-web-app/specification.md",
+    outputPath: "./projects/my-web-app"
 );
 
 // Analyze
@@ -83,13 +83,13 @@ Console.WriteLine($"Found {analysis.TotalTasks} tasks across {analysis.Areas.Cou
 
 // Create tasks
 var taskFiles = await Wyvern.CreateTasksAsync();
-// Creates: ./tasks/my-web-app-backend-tasks.md
-//          ./tasks/my-web-app-frontend-tasks.md
+// Creates: ./projects/my-web-app/backend-tasks.md
+//          ./projects/my-web-app/frontend-tasks.md
 //          etc.
 
 // Generate report
 var report = Wyvern.GenerateReport();
-File.WriteAllText("./Wyvern-analysis-report.md", report);
+File.WriteAllText("./projects/my-web-app/analysis.md", report);
 ```
 
 ### 2. WyvernAgent (`Agents/WyvernAgent.cs`)
@@ -171,23 +171,23 @@ Console.WriteLine($"Total Wyrms: {WyvernFactory.TotalWyverns}");
 1. User discusses project with Dragon
      ↓
 2. Dragon creates specification
-     → ./specifications/web-app.md
+     → ./projects/web-app/specification.md
      ↓
 3. Create Wyvern for project
-     Wyvern = WyvernFactory.CreateWyvern("web-app", "./specifications/web-app.md")
+     Wyvern = WyvernFactory.CreateWyvern("web-app", "./projects/web-app/specification.md")
      ↓
 4. Wyvern analyzes specification
      analysis = await Wyvern.AnalyzeProjectAsync()
      ↓
 5. Wyvern creates organized tasks
      taskFiles = await Wyvern.CreateTasksAsync()
-     → ./tasks/web-app-backend-tasks.md
-     → ./tasks/web-app-frontend-tasks.md
-     → ./tasks/web-app-database-tasks.md
+     → ./projects/web-app/backend-tasks.md
+     → ./projects/web-app/frontend-tasks.md
+     → ./projects/web-app/database-tasks.md
      ↓
 6. DrakeFactory creates Drakes for task files
-     drake1 = drakeFactory.CreateDrake("./tasks/web-app-backend-tasks.md", "backend-drake")
-     drake2 = drakeFactory.CreateDrake("./tasks/web-app-frontend-tasks.md", "frontend-drake")
+     drake1 = drakeFactory.CreateDrake("./projects/web-app/backend-tasks.md", "backend-drake")
+     drake2 = drakeFactory.CreateDrake("./projects/web-app/frontend-tasks.md", "frontend-drake")
      ↓
 7. Drakes summon Kobolds
      Kobolds execute tasks
@@ -218,7 +218,7 @@ Console.WriteLine($"Total Wyrms: {WyvernFactory.TotalWyverns}");
 
 **Step 2: Wyvern Analysis**
 ```csharp
-var wyvern = WyvernFactory.CreateWyvern("ecommerce", "./specifications/ecommerce.md");
+var wyvern = WyvernFactory.CreateWyvern("ecommerce", "./projects/ecommerce/specification.md");
 var analysis = await Wyvern.AnalyzeProjectAsync();
 ```
 
@@ -243,9 +243,9 @@ Areas:
 **Step 3: Create Tasks**
 ```csharp
 var taskFiles = await Wyvern.CreateTasksAsync();
-// → ./tasks/ecommerce-backend-tasks.md
-// → ./tasks/ecommerce-frontend-tasks.md
-// → ./tasks/ecommerce-database-tasks.md
+// → ./projects/ecommerce/backend-tasks.md
+// → ./projects/ecommerce/frontend-tasks.md
+// → ./projects/ecommerce/database-tasks.md
 ```
 
 **Step 4: Drakes Monitor**
@@ -536,20 +536,40 @@ public class WyvernAnalysis
 ## File Structure
 
 ```
-DraCode.KoboldLair.Server/
+DraCode.KoboldLair/                    # Core Library
 ├── Agents/
-│   └── WyvernAgent.cs        # Project analyzer agent
+│   └── WyvernAgent.cs                 # Project analyzer agent
 ├── Factories/
-│   └── WyvernFactory.cs      # Creates Wyvern instances
+│   ├── WyvernFactory.cs               # Creates Wyvern instances
+│   └── WyrmFactory.cs                 # Creates Wyrm analyzers
 ├── Orchestrators/
-│   ├── Wyvern.cs             # Main orchestration class
-│   └── WyrmRunner.cs         # Task running orchestrator
+│   ├── Wyvern.cs                      # Main orchestration class
+│   └── WyrmRunner.cs                  # Task running orchestrator
+├── Models/
+│   ├── Tasks/
+│   │   ├── TaskRecord.cs              # Individual task record
+│   │   └── TaskTracker.cs             # Task tracking
+│   └── Agents/
+│       └── WyvernAnalysis.cs          # Analysis result model
+
+DraCode.KoboldLair.Server/             # WebSocket Server
 ├── Services/
-│   ├── WyrmService.cs        # Wyrm analysis service
-│   └── WyvernProcessingService.cs  # Background processing (60s)
-└── Models/
-    ├── TaskRecord.cs         # Individual task record
-    └── TaskTracker.cs        # Task tracking
+│   ├── WyrmService.cs                 # Wyrm analysis service
+│   └── WyvernProcessingService.cs     # Background processing (60s)
+└── Program.cs                         # Service registration
+```
+
+### Data Storage
+
+```
+{ProjectsPath}/                        # Configurable, default: ./projects
+├── projects.json                      # Project registry
+└── {project-name}/                    # Per-project folder
+    ├── specification.md               # Project specification
+    ├── specification.features.json    # Feature list
+    ├── {area}-tasks.md                # Task files (backend-tasks.md, etc.)
+    ├── analysis.md                    # Wyvern analysis report
+    └── workspace/                     # Generated code output
 ```
 
 ## Summary
