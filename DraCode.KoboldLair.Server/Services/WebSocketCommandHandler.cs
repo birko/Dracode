@@ -1,11 +1,13 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using DraCode.KoboldLair.Server.Factories;
+using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Server.Models.Configuration;
-using DraCode.KoboldLair.Server.Models.Projects;
+using DraCode.KoboldLair.Models.Configuration;
+using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Server.Models.WebSocket;
-using DraCode.KoboldLair.Server.Orchestrators;
+using DraCode.KoboldLair.Orchestrators;
+using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Server.Services
 {

@@ -3,6 +3,7 @@
   <Project Path="DraCode.AppHost/DraCode.AppHost.csproj" />
   <Project Path="DraCode.KoboldLair.Client/DraCode.KoboldLair.Client.csproj" />
   <Project Path="DraCode.KoboldLair.Server/DraCode.KoboldLair.Server.csproj" />
+  <Project Path="DraCode.KoboldLair/DraCode.KoboldLair.csproj" />
   <Project Path="DraCode.ServiceDefaults/DraCode.ServiceDefaults.csproj" />
   <Project Path="DraCode.Web/DraCode.Web.csproj" />
   <Project Path="DraCode.WebSocket/DraCode.WebSocket.csproj" />

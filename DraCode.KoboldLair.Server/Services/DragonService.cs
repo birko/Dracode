@@ -3,9 +3,10 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using DraCode.Agent;
-using DraCode.KoboldLair.Server.Agents;
-using DraCode.KoboldLair.Server.Models.Agents;
-using DraCode.KoboldLair.Server.Models.Projects;
+using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Models.Agents;
+using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Server.Services
 {

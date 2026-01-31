@@ -1,4 +1,5 @@
-using DraCode.KoboldLair.Server.Models.Projects;
+using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Server.Services
 {

@@ -1,5 +1,5 @@
-using DraCode.KoboldLair.Server.Factories;
-using DraCode.KoboldLair.Server.Orchestrators;
+using DraCode.KoboldLair.Factories;
+using DraCode.KoboldLair.Orchestrators;
 
 namespace DraCode.KoboldLair.Server.Services
 {

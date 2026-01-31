@@ -26,7 +26,7 @@ cd DraCode.Web && npm run build
 
 ## Project Structure
 
-8 projects in the solution (`DraCode.slnx`):
+9 projects in the solution (`DraCode.slnx`):
 
 | Project | Purpose |
 |---------|---------|
@@ -36,7 +36,8 @@ cd DraCode.Web && npm run build
 | `DraCode.ServiceDefaults` | Shared Aspire configuration (health checks, resilience) |
 | `DraCode.WebSocket` | WebSocket API server (`/ws` endpoint) |
 | `DraCode.Web` | TypeScript web client (compiles `src/` → `wwwroot/js/`) |
-| `DraCode.KoboldLair.Server` | Multi-agent autonomous coding backend |
+| `DraCode.KoboldLair` | Multi-agent system core library (agents, models, services, orchestrators) |
+| `DraCode.KoboldLair.Server` | WebSocket server hosting for KoboldLair (references `DraCode.KoboldLair`) |
 | `DraCode.KoboldLair.Client` | Multi-agent system web UI (vanilla JS) |
 
 ## Architecture
