@@ -19,6 +19,7 @@ namespace DraCode.KoboldLair.Server.Agents
         private List<Message> _conversationHistory = new();
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<List<ProjectInfo>>? _getProjects;
+        private readonly Func<string, bool>? _approveProject;
 
         protected override string SystemPrompt => GetDragonSystemPrompt();
 
@@ -30,17 +31,20 @@ namespace DraCode.KoboldLair.Server.Agents
         /// <param name="specificationsPath">Path where specifications should be stored (default: ./specifications)</param>
         /// <param name="onSpecificationUpdated">Callback invoked when a specification is updated (receives full path)</param>
         /// <param name="getProjects">Function to get list of all projects for listing</param>
+        /// <param name="approveProject">Function to approve a project (change from Prototype to New)</param>
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
             string specificationsPath = "./specifications",
             Action<string>? onSpecificationUpdated = null,
-            Func<List<ProjectInfo>>? getProjects = null)
+            Func<List<ProjectInfo>>? getProjects = null,
+            Func<string, bool>? approveProject = null)
             : base(provider, options)
         {
             _specificationsPath = specificationsPath ?? "./specifications";
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjects = getProjects;
+            _approveProject = approveProject;
 
             // Ensure specifications directory exists
             try
@@ -65,7 +69,8 @@ namespace DraCode.KoboldLair.Server.Agents
             var tools = base.CreateTools();
             tools.Add(new ListProjectsTool(_getProjects));
             tools.Add(new SpecificationManagementTool(_specificationsPath, _specifications, _onSpecificationUpdated));
-            tools.Add(new FeatureManagementTool(_specifications));
+            tools.Add(new FeatureManagementTool(_specifications, _specificationsPath));
+            tools.Add(new ProjectApprovalTool(_approveProject));
             return tools;
         }
 
@@ -91,7 +96,7 @@ Example welcome (if projects exist):
 ""Hello! I'm Dragon 🐉, your requirements analyst.
 
 I found these existing projects:
-- **TodoApp** (Analyzed, 5 features)
+- **TodoApp** (Prototype - awaiting approval)
 - **WebStore** (In Progress, 12 features)
 
 Would you like to:
@@ -122,6 +127,14 @@ Just let me know!""
    - Use manage_specification with action:'update' for existing projects
    - Include comprehensive details: overview, requirements, architecture, success criteria
    - The specification provides context for all features
+   - **NEW PROJECTS START IN 'Prototype' STATUS** - they need user approval before processing
+
+5. **CRITICAL: Get User Approval Before Processing**
+   - After creating or updating a specification, you MUST ask the user to review and confirm
+   - Show them a summary of what will be built
+   - Ask explicitly: ""Is this specification correct and complete? Should I approve it for processing?""
+   - Only use 'approve_specification' AFTER the user explicitly confirms
+   - This changes status from 'Prototype' to 'New', allowing Wyvern to process
 
 ## Feature Status Lifecycle:
 - **New**: Just created by Dragon, can be updated by Dragon
@@ -130,7 +143,8 @@ Just let me know!""
 - **Completed**: Implementation finished
 
 ## Project Status Meanings:
-- **New**: Just registered, waiting for Wyvern assignment
+- **Prototype**: Specification created but NOT YET APPROVED - Dragon is still refining it with user
+- **New**: Specification APPROVED by user, ready for Wyvern assignment
 - **WyvernAssigned**: Wyvern is ready to analyze
 - **Analyzed**: Tasks have been created from specification
 - **SpecificationModified**: Spec was updated, Wyvern will reprocess
@@ -142,14 +156,16 @@ Just let me know!""
 - **list_projects**: List all registered projects with their status and feature counts
 - **manage_specification**: Manage specifications (actions: list, load, create, update)
 - **manage_feature**: Manage features (actions: list, create, update)
+- **approve_specification**: Approve a specification after user confirms (changes Prototype → New)
 
 ## Style:
 - Be conversational and friendly
 - Always check existing projects on first message
 - Guide users through the feature workflow
 - Be thorough but efficient
+- **ALWAYS ask for user confirmation before approving specifications**
 
-Remember: You manage specifications and features. Wyrm reads new features and creates tasks for Kobolds.";
+Remember: You manage specifications and features. Projects in 'Prototype' status need YOUR approval (after user confirms) before Wyvern can process them.";
         }
 
         /// <summary>

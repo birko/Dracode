@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Server.Models.Projects;
 using DraCode.KoboldLair.Server.Models.Tasks;
@@ -10,10 +11,12 @@ namespace DraCode.KoboldLair.Server.Agents.Tools
     public class FeatureManagementTool : Tool
     {
         private readonly Dictionary<string, Specification> _specifications;
+        private readonly string? _specificationsPath;
 
-        public FeatureManagementTool(Dictionary<string, Specification> specifications)
+        public FeatureManagementTool(Dictionary<string, Specification> specifications, string? specificationsPath = null)
         {
             _specifications = specifications;
+            _specificationsPath = specificationsPath;
         }
 
         public override string Name => "manage_feature";
@@ -106,6 +109,7 @@ namespace DraCode.KoboldLair.Server.Agents.Tools
 
             spec.Features.Add(feature);
             spec.UpdatedAt = DateTime.UtcNow;
+            SaveFeatures(spec);
 
             SendMessage("success", $"Feature created: {name}");
             return $"✅ Feature '{name}' created with status 'New'\nID: {feature.Id}\nPriority: {priority}";
@@ -144,6 +148,7 @@ namespace DraCode.KoboldLair.Server.Agents.Tools
 
             feature.UpdatedAt = DateTime.UtcNow;
             spec.UpdatedAt = DateTime.UtcNow;
+            SaveFeatures(spec);
 
             SendMessage("success", $"Feature updated: {name}");
             return $"✅ Feature '{name}' updated successfully\nStatus: {feature.Status}\nPriority: {feature.Priority}";
@@ -173,6 +178,54 @@ namespace DraCode.KoboldLair.Server.Agents.Tools
             }
 
             return result.ToString();
+        }
+
+        /// <summary>
+        /// Saves features to a JSON file alongside the specification
+        /// </summary>
+        private void SaveFeatures(Specification spec)
+        {
+            if (string.IsNullOrEmpty(_specificationsPath) || string.IsNullOrEmpty(spec.Name))
+                return;
+
+            try
+            {
+                var featuresPath = Path.Combine(_specificationsPath, $"{spec.Name}.features.json");
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(spec.Features, options);
+                File.WriteAllText(featuresPath, json);
+            }
+            catch (Exception ex)
+            {
+                SendMessage("warning", $"Could not save features: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Loads features from JSON file if it exists
+        /// </summary>
+        public static void LoadFeatures(Specification spec, string specificationsPath)
+        {
+            if (string.IsNullOrEmpty(specificationsPath) || string.IsNullOrEmpty(spec.Name))
+                return;
+
+            try
+            {
+                var featuresPath = Path.Combine(specificationsPath, $"{spec.Name}.features.json");
+                if (File.Exists(featuresPath))
+                {
+                    var json = File.ReadAllText(featuresPath);
+                    var features = JsonSerializer.Deserialize<List<Feature>>(json);
+                    if (features != null)
+                    {
+                        spec.Features = features;
+                    }
+                }
+            }
+            catch
+            {
+                // Silently ignore load errors - features will be empty
+            }
         }
     }
 }

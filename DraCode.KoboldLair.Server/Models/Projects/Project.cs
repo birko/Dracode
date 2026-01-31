@@ -44,7 +44,7 @@ namespace DraCode.KoboldLair.Server.Models.Projects
         /// <summary>
         /// Current status of the project
         /// </summary>
-        public ProjectStatus Status { get; set; } = ProjectStatus.New;
+        public ProjectStatus Status { get; set; } = ProjectStatus.Prototype;
 
         /// <summary>
         /// When the project was created

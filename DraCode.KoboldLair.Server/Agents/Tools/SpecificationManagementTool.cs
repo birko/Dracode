@@ -132,6 +132,9 @@ namespace DraCode.KoboldLair.Server.Agents.Tools
                 spec.Content = content;
                 _specifications[name] = spec;
 
+                // Load features from companion JSON file
+                FeatureManagementTool.LoadFeatures(spec, _specificationsPath);
+
                 return $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {spec.Features.Count}";
             }
             catch (Exception ex)

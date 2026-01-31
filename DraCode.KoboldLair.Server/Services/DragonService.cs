@@ -442,7 +442,12 @@ namespace DraCode.KoboldLair.Server.Services
                 ? () => GetProjectInfoList()
                 : null;
 
-            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects);
+            // Create project approval function if ProjectService is available
+            Func<string, bool>? approveProject = _projectService != null
+                ? (projectName) => _projectService.ApproveProject(projectName)
+                : null;
+
+            return new DragonAgent(llmProvider, options, specificationsPath, onSpecificationUpdated, getProjects, approveProject);
         }
 
         /// <summary>

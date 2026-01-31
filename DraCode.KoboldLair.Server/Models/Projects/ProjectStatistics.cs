@@ -6,6 +6,7 @@ namespace DraCode.KoboldLair.Server.Models.Projects
     public class ProjectStatistics
     {
         public int TotalProjects { get; set; }
+        public int PrototypeProjects { get; set; }
         public int NewProjects { get; set; }
         public int WyvernAssignedProjects { get; set; }
         public int AnalyzedProjects { get; set; }
@@ -16,8 +17,9 @@ namespace DraCode.KoboldLair.Server.Models.Projects
 
         public override string ToString()
         {
+            var prototypeStr = PrototypeProjects > 0 ? $"{PrototypeProjects} prototype, " : "";
             var modifiedStr = SpecificationModifiedProjects > 0 ? $", {SpecificationModifiedProjects} modified" : "";
-            return $"Projects: {TotalProjects} total, {NewProjects} new, {WyvernAssignedProjects} assigned, " +
+            return $"Projects: {TotalProjects} total, {prototypeStr}{NewProjects} new, {WyvernAssignedProjects} assigned, " +
                    $"{AnalyzedProjects} analyzed{modifiedStr}, {InProgressProjects} in progress, " +
                    $"{CompletedProjects} completed, {FailedProjects} failed";
         }

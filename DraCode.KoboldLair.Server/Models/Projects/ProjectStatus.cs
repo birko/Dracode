@@ -6,7 +6,13 @@ namespace DraCode.KoboldLair.Server.Models.Projects
     public enum ProjectStatus
     {
         /// <summary>
-        /// Specification just created, no Wyvern assigned yet
+        /// Specification created but not yet confirmed by user.
+        /// Dragon is still gathering requirements and refining the specification.
+        /// </summary>
+        Prototype,
+
+        /// <summary>
+        /// Specification confirmed by user, ready for Wyvern assignment
         /// </summary>
         New,
 

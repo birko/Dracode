@@ -135,6 +135,18 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
+        /// Gets a project by name (case-insensitive)
+        /// </summary>
+        public Project? GetByName(string name)
+        {
+            lock (_lock)
+            {
+                return _projects.FirstOrDefault(p =>
+                    p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        /// <summary>
         /// Gets a project by specification path
         /// </summary>
         public Project? GetBySpecificationPath(string specPath)

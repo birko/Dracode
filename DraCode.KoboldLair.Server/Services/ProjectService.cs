@@ -58,7 +58,7 @@ namespace DraCode.KoboldLair.Server.Services
                 Name = projectName,
                 SpecificationPath = specificationPath,
                 OutputPath = outputPath,
-                Status = ProjectStatus.New
+                Status = ProjectStatus.Prototype
             };
 
             _repository.Add(project);
@@ -341,6 +341,7 @@ namespace DraCode.KoboldLair.Server.Services
             return new ProjectStatistics
             {
                 TotalProjects = allProjects.Count,
+                PrototypeProjects = allProjects.Count(p => p.Status == ProjectStatus.Prototype),
                 NewProjects = allProjects.Count(p => p.Status == ProjectStatus.New),
                 WyvernAssignedProjects = allProjects.Count(p => p.Status == ProjectStatus.WyvernAssigned),
                 AnalyzedProjects = allProjects.Count(p => p.Status == ProjectStatus.Analyzed),
@@ -349,6 +350,36 @@ namespace DraCode.KoboldLair.Server.Services
                 CompletedProjects = allProjects.Count(p => p.Status == ProjectStatus.Completed),
                 FailedProjects = allProjects.Count(p => p.Status == ProjectStatus.Failed)
             };
+        }
+
+        /// <summary>
+        /// Approves a project specification, changing status from Prototype to New.
+        /// This allows Wyvern to start processing the project.
+        /// </summary>
+        /// <param name="projectId">Project ID or name</param>
+        /// <returns>True if approved successfully</returns>
+        public bool ApproveProject(string projectId)
+        {
+            var project = _repository.GetById(projectId) ?? _repository.GetByName(projectId);
+            if (project == null)
+            {
+                _logger.LogWarning("Cannot approve project - not found: {ProjectId}", projectId);
+                return false;
+            }
+
+            if (project.Status != ProjectStatus.Prototype)
+            {
+                _logger.LogWarning("Cannot approve project {ProjectName} - status is {Status}, not Prototype",
+                    project.Name, project.Status);
+                return false;
+            }
+
+            project.Status = ProjectStatus.New;
+            project.UpdatedAt = DateTime.UtcNow;
+            _repository.Update(project);
+
+            _logger.LogInformation("✅ Project '{ProjectName}' approved and ready for Wyvern processing", project.Name);
+            return true;
         }
 
         /// <summary>
