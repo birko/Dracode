@@ -19,6 +19,10 @@ class DragonSession {
 
     connect() {
         this.ws = new WebSocketClient('/dragon');
+
+        // Set up session not found handler before connecting
+        this.ws.onSessionNotFound = (data) => this.handleSessionNotFound(data);
+
         this.ws.connect(this.sessionId);
 
         this.ws.on('message', (data) => this.handleMessage(data));
@@ -26,6 +30,45 @@ class DragonSession {
             this.isConnected = status === 'connected';
             this.view.updateTabStatus(this.id, this.isConnected);
         });
+    }
+
+    /**
+     * Handle session not found notification from server
+     */
+    handleSessionNotFound(data) {
+        console.log(`[Session ${this.id}] Session not found:`, data);
+
+        // If we have local messages, show recovery modal
+        if (this.messages.length > 0) {
+            this.view.showSessionRecoveryModal(this, data);
+        } else {
+            // No local messages, just accept the new session
+            this.acceptNewSession(data.newSessionId);
+        }
+    }
+
+    /**
+     * Accept a new session ID from the server (discards local history)
+     */
+    acceptNewSession(newSessionId) {
+        this.sessionId = newSessionId;
+        this.ws.setSessionId(newSessionId);
+        this.messages = [];
+        this.receivedMessageIds.clear();
+        this.view.saveAllSessions();
+        console.log(`[Session ${this.id}] Accepted new session:`, newSessionId);
+    }
+
+    /**
+     * Replay local messages to restore server context
+     */
+    replayMessages() {
+        const msgs = this.messages
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .map(m => ({ role: m.role, content: m.content }));
+
+        console.log(`[Session ${this.id}] Replaying ${msgs.length} messages to server`);
+        this.ws.sendReplayRequest(msgs);
     }
 
     handleMessage(data) {
@@ -53,6 +96,14 @@ class DragonSession {
 
         if (data.type === 'session_resumed') {
             console.log(`[Session ${this.id}] Session resumed, message count:`, data.messageCount);
+            return;
+        } else if (data.type === 'session_replay_complete') {
+            console.log(`[Session ${this.id}] Session replay complete:`, data.messagesProcessed, 'messages');
+            this.view.showNotification(`Conversation restored (${data.messagesProcessed} messages)`, 'success');
+            return;
+        } else if (data.type === 'session_replay_error') {
+            console.error(`[Session ${this.id}] Session replay error:`, data.error);
+            this.view.showNotification(`Failed to restore conversation: ${data.error}`, 'error');
             return;
         } else if (data.type === 'dragon_message') {
             this.addMessage('assistant', data.message, data.messageId);
@@ -582,5 +633,144 @@ export class DragonView {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Show a notification message
+     * @param {string} message - Message to display
+     * @param {string} type - 'success', 'error', or 'info'
+     */
+    showNotification(message, type = 'info') {
+        // Remove any existing notification
+        const existing = document.querySelector('.notification');
+        if (existing) {
+            existing.remove();
+        }
+
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        // Trigger animation
+        requestAnimationFrame(() => {
+            notification.classList.add('show');
+        });
+
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, 4000);
+    }
+
+    /**
+     * Show session recovery modal when server session is not found
+     * @param {DragonSession} session - The session that needs recovery
+     * @param {Object} data - Server response with newSessionId and reason
+     */
+    showSessionRecoveryModal(session, data) {
+        // Remove any existing modal
+        const existingModal = document.querySelector('.modal.session-recovery');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        const reasonText = data.reason === 'expired'
+            ? 'Your session expired due to inactivity.'
+            : 'The server may have restarted or the session was cleared.';
+
+        const messageCount = session.messages.filter(m => m.role === 'user' || m.role === 'assistant').length;
+
+        const modal = document.createElement('div');
+        modal.className = 'modal session-recovery';
+        modal.innerHTML = `
+            <div class="modal-content session-recovery-modal">
+                <div class="modal-header">
+                    <h3>Session Recovery</h3>
+                    <button class="modal-close" data-action="dismiss">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="recovery-warning">
+                        <strong>Session not found on server</strong>
+                        <p>${reasonText}</p>
+                    </div>
+                    <p>You have <strong>${messageCount} conversation messages</strong> stored locally.</p>
+                    <p style="margin-top: var(--spacing-sm); font-size: 12px; color: var(--text-secondary);">
+                        Choose how to proceed:
+                    </p>
+                    <div class="recovery-options">
+                        <button class="btn btn-primary" data-action="replay">
+                            Restore Conversation
+                            <span style="font-size: 10px; opacity: 0.8; display: block;">AI will remember your conversation</span>
+                        </button>
+                        <button class="btn btn-secondary" data-action="fresh">
+                            Start Fresh
+                            <span style="font-size: 10px; opacity: 0.8; display: block;">Clear local history, begin new conversation</span>
+                        </button>
+                        <button class="btn btn-tertiary" data-action="keep">
+                            Keep Local (Read-Only)
+                            <span style="font-size: 10px; opacity: 0.8; display: block;">Preserve history, but AI won't remember it</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Handle button clicks
+        modal.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]')?.dataset.action;
+            if (!action) return;
+
+            modal.remove();
+
+            switch (action) {
+                case 'replay':
+                    // Update to new session ID and replay messages
+                    session.sessionId = data.newSessionId;
+                    session.ws.setSessionId(data.newSessionId);
+                    session.replayMessages();
+                    this.showNotification('Restoring conversation...', 'info');
+                    break;
+
+                case 'fresh':
+                    // Accept new session and clear local messages
+                    session.acceptNewSession(data.newSessionId);
+                    this.renderActiveSessionMessages();
+                    this.showNotification('Started fresh conversation', 'info');
+                    break;
+
+                case 'keep':
+                    // Keep local history but use new session (AI won't have context)
+                    session.sessionId = data.newSessionId;
+                    session.ws.setSessionId(data.newSessionId);
+                    session.receivedMessageIds.clear();
+                    this.saveAllSessions();
+                    this.showNotification('Local history preserved (AI has no memory of it)', 'info');
+                    break;
+
+                case 'dismiss':
+                    // Same as 'keep' - just dismiss the modal
+                    session.sessionId = data.newSessionId;
+                    session.ws.setSessionId(data.newSessionId);
+                    session.receivedMessageIds.clear();
+                    this.saveAllSessions();
+                    break;
+            }
+        });
+
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                // Treat as dismiss
+                modal.remove();
+                session.sessionId = data.newSessionId;
+                session.ws.setSessionId(data.newSessionId);
+                session.receivedMessageIds.clear();
+                this.saveAllSessions();
+            }
+        });
     }
 }

@@ -17,6 +17,7 @@ export class WebSocketClient {
         this.maxMissedPongs = 3;
         this.sessionId = null;
         this.receivedMessageIds = new Set();
+        this.onSessionNotFound = null;
     }
 
     /**
@@ -103,6 +104,15 @@ export class WebSocketClient {
                     if (message.type === 'pong') {
                         this.missedPongs = 0;
                         clearTimeout(this.pongTimeout);
+                        return;
+                    }
+
+                    // Handle session not found - client's session was not on server
+                    if (message.type === 'session_not_found') {
+                        console.log('Session not found on server:', message);
+                        if (this.onSessionNotFound) {
+                            this.onSessionNotFound(message);
+                        }
                         return;
                     }
 
@@ -220,6 +230,18 @@ export class WebSocketClient {
         } else {
             throw new Error('WebSocket is not connected');
         }
+    }
+
+    /**
+     * Send a session replay request to restore conversation context on the server
+     * @param {Array} messages - Array of {role, content} objects to replay
+     */
+    sendReplayRequest(messages) {
+        this.send({
+            type: 'session_replay',
+            sessionId: this.sessionId,
+            messages: messages
+        });
     }
 
     on(type, handler) {

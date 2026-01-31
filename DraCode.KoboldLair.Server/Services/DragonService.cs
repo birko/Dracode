@@ -100,24 +100,35 @@ namespace DraCode.KoboldLair.Server.Services
         {
             DragonSession? session = null;
             var isResuming = false;
+            string? sessionNotFoundReason = null;
 
             // Try to resume existing session if sessionId provided
-            if (!string.IsNullOrEmpty(existingSessionId) && _sessions.TryGetValue(existingSessionId, out session))
+            if (!string.IsNullOrEmpty(existingSessionId))
             {
-                // Check if session hasn't expired
-                if (DateTime.UtcNow - session.LastActivity <= _sessionTimeout)
+                if (_sessions.TryGetValue(existingSessionId, out session))
                 {
-                    isResuming = true;
-                    session.LastActivity = DateTime.UtcNow;
-                    _sessionWebSockets[existingSessionId] = webSocket;
-                    _logger.LogInformation("Dragon session resumed: {SessionId}", existingSessionId);
+                    // Check if session hasn't expired
+                    if (DateTime.UtcNow - session.LastActivity <= _sessionTimeout)
+                    {
+                        isResuming = true;
+                        session.LastActivity = DateTime.UtcNow;
+                        _sessionWebSockets[existingSessionId] = webSocket;
+                        _logger.LogInformation("Dragon session resumed: {SessionId}", existingSessionId);
+                    }
+                    else
+                    {
+                        // Session expired, will create new one
+                        _sessions.TryRemove(existingSessionId, out _);
+                        session = null;
+                        sessionNotFoundReason = "expired";
+                        _logger.LogInformation("Session {SessionId} expired, creating new session", existingSessionId);
+                    }
                 }
                 else
                 {
-                    // Session expired, will create new one
-                    _sessions.TryRemove(existingSessionId, out _);
-                    session = null;
-                    _logger.LogInformation("Session {SessionId} expired, creating new session", existingSessionId);
+                    // Session not found on server (e.g., server restart)
+                    sessionNotFoundReason = "not_found";
+                    _logger.LogInformation("Session {SessionId} not found on server, creating new session", existingSessionId);
                 }
             }
 
@@ -132,6 +143,19 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             var currentSessionId = session.SessionId;
+
+            // Notify client if their requested session was not found
+            if (!isResuming && !string.IsNullOrEmpty(existingSessionId) && sessionNotFoundReason != null)
+            {
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "session_not_found",
+                    requestedSessionId = existingSessionId,
+                    newSessionId = currentSessionId,
+                    reason = sessionNotFoundReason,
+                    timestamp = DateTime.UtcNow
+                });
+            }
 
             try
             {
@@ -314,6 +338,14 @@ namespace DraCode.KoboldLair.Server.Services
                 if (message.Type == "reload")
                 {
                     await ReloadAgentAsync(session, message.Provider);
+                    return;
+                }
+
+                // Check for session replay request
+                if (message.Type == "session_replay")
+                {
+                    var rawMessage = JsonSerializer.Deserialize<JsonElement>(messageText);
+                    await HandleSessionReplayAsync(webSocket, session, rawMessage, dragon);
                     return;
                 }
 
@@ -529,6 +561,84 @@ namespace DraCode.KoboldLair.Server.Services
             while (session.MessageHistory.Count > _maxMessageHistory)
             {
                 session.MessageHistory.RemoveAt(0);
+            }
+        }
+
+        /// <summary>
+        /// Handles session replay request from client to restore conversation context
+        /// </summary>
+        private async Task HandleSessionReplayAsync(WebSocket webSocket, DragonSession session, JsonElement data, DragonAgent dragon)
+        {
+            var sessionId = session.SessionId;
+            _logger.LogInformation("Processing session replay for session: {SessionId}", sessionId);
+
+            try
+            {
+                if (!data.TryGetProperty("messages", out var messagesElement))
+                {
+                    await SendMessageAsync(webSocket, new
+                    {
+                        type = "session_replay_error",
+                        sessionId,
+                        error = "No messages provided for replay",
+                        messagesProcessed = 0,
+                        timestamp = DateTime.UtcNow
+                    });
+                    return;
+                }
+
+                var messages = messagesElement.EnumerateArray()
+                    .Select(m => new
+                    {
+                        Role = m.TryGetProperty("role", out var role) ? role.GetString() : null,
+                        Content = m.TryGetProperty("content", out var content) ? content.GetString() : null
+                    })
+                    .Where(m => !string.IsNullOrEmpty(m.Role) && !string.IsNullOrEmpty(m.Content))
+                    .ToList();
+
+                if (messages.Count == 0)
+                {
+                    await SendMessageAsync(webSocket, new
+                    {
+                        type = "session_replay_error",
+                        sessionId,
+                        error = "No valid messages to replay",
+                        messagesProcessed = 0,
+                        timestamp = DateTime.UtcNow
+                    });
+                    return;
+                }
+
+                // Restore context to the Dragon agent
+                dragon.RestoreContext(messages.Select(m => (m.Role!, m.Content!)));
+
+                // Track messages in session history for potential future replays
+                foreach (var msg in messages)
+                {
+                    TrackMessage(session, $"{msg.Role}_message", new { role = msg.Role, content = msg.Content });
+                }
+
+                _logger.LogInformation("Session replay completed for {SessionId}: {Count} messages restored", sessionId, messages.Count);
+
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "session_replay_complete",
+                    sessionId,
+                    messagesProcessed = messages.Count,
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing session replay for {SessionId}", sessionId);
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "session_replay_error",
+                    sessionId,
+                    error = ex.Message,
+                    messagesProcessed = 0,
+                    timestamp = DateTime.UtcNow
+                });
             }
         }
 

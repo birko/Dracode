@@ -289,5 +289,17 @@ Remember: You manage specifications and features. Projects in 'Prototype' status
         {
             _conversationHistory = new List<Message>();
         }
+
+        /// <summary>
+        /// Restores conversation context from a list of messages (used for session recovery)
+        /// </summary>
+        /// <param name="messages">Enumerable of (Role, Content) tuples representing conversation history</param>
+        public void RestoreContext(IEnumerable<(string Role, string Content)> messages)
+        {
+            foreach (var (role, content) in messages)
+            {
+                _conversationHistory.Add(new Message { Role = role, Content = content });
+            }
+        }
     }
 }
