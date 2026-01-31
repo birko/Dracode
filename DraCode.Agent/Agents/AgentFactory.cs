@@ -8,7 +8,7 @@ namespace DraCode.Agent.Agents
         /// Supported LLM provider names
         /// </summary>
         public static readonly string[] SupportedProviders =
-            ["openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "vllm", "sglang", "githubcopilot"];
+            ["openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "vllm", "sglang", "githubcopilot", "zai"];
 
         /// <summary>
         /// Creates an LLM provider instance based on provider name and configuration.
@@ -34,6 +34,11 @@ namespace DraCode.Agent.Agents
                 "vllm" => new VllmProvider(C("model", "default"), C("baseUrl", "http://localhost:8000"), C("apiKey")),
                 "sglang" => new SglangProvider(C("model", "default"), C("baseUrl", "http://localhost:30000"), C("apiKey")),
                 "githubcopilot" => new GitHubCopilotProvider(C("clientId"), C("model", "gpt-4o"), C("baseUrl", "https://api.githubcopilot.com/chat/completions")),
+                "zai" or "zhipu" or "zhipuai" => new ZAiProvider(
+                    C("apiKey"),
+                    C("model", "glm-4.5-flash"),
+                    C("baseUrl", ZAiProvider.InternationalEndpoint),
+                    C("deepThinking", "false").Equals("true", StringComparison.OrdinalIgnoreCase)),
                 _ => throw new ArgumentException($"Unknown provider '{provider}'. Supported: {string.Join(", ", SupportedProviders)}")
             };
         }
