@@ -7,6 +7,13 @@ namespace DraCode.KoboldLair.Models.Configuration
     public class UserSettings
     {
         /// <summary>
+        /// Per-agent-type provider/model settings for Kobolds.
+        /// Allows different LLM providers for different agent types
+        /// (e.g., use Claude for csharp Kobolds, OpenAI for python Kobolds).
+        /// </summary>
+        public List<KoboldAgentTypeProviderSettings> KoboldAgentTypeSettings { get; set; } = new();
+
+        /// <summary>
         /// Provider name to use for Dragon agent (null = use default)
         /// </summary>
         public string? DragonProvider { get; set; }

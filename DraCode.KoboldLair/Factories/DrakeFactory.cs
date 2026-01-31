@@ -97,7 +97,7 @@ namespace DraCode.KoboldLair.Factories
                 // Create logger for Drake
                 var logger = _loggerFactory?.CreateLogger<Drake>();
 
-                // Create the Drake with specification path and project ID
+                // Create the Drake with specification path, project ID, and provider config service
                 var drake = new Drake(
                     _koboldFactory,
                     taskTracker,
@@ -107,7 +107,8 @@ namespace DraCode.KoboldLair.Factories
                     options,
                     specificationPath,
                     projectId,
-                    logger
+                    logger,
+                    _providerConfigService
                 );
 
                 _drakes[name] = drake;

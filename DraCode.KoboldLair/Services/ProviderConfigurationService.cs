@@ -110,6 +110,149 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Gets the configured provider name for a specific Kobold agent type.
+        /// Resolution precedence:
+        /// 1. KoboldAgentTypeSettings[agentType] (if matching entry exists)
+        /// 2. KoboldProvider (global Kobold fallback)
+        /// 3. DefaultProvider (system default)
+        /// </summary>
+        public string GetProviderForKoboldAgentType(string agentType)
+        {
+            lock (_lock)
+            {
+                // Check for agent-type-specific setting
+                var agentTypeSetting = _userSettings.KoboldAgentTypeSettings
+                    .FirstOrDefault(s => s.AgentType.Equals(agentType, StringComparison.OrdinalIgnoreCase));
+
+                if (agentTypeSetting?.Provider != null)
+                {
+                    return agentTypeSetting.Provider;
+                }
+
+                // Fall back to global Kobold provider
+                return _userSettings.KoboldProvider ?? _config.DefaultProvider;
+            }
+        }
+
+        /// <summary>
+        /// Gets the provider configuration and agent options for a specific Kobold agent type.
+        /// Resolution precedence:
+        /// 1. KoboldAgentTypeSettings[agentType] (if matching entry exists)
+        /// 2. KoboldProvider/KoboldModel (global Kobold fallback)
+        /// 3. DefaultProvider (system default)
+        /// </summary>
+        public (string provider, Dictionary<string, string> config, AgentOptions options) GetProviderSettingsForKoboldAgentType(
+            string agentType,
+            string? workingDirectory = null)
+        {
+            lock (_lock)
+            {
+                var providerName = GetProviderForKoboldAgentType(agentType);
+                var providerConfig = _config.Providers.FirstOrDefault(p => p.Name == providerName);
+
+                if (providerConfig == null)
+                {
+                    throw new InvalidOperationException($"Provider '{providerName}' not found for Kobold agent type '{agentType}'");
+                }
+
+                // Build configuration dictionary
+                var config = new Dictionary<string, string>(providerConfig.Configuration);
+
+                // Get model override - check agent-type-specific setting first, then global
+                var agentTypeSetting = _userSettings.KoboldAgentTypeSettings
+                    .FirstOrDefault(s => s.AgentType.Equals(agentType, StringComparison.OrdinalIgnoreCase));
+
+                var modelOverride = agentTypeSetting?.Model ?? _userSettings.KoboldModel;
+
+                config["model"] = modelOverride ?? providerConfig.DefaultModel;
+
+                // Add API key from environment if needed
+                if (providerConfig.RequiresApiKey)
+                {
+                    var apiKeyEnvVar = GetApiKeyEnvironmentVariable(providerConfig.Type);
+                    var apiKey = Environment.GetEnvironmentVariable(apiKeyEnvVar);
+                    if (!string.IsNullOrWhiteSpace(apiKey))
+                    {
+                        config["apiKey"] = apiKey;
+                    }
+                    else if (!config.ContainsKey("apiKey") || string.IsNullOrWhiteSpace(config["apiKey"]))
+                    {
+                        _logger.LogWarning("Provider {Provider} requires API key but none found in {EnvVar}",
+                            providerName, apiKeyEnvVar);
+                    }
+                }
+
+                var options = new AgentOptions
+                {
+                    WorkingDirectory = workingDirectory ?? "./workspace",
+                    Verbose = false
+                };
+
+                return (providerConfig.Type, config, options);
+            }
+        }
+
+        /// <summary>
+        /// Sets the provider for a specific Kobold agent type (persisted to user-settings.json)
+        /// </summary>
+        public void SetProviderForKoboldAgentType(string agentType, string? provider, string? model = null)
+        {
+            lock (_lock)
+            {
+                // Validate provider if specified
+                if (provider != null)
+                {
+                    var providerConfig = _config.Providers.FirstOrDefault(p => p.Name == provider);
+                    if (providerConfig == null)
+                    {
+                        throw new ArgumentException($"Provider '{provider}' not found");
+                    }
+
+                    if (!providerConfig.IsEnabled)
+                    {
+                        throw new ArgumentException($"Provider '{provider}' is not enabled");
+                    }
+                }
+
+                // Find existing entry or create new one
+                var existingEntry = _userSettings.KoboldAgentTypeSettings
+                    .FirstOrDefault(s => s.AgentType.Equals(agentType, StringComparison.OrdinalIgnoreCase));
+
+                if (provider == null && model == null)
+                {
+                    // Remove the entry if both are null
+                    if (existingEntry != null)
+                    {
+                        _userSettings.KoboldAgentTypeSettings.Remove(existingEntry);
+                        _logger.LogInformation("Removed Kobold agent type settings for {AgentType}", agentType);
+                    }
+                }
+                else if (existingEntry != null)
+                {
+                    // Update existing entry
+                    existingEntry.Provider = provider;
+                    existingEntry.Model = model;
+                    _logger.LogInformation("Updated Kobold agent type {AgentType} to provider={Provider}, model={Model}",
+                        agentType, provider ?? "(default)", model ?? "(default)");
+                }
+                else
+                {
+                    // Add new entry
+                    _userSettings.KoboldAgentTypeSettings.Add(new KoboldAgentTypeProviderSettings
+                    {
+                        AgentType = agentType.ToLowerInvariant(),
+                        Provider = provider,
+                        Model = model
+                    });
+                    _logger.LogInformation("Set Kobold agent type {AgentType} to provider={Provider}, model={Model}",
+                        agentType, provider ?? "(default)", model ?? "(default)");
+                }
+
+                SaveUserSettings();
+            }
+        }
+
+        /// <summary>
         /// Gets the provider configuration and agent options for a specific agent type
         /// </summary>
         public (string provider, Dictionary<string, string> config, AgentOptions options) GetProviderSettingsForAgent(
@@ -281,7 +424,15 @@ namespace DraCode.KoboldLair.Services
                     DragonModel = _userSettings.DragonModel,
                     WyrmModel = _userSettings.WyrmModel,
                     WyvernModel = _userSettings.WyvernModel,
-                    KoboldModel = _userSettings.KoboldModel
+                    KoboldModel = _userSettings.KoboldModel,
+                    KoboldAgentTypeSettings = _userSettings.KoboldAgentTypeSettings
+                        .Select(s => new KoboldAgentTypeProviderSettings
+                        {
+                            AgentType = s.AgentType,
+                            Provider = s.Provider,
+                            Model = s.Model
+                        })
+                        .ToList()
                 };
             }
         }
@@ -318,6 +469,18 @@ namespace DraCode.KoboldLair.Services
             _logger.LogInformation("  Wyrm: {Provider}", _userSettings.WyrmProvider ?? "(default)");
             _logger.LogInformation("  Wyvern: {Provider}", _userSettings.WyvernProvider ?? "(default)");
             _logger.LogInformation("  Kobold: {Provider}", _userSettings.KoboldProvider ?? "(default)");
+
+            if (_userSettings.KoboldAgentTypeSettings.Count > 0)
+            {
+                _logger.LogInformation("  Kobold agent type overrides ({Count}):", _userSettings.KoboldAgentTypeSettings.Count);
+                foreach (var setting in _userSettings.KoboldAgentTypeSettings)
+                {
+                    _logger.LogInformation("    - {AgentType}: provider={Provider}, model={Model}",
+                        setting.AgentType,
+                        setting.Provider ?? "(default)",
+                        setting.Model ?? "(default)");
+                }
+            }
         }
 
         private void SaveUserSettings()

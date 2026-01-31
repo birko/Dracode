@@ -2,6 +2,7 @@ using DraCode.Agent;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Services;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
 namespace DraCode.KoboldLair.Orchestrators
@@ -21,6 +22,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly string? _specificationPath;
         private readonly string? _projectId;
         private readonly ILogger<Drake>? _logger;
+        private readonly ProviderConfigurationService? _providerConfigService;
         private Wyvern? _wyvern;
 
         /// <summary>
@@ -40,6 +42,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="specificationPath">Optional path to project specification</param>
         /// <param name="projectId">Optional project identifier for resource limiting</param>
         /// <param name="logger">Optional logger for diagnostics</param>
+        /// <param name="providerConfigService">Optional provider configuration service for agent-type-specific providers</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -49,7 +52,8 @@ namespace DraCode.KoboldLair.Orchestrators
             AgentOptions? defaultOptions = null,
             string? specificationPath = null,
             string? projectId = null,
-            ILogger<Drake>? logger = null)
+            ILogger<Drake>? logger = null,
+            ProviderConfigurationService? providerConfigService = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -60,6 +64,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _specificationPath = specificationPath;
             _projectId = projectId;
             _logger = logger;
+            _providerConfigService = providerConfigService;
             _taskToKoboldMap = new Dictionary<string, Guid>();
         }
 
@@ -76,11 +81,14 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         /// <param name="task">Task to assign</param>
         /// <param name="agentType">Type of agent to create</param>
-        /// <param name="provider">LLM provider (optional, uses default if not specified)</param>
+        /// <param name="provider">LLM provider (optional, resolves by agent type if not specified)</param>
         /// <returns>The summoned Kobold, or null if resource limit reached</returns>
         public Kobold? SummonKobold(TaskRecord task, string agentType, string? provider = null)
         {
-            var effectiveProvider = provider ?? _defaultProvider;
+            // Resolve provider: explicit override > agent-type-specific > global default
+            var effectiveProvider = provider
+                ?? _providerConfigService?.GetProviderForKoboldAgentType(agentType)
+                ?? _defaultProvider;
             var projectId = task.ProjectId ?? _projectId;
 
             // Check if we can create a kobold for this project (resource limit check)
