@@ -37,5 +37,15 @@ namespace DraCode.KoboldLair.Models.Configuration
         public int MaxParallelDrakes { get; set; } = 1;
         public int MaxParallelWyrms { get; set; } = 1;
         public int MaxParallelWyverns { get; set; } = 1;
+
+        /// <summary>
+        /// Interval in seconds between Drake monitoring runs (default: 60)
+        /// </summary>
+        public int MonitoringIntervalSeconds { get; set; } = 60;
+
+        /// <summary>
+        /// Timeout in minutes before a working Kobold is considered stuck (default: 30)
+        /// </summary>
+        public int StuckKoboldTimeoutMinutes { get; set; } = 30;
     }
 }

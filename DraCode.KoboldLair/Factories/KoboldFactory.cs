@@ -111,6 +111,21 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
+        /// Gets working Kobolds that have exceeded the specified timeout duration
+        /// </summary>
+        /// <param name="timeout">Maximum allowed working duration</param>
+        /// <returns>List of stuck Kobolds with their working duration</returns>
+        public IReadOnlyCollection<(KoboldModel Kobold, TimeSpan WorkingDuration)> GetStuckKobolds(TimeSpan timeout)
+        {
+            var now = DateTime.UtcNow;
+            return _kobolds.Values
+                .Where(k => k.Status == KoboldStatus.Working && k.StartedAt.HasValue)
+                .Select(k => (Kobold: k, WorkingDuration: now - k.StartedAt!.Value))
+                .Where(x => x.WorkingDuration > timeout)
+                .ToList();
+        }
+
+        /// <summary>
         /// Gets Kobold assigned to a specific task
         /// </summary>
         public KoboldModel? GetKoboldByTaskId(Guid taskId)

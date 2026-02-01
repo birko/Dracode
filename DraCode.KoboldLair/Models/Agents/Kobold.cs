@@ -189,6 +189,30 @@ You are working on a task that is part of a larger project. Below is the project
         public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
 
         /// <summary>
+        /// Gets whether this Kobold was marked as stuck (timed out)
+        /// </summary>
+        public bool IsStuck { get; private set; }
+
+        /// <summary>
+        /// Marks this Kobold as stuck due to exceeding the timeout threshold.
+        /// Forces transition to Done status with an error message.
+        /// </summary>
+        /// <param name="workingDuration">How long the Kobold was working</param>
+        /// <param name="timeout">The timeout threshold that was exceeded</param>
+        public void MarkAsStuck(TimeSpan workingDuration, TimeSpan timeout)
+        {
+            if (Status != KoboldStatus.Working)
+            {
+                return; // Only working Kobolds can be marked as stuck
+            }
+
+            IsStuck = true;
+            ErrorMessage = $"Kobold timed out after {workingDuration.TotalMinutes:F1} minutes (threshold: {timeout.TotalMinutes:F0} minutes)";
+            Status = KoboldStatus.Done;
+            CompletedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
         /// Resets the Kobold to unassigned state (for reuse)
         /// </summary>
         public void Reset()
@@ -202,6 +226,7 @@ You are working on a task that is part of a larger project. Below is the project
             StartedAt = null;
             CompletedAt = null;
             ErrorMessage = null;
+            IsStuck = false;
         }
 
         /// <summary>

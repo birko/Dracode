@@ -495,13 +495,17 @@ TaskTracker LoadTasksFromFile(string filePath)  // TODO: implement parser
 DrakeMonitoringService(
     ILogger<DrakeMonitoringService> logger,
     DrakeFactory drakeFactory,
-    int monitoringIntervalSeconds = 60
+    int monitoringIntervalSeconds = 60,
+    int stuckKoboldTimeoutMinutes = 30  // Timeout before Kobold is considered stuck
 )
 
 // Background methods
 protected override Task ExecuteAsync(CancellationToken stoppingToken)
 private Task MonitorAllDrakesAsync()
 private Task MonitorSingleDrakeAsync(Drake drake)
+
+// Constants
+static readonly TimeSpan DefaultStuckTimeout  // 30 minutes
 ```
 
 ### Drake
@@ -511,6 +515,10 @@ private Task MonitorSingleDrakeAsync(Drake drake)
 void MonitorTasks()
 int UnsummonCompletedKobolds()
 void UpdateTasksFile()
+
+// Stuck Kobold Detection
+List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)> HandleStuckKobolds(TimeSpan timeout)
+IReadOnlyCollection<(Kobold Kobold, TimeSpan WorkingDuration)> GetStuckKobolds(TimeSpan timeout)
 
 // Execution
 Task<(List<AgentMessage> messages, Kobold kobold)> ExecuteTaskAsync(
@@ -570,9 +578,10 @@ See:
 2. ✅ DrakeMonitoringService created
 3. ✅ Services registered in Program.cs
 4. ✅ Documentation complete
-5. ⏳ Test monitoring service with real tasks
-6. ⏳ Implement LoadTasksFromFile markdown parser
-7. ⏳ Add metrics/telemetry
+5. ✅ Stuck Kobold detection and handling (configurable timeout)
+6. ⏳ Test monitoring service with real tasks
+7. ⏳ Implement LoadTasksFromFile markdown parser
+8. ⏳ Add metrics/telemetry
 
 ## Related Documentation
 

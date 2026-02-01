@@ -429,6 +429,54 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Detects and handles Kobolds that have been working longer than the specified timeout.
+        /// Stuck Kobolds are marked as failed and their tasks are updated accordingly.
+        /// </summary>
+        /// <param name="timeout">Maximum allowed working duration before a Kobold is considered stuck</param>
+        /// <returns>List of stuck Kobold info (ID, task ID, working duration)</returns>
+        public List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)> HandleStuckKobolds(TimeSpan timeout)
+        {
+            var stuckKobolds = _koboldFactory.GetStuckKobolds(timeout);
+            var result = new List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)>();
+
+            foreach (var (kobold, workingDuration) in stuckKobolds)
+            {
+                _logger?.LogWarning(
+                    "⚠️ Kobold {KoboldId} stuck - working for {Duration:F1} minutes on task {TaskId}",
+                    kobold.Id.ToString()[..8],
+                    workingDuration.TotalMinutes,
+                    kobold.TaskId?.ToString()[..8] ?? "unknown");
+
+                // Mark the Kobold as stuck (transitions to Done with error)
+                kobold.MarkAsStuck(workingDuration, timeout);
+
+                // Sync the task status from the now-failed Kobold
+                SyncTaskFromKobold(kobold);
+
+                result.Add((kobold.Id, kobold.TaskId?.ToString(), workingDuration));
+            }
+
+            if (result.Count > 0)
+            {
+                SaveTasksToFile();
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Gets working Kobolds that have exceeded the specified timeout
+        /// </summary>
+        /// <param name="timeout">Maximum allowed working duration</param>
+        /// <returns>List of stuck Kobolds with their working duration</returns>
+        public IReadOnlyCollection<(Kobold Kobold, TimeSpan WorkingDuration)> GetStuckKobolds(TimeSpan timeout)
+        {
+            return _koboldFactory.GetStuckKobolds(timeout)
+                .Select(x => (x.Kobold, x.WorkingDuration))
+                .ToList();
+        }
+
+        /// <summary>
         /// Gets statistics about the Drake's managed Kobolds
         /// </summary>
         public DrakeStatistics GetStatistics()

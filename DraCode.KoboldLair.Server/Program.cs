@@ -114,12 +114,18 @@ builder.Services.AddSingleton<DragonService>(sp =>
     return new DragonService(logger, providerConfigService, projectService, gitService, projectsPath);
 });
 
-// Register background monitoring service (checks every 60 seconds)
+// Register background monitoring service
 builder.Services.AddHostedService<DrakeMonitoringService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<DrakeMonitoringService>>();
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
-    return new DrakeMonitoringService(logger, drakeFactory, monitoringIntervalSeconds: 60);
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var limits = config.Limits;
+    return new DrakeMonitoringService(
+        logger,
+        drakeFactory,
+        monitoringIntervalSeconds: limits.MonitoringIntervalSeconds,
+        stuckKoboldTimeoutMinutes: limits.StuckKoboldTimeoutMinutes);
 });
 
 // Register Wyvern processing background service (checks every 60 seconds)

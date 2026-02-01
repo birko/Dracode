@@ -6,14 +6,21 @@ namespace DraCode.KoboldLair.Server.Services
     /// <summary>
     /// Background service that monitors Drake supervisors and their Kobold workers.
     /// Runs periodically to check Kobold work progress and update task statuses.
+    /// Detects and handles stuck Kobolds that exceed the configured timeout.
     /// </summary>
     public class DrakeMonitoringService : BackgroundService
     {
         private readonly ILogger<DrakeMonitoringService> _logger;
         private readonly DrakeFactory _drakeFactory;
         private readonly TimeSpan _monitoringInterval;
+        private readonly TimeSpan _stuckKoboldTimeout;
         private bool _isRunning;
         private readonly object _lock = new object();
+
+        /// <summary>
+        /// Default timeout for stuck Kobold detection (30 minutes)
+        /// </summary>
+        public static readonly TimeSpan DefaultStuckTimeout = TimeSpan.FromMinutes(30);
 
         /// <summary>
         /// Creates a new Drake monitoring service
@@ -21,20 +28,26 @@ namespace DraCode.KoboldLair.Server.Services
         /// <param name="logger">Logger instance</param>
         /// <param name="drakeFactory">Factory managing all Drakes</param>
         /// <param name="monitoringIntervalSeconds">Interval in seconds between monitoring runs (default: 60)</param>
+        /// <param name="stuckKoboldTimeoutMinutes">Timeout in minutes before a Kobold is considered stuck (default: 30)</param>
         public DrakeMonitoringService(
             ILogger<DrakeMonitoringService> logger,
             DrakeFactory drakeFactory,
-            int monitoringIntervalSeconds = 60)
+            int monitoringIntervalSeconds = 60,
+            int stuckKoboldTimeoutMinutes = 30)
         {
             _logger = logger;
             _drakeFactory = drakeFactory;
             _monitoringInterval = TimeSpan.FromSeconds(monitoringIntervalSeconds);
+            _stuckKoboldTimeout = TimeSpan.FromMinutes(stuckKoboldTimeoutMinutes);
             _isRunning = false;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("🐉 Drake Monitoring Service started. Interval: {Interval}s", _monitoringInterval.TotalSeconds);
+            _logger.LogInformation(
+                "🐉 Drake Monitoring Service started. Interval: {Interval}s, Stuck timeout: {Timeout} min",
+                _monitoringInterval.TotalSeconds,
+                _stuckKoboldTimeout.TotalMinutes);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -139,14 +152,30 @@ namespace DraCode.KoboldLair.Server.Services
                 stats.DoneTasks
             );
 
-            // Check for stuck Kobolds (working for more than 30 minutes)
-            var workingKobolds = drake.GetStatistics();
-            if (workingKobolds.WorkingKobolds > 0)
+            // Check for stuck Kobolds (working longer than timeout threshold)
+            if (stats.WorkingKobolds > 0)
             {
-                _logger.LogInformation("⚡ {Count} Kobold(s) currently working", workingKobolds.WorkingKobolds);
-                
-                // TODO: Add logic to detect and handle stuck Kobolds
-                // For example, Kobolds that have been working for too long
+                _logger.LogInformation("⚡ {Count} Kobold(s) currently working", stats.WorkingKobolds);
+
+                // Detect and handle stuck Kobolds
+                var stuckKobolds = drake.HandleStuckKobolds(_stuckKoboldTimeout);
+
+                if (stuckKobolds.Count > 0)
+                {
+                    _logger.LogWarning(
+                        "🚨 Handled {Count} stuck Kobold(s) (timeout: {Timeout} minutes)",
+                        stuckKobolds.Count,
+                        _stuckKoboldTimeout.TotalMinutes);
+
+                    foreach (var (koboldId, taskId, duration) in stuckKobolds)
+                    {
+                        _logger.LogWarning(
+                            "   - Kobold {KoboldId}: worked {Duration:F1} min on task {TaskId}",
+                            koboldId.ToString()[..8],
+                            duration.TotalMinutes,
+                            taskId?[..8] ?? "unknown");
+                    }
+                }
             }
 
             // Cleanup completed Kobolds
