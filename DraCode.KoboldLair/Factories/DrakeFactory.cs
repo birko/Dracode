@@ -193,13 +193,21 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
-        /// Loads tasks from a markdown file into the task tracker
+        /// Loads tasks from a markdown file into the task tracker.
+        /// Parses the markdown table format to restore task state after restarts.
         /// </summary>
         private void LoadTasksFromFile(TaskTracker taskTracker, string filePath)
         {
-            // This is a placeholder - in a real implementation, you would parse the markdown file
-            // For now, we'll just start with an empty tracker
-            // TODO: Implement markdown parsing to restore task state
+            var tasksLoaded = taskTracker.LoadFromFile(filePath);
+
+            if (tasksLoaded > 0)
+            {
+                var logger = _loggerFactory?.CreateLogger<DrakeFactory>();
+                logger?.LogInformation(
+                    "📂 Loaded {Count} task(s) from {FilePath}",
+                    tasksLoaded,
+                    Path.GetFileName(filePath));
+            }
         }
     }
 }

@@ -484,8 +484,27 @@ Drake? GetDrake(string drakeName)
 IEnumerable<Drake> GetAllDrakes()
 int TotalDrakes { get; }
 
-// Private
-TaskTracker LoadTasksFromFile(string filePath)  // TODO: implement parser
+// Private - loads tasks from markdown file on Drake creation
+void LoadTasksFromFile(TaskTracker taskTracker, string filePath)
+```
+
+### TaskTracker
+
+```csharp
+// Persistence
+int LoadFromFile(string filePath)           // Load tasks from markdown file
+int LoadFromMarkdown(string markdown)       // Load tasks from markdown string
+void SaveToFile(string filePath, string? title)  // Save tasks to markdown file
+string GenerateMarkdown(string? title)      // Generate markdown report
+
+// Task management
+TaskRecord AddTask(string task)
+void UpdateTask(TaskRecord task, TaskStatus status, string? assignedAgent)
+void SetError(TaskRecord task, string errorMessage)
+List<TaskRecord> GetAllTasks()
+TaskRecord? GetTaskById(string id)
+Dictionary<TaskStatus, int> GetStatusCounts()
+void Clear()
 ```
 
 ### DrakeMonitoringService
@@ -579,8 +598,8 @@ See:
 3. ✅ Services registered in Program.cs
 4. ✅ Documentation complete
 5. ✅ Stuck Kobold detection and handling (configurable timeout)
-6. ⏳ Test monitoring service with real tasks
-7. ⏳ Implement LoadTasksFromFile markdown parser
+6. ✅ LoadTasksFromFile markdown parser (TaskTracker.LoadFromFile)
+7. ⏳ Test monitoring service with real tasks
 8. ⏳ Add metrics/telemetry
 
 ## Related Documentation

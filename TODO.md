@@ -31,11 +31,12 @@ This file tracks planned enhancements and their implementation status.
 
 ### High Priority
 
-- [ ] **Markdown Parser for Task Persistence** - `DrakeFactory.cs:202`
-  - Parse task files (`*-tasks.md`) to restore Drake state
-  - Extract task status from markdown checkboxes
-  - Handle malformed markdown gracefully
-  - Effort: Medium (~1-2 days)
+- [x] **Markdown Parser for Task Persistence** - `DrakeFactory.cs:202` *(Completed 2026-02-01)*
+  - Added `LoadFromFile()` and `LoadFromMarkdown()` methods to TaskTracker
+  - Parses markdown table format (Task | Agent | Status)
+  - Handles emoji-prefixed status (🟡 working → Working)
+  - Gracefully handles malformed rows and edge cases
+  - DrakeFactory now logs loaded task count on startup
 
 - [ ] **Unit Tests for All Tools** - `DraCode.Agent/Tools/`
   - Add tests for all 7 built-in tools
