@@ -346,6 +346,14 @@ Remember: You manage specifications and features. Projects in 'Prototype' status
         }
 
         /// <summary>
+        /// Clears the agent's context/conversation history without reloading
+        /// </summary>
+        public void ClearContext()
+        {
+            ClearConversationHistory();
+        }
+
+        /// <summary>
         /// Restores conversation context from a list of messages (used for session recovery)
         /// </summary>
         /// <param name="messages">Enumerable of (Role, Content) tuples representing conversation history</param>

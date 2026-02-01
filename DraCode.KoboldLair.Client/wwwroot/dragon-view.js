@@ -185,6 +185,23 @@ class DragonSession {
         }
     }
 
+    /**
+     * Clear the context (messages) without reloading the agent
+     */
+    clearContext() {
+        if (this.ws && this.sessionId) {
+            this.ws.send({
+                type: 'clear_context',
+                sessionId: this.sessionId
+            });
+        }
+        // Clear local messages
+        this.clearMessages();
+        // Add a system message indicating context was cleared
+        this.addMessage('system', 'Context cleared - conversation memory has been reset.');
+        this.view.saveAllSessions();
+    }
+
     disconnect() {
         this.ws?.disconnect();
         this.ws = null;
@@ -365,6 +382,12 @@ export class DragonView {
                                 </option>
                             `).join('')}
                         </select>
+                        <button class="btn btn-secondary" id="dragonClearBtn" title="Clear conversation context (keeps agent loaded)">
+                            <span>🧹 Clear Context</span>
+                        </button>
+                        <button class="btn btn-secondary" id="dragonDownloadBtn" title="Download conversation as text file">
+                            <span>📥 Download</span>
+                        </button>
                         <button class="btn btn-secondary" id="dragonReloadBtn" title="Reload agent (clear context and reload provider)">
                             <span>🔄 Reload Agent</span>
                         </button>
@@ -423,6 +446,10 @@ export class DragonView {
             if (msg.role === 'error') {
                 return this.renderErrorMessageHtml(msg);
             }
+            // Special styling for context cleared indicator
+            if (msg.role === 'system' && msg.content.includes('Context cleared')) {
+                return this.renderContextClearedHtml(msg);
+            }
             return `
                 <div class="chat-message ${msg.role}">
                     <div class="chat-message-icon">${msg.role === 'user' ? '👤' : msg.role === 'system' ? 'ℹ️' : '🐉'}</div>
@@ -433,6 +460,17 @@ export class DragonView {
                 </div>
             `;
         }).join('');
+    }
+
+    renderContextClearedHtml(msg) {
+        return `
+            <div class="chat-message context-cleared" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border: 1px solid #60a5fa; border-left: 4px solid #3b82f6; justify-content: center;">
+                <div class="chat-message-icon" style="color: #3b82f6;">🧹</div>
+                <div class="chat-message-content" style="text-align: center;">
+                    <div class="chat-message-text" style="color: #1e40af; font-style: italic;">${this.escapeHtml(msg.content)}</div>
+                </div>
+            </div>
+        `;
     }
 
     renderErrorMessageHtml(msg) {
@@ -492,6 +530,8 @@ export class DragonView {
         const sendBtn = document.getElementById('dragonSendBtn');
         const input = document.getElementById('dragonInput');
         const reloadBtn = document.getElementById('dragonReloadBtn');
+        const clearBtn = document.getElementById('dragonClearBtn');
+        const downloadBtn = document.getElementById('dragonDownloadBtn');
         const providerSelect = document.getElementById('dragonProviderSelect');
         const addTabBtn = document.getElementById('dragonAddTab');
 
@@ -503,6 +543,8 @@ export class DragonView {
             }
         });
         reloadBtn?.addEventListener('click', () => this.reloadAgent());
+        clearBtn?.addEventListener('click', () => this.clearContext());
+        downloadBtn?.addEventListener('click', () => this.downloadConversation());
         providerSelect?.addEventListener('change', (e) => {
             this.selectedProvider = e.target.value;
             this.reloadAgent();
@@ -565,6 +607,70 @@ export class DragonView {
         }
     }
 
+    /**
+     * Clear the context for the active session
+     */
+    clearContext() {
+        const session = this.sessions.get(this.activeSessionId);
+        if (session) {
+            session.clearContext();
+            this.renderActiveSessionMessages();
+            this.showNotification('Context cleared', 'info');
+        }
+    }
+
+    /**
+     * Download the conversation as a text file
+     */
+    downloadConversation() {
+        const session = this.sessions.get(this.activeSessionId);
+        if (!session || session.messages.length === 0) {
+            this.showNotification('No messages to download', 'error');
+            return;
+        }
+
+        // Format messages as text
+        const lines = [];
+        lines.push(`Dragon Conversation - ${session.name}`);
+        lines.push(`Exported: ${new Date().toLocaleString()}`);
+        lines.push('='.repeat(50));
+        lines.push('');
+
+        session.messages.forEach(msg => {
+            const role = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
+            const icon = msg.role === 'user' ? '[User]' :
+                         msg.role === 'assistant' ? '[Dragon]' :
+                         msg.role === 'system' ? '[System]' :
+                         msg.role === 'error' ? '[Error]' : `[${role}]`;
+
+            lines.push(icon);
+            lines.push(msg.content);
+            if (msg.details) {
+                lines.push(`Details: ${msg.details}`);
+            }
+            lines.push('');
+            lines.push('-'.repeat(50));
+            lines.push('');
+        });
+
+        const content = lines.join('\n');
+
+        // Create and trigger download
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const safeName = session.name.replace(/[^a-z0-9]/gi, '_');
+        a.download = `dragon-${safeName}-${timestamp}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        this.showNotification('Conversation downloaded', 'success');
+    }
+
     appendMessageToUI(msg, role) {
         const messagesContainer = document.getElementById('dragonMessages');
         if (!messagesContainer) return;
@@ -583,15 +689,34 @@ export class DragonView {
         }
 
         const messageEl = document.createElement('div');
-        messageEl.className = `chat-message ${role}`;
-        const icon = role === 'user' ? '👤' : role === 'system' ? 'ℹ️' : '🐉';
-        messageEl.innerHTML = `
-            <div class="chat-message-icon">${icon}</div>
-            <div class="chat-message-content">
-                <div class="chat-message-role">${role}</div>
-                <div class="chat-message-text">${msg.content}</div>
-            </div>
-        `;
+
+        // Special styling for context cleared indicator
+        if (role === 'system' && msg.content.includes('Context cleared')) {
+            messageEl.className = 'chat-message context-cleared';
+            messageEl.style.cssText = `
+                background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+                border: 1px solid #60a5fa;
+                border-left: 4px solid #3b82f6;
+                justify-content: center;
+            `;
+            messageEl.innerHTML = `
+                <div class="chat-message-icon" style="color: #3b82f6;">🧹</div>
+                <div class="chat-message-content" style="text-align: center;">
+                    <div class="chat-message-text" style="color: #1e40af; font-style: italic;">${this.escapeHtml(msg.content)}</div>
+                </div>
+            `;
+        } else {
+            messageEl.className = `chat-message ${role}`;
+            const icon = role === 'user' ? '👤' : role === 'system' ? 'ℹ️' : '🐉';
+            messageEl.innerHTML = `
+                <div class="chat-message-icon">${icon}</div>
+                <div class="chat-message-content">
+                    <div class="chat-message-role">${role}</div>
+                    <div class="chat-message-text">${msg.content}</div>
+                </div>
+            `;
+        }
+
         messagesContainer.appendChild(messageEl);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }

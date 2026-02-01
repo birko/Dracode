@@ -348,6 +348,13 @@ namespace DraCode.KoboldLair.Server.Services
                     return;
                 }
 
+                // Check for clear context command
+                if (message.Type == "clear_context")
+                {
+                    await ClearContextAsync(session, dragon);
+                    return;
+                }
+
                 // Check for session replay request
                 if (message.Type == "session_replay")
                 {
@@ -790,6 +797,52 @@ namespace DraCode.KoboldLair.Server.Services
                     type = "error",
                     sessionId,
                     message = $"Failed to reload agent: {ex.Message}",
+                    timestamp = DateTime.UtcNow
+                });
+            }
+        }
+
+        /// <summary>
+        /// Clears the conversation context without reloading the agent
+        /// </summary>
+        private async Task ClearContextAsync(DragonSession session, DragonAgent dragon)
+        {
+            var sessionId = session.SessionId;
+            _logger.LogInformation("Clearing context for Dragon session: {SessionId}", sessionId);
+
+            if (!_sessionWebSockets.TryGetValue(sessionId, out var webSocket))
+            {
+                _logger.LogWarning("WebSocket not found for session: {SessionId}", sessionId);
+                return;
+            }
+
+            try
+            {
+                // Clear the agent's conversation context
+                dragon.ClearContext();
+
+                // Clear message history
+                session.MessageHistory.Clear();
+                session.LastMessageId = null;
+
+                await SendTrackedMessageAsync(webSocket, session, "context_cleared", new
+                {
+                    type = "context_cleared",
+                    sessionId,
+                    message = "Conversation context has been cleared.",
+                    timestamp = DateTime.UtcNow
+                });
+
+                _logger.LogInformation("Context cleared successfully for session: {SessionId}", sessionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error clearing context for session: {SessionId}", sessionId);
+                await SendTrackedMessageAsync(webSocket, session, "error", new
+                {
+                    type = "error",
+                    sessionId,
+                    message = $"Failed to clear context: {ex.Message}",
                     timestamp = DateTime.UtcNow
                 });
             }
