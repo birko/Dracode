@@ -29,6 +29,8 @@ DraCode.KoboldLair/
 │   ├── WyrmAgent.cs        # Task delegation and agent selection
 │   └── Tools/              # Agent-specific tools
 │       ├── FeatureManagementTool.cs
+│       ├── GitMergeTool.cs         # Merge feature branches to main
+│       ├── GitStatusTool.cs        # View branch status and merge readiness
 │       ├── ListProjectsTool.cs
 │       ├── ProjectApprovalTool.cs
 │       ├── SelectAgentTool.cs
@@ -50,6 +52,7 @@ DraCode.KoboldLair/
 │   ├── Wyvern.cs           # Project analyzer
 │   └── WyrmRunner.cs       # Task delegation runner
 └── Services/               # Business logic layer
+    ├── GitService.cs       # Git operations (branch, merge, commit)
     ├── ProjectService.cs   # Project lifecycle management
     ├── ProjectRepository.cs # Data persistence
     ├── ProjectConfigurationService.cs
@@ -74,6 +77,8 @@ The user-facing agent for interactive requirements gathering.
 - `FeatureManagementTool` - Manage features within specifications
 - `ProjectApprovalTool` - Approve projects for processing
 - `AddExistingProjectTool` - Register existing projects
+- `GitStatusTool` - View branch status, unmerged branches, merge readiness
+- `GitMergeTool` - Merge feature branches to main with conflict detection
 
 ### Wyvern
 

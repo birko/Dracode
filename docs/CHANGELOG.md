@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.3.0] - 2026-02-01
+
+### 🔧 Added - Git Integration
+
+**Complete Git tooling support for KoboldLair:**
+
+- **GitService** - Repository-level Git operations
+  - Repository initialization
+  - Branch creation and switching
+  - Commit functionality with message support
+  - Merge operations with conflict detection
+  - Cross-platform support (Windows and Unix)
+
+- **GitStatusTool** (`git_status`) - View repository state
+  - Current branch information
+  - List of unmerged feature branches
+  - Merge readiness check
+  - Branch-to-feature mapping
+
+- **GitMergeTool** (`git_merge`) - Branch merge operations
+  - Merge feature branches to main
+  - Conflict detection and reporting
+  - Safe merge workflow with pre-checks
+
+- **Git Models**
+  - `GitBranch` - Branch information with commit details
+  - `MergeResult` - Merge operation outcome
+  - `MergeCheckResult` - Pre-merge validation
+
+**Integration Points:**
+- Drake commits task completions automatically
+- Dragon shows git status during project management
+- Wyvern creates feature branches for work areas
+
+### 🎨 Added - Thinking Indicator
+
+**Real-time processing feedback in Dragon chat:**
+
+- **`dragon_thinking` message type** - Shows when Dragon is processing
+- Visual indicator during LLM API calls
+- Callback system for real-time updates
+- Client-side support in KoboldLair.Client
+
+### 🐛 Fixed - Parameter Order
+
+- Fixed parameter ordering in DragonService initialization
+- Fixed parameter ordering in ProjectService method calls
+- Corrected initialization sequence for services
+
+### 🔧 Changed - Documentation
+
+- Updated CLAUDE.md with current project state
+- Consolidated tool count (8 built-in + 7 Dragon-specific)
+
+---
+
 ## [2.2.1] - 2026-01-31
 
 ### 📚 Added - DraCode.KoboldLair README
@@ -109,6 +165,12 @@ All notable changes to this project will be documented in this file.
 ---
 
 ## [Unreleased]
+
+No unreleased changes.
+
+---
+
+## [2.2.2] - 2026-01-31
 
 ### 🎨 Added - New Specialized Agent Types
 
@@ -523,6 +585,8 @@ Execute multiple tasks sequentially with fresh agent instances for each task.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.3.0 | Feb 2026 | Git integration, thinking indicator, parameter fixes |
+| 2.2.2 | Jan 2026 | New specialized agent types (PHP, Python, SVG, Bitmap, Media) |
 | 2.2.1 | Jan 2026 | DraCode.KoboldLair README documentation |
 | 2.2.0 | Jan 2026 | Z.AI/vLLM/SGLang providers, Dragon tools, model reorganization |
 | 2.1 | Jan 2026 | Multi-task execution, batch processing |

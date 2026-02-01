@@ -5,19 +5,19 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 ## Quick Links
 
 - **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete spec for regenerating the project
-- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.2.1 - January 2026)
+- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.3.0 - February 2026)
 - **[KoboldLair Core Library](../DraCode.KoboldLair/README.md)** - Multi-agent orchestration library
 - **[KoboldLair Server](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
 - **[KoboldLair Client](../DraCode.KoboldLair.Client/README.md)** - Multi-agent web UI
 
-## Latest Updates (v2.2.1)
+## Latest Updates (v2.3.0)
 
-- **KoboldLair Core Library README**: Comprehensive documentation for the multi-agent orchestration library
+- **Git Integration**: Complete Git tooling support with GitService, GitStatusTool, and GitMergeTool
+- **Thinking Indicator**: Real-time `dragon_thinking` message type for processing feedback
+- **17 Specialized Agents**: Including PHP, Python, SVG, Bitmap, and Media specialists
+- **10 LLM Providers**: OpenAI, Claude, Gemini, Azure, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp
+- **Per-Agent-Type Providers**: Configure different LLM providers for different Kobold agent types
 - **Dragon Multi-Session**: Persistent sessions with 10-minute timeout, message history replay on reconnect
-- **New LLM Providers**: Z.AI (GLM models), vLLM, SGLang
-- **Dragon Tools**: Add existing projects, specification approval workflow
-- **Architecture**: Model reorganization, WyrmFactory, configuration overhaul
-- **UI**: Compacted interface, project configuration view
 
 ---
 

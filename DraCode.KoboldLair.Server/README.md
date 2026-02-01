@@ -326,6 +326,8 @@ DraCode.KoboldLair.Server/
 │   ├── WyvernAgent.cs              # Task delegator
 │   └── Tools/                      # Dragon-specific tools
 │       ├── AddExistingProjectTool.cs    # Import existing projects from disk
+│       ├── GitMergeTool.cs              # Merge feature branches to main
+│       ├── GitStatusTool.cs             # View branch status and merge readiness
 │       ├── ProjectApprovalTool.cs       # Approve specs (Prototype → New)
 │       ├── SpecificationWriterTool.cs   # Write specification files
 │       ├── SpecificationManagementTool.cs
@@ -369,6 +371,7 @@ DraCode.KoboldLair.Server/
 │       └── WebSocketRequest.cs
 ├── Services/                       # Business Logic Services
 │   ├── DragonService.cs            # Dragon WebSocket service
+│   ├── GitService.cs               # Git operations (branch, merge, commit)
 │   ├── WyrmService.cs              # Wyrm analysis service
 │   ├── WyvernProcessingService.cs  # Wyvern background processing (60s)
 │   ├── DrakeMonitoringService.cs   # Drake background monitoring (60s)
@@ -402,7 +405,19 @@ Dragon supports multi-session with persistent connections and automatic reconnec
 
 // Historical messages replayed with isReplay flag
 { "type": "dragon_message", "isReplay": true, "messageId": "...", "message": "..." }
+
+// Thinking indicator (real-time processing feedback)
+{ "type": "dragon_thinking", "message": "Analyzing project structure..." }
 ```
+
+**Message Types:**
+- `dragon_message` - Regular chat responses
+- `dragon_thinking` - Processing/thinking indicator (real-time feedback)
+- `dragon_typing` - Typing indicator
+- `session_resumed` - Session reconnection confirmation
+- `specification_created` - Specification successfully created
+- `dragon_reloaded` - Agent reloaded with new provider
+- `error` - Error occurred (types: `llm_connection`, `llm_timeout`, `llm_response`, `llm_error`, `general`)
 
 **Provider Reload:**
 ```json
@@ -425,6 +440,8 @@ Dragon uses specialized tools for project management:
 | `manage_specification` | Edit and manage specification content |
 | `manage_features` | Add, update, or remove project features |
 | `list_projects` | List all registered projects with status |
+| `git_status` | View branch status, unmerged feature branches, and merge readiness |
+| `git_merge` | Merge feature branches to main with conflict detection and safe workflow |
 
 ### Tool Details
 
@@ -445,6 +462,18 @@ Dragon uses specialized tools for project management:
 **list_projects**
 - Returns all registered projects with: ID, Name, Status, FeatureCount, CreatedAt, UpdatedAt
 - Used by Dragon to show available projects during conversation
+
+**git_status** (NEW)
+- Shows current branch and commit information
+- Lists unmerged feature branches with their status
+- Checks merge readiness (clean working tree, no conflicts)
+- Maps branches to features for tracking progress
+
+**git_merge** (NEW)
+- Merges feature branches to main branch
+- Pre-checks for conflicts before merging
+- Returns detailed merge results (success, conflicts, or errors)
+- Supports safe merge workflow with rollback on failure
 
 ## Related
 

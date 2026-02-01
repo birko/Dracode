@@ -1,7 +1,7 @@
 # DraCode Architecture Specification
 
-**Version:** 2.0  
-**Last Updated:** January 20, 2026  
+**Version:** 2.3
+**Last Updated:** February 1, 2026
 **Status:** Current Implementation
 
 ---
@@ -24,7 +24,7 @@
 DraCode is an AI-powered coding agent CLI that enables autonomous code manipulation through natural language instructions. It provides a secure, sandboxed environment for LLM-driven development tasks.
 
 ### 1.2 Key Capabilities
-- **Multi-Provider LLM Support**: Seamless integration with 6+ LLM providers
+- **Multi-Provider LLM Support**: Seamless integration with 10 LLM providers
 - **Multi-Task Execution**: Sequential execution of multiple tasks with fresh agent instances
 - **Tool-Based Architecture**: Extensible system for adding new capabilities
 - **Interactive CLI**: Modern, colorful interface with Spectre.Console
@@ -276,6 +276,10 @@ public interface ILlmProvider
 | Azure OpenAI | Function Calling | API Key + Endpoint | Deployment-based |
 | Ollama | Function Calling | None (local) | Local model support |
 | GitHub Copilot | Function Calling | OAuth Device Flow | Token refresh logic |
+| Z.AI | Function Calling | API Key | GLM models, deep thinking mode |
+| vLLM | Function Calling | None (local) | High-performance local inference |
+| SGLang | Function Calling | None (local) | Structured generation support |
+| LlamaCpp | Function Calling | None (local) | GGUF model support |
 
 **Message Format Conversions**:
 
@@ -771,11 +775,15 @@ Priority (highest to lowest):
 
 Used in selection menu:
 - 🤖 OpenAI
-- 🧠 Claude/Anthropic  
+- 🧠 Claude/Anthropic
 - ✨ Gemini/Google
 - 🐙 GitHub Copilot
 - ☁️ Azure OpenAI
 - 🦙 Ollama
+- 🐉 Z.AI (Zhipu GLM)
+- ⚡ vLLM
+- 🔮 SGLang
+- 🦙 LlamaCpp
 - 🔧 Default/Other
 
 ---
@@ -825,19 +833,23 @@ Used in selection menu:
 
 ## 11. Future Architecture Considerations
 
-### 11.1 Planned Enhancements
-- **Streaming responses**: Real-time token streaming from LLMs
-- **Multi-agent collaboration**: Multiple agents working together
-- **Persistent memory**: Agent memory across sessions
-- **Custom agent types**: Specialized agents (Debugging, Refactoring, etc.)
-- **Plugin system**: Dynamic tool loading from assemblies
-- **Web UI**: Browser-based interface option
+### 11.1 Current Enhancements (Implemented)
+- **17 Specialized Agent Types**: Coding (C#, C++, JavaScript, TypeScript, PHP, Python, etc.), Web (HTML, CSS, React, Angular), Media (SVG, Bitmap, Image), and Diagramming
+- **KoboldLair Multi-Agent System**: Autonomous hierarchical system (Dragon → Wyvern → Drake → Kobold)
+- **Git Integration**: GitService, GitStatusTool, GitMergeTool for version control
+- **Per-Agent-Type Provider Configuration**: Different LLM providers for different Kobold agent types
 
-### 11.2 Scalability
-- Current design supports single-user, single-task execution
-- Could be extended to server mode with concurrent task handling
+### 11.2 Planned Enhancements
+- **Streaming responses**: Real-time token streaming from LLMs
+- **Persistent memory**: Agent memory across sessions
+- **Plugin system**: Dynamic tool loading from assemblies
+
+### 11.3 Scalability
+- KoboldLair provides multi-agent concurrent task handling
+- Per-project resource limits (maxParallelKobolds)
 - Tool system is thread-safe and stateless
-- Provider instances could be pooled
+- Provider instances are managed per agent type
+- Background services run every 60 seconds for automatic processing
 
 ---
 

@@ -9,12 +9,15 @@
 **DraCode** is a multi-provider AI coding agent system with:
 - Real-time WebSocket-based multi-agent orchestration
 - Support for 10 LLM providers (OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp)
+- 17 specialized agent types (Coding, Web, Media, Diagramming)
 - Modern TypeScript web client with zero frontend dependencies
-- Tool-based autonomous code manipulation
+- Tool-based autonomous code manipulation (7 built-in + 8 Dragon-specific tools)
 - Interactive user prompts via ask_user tool
 - .NET Aspire orchestration for service discovery
 - Optional token-based authentication with IP address binding
-- KoboldLair multi-agent autonomous coding system (Dragon, Wyrm, Drake, Kobold)
+- KoboldLair multi-agent autonomous coding system (Dragon, Wyvern, Drake, Kobold)
+- Git integration (GitService, GitStatusTool, GitMergeTool)
+- Per-agent-type provider configuration for Kobolds
 
 ---
 
@@ -68,7 +71,7 @@ DraCode.sln
 │   │       ├── VllmProvider.cs   # vLLM local inference
 │   │       ├── SglangProvider.cs # SGLang inference
 │   │       └── LlamaCppProvider.cs # llama.cpp server
-│   ├── Tools/
+│   ├── Tools/                    # 7 built-in tools
 │   │   ├── Tool.cs               # Abstract base tool
 │   │   ├── ListFilesTool.cs      # Directory listing
 │   │   ├── ReadFileTool.cs       # Read file contents
@@ -106,6 +109,25 @@ DraCode.sln
 │   ├── tsconfig.json             # TypeScript configuration
 │   ├── package.json              # npm scripts
 │   └── appsettings.json          # Web server config
+├── DraCode.KoboldLair/           # Multi-agent core library
+│   ├── Agents/                   # Dragon, Wyvern, Wyrm agents
+│   │   └── Tools/                # 8 Dragon-specific tools
+│   │       ├── GitStatusTool.cs  # View branch status
+│   │       ├── GitMergeTool.cs   # Merge feature branches
+│   │       ├── SpecificationManagementTool.cs
+│   │       ├── FeatureManagementTool.cs
+│   │       ├── ProjectApprovalTool.cs
+│   │       ├── ListProjectsTool.cs
+│   │       ├── AddExistingProjectTool.cs
+│   │       └── SelectAgentTool.cs
+│   ├── Factories/                # KoboldFactory, DrakeFactory, WyvernFactory
+│   ├── Orchestrators/            # Drake, Wyvern, WyrmRunner
+│   ├── Models/                   # Agents/, Configuration/, Projects/, Tasks/
+│   └── Services/                 # GitService, ProjectService, ProviderConfigurationService
+├── DraCode.KoboldLair.Server/    # KoboldLair WebSocket server
+│   └── Services/                 # DragonService, DrakeMonitoringService, WyvernProcessingService
+├── DraCode.KoboldLair.Client/    # KoboldLair Web UI
+│   └── wwwroot/                  # Status Monitor, Dragon Chat, Hierarchy View
 ├── DraCode.AppHost/              # .NET Aspire orchestration
 │   ├── Program.cs                # Service definitions
 │   └── DraCode.AppHost.csproj

@@ -32,11 +32,13 @@ dotnet run --project DraCode.AppHost
 
 **Key Features:**
 - 💬 **Interactive Dragon Chat** - Natural conversation interface for requirements
-- 🔄 **Automated Workflow** - Wyrms, Drakes, and Kobolds work automatically in background
+- 🔄 **Automated Workflow** - Wyverns, Drakes, and Kobolds work automatically in background
 - 📊 **Real-time Visualization** - Animated hierarchy display showing agent relationships and status
 - 📁 **Project Management** - Automatic project tracking with metadata and output locations
 - ⏱️ **Background Processing** - Services run every 60 seconds checking for new work
 - 🎨 **Modern UI** - Three-page interface: Status Monitor, Dragon Chat, Hierarchy View
+- 🔀 **Git Integration** - Branch management, merge operations, conflict detection
+- 💭 **Thinking Indicator** - Real-time processing feedback during Dragon chat
 
 **Quick Start:**
 ```bash
@@ -54,14 +56,9 @@ dotnet run --project DraCode.AppHost
 - **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
 - **Verbose Mode Control**: Toggle between detailed execution info or clean minimal output
 - **Autonomous Agent System**: Multi-turn conversations with iterative problem solving
-- **Tool System**: 7 built-in tools for code manipulation
-  - `list_files` - Directory listing with recursive search
-  - `read_file` - Read file contents
-  - `write_file` - Create/modify files
-  - `search_code` - Grep-like code search with regex support
-  - `run_command` - Execute shell commands with timeout
-  - `ask_user` - Interactive user prompts
-  - `display_text` - Formatted text output
+- **Tool System**: 7 built-in tools + 8 Dragon-specific tools
+  - **Built-in**: `list_files`, `read_file`, `write_file`, `search_code`, `run_command`, `ask_user`, `display_text`
+  - **Dragon Tools**: `git_status`, `git_merge`, `manage_specification`, `manage_features`, `approve_specification`, `list_projects`, `add_existing_project`, `select_agent`
 - **GitHub Copilot OAuth**: Integrated device flow authentication
 - **Sandboxed Workspace**: All operations restricted to working directory
 - **Flexible Configuration**: JSON config with environment variable overrides
@@ -360,19 +357,21 @@ dotnet test
 ```
 DraCode/
 ├── DraCode/                      # Main CLI application
-├── DraCode.Agent/                # Agent library
+├── DraCode.Agent/                # Agent library (17 agent types)
+│   ├── Agents/                  # Agent implementations (Coding, Media, Diagramming)
 │   ├── Auth/                    # OAuth implementation
-│   ├── LLMs/                    # LLM provider implementations
-│   ├── Tools/                   # Tool system
+│   ├── LLMs/                    # 10 LLM provider implementations
+│   ├── Tools/                   # 7 built-in tools
 │   └── Helpers/                 # Utility classes
 ├── DraCode.KoboldLair/           # Multi-agent core library
 │   ├── Agents/                  # Dragon, Wyrm, Wyvern agents
-│   ├── Factories/               # Agent, Kobold, Drake, Wyvern factories
+│   │   └── Tools/              # 8 Dragon-specific tools (Git, Spec, Features)
+│   ├── Factories/               # KoboldFactory, DrakeFactory, WyvernFactory
 │   ├── Models/                  # Data models (Agents, Config, Projects, Tasks)
 │   ├── Orchestrators/           # Drake, Wyvern, WyrmRunner
-│   └── Services/                # ProjectService, ProjectRepository
+│   └── Services/                # GitService, ProjectService, ProviderConfigurationService
 ├── DraCode.KoboldLair.Server/    # Multi-agent WebSocket server
-│   ├── Services/                # Background processing, DragonService
+│   ├── Services/                # DragonService, DrakeMonitoringService, WyvernProcessingService
 │   └── Models/                  # WebSocket message models
 ├── DraCode.KoboldLair.Client/    # KoboldLair Web UI
 │   └── wwwroot/                 # Web UI (Status, Dragon Chat, Hierarchy)
