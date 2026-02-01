@@ -37,8 +37,8 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ConcurrentDictionary<string, DragonSession> _sessions;
         private readonly ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
         private readonly ProviderConfigurationService _providerConfigService;
-        private readonly ProjectService? _projectService;
-        private readonly GitService? _gitService;
+        private readonly ProjectService _projectService;
+        private readonly GitService _gitService;
         private readonly string _projectsPath;
         private readonly Timer _cleanupTimer;
         private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
@@ -48,9 +48,9 @@ namespace DraCode.KoboldLair.Server.Services
         public DragonService(
             ILogger<DragonService> logger,
             ProviderConfigurationService providerConfigService,
-            ProjectService? projectService = null,
-            string projectsPath = "./projects",
-            GitService? gitService = null)
+            ProjectService projectService,
+            GitService gitService,
+            string projectsPath = "./projects")
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
@@ -211,9 +211,7 @@ namespace DraCode.KoboldLair.Server.Services
                     var (provider, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
 
                     // Create callback for spec updates that notifies ProjectService
-                    Action<string>? onSpecUpdated = _projectService != null
-                        ? specPath => _projectService.MarkSpecificationModified(specPath)
-                        : null;
+                    Action<string> onSpecUpdated = specPath => _projectService.MarkSpecificationModified(specPath);
 
                     dragon = CreateDragonAgent(provider, options, config, onSpecUpdated);
 
@@ -416,19 +414,16 @@ namespace DraCode.KoboldLair.Server.Services
                                 timestamp = DateTime.UtcNow
                             });
 
-                            // Register project with ProjectService if available
-                            if (_projectService != null)
+                            // Register project with ProjectService
+                            try
                             {
-                                try
-                                {
-                                    var project = _projectService.RegisterProject(projectName, latestSpec);
-                                    _logger.LogInformation("✨ Auto-registered project: {ProjectName} (ID: {ProjectId})",
-                                        projectName, project.Id);
-                                }
-                                catch (Exception ex)
-                                {
-                                    _logger.LogError(ex, "Failed to auto-register project for spec: {SpecPath}", latestSpec);
-                                }
+                                var project = _projectService.RegisterProject(projectName, latestSpec);
+                                _logger.LogInformation("✨ Auto-registered project: {ProjectName} (ID: {ProjectId})",
+                                    projectName, project.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Failed to auto-register project for spec: {SpecPath}", latestSpec);
                             }
                         }
                     }
@@ -750,9 +745,7 @@ namespace DraCode.KoboldLair.Server.Services
 
 
                 // Create callback for spec updates that notifies ProjectService
-                Action<string>? onSpecUpdated = _projectService != null
-                    ? specPath => _projectService.MarkSpecificationModified(specPath)
-                    : null;
+                Action<string> onSpecUpdated = specPath => _projectService.MarkSpecificationModified(specPath);
 
                 // Create new agent with clean context
                 var dragon = CreateDragonAgent(providerName, options, config, onSpecUpdated);
@@ -833,26 +826,18 @@ namespace DraCode.KoboldLair.Server.Services
         {
             var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(provider, config);
 
-            // Create project listing function if ProjectService is available
-            Func<List<ProjectInfo>>? getProjects = _projectService != null
-                ? () => GetProjectInfoList()
-                : null;
+            // Create project listing function
+            Func<List<ProjectInfo>> getProjects = () => GetProjectInfoList();
 
-            // Create project approval function if ProjectService is available
-            Func<string, bool>? approveProject = _projectService != null
-                ? (projectName) => _projectService.ApproveProject(projectName)
-                : null;
+            // Create project approval function
+            Func<string, bool> approveProject = (projectName) => _projectService.ApproveProject(projectName);
 
-            // Create existing project registration function if ProjectService is available
-            Func<string, string, string?>? registerExistingProject = _projectService != null
-                ? (name, sourcePath) => _projectService.RegisterExistingProject(name, sourcePath)
-                : null;
+            // Create existing project registration function
+            Func<string, string, string?> registerExistingProject = (name, sourcePath) => _projectService.RegisterExistingProject(name, sourcePath);
 
             // Create project folder callback for consolidated structure
             // This ensures the project folder exists before the specification is saved
-            Func<string, string>? getProjectFolder = _projectService != null
-                ? (projectName) => _projectService.CreateProjectFolder(projectName)
-                : null;
+            Func<string, string> getProjectFolder = (projectName) => _projectService.CreateProjectFolder(projectName);
 
             return new DragonAgent(llmProvider, options, onSpecificationUpdated, getProjects, approveProject, registerExistingProject, getProjectFolder, _projectsPath, _gitService);
         }
@@ -862,9 +847,6 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private List<ProjectInfo> GetProjectInfoList()
         {
-            if (_projectService == null)
-                return new List<ProjectInfo>();
-
             var projects = _projectService.GetAllProjects();
             return projects.Select(p => new ProjectInfo
             {

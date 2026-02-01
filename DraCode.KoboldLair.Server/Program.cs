@@ -63,7 +63,7 @@ builder.Services.AddSingleton<ProjectService>(sp =>
     var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var projectsPath = config.ProjectsPath ?? "./projects";
-    return new ProjectService(repository, wyvernFactory, projectConfigService, logger, projectsPath, gitService);
+    return new ProjectService(repository, wyvernFactory, projectConfigService, logger, gitService, projectsPath);
 });
 
 // Register factories as singletons
@@ -106,12 +106,12 @@ builder.Services.AddSingleton<WyrmService>(sp =>
 builder.Services.AddSingleton<DragonService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<DragonService>>();
-    var projectService = sp.GetRequiredService<ProjectService>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var projectService = sp.GetRequiredService<ProjectService>();
     var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var projectsPath = config.ProjectsPath ?? "./projects";
-    return new DragonService(logger, providerConfigService, projectService, projectsPath, gitService);
+    return new DragonService(logger, providerConfigService, projectService, gitService, projectsPath);
 });
 
 // Register background monitoring service (checks every 60 seconds)

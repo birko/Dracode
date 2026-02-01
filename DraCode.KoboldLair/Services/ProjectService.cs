@@ -16,7 +16,7 @@ namespace DraCode.KoboldLair.Services
         private readonly WyvernFactory _wyvernFactory;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ILogger<ProjectService> _logger;
-        private readonly GitService? _gitService;
+        private readonly GitService _gitService;
         private readonly string _projectsPath;
 
         public ProjectService(
@@ -24,15 +24,15 @@ namespace DraCode.KoboldLair.Services
             WyvernFactory wyvernFactory,
             ProjectConfigurationService projectConfigService,
             ILogger<ProjectService> logger,
-            string projectsPath = "./projects",
-            GitService? gitService = null)
+            GitService gitService,
+            string projectsPath = "./projects")
         {
             _repository = repository;
             _wyvernFactory = wyvernFactory;
             _projectConfigService = projectConfigService;
             _logger = logger;
-            _projectsPath = projectsPath;
             _gitService = gitService;
+            _projectsPath = projectsPath;
         }
 
         /// <summary>
@@ -50,9 +50,6 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         public async Task<bool> IsGitEnabledAsync(string projectId)
         {
-            if (_gitService == null)
-                return false;
-
             var project = _repository.GetById(projectId);
             if (project == null || string.IsNullOrEmpty(project.OutputPath))
                 return false;
@@ -99,9 +96,6 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         private async Task InitializeGitRepositoryAsync(string projectFolder)
         {
-            if (_gitService == null)
-                return;
-
             try
             {
                 if (await _gitService.IsGitInstalledAsync())
@@ -553,7 +547,7 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         private async Task CreateInitialGitCommitAsync(Project project)
         {
-            if (_gitService == null || string.IsNullOrEmpty(project.OutputPath))
+            if (string.IsNullOrEmpty(project.OutputPath))
                 return;
 
             try
