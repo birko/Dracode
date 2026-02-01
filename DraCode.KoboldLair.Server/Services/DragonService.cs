@@ -38,6 +38,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectService? _projectService;
+        private readonly GitService? _gitService;
         private readonly string _projectsPath;
         private readonly Timer _cleanupTimer;
         private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
@@ -48,13 +49,15 @@ namespace DraCode.KoboldLair.Server.Services
             ILogger<DragonService> logger,
             ProviderConfigurationService providerConfigService,
             ProjectService? projectService = null,
-            string projectsPath = "./projects")
+            string projectsPath = "./projects",
+            GitService? gitService = null)
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
             _sessionWebSockets = new ConcurrentDictionary<string, WebSocket>();
             _providerConfigService = providerConfigService;
             _projectService = projectService;
+            _gitService = gitService;
             _projectsPath = projectsPath;
 
             // Start cleanup timer to remove expired sessions every minute
@@ -851,7 +854,7 @@ namespace DraCode.KoboldLair.Server.Services
                 ? (projectName) => _projectService.CreateProjectFolder(projectName)
                 : null;
 
-            return new DragonAgent(llmProvider, options, onSpecificationUpdated, getProjects, approveProject, registerExistingProject, getProjectFolder, _projectsPath);
+            return new DragonAgent(llmProvider, options, onSpecificationUpdated, getProjects, approveProject, registerExistingProject, getProjectFolder, _projectsPath, _gitService);
         }
 
         /// <summary>

@@ -54,5 +54,11 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// IDs of tasks created for this feature
         /// </summary>
         public List<string> TaskIds { get; set; } = new();
+
+        /// <summary>
+        /// Git branch name for this feature (e.g., "feature/abc123-user-auth")
+        /// Null if git is not enabled for the project
+        /// </summary>
+        public string? GitBranch { get; set; }
     }
 }

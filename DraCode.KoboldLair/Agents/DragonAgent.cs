@@ -3,6 +3,7 @@ using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Services;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents
@@ -22,6 +23,7 @@ namespace DraCode.KoboldLair.Agents
         private readonly Func<string, bool>? _approveProject;
         private readonly Func<string, string, string?>? _registerExistingProject;
         private readonly Func<string, string>? _getProjectFolder;
+        private readonly GitService? _gitService;
 
         protected override string SystemPrompt => GetDragonSystemPrompt();
 
@@ -36,6 +38,7 @@ namespace DraCode.KoboldLair.Agents
         /// <param name="registerExistingProject">Function to register an existing project from disk (name, sourcePath) => projectId</param>
         /// <param name="getProjectFolder">Function to create/get project folder for consolidated structure (projectName) => folderPath</param>
         /// <param name="projectsPath">Path where projects are stored (default: ./projects)</param>
+        /// <param name="gitService">Git service for branch management (optional)</param>
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
@@ -44,7 +47,8 @@ namespace DraCode.KoboldLair.Agents
             Func<string, bool>? approveProject = null,
             Func<string, string, string?>? registerExistingProject = null,
             Func<string, string>? getProjectFolder = null,
-            string projectsPath = "./projects")
+            string projectsPath = "./projects",
+            GitService? gitService = null)
             : base(provider, options)
         {
             _projectsPath = projectsPath ?? "./projects";
@@ -53,6 +57,7 @@ namespace DraCode.KoboldLair.Agents
             _approveProject = approveProject;
             _registerExistingProject = registerExistingProject;
             _getProjectFolder = getProjectFolder;
+            _gitService = gitService;
         }
 
         /// <summary>
@@ -66,6 +71,36 @@ namespace DraCode.KoboldLair.Agents
             tools.Add(new FeatureManagementTool(_specifications));
             tools.Add(new ProjectApprovalTool(_approveProject));
             tools.Add(new AddExistingProjectTool(_registerExistingProject));
+
+            // Git tools (only added if git service is available)
+            if (_gitService != null)
+            {
+                // Helper function to get project folder from project name
+                Func<string, string?> getProjectFolderForGit = projectName =>
+                {
+                    if (_getProjectFolder != null)
+                    {
+                        try
+                        {
+                            var folder = _getProjectFolder(projectName);
+                            // Only return if folder exists (don't create new folders for git operations)
+                            return Directory.Exists(folder) ? folder : null;
+                        }
+                        catch
+                        {
+                            return null;
+                        }
+                    }
+                    // Fall back to default path construction
+                    var sanitizedName = projectName.ToLower().Replace(" ", "-");
+                    var defaultPath = Path.Combine(_projectsPath, sanitizedName);
+                    return Directory.Exists(defaultPath) ? defaultPath : null;
+                };
+
+                tools.Add(new GitStatusTool(_gitService, getProjectFolderForGit));
+                tools.Add(new GitMergeTool(_gitService, getProjectFolderForGit));
+            }
+
             return tools;
         }
 
@@ -176,6 +211,26 @@ Just let me know!""
 - **manage_specification**: Manage specifications (actions: list, load, create, update)
 - **manage_feature**: Manage features (actions: list, create, update)
 - **approve_specification**: Approve a specification after user confirms (changes Prototype → New)
+- **git_status**: View git branches and status (actions: branches, status, check_merge) - only if git is available
+- **git_merge**: Merge feature branches to main (actions: merge, delete) - only if git is available
+
+## Git Workflow (when git is available):
+
+Each project automatically gets a git repository when created. The workflow is:
+
+1. **Project Creation**: Git repo initialized with main branch
+2. **Project Approval**: Initial commit created with specification
+3. **Feature Processing**: Each feature gets its own branch (feature/{id}-{name})
+4. **Task Completion**: Kobolds commit their work to the feature branch
+5. **Feature Review**: You can show users unmerged branches and help merge them
+
+**Git Commands for Users:**
+- Use 'git_status' with action:'branches' to show all unmerged feature branches
+- Use 'git_status' with action:'check_merge' to test if a branch can merge cleanly
+- Use 'git_merge' with action:'merge' to merge a branch to main (only if no conflicts)
+- Use 'git_merge' with action:'delete' to remove a merged branch
+
+**Important**: Always check for conflicts before merging! Use check_merge first.
 
 ## Style:
 - Be conversational and friendly

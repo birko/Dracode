@@ -16,6 +16,7 @@ namespace DraCode.KoboldLair.Services
         private readonly WyvernFactory _wyvernFactory;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ILogger<ProjectService> _logger;
+        private readonly GitService? _gitService;
         private readonly string _projectsPath;
 
         public ProjectService(
@@ -23,13 +24,15 @@ namespace DraCode.KoboldLair.Services
             WyvernFactory wyvernFactory,
             ProjectConfigurationService projectConfigService,
             ILogger<ProjectService> logger,
-            string projectsPath = "./projects")
+            string projectsPath = "./projects",
+            GitService? gitService = null)
         {
             _repository = repository;
             _wyvernFactory = wyvernFactory;
             _projectConfigService = projectConfigService;
             _logger = logger;
             _projectsPath = projectsPath;
+            _gitService = gitService;
         }
 
         /// <summary>
@@ -38,8 +41,32 @@ namespace DraCode.KoboldLair.Services
         public string ProjectsPath => _projectsPath;
 
         /// <summary>
+        /// Gets the git service (null if not configured)
+        /// </summary>
+        public GitService? GitService => _gitService;
+
+        /// <summary>
+        /// Checks if git is enabled for a project (git installed and repository exists)
+        /// </summary>
+        public async Task<bool> IsGitEnabledAsync(string projectId)
+        {
+            if (_gitService == null)
+                return false;
+
+            var project = _repository.GetById(projectId);
+            if (project == null || string.IsNullOrEmpty(project.OutputPath))
+                return false;
+
+            if (!await _gitService.IsGitInstalledAsync())
+                return false;
+
+            return await _gitService.IsRepositoryAsync(project.OutputPath);
+        }
+
+        /// <summary>
         /// Creates a project folder under ./projects/{sanitized-name}/ and returns the folder path.
         /// This should be called before Dragon saves the specification so files go to the right place.
+        /// Also initializes a git repository if git is available.
         /// </summary>
         /// <param name="projectName">Name of the project</param>
         /// <returns>The full path to the project folder</returns>
@@ -61,7 +88,35 @@ namespace DraCode.KoboldLair.Services
                 Directory.CreateDirectory(workspaceFolder);
             }
 
+            // Initialize git repository if git is available
+            InitializeGitRepositoryAsync(folder).GetAwaiter().GetResult();
+
             return folder;
+        }
+
+        /// <summary>
+        /// Initializes a git repository in the project folder if git is available
+        /// </summary>
+        private async Task InitializeGitRepositoryAsync(string projectFolder)
+        {
+            if (_gitService == null)
+                return;
+
+            try
+            {
+                if (await _gitService.IsGitInstalledAsync())
+                {
+                    var initialized = await _gitService.InitRepositoryAsync(projectFolder);
+                    if (initialized)
+                    {
+                        _logger.LogInformation("Initialized git repository for project at {Path}", projectFolder);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to initialize git repository at {Path}", projectFolder);
+            }
         }
 
         /// <summary>
@@ -462,6 +517,7 @@ namespace DraCode.KoboldLair.Services
         /// <summary>
         /// Approves a project specification, changing status from Prototype to New.
         /// This allows Wyvern to start processing the project.
+        /// Also creates an initial git commit if git is enabled.
         /// </summary>
         /// <param name="projectId">Project ID or name</param>
         /// <returns>True if approved successfully</returns>
@@ -485,8 +541,47 @@ namespace DraCode.KoboldLair.Services
             project.UpdatedAt = DateTime.UtcNow;
             _repository.Update(project);
 
+            // Create initial git commit with the specification
+            CreateInitialGitCommitAsync(project).GetAwaiter().GetResult();
+
             _logger.LogInformation("✅ Project '{ProjectName}' approved and ready for Wyvern processing", project.Name);
             return true;
+        }
+
+        /// <summary>
+        /// Creates an initial git commit when a project is approved
+        /// </summary>
+        private async Task CreateInitialGitCommitAsync(Project project)
+        {
+            if (_gitService == null || string.IsNullOrEmpty(project.OutputPath))
+                return;
+
+            try
+            {
+                if (!await _gitService.IsGitInstalledAsync())
+                    return;
+
+                if (!await _gitService.IsRepositoryAsync(project.OutputPath))
+                    return;
+
+                // Stage all files
+                await _gitService.StageAllAsync(project.OutputPath);
+
+                // Create initial commit
+                var committed = await _gitService.CommitChangesAsync(
+                    project.OutputPath,
+                    $"Initial commit: {project.Name} specification\n\nProject approved and ready for development.",
+                    "Dragon");
+
+                if (committed)
+                {
+                    _logger.LogInformation("Created initial git commit for project: {ProjectName}", project.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create initial git commit for project: {ProjectName}", project.Name);
+            }
         }
 
         /// <summary>

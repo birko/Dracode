@@ -30,6 +30,9 @@ builder.Services.AddSingleton<ProviderConfigurationService>();
 // Register project configuration service (depends on ProviderConfigurationService for defaults)
 builder.Services.AddSingleton<ProjectConfigurationService>();
 
+// Register git service for version control integration
+builder.Services.AddSingleton<GitService>();
+
 // Register project management components
 builder.Services.AddSingleton<ProjectRepository>(sp =>
 {
@@ -43,9 +46,11 @@ builder.Services.AddSingleton<WyvernFactory>(sp =>
 {
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    var gitService = sp.GetRequiredService<GitService>();
     return new WyvernFactory(
         providerConfigService,
-        projectConfigService
+        projectConfigService,
+        gitService: gitService
     );
 });
 
@@ -55,9 +60,10 @@ builder.Services.AddSingleton<ProjectService>(sp =>
     var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
+    var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var projectsPath = config.ProjectsPath ?? "./projects";
-    return new ProjectService(repository, wyvernFactory, projectConfigService, logger, projectsPath);
+    return new ProjectService(repository, wyvernFactory, projectConfigService, logger, projectsPath, gitService);
 });
 
 // Register factories as singletons
@@ -84,7 +90,8 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory);
+    var gitService = sp.GetRequiredService<GitService>();
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService);
 });
 
 // Register services
@@ -101,9 +108,10 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var logger = sp.GetRequiredService<ILogger<DragonService>>();
     var projectService = sp.GetRequiredService<ProjectService>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var projectsPath = config.ProjectsPath ?? "./projects";
-    return new DragonService(logger, providerConfigService, projectService, projectsPath);
+    return new DragonService(logger, providerConfigService, projectService, projectsPath, gitService);
 });
 
 // Register background monitoring service (checks every 60 seconds)

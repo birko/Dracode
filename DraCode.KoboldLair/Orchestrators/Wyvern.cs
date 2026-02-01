@@ -4,6 +4,7 @@ using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Services;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
 namespace DraCode.KoboldLair.Orchestrators
@@ -28,6 +29,9 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly Dictionary<string, string> _wyrmConfig;
         private readonly AgentOptions _wyrmOptions;
 
+        // Git integration
+        private readonly GitService? _gitService;
+
         private WyvernAnalysis? _analysis;
 
         /// <summary>
@@ -43,6 +47,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="wyrmProvider">Provider for Wyrm task delegation (optional, defaults to Wyvern's provider)</param>
         /// <param name="wyrmConfig">Configuration for Wyrm (optional, defaults to Wyvern's config)</param>
         /// <param name="wyrmOptions">Agent options for Wyrm (optional, defaults to Wyvern's options)</param>
+        /// <param name="gitService">Git service for branch management (optional)</param>
         public Wyvern(
             string projectName,
             string specificationPath,
@@ -53,7 +58,8 @@ namespace DraCode.KoboldLair.Orchestrators
             string outputPath,
             string? wyrmProvider = null,
             Dictionary<string, string>? wyrmConfig = null,
-            AgentOptions? wyrmOptions = null)
+            AgentOptions? wyrmOptions = null,
+            GitService? gitService = null)
         {
             _projectName = projectName;
             _specificationPath = specificationPath;
@@ -67,6 +73,9 @@ namespace DraCode.KoboldLair.Orchestrators
             _wyrmProvider = wyrmProvider ?? provider;
             _wyrmConfig = wyrmConfig ?? config;
             _wyrmOptions = wyrmOptions ?? options;
+
+            // Git integration
+            _gitService = gitService;
         }
 
         /// <summary>
@@ -79,7 +88,7 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Marks features as assigned to Wyvern
+        /// Marks features as assigned to Wyvern and creates git branches for each feature
         /// </summary>
         public void AssignFeatures(List<Feature> features)
         {
@@ -87,7 +96,50 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 feature.Status = FeatureStatus.AssignedToWyvern;
                 feature.UpdatedAt = DateTime.UtcNow;
+
+                // Create git branch for the feature if git is available
+                CreateFeatureBranchAsync(feature).GetAwaiter().GetResult();
             }
+        }
+
+        /// <summary>
+        /// Creates a git branch for a feature
+        /// </summary>
+        private async Task CreateFeatureBranchAsync(Feature feature)
+        {
+            if (_gitService == null)
+                return;
+
+            try
+            {
+                if (!await _gitService.IsGitInstalledAsync())
+                    return;
+
+                if (!await _gitService.IsRepositoryAsync(_outputPath))
+                    return;
+
+                // Create branch name: feature/{id}-{sanitized-name}
+                var branchName = _gitService.CreateFeatureBranchName(feature.Id, feature.Name);
+
+                // Create the branch
+                var created = await _gitService.CreateBranchAsync(_outputPath, branchName);
+                if (created)
+                {
+                    feature.GitBranch = branchName;
+                }
+            }
+            catch
+            {
+                // Silently ignore git errors - don't fail the workflow
+            }
+        }
+
+        /// <summary>
+        /// Gets the git branch name for a feature
+        /// </summary>
+        public string? GetFeatureBranch(string featureId)
+        {
+            return _specification?.Features.FirstOrDefault(f => f.Id == featureId)?.GitBranch;
         }
 
         /// <summary>

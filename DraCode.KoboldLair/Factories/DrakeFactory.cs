@@ -14,6 +14,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly KoboldFactory _koboldFactory;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
+        private readonly GitService? _gitService;
         private readonly ILoggerFactory? _loggerFactory;
         private readonly Dictionary<string, Drake> _drakes;
         private readonly Dictionary<string, string?> _drakeProjectIds; // Maps drake name to project ID
@@ -26,16 +27,19 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="providerConfigService">Provider configuration service</param>
         /// <param name="projectConfigService">Project configuration service for parallel limits</param>
         /// <param name="loggerFactory">Optional logger factory for Drake logging</param>
+        /// <param name="gitService">Optional git service for committing changes on task completion</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
-            ILoggerFactory? loggerFactory = null)
+            ILoggerFactory? loggerFactory = null,
+            GitService? gitService = null)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
             _loggerFactory = loggerFactory;
+            _gitService = gitService;
             _drakes = new Dictionary<string, Drake>();
             _drakeProjectIds = new Dictionary<string, string?>();
         }
@@ -97,7 +101,7 @@ namespace DraCode.KoboldLair.Factories
                 // Create logger for Drake
                 var logger = _loggerFactory?.CreateLogger<Drake>();
 
-                // Create the Drake with specification path, project ID, and provider config service
+                // Create the Drake with specification path, project ID, provider config service, and git service
                 var drake = new Drake(
                     _koboldFactory,
                     taskTracker,
@@ -108,7 +112,8 @@ namespace DraCode.KoboldLair.Factories
                     specificationPath,
                     projectId,
                     logger,
-                    _providerConfigService
+                    _providerConfigService,
+                    _gitService
                 );
 
                 _drakes[name] = drake;

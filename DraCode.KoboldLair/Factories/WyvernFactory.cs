@@ -17,17 +17,20 @@ namespace DraCode.KoboldLair.Factories
 
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
+        private readonly GitService? _gitService;
         private readonly AgentOptions _defaultOptions;
 
         public WyvernFactory(
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
-            AgentOptions? defaultOptions = null)
+            AgentOptions? defaultOptions = null,
+            GitService? gitService = null)
         {
             _Wyverns = new Dictionary<string, Wyvern>(StringComparer.OrdinalIgnoreCase);
             _wyvernProjectIds = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
+            _gitService = gitService;
             _defaultOptions = defaultOptions ?? new AgentOptions { WorkingDirectory = "./workspace", Verbose = false };
         }
 
@@ -103,7 +106,8 @@ namespace DraCode.KoboldLair.Factories
                     outputPath,
                     effectiveWyrmProvider,
                     wyrmConfig,
-                    wyrmOptions
+                    wyrmOptions,
+                    _gitService
                 );
 
                 _Wyverns[projectName] = wyvern;

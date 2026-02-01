@@ -23,6 +23,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly string? _projectId;
         private readonly ILogger<Drake>? _logger;
         private readonly ProviderConfigurationService? _providerConfigService;
+        private readonly GitService? _gitService;
         private Wyvern? _wyvern;
 
         /// <summary>
@@ -43,6 +44,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="projectId">Optional project identifier for resource limiting</param>
         /// <param name="logger">Optional logger for diagnostics</param>
         /// <param name="providerConfigService">Optional provider configuration service for agent-type-specific providers</param>
+        /// <param name="gitService">Optional git service for committing changes on task completion</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -53,7 +55,8 @@ namespace DraCode.KoboldLair.Orchestrators
             string? specificationPath = null,
             string? projectId = null,
             ILogger<Drake>? logger = null,
-            ProviderConfigurationService? providerConfigService = null)
+            ProviderConfigurationService? providerConfigService = null,
+            GitService? gitService = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -65,6 +68,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _projectId = projectId;
             _logger = logger;
             _providerConfigService = providerConfigService;
+            _gitService = gitService;
             _taskToKoboldMap = new Dictionary<string, Guid>();
         }
 
@@ -193,6 +197,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <summary>
         /// Syncs task status from Kobold's current state.
         /// Drake observes Kobold state but does not forcefully change it.
+        /// Also commits changes to git when a task completes successfully.
         /// </summary>
         /// <param name="kobold">Kobold to sync from</param>
         private void SyncTaskFromKobold(Kobold kobold)
@@ -203,6 +208,9 @@ namespace DraCode.KoboldLair.Orchestrators
             var task = _taskTracker.GetTaskById(kobold.TaskId.Value.ToString());
             if (task == null)
                 return;
+
+            // Store previous status to detect transitions
+            var previousStatus = task.Status;
 
             // Map Kobold status to Task status
             var taskStatus = kobold.Status switch
@@ -222,6 +230,61 @@ namespace DraCode.KoboldLair.Orchestrators
 
             _taskTracker.UpdateTask(task, taskStatus);
             SaveTasksToFile();
+
+            // Commit changes to git when task completes successfully
+            if (previousStatus != TaskStatus.Done && taskStatus == TaskStatus.Done && kobold.IsSuccess)
+            {
+                CommitTaskCompletionAsync(kobold, task).GetAwaiter().GetResult();
+            }
+        }
+
+        /// <summary>
+        /// Commits changes to git when a task is completed
+        /// </summary>
+        private async Task CommitTaskCompletionAsync(Kobold kobold, TaskRecord task)
+        {
+            if (_gitService == null)
+                return;
+
+            try
+            {
+                // Get the project folder (output path from task file path)
+                var projectFolder = Path.GetDirectoryName(_outputMarkdownPath);
+                if (string.IsNullOrEmpty(projectFolder))
+                    return;
+
+                if (!await _gitService.IsGitInstalledAsync())
+                    return;
+
+                if (!await _gitService.IsRepositoryAsync(projectFolder))
+                    return;
+
+                // Get current branch - we commit to whatever branch we're on
+                // Feature branches are managed by Wyvern when features are assigned
+                var currentBranch = await _gitService.GetCurrentBranchAsync(projectFolder);
+
+                // Stage all changes
+                await _gitService.StageAllAsync(projectFolder);
+
+                // Create commit message
+                var shortTaskDesc = task.Task.Length > 50 ? task.Task[..50] + "..." : task.Task;
+                var commitMessage = $"Task completed: {shortTaskDesc}\n\nTask ID: {task.Id}\nAgent: {kobold.AgentType}";
+
+                // Commit with Kobold agent type as author
+                var authorName = $"Kobold-{kobold.AgentType}";
+                var committed = await _gitService.CommitChangesAsync(projectFolder, commitMessage, authorName);
+
+                if (committed)
+                {
+                    _logger?.LogInformation("Committed task completion to {Branch}: {Task}",
+                        currentBranch ?? "current branch", shortTaskDesc);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to commit task completion for task {TaskId}", task.Id);
+                // Don't fail the workflow if git commit fails
+            }
         }
 
         /// <summary>
