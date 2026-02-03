@@ -57,7 +57,9 @@ namespace DraCode.KoboldLair.Factories
         {
             lock (_lock)
             {
-                if (_Wyverns.ContainsKey(projectName))
+                // Check if wyvern already exists (also check sanitized name match)
+                var existingWyvern = GetWyvernInternal(projectName);
+                if (existingWyvern != null)
                 {
                     throw new InvalidOperationException($"Wyvern already exists for project: {projectName}");
                 }
@@ -139,14 +141,41 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
-        /// Gets an existing Wyvern by project name
+        /// Gets an existing Wyvern by project name (also matches sanitized folder name)
         /// </summary>
         public Wyvern? GetWyvern(string projectName)
         {
             lock (_lock)
             {
-                return _Wyverns.GetValueOrDefault(projectName);
+                return GetWyvernInternal(projectName);
             }
+        }
+
+        /// <summary>
+        /// Internal lookup without locking (must be called within lock)
+        /// </summary>
+        private Wyvern? GetWyvernInternal(string projectName)
+        {
+            // First try direct lookup (case-insensitive due to StringComparer)
+            if (_Wyverns.TryGetValue(projectName, out var wyvern))
+                return wyvern;
+
+            // Also try matching against sanitized version of stored names
+            // This handles the case where folder name (sanitized) is used for lookup
+            // but the wyvern was stored with its original name
+            var sanitizedSearchName = SanitizeProjectName(projectName);
+            return _Wyverns.FirstOrDefault(kvp =>
+                SanitizeProjectName(kvp.Key).Equals(sanitizedSearchName, StringComparison.OrdinalIgnoreCase)).Value;
+        }
+
+        /// <summary>
+        /// Sanitizes project name for comparison (matches ProjectService.SanitizeProjectName)
+        /// </summary>
+        private static string SanitizeProjectName(string projectName)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var sanitized = string.Join("_", projectName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
+            return sanitized.Trim().Replace(" ", "-").ToLowerInvariant();
         }
 
         /// <summary>
@@ -167,9 +196,29 @@ namespace DraCode.KoboldLair.Factories
         {
             lock (_lock)
             {
-                _wyvernProjectIds.Remove(projectName);
-                return _Wyverns.Remove(projectName);
+                // Find the actual key (may be different casing or sanitized form)
+                var actualKey = FindActualKey(projectName);
+                if (actualKey == null)
+                    return false;
+
+                _wyvernProjectIds.Remove(actualKey);
+                return _Wyverns.Remove(actualKey);
             }
+        }
+
+        /// <summary>
+        /// Finds the actual key in the dictionary that matches the given project name
+        /// </summary>
+        private string? FindActualKey(string projectName)
+        {
+            // First try direct lookup
+            if (_Wyverns.ContainsKey(projectName))
+                return projectName;
+
+            // Try to find key with matching sanitized name
+            var sanitizedSearchName = SanitizeProjectName(projectName);
+            return _Wyverns.Keys.FirstOrDefault(key =>
+                SanitizeProjectName(key).Equals(sanitizedSearchName, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>

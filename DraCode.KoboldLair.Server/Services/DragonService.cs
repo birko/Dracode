@@ -50,7 +50,7 @@ namespace DraCode.KoboldLair.Server.Services
             ProviderConfigurationService providerConfigService,
             ProjectService projectService,
             GitService gitService,
-            string projectsPath = "./projects")
+            string? projectsPath = "./projects")
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
@@ -58,7 +58,7 @@ namespace DraCode.KoboldLair.Server.Services
             _providerConfigService = providerConfigService;
             _projectService = projectService;
             _gitService = gitService;
-            _projectsPath = projectsPath;
+            _projectsPath = projectsPath ?? "./projects";
 
             // Start cleanup timer to remove expired sessions every minute
             _cleanupTimer = new Timer(CleanupExpiredSessions, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));

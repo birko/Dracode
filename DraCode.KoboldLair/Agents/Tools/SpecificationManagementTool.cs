@@ -17,12 +17,12 @@ namespace DraCode.KoboldLair.Agents.Tools
             Dictionary<string, Specification> specifications,
             Action<string>? onSpecificationUpdated = null,
             Func<string, string>? getProjectFolder = null,
-            string projectsPath = "./projects")
+            string? projectsPath = "./projects")
         {
             _specifications = specifications;
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjectFolder = getProjectFolder;
-            _projectsPath = projectsPath;
+            _projectsPath = projectsPath ?? "./projects";
         }
 
         public override string Name => "manage_specification";

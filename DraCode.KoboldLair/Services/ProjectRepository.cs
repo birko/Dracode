@@ -135,15 +135,36 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Gets a project by name (case-insensitive)
+        /// Gets a project by name (case-insensitive, also matches sanitized folder name)
         /// </summary>
         public Project? GetByName(string name)
         {
             lock (_lock)
             {
-                return _projects.FirstOrDefault(p =>
+                // First try exact match (case-insensitive)
+                var project = _projects.FirstOrDefault(p =>
                     p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+                if (project != null)
+                    return project;
+
+                // Also try matching against sanitized version of stored names
+                // This handles the case where the folder name (sanitized) is used for lookup
+                // but the project was stored with its original name
+                var sanitizedSearchName = SanitizeProjectName(name);
+                return _projects.FirstOrDefault(p =>
+                    SanitizeProjectName(p.Name).Equals(sanitizedSearchName, StringComparison.OrdinalIgnoreCase));
             }
+        }
+
+        /// <summary>
+        /// Sanitizes project name for comparison (matches ProjectService.SanitizeProjectName)
+        /// </summary>
+        private static string SanitizeProjectName(string projectName)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var sanitized = string.Join("_", projectName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
+            return sanitized.Trim().Replace(" ", "-").ToLowerInvariant();
         }
 
         /// <summary>
