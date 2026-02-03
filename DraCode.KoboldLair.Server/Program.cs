@@ -107,11 +107,12 @@ builder.Services.AddSingleton<DragonService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<DragonService>>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var projectService = sp.GetRequiredService<ProjectService>();
     var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var projectsPath = config.ProjectsPath ?? "./projects";
-    return new DragonService(logger, providerConfigService, projectService, gitService, projectsPath);
+    return new DragonService(logger, providerConfigService, projectConfigService, projectService, gitService, projectsPath);
 });
 
 // Register background monitoring service

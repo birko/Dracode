@@ -145,6 +145,38 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Sets the maximum parallel limit for a specific agent type in a project
+        /// </summary>
+        public void SetAgentLimit(string projectId, string agentType, int maxParallel)
+        {
+            if (maxParallel < 1)
+                throw new ArgumentException("Max parallel must be at least 1", nameof(maxParallel));
+
+            var config = GetOrCreateProjectConfig(projectId);
+
+            switch (agentType.ToLowerInvariant())
+            {
+                case "wyrm":
+                    config.MaxParallelWyrms = maxParallel;
+                    break;
+                case "wyvern":
+                    config.MaxParallelWyverns = maxParallel;
+                    break;
+                case "drake":
+                    config.MaxParallelDrakes = maxParallel;
+                    break;
+                case "kobold":
+                    config.MaxParallelKobolds = maxParallel;
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown agent type: {agentType}");
+            }
+
+            config.LastUpdated = DateTime.UtcNow;
+            SaveConfigurations();
+        }
+
+        /// <summary>
         /// Sets whether an agent is enabled for a project
         /// </summary>
         public void SetAgentEnabled(string projectId, string agentType, bool enabled)
