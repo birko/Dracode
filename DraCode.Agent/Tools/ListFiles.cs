@@ -34,8 +34,8 @@ namespace DraCode.Agent.Tools
 
                 var targetDir = string.IsNullOrWhiteSpace(relDir) ? workingDirectory : Path.Combine(workingDirectory, relDir!);
 
-                if (!PathHelper.IsPathSafe(targetDir, workingDirectory))
-                    return $"Error: Access denied. Directory must be in {workingDirectory}";
+                if (!PathHelper.IsPathSafe(targetDir, workingDirectory, Options?.AllowedExternalPaths))
+                    return "Error: Access denied. Path must be in workspace or an allowed external path.";
 
                 if (!Directory.Exists(targetDir))
                     return $"Error: Directory not found: {relDir ?? "."}";

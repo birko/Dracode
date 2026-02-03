@@ -30,8 +30,8 @@ namespace DraCode.Agent.Tools
 
                 var fullPath = Path.Combine(workingDirectory, filePath);
 
-                if (!PathHelper.IsPathSafe(fullPath, workingDirectory))
-                    return $"Error: Access denied. File must be in {workingDirectory}";
+                if (!PathHelper.IsPathSafe(fullPath, workingDirectory, Options?.AllowedExternalPaths))
+                    return "Error: Access denied. Path must be in workspace or an allowed external path.";
 
                 return File.ReadAllText(fullPath);
             }

@@ -103,5 +103,11 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Timestamp when configuration was last updated
         /// </summary>
         public DateTime? LastUpdated { get; set; }
+
+        /// <summary>
+        /// External paths (outside workspace) that the user has explicitly allowed for this project.
+        /// These paths can be accessed by agents in addition to the project workspace.
+        /// </summary>
+        public List<string> AllowedExternalPaths { get; set; } = new();
     }
 }

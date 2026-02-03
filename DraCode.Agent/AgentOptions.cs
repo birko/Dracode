@@ -46,6 +46,12 @@ namespace DraCode.Agent
         public int ModelDepth { get; set; } = 5;
 
         /// <summary>
+        /// External paths (outside workspace) that are allowed for file operations.
+        /// Used by tools to check path access beyond WorkingDirectory.
+        /// </summary>
+        public List<string> AllowedExternalPaths { get; set; } = new();
+
+        /// <summary>
         /// Creates a copy of the current options
         /// </summary>
         public AgentOptions Clone()
@@ -58,7 +64,8 @@ namespace DraCode.Agent
                 WorkingDirectory = WorkingDirectory,
                 PromptTimeout = PromptTimeout,
                 DefaultPromptResponse = DefaultPromptResponse,
-                ModelDepth = ModelDepth
+                ModelDepth = ModelDepth,
+                AllowedExternalPaths = new List<string>(AllowedExternalPaths)
             };
         }
 
@@ -78,6 +85,8 @@ namespace DraCode.Agent
             if (other.DefaultPromptResponse != null)
                 DefaultPromptResponse = other.DefaultPromptResponse;
             ModelDepth = other.ModelDepth;
+            if (other.AllowedExternalPaths.Count > 0)
+                AllowedExternalPaths = new List<string>(other.AllowedExternalPaths);
         }
 
         /// <summary>

@@ -16,6 +16,9 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<List<(string Id, string Name)>>? _getAllProjects;
         private readonly Action<string, string, bool>? _setAgentEnabled;
         private readonly Action<string, string, int>? _setAgentLimit;
+        private readonly Action<string, string>? _addExternalPath;
+        private readonly Func<string, string, bool>? _removeExternalPath;
+        private readonly Func<string, IReadOnlyList<string>>? _getExternalPaths;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -25,20 +28,27 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<string, ProjectAgentConfig?>? getProjectConfig = null,
             Func<List<(string Id, string Name)>>? getAllProjects = null,
             Action<string, string, bool>? setAgentEnabled = null,
-            Action<string, string, int>? setAgentLimit = null)
+            Action<string, string, int>? setAgentLimit = null,
+            Action<string, string>? addExternalPath = null,
+            Func<string, string, bool>? removeExternalPath = null,
+            Func<string, IReadOnlyList<string>>? getExternalPaths = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
             _getAllProjects = getAllProjects;
             _setAgentEnabled = setAgentEnabled;
             _setAgentLimit = setAgentLimit;
+            _addExternalPath = addExternalPath;
+            _removeExternalPath = removeExternalPath;
+            _getExternalPaths = getExternalPaths;
         }
 
         protected override List<Tool> CreateTools()
         {
             var tools = new List<Tool>
             {
-                new AgentConfigurationTool(_getProjectConfig, _getAllProjects, _setAgentEnabled, _setAgentLimit)
+                new AgentConfigurationTool(_getProjectConfig, _getAllProjects, _setAgentEnabled, _setAgentLimit),
+                new ExternalPathTool(_getExternalPaths, _addExternalPath, _removeExternalPath, _getAllProjects)
             };
             return tools;
         }
@@ -53,9 +63,11 @@ Your role is to manage the workforce - the background agents that process projec
 1. **View agent status** - show enabled/disabled state and limits
 2. **Enable/disable agents** - control which agents process a project
 3. **Set parallel limits** - control how many agents run concurrently
+4. **Manage external path access** - grant/revoke file access outside workspace
 
-## Tool Available:
+## Tools Available:
 - **manage_agents**: View and manage agent configurations (actions: status, get, enable, disable, set_limit)
+- **manage_external_paths**: Control which external paths agents can access (actions: list, add, remove)
 
 ## Agent Types You Oversee:
 - **Wyvern**: Analyzes specifications, creates task breakdowns (first step after approval)
@@ -80,6 +92,14 @@ Your role is to manage the workforce - the background agents that process projec
 - Limit controls how many instances run in parallel
 - Minimum limit is 1
 
+### Managing External Paths:
+- Use manage_external_paths with action:'list' to see allowed paths
+- Use action:'add' with path to grant access to external folder
+- Use action:'remove' with path to revoke access
+- **Important**: By default, agents can only access the project workspace
+- External paths allow agents to read/write files in other locations
+- This is useful when agents need access to shared libraries, templates, or existing codebases
+
 ## Processing Pipeline:
 When all agents are enabled, the flow is:
 1. Wyvern analyzes spec → creates tasks (every 60s check)
@@ -89,7 +109,7 @@ When all agents are enabled, the flow is:
 ## Style:
 - Be authoritative but helpful
 - Explain what each setting does
-- Warn about implications of changes
+- Warn about implications of changes (especially for external path access - it's a security consideration)
 - Suggest optimal configurations";
         }
 

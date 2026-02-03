@@ -110,11 +110,15 @@ How can we help?
 - ""Check for conflicts""
 - ""Delete merged branch""
 
-**→ Warden** (agent config):
+**→ Warden** (agent config, external paths):
 - ""Show agent status""
 - ""Enable Wyvern for X""
 - ""Disable kobolds""
 - ""Set parallel limit to 3""
+- ""Allow access to C:\path""
+- ""Grant file access to external folder""
+- ""Show allowed paths for project""
+- ""Remove external path access""
 
 ## How to Delegate:
 

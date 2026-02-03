@@ -23,6 +23,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly string? _projectId;
         private readonly ILogger<Drake>? _logger;
         private readonly ProviderConfigurationService? _providerConfigService;
+        private readonly ProjectConfigurationService? _projectConfigService;
         private readonly GitService? _gitService;
         private Wyvern? _wyvern;
 
@@ -44,6 +45,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="projectId">Optional project identifier for resource limiting</param>
         /// <param name="logger">Optional logger for diagnostics</param>
         /// <param name="providerConfigService">Optional provider configuration service for agent-type-specific providers</param>
+        /// <param name="projectConfigService">Optional project configuration service for external path access</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         public Drake(
             KoboldFactory koboldFactory,
@@ -56,6 +58,7 @@ namespace DraCode.KoboldLair.Orchestrators
             string? projectId = null,
             ILogger<Drake>? logger = null,
             ProviderConfigurationService? providerConfigService = null,
+            ProjectConfigurationService? projectConfigService = null,
             GitService? gitService = null)
         {
             _koboldFactory = koboldFactory;
@@ -68,6 +71,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _projectId = projectId;
             _logger = logger;
             _providerConfigService = providerConfigService;
+            _projectConfigService = projectConfigService;
             _gitService = gitService;
             _taskToKoboldMap = new Dictionary<string, Guid>();
         }
@@ -104,11 +108,25 @@ namespace DraCode.KoboldLair.Orchestrators
                 return null;
             }
 
+            // Create options with external paths if available
+            AgentOptions? effectiveOptions = _defaultOptions;
+            if (!string.IsNullOrEmpty(projectId) && _projectConfigService != null)
+            {
+                var externalPaths = _projectConfigService.GetAllowedExternalPaths(projectId);
+                if (externalPaths.Count > 0)
+                {
+                    effectiveOptions = _defaultOptions?.Clone() ?? new AgentOptions();
+                    effectiveOptions.AllowedExternalPaths = externalPaths.ToList();
+                    _logger?.LogDebug("Kobold for project {ProjectId} has {Count} allowed external paths",
+                        projectId, externalPaths.Count);
+                }
+            }
+
             // Create the Kobold
             var kobold = _koboldFactory.CreateKobold(
                 effectiveProvider,
                 agentType,
-                _defaultOptions,
+                effectiveOptions,
                 _defaultConfig
             );
 

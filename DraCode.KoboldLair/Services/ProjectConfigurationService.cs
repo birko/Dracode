@@ -344,6 +344,83 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         public int GetDefaultMaxParallelWyverns() => _providerConfig.GetDefaultLimits().MaxParallelWyverns;
 
+        /// <summary>
+        /// Adds an allowed external path for a project
+        /// </summary>
+        /// <param name="projectId">Project ID</param>
+        /// <param name="path">External path to allow</param>
+        public void AddAllowedExternalPath(string projectId, string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentException("Path cannot be empty", nameof(path));
+
+            var normalizedPath = Path.GetFullPath(path);
+            var config = GetOrCreateProjectConfig(projectId);
+
+            lock (_lock)
+            {
+                if (!config.AllowedExternalPaths.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
+                {
+                    config.AllowedExternalPaths.Add(normalizedPath);
+                    config.LastUpdated = DateTime.UtcNow;
+                    SaveConfigurations();
+                    _logger.LogInformation("Added allowed external path for {Project}: {Path}", projectId, normalizedPath);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes an allowed external path from a project
+        /// </summary>
+        /// <param name="projectId">Project ID</param>
+        /// <param name="path">External path to remove</param>
+        /// <returns>True if the path was removed, false if it wasn't found</returns>
+        public bool RemoveAllowedExternalPath(string projectId, string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return false;
+
+            var normalizedPath = Path.GetFullPath(path);
+            var config = GetProjectConfig(projectId);
+
+            if (config == null)
+                return false;
+
+            lock (_lock)
+            {
+                var existingPath = config.AllowedExternalPaths
+                    .FirstOrDefault(p => p.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+                if (existingPath != null)
+                {
+                    config.AllowedExternalPaths.Remove(existingPath);
+                    config.LastUpdated = DateTime.UtcNow;
+                    SaveConfigurations();
+                    _logger.LogInformation("Removed allowed external path for {Project}: {Path}", projectId, normalizedPath);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Gets the allowed external paths for a project
+        /// </summary>
+        /// <param name="projectId">Project ID</param>
+        /// <returns>List of allowed external paths</returns>
+        public IReadOnlyList<string> GetAllowedExternalPaths(string projectId)
+        {
+            var config = GetProjectConfig(projectId);
+            if (config == null)
+                return Array.Empty<string>();
+
+            lock (_lock)
+            {
+                return config.AllowedExternalPaths.ToList().AsReadOnly();
+            }
+        }
+
         private ProjectConfigurations LoadConfigurations()
         {
             if (!File.Exists(_configPath))

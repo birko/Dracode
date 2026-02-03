@@ -319,7 +319,20 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     _projectConfigService.SetAgentLimit(id, type, limit);
                     _logger.LogInformation("Agent {Type} limit set to {Limit} for {Project}", type, limit, id);
-                });
+                },
+                addExternalPath: (id, path) =>
+                {
+                    _projectConfigService.AddAllowedExternalPath(id, path);
+                    _logger.LogInformation("External path added for {Project}: {Path}", id, path);
+                },
+                removeExternalPath: (id, path) =>
+                {
+                    var removed = _projectConfigService.RemoveAllowedExternalPath(id, path);
+                    if (removed)
+                        _logger.LogInformation("External path removed for {Project}: {Path}", id, path);
+                    return removed;
+                },
+                getExternalPaths: (id) => _projectConfigService.GetAllowedExternalPaths(id));
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(
