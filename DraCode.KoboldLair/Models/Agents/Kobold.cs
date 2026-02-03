@@ -1,12 +1,14 @@
 using DraCode.Agent;
 using DraCode.Agent.Agents;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Models.Agents
 {
     /// <summary>
     /// Represents a Kobold worker agent that works on a specific task.
     /// Each Kobold is dedicated to one task and tracks its own status.
+    /// Supports implementation plans for resumability and visibility.
     /// </summary>
     public class Kobold
     {
@@ -74,6 +76,11 @@ namespace DraCode.KoboldLair.Models.Agents
         /// Error message if the Kobold encountered an error
         /// </summary>
         public string? ErrorMessage { get; private set; }
+
+        /// <summary>
+        /// Implementation plan for this task (optional, for resumability)
+        /// </summary>
+        public KoboldImplementationPlan? ImplementationPlan { get; private set; }
 
         /// <summary>
         /// Creates a new Kobold with an agent instance
@@ -156,11 +163,11 @@ You are working on a task that is part of a larger project. Below is the project
 
                 // Execute the task through the underlying agent in non-interactive mode
                 var messages = await Agent.RunAsync(fullTaskPrompt, maxIterations);
-                
+
                 // Task completed successfully - transition to Done
                 Status = KoboldStatus.Done;
                 CompletedAt = DateTime.UtcNow;
-                
+
                 return messages;
             }
             catch (Exception ex)
@@ -170,6 +177,245 @@ You are working on a task that is part of a larger project. Below is the project
                 Status = KoboldStatus.Done;
                 CompletedAt = DateTime.UtcNow;
                 throw; // Re-throw so caller knows it failed
+            }
+        }
+
+        /// <summary>
+        /// Ensures an implementation plan exists for this task.
+        /// Loads existing plan from disk or creates a new one using the planner agent.
+        /// </summary>
+        /// <param name="planService">Service for plan persistence</param>
+        /// <param name="planner">Planner agent for creating new plans</param>
+        /// <returns>The loaded or created implementation plan</returns>
+        public async Task<KoboldImplementationPlan> EnsurePlanAsync(
+            KoboldPlanService planService,
+            KoboldPlannerAgent planner)
+        {
+            if (string.IsNullOrEmpty(ProjectId) || !TaskId.HasValue)
+            {
+                throw new InvalidOperationException("Cannot ensure plan - Kobold must be assigned to a task first");
+            }
+
+            if (string.IsNullOrEmpty(TaskDescription))
+            {
+                throw new InvalidOperationException("Cannot ensure plan - Kobold has no task description");
+            }
+
+            var taskIdStr = TaskId.Value.ToString();
+
+            // Try to load existing plan
+            var existing = await planService.LoadPlanAsync(ProjectId, taskIdStr);
+            if (existing != null && existing.Status != PlanStatus.Failed)
+            {
+                ImplementationPlan = existing;
+                return existing;
+            }
+
+            // Create new plan using the planner agent
+            var plan = await planner.CreatePlanAsync(TaskDescription, SpecificationContext);
+            plan.TaskId = taskIdStr;
+            plan.ProjectId = ProjectId;
+
+            // Save the plan
+            await planService.SavePlanAsync(plan);
+            ImplementationPlan = plan;
+
+            return plan;
+        }
+
+        /// <summary>
+        /// Starts working on the assigned task with plan awareness.
+        /// If a plan exists, includes the plan in the prompt and tracks progress.
+        /// </summary>
+        /// <param name="planService">Service for plan persistence (can be null to skip plan updates)</param>
+        /// <param name="maxIterations">Maximum iterations for agent execution</param>
+        /// <returns>Messages from agent execution</returns>
+        public async Task<List<Message>> StartWorkingWithPlanAsync(
+            KoboldPlanService? planService,
+            int maxIterations = 30)
+        {
+            if (Status != KoboldStatus.Assigned)
+            {
+                throw new InvalidOperationException($"Cannot start working - Kobold {Id} is not assigned (current status: {Status})");
+            }
+
+            if (string.IsNullOrEmpty(TaskDescription))
+            {
+                throw new InvalidOperationException($"Cannot start working - Kobold {Id} has no task description");
+            }
+
+            Status = KoboldStatus.Working;
+            StartedAt = DateTime.UtcNow;
+
+            try
+            {
+                // Build the full task prompt with plan context if available
+                var fullTaskPrompt = BuildFullPromptWithPlan();
+
+                // Update plan status
+                if (ImplementationPlan != null)
+                {
+                    ImplementationPlan.Status = PlanStatus.InProgress;
+                    ImplementationPlan.AddLogEntry($"Kobold {Id.ToString()[..8]} started working");
+                    if (planService != null && !string.IsNullOrEmpty(ProjectId))
+                    {
+                        await planService.SavePlanAsync(ImplementationPlan);
+                    }
+                }
+
+                // Execute the task through the underlying agent
+                var messages = await Agent.RunAsync(fullTaskPrompt, maxIterations);
+
+                // Update plan status on completion
+                await UpdatePlanStatusAsync(planService, success: true);
+
+                // Task completed successfully - transition to Done
+                Status = KoboldStatus.Done;
+                CompletedAt = DateTime.UtcNow;
+
+                return messages;
+            }
+            catch (Exception ex)
+            {
+                // Update plan status on failure
+                await UpdatePlanStatusAsync(planService, success: false, ex.Message);
+
+                // Task failed - capture error and transition to Done
+                ErrorMessage = ex.Message;
+                Status = KoboldStatus.Done;
+                CompletedAt = DateTime.UtcNow;
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Builds the full task prompt including plan context if available
+        /// </summary>
+        private string BuildFullPromptWithPlan()
+        {
+            var sb = new System.Text.StringBuilder();
+
+            sb.AppendLine("# Task Context");
+            sb.AppendLine();
+            sb.AppendLine("You are working on a task that is part of a larger project.");
+            sb.AppendLine();
+
+            // Add specification context if available
+            if (!string.IsNullOrEmpty(SpecificationContext))
+            {
+                sb.AppendLine("## Project Specification");
+                sb.AppendLine();
+                sb.AppendLine(SpecificationContext);
+                sb.AppendLine();
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+
+            // Add plan context if available
+            if (ImplementationPlan != null && ImplementationPlan.Steps.Count > 0)
+            {
+                sb.AppendLine("## Implementation Plan");
+                sb.AppendLine();
+                sb.AppendLine("You have an implementation plan to follow. Execute each step in order.");
+                sb.AppendLine();
+
+                // Show plan summary
+                foreach (var step in ImplementationPlan.Steps)
+                {
+                    var statusIcon = step.Status switch
+                    {
+                        StepStatus.Completed => "[x]",
+                        StepStatus.InProgress => "[>]",
+                        StepStatus.Failed => "[!]",
+                        StepStatus.Skipped => "[-]",
+                        _ => "[ ]"
+                    };
+                    sb.AppendLine($"{statusIcon} Step {step.Index}: {step.Title}");
+                }
+                sb.AppendLine();
+
+                // Show current step details if resuming
+                if (ImplementationPlan.CurrentStepIndex > 0)
+                {
+                    sb.AppendLine($"**Resume from Step {ImplementationPlan.CurrentStepIndex + 1}**");
+                    sb.AppendLine();
+                }
+
+                // Show details of pending steps
+                sb.AppendLine("### Step Details");
+                sb.AppendLine();
+                foreach (var step in ImplementationPlan.Steps.Where(s => s.Status == StepStatus.Pending || s.Status == StepStatus.InProgress))
+                {
+                    sb.AppendLine($"**Step {step.Index}: {step.Title}**");
+                    sb.AppendLine();
+                    sb.AppendLine(step.Description);
+                    sb.AppendLine();
+
+                    if (step.FilesToCreate.Count > 0)
+                    {
+                        sb.AppendLine("Files to create:");
+                        foreach (var file in step.FilesToCreate)
+                        {
+                            sb.AppendLine($"- {file}");
+                        }
+                        sb.AppendLine();
+                    }
+
+                    if (step.FilesToModify.Count > 0)
+                    {
+                        sb.AppendLine("Files to modify:");
+                        foreach (var file in step.FilesToModify)
+                        {
+                            sb.AppendLine($"- {file}");
+                        }
+                        sb.AppendLine();
+                    }
+                }
+
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+
+            // Add task description
+            sb.AppendLine("## Your Task");
+            sb.AppendLine();
+            sb.AppendLine(TaskDescription);
+            sb.AppendLine();
+
+            if (ImplementationPlan != null)
+            {
+                sb.AppendLine("**Important**: Follow the implementation plan above. Complete each step in order, verifying your work as you go.");
+            }
+            else if (!string.IsNullOrEmpty(SpecificationContext))
+            {
+                sb.AppendLine("**Important**: Keep the project specification in mind while completing this task. Ensure your implementation aligns with the overall project requirements and architecture described above.");
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Updates the plan status after execution
+        /// </summary>
+        private async Task UpdatePlanStatusAsync(KoboldPlanService? planService, bool success, string? errorMessage = null)
+        {
+            if (ImplementationPlan == null)
+            {
+                return;
+            }
+
+            if (success)
+            {
+                ImplementationPlan.MarkCompleted();
+            }
+            else
+            {
+                ImplementationPlan.MarkFailed(errorMessage ?? "Unknown error");
+            }
+
+            if (planService != null && !string.IsNullOrEmpty(ProjectId))
+            {
+                await planService.SavePlanAsync(ImplementationPlan);
             }
         }
 
@@ -221,6 +467,7 @@ You are working on a task that is part of a larger project. Below is the project
             TaskDescription = null;
             ProjectId = null;
             SpecificationContext = null;
+            ImplementationPlan = null;
             Status = KoboldStatus.Unassigned;
             AssignedAt = null;
             StartedAt = null;

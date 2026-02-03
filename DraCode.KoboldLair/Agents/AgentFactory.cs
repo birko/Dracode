@@ -43,6 +43,11 @@ namespace DraCode.KoboldLair.Agents
                 var llmProvider = CreateLlmProvider(provider, config);
                 return new WyvernAgent(llmProvider, options);
             }
+            else if (agentType.Equals("kobold-planner", StringComparison.OrdinalIgnoreCase))
+            {
+                var llmProvider = CreateLlmProvider(provider, config);
+                return new KoboldPlannerAgent(llmProvider, options);
+            }
 
             // Delegate all other agent types to DraCode.Agent.AgentFactory
             return AgentFactory.Create(provider, options, config, agentType);

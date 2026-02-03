@@ -1,4 +1,6 @@
 using DraCode.Agent;
+using DraCode.Agent.LLMs.Providers;
+using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
@@ -8,6 +10,7 @@ namespace DraCode.KoboldLair.Factories
     /// <summary>
     /// Factory for creating and managing Drake supervisors.
     /// Each Drake monitors a specific task output path from the Wyvern.
+    /// Supports creating Drakes with implementation planning capabilities.
     /// </summary>
     public class DrakeFactory
     {
@@ -16,6 +19,8 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly GitService? _gitService;
         private readonly ILoggerFactory? _loggerFactory;
+        private readonly string _projectsPath;
+        private readonly bool _planningEnabled;
         private readonly Dictionary<string, Drake> _drakes;
         private readonly Dictionary<string, string?> _drakeProjectIds; // Maps drake name to project ID
         private readonly object _lock = new object();
@@ -28,18 +33,24 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="projectConfigService">Project configuration service for parallel limits</param>
         /// <param name="loggerFactory">Optional logger factory for Drake logging</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
+        /// <param name="projectsPath">Path to projects directory for plan storage</param>
+        /// <param name="planningEnabled">Whether to enable implementation planning (default: true)</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
             ILoggerFactory? loggerFactory = null,
-            GitService? gitService = null)
+            GitService? gitService = null,
+            string projectsPath = "./projects",
+            bool planningEnabled = true)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
             _loggerFactory = loggerFactory;
             _gitService = gitService;
+            _projectsPath = projectsPath;
+            _planningEnabled = planningEnabled;
             _drakes = new Dictionary<string, Drake>();
             _drakeProjectIds = new Dictionary<string, string?>();
         }
@@ -55,7 +66,7 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="projectId">Optional project identifier for resource limiting</param>
         /// <returns>Created Drake instance</returns>
         public Drake CreateDrake(
-            string taskFilePath, 
+            string taskFilePath,
             string? drakeName = null,
             string? provider = null,
             string? model = null,
@@ -101,7 +112,33 @@ namespace DraCode.KoboldLair.Factories
                 // Create logger for Drake
                 var logger = _loggerFactory?.CreateLogger<Drake>();
 
-                // Create the Drake with specification path, project ID, provider config service, project config service, and git service
+                // Create plan service and planner agent if planning is enabled
+                KoboldPlanService? planService = null;
+                KoboldPlannerAgent? plannerAgent = null;
+
+                if (_planningEnabled)
+                {
+                    planService = new KoboldPlanService(
+                        _projectsPath,
+                        _loggerFactory?.CreateLogger<KoboldPlanService>()
+                    );
+
+                    // Create planner agent using kobold provider settings
+                    var (plannerProvider, plannerConfig, plannerOptions) =
+                        _providerConfigService.GetProviderSettingsForAgent("kobold");
+
+                    // Set working directory to project workspace if available
+                    if (!string.IsNullOrEmpty(projectId))
+                    {
+                        var workspacePath = Path.Combine(_projectsPath, projectId, "workspace");
+                        plannerOptions.WorkingDirectory = workspacePath;
+                    }
+
+                    var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(plannerProvider, plannerConfig);
+                    plannerAgent = new KoboldPlannerAgent(llmProvider, plannerOptions);
+                }
+
+                // Create the Drake with all dependencies including plan service
                 var drake = new Drake(
                     _koboldFactory,
                     taskTracker,
@@ -114,7 +151,10 @@ namespace DraCode.KoboldLair.Factories
                     logger,
                     _providerConfigService,
                     _projectConfigService,
-                    _gitService
+                    _gitService,
+                    planService,
+                    plannerAgent,
+                    _planningEnabled
                 );
 
                 _drakes[name] = drake;

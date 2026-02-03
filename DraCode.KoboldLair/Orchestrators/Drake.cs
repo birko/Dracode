@@ -1,4 +1,5 @@
 using DraCode.Agent;
+using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Tasks;
@@ -10,6 +11,7 @@ namespace DraCode.KoboldLair.Orchestrators
     /// <summary>
     /// Drake is a supervisor that manages the lifecycle of Kobolds based on task status.
     /// It monitors tasks, creates Kobolds for execution, and updates task status based on Kobold progress.
+    /// Supports implementation plans for task resumability and visibility.
     /// </summary>
     public class Drake
     {
@@ -25,6 +27,9 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly ProviderConfigurationService? _providerConfigService;
         private readonly ProjectConfigurationService? _projectConfigService;
         private readonly GitService? _gitService;
+        private readonly KoboldPlanService? _planService;
+        private readonly KoboldPlannerAgent? _plannerAgent;
+        private readonly bool _planningEnabled;
         private Wyvern? _wyvern;
 
         /// <summary>
@@ -47,6 +52,9 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="providerConfigService">Optional provider configuration service for agent-type-specific providers</param>
         /// <param name="projectConfigService">Optional project configuration service for external path access</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
+        /// <param name="planService">Optional plan service for implementation plan persistence</param>
+        /// <param name="plannerAgent">Optional planner agent for creating implementation plans</param>
+        /// <param name="planningEnabled">Whether to enable implementation planning (default: true if planService and plannerAgent are provided)</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -59,7 +67,10 @@ namespace DraCode.KoboldLair.Orchestrators
             ILogger<Drake>? logger = null,
             ProviderConfigurationService? providerConfigService = null,
             ProjectConfigurationService? projectConfigService = null,
-            GitService? gitService = null)
+            GitService? gitService = null,
+            KoboldPlanService? planService = null,
+            KoboldPlannerAgent? plannerAgent = null,
+            bool? planningEnabled = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -73,8 +84,21 @@ namespace DraCode.KoboldLair.Orchestrators
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
             _gitService = gitService;
+            _planService = planService;
+            _plannerAgent = plannerAgent;
+            _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _taskToKoboldMap = new Dictionary<string, Guid>();
         }
+
+        /// <summary>
+        /// Gets whether implementation planning is enabled
+        /// </summary>
+        public bool PlanningEnabled => _planningEnabled;
+
+        /// <summary>
+        /// Gets the plan service (if configured)
+        /// </summary>
+        public KoboldPlanService? PlanService => _planService;
 
         /// <summary>
         /// Sets the Wyvern for this Drake to enable feature status updates
@@ -308,6 +332,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <summary>
         /// Executes a task using a Kobold (summon, work, and automatically sync status).
         /// The Kobold manages its own state - Drake only observes and syncs to TaskTracker.
+        /// If planning is enabled, creates or loads an implementation plan before execution.
         /// </summary>
         /// <param name="task">Task to execute</param>
         /// <param name="agentType">Type of agent to use</param>
@@ -345,9 +370,39 @@ namespace DraCode.KoboldLair.Orchestrators
                     kobold.Agent.SetMessageCallback(messageCallback);
                 }
 
+                // Ensure implementation plan exists if planning is enabled
+                if (_planningEnabled && _planService != null && _plannerAgent != null)
+                {
+                    try
+                    {
+                        messageCallback?.Invoke("info", $"📋 Creating implementation plan for task {task.Id.ToString()[..8]}...");
+                        var plan = await kobold.EnsurePlanAsync(_planService, _plannerAgent);
+                        var isResume = plan.CurrentStepIndex > 0;
+                        var planMsg = isResume
+                            ? $"📋 Resuming from step {plan.CurrentStepIndex + 1}/{plan.Steps.Count}"
+                            : $"📋 Plan ready with {plan.Steps.Count} steps";
+                        messageCallback?.Invoke("info", planMsg);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log but don't fail - Kobold can still work without a plan
+                        _logger?.LogWarning(ex, "Failed to create implementation plan for task {TaskId}", task.Id);
+                        messageCallback?.Invoke("warning", $"⚠️ Could not create implementation plan: {ex.Message}. Proceeding without plan.");
+                    }
+                }
+
                 // Start work (Kobold automatically manages its state transitions)
                 messageCallback?.Invoke("info", $"⚡ Kobold {kobold.Id.ToString()[..8]} started working on: {kobold.TaskDescription}");
-                messages = await StartKoboldWorkAsync(kobold.Id, maxIterations);
+
+                // Use plan-aware execution if we have a plan, otherwise use standard execution
+                if (kobold.ImplementationPlan != null)
+                {
+                    messages = await kobold.StartWorkingWithPlanAsync(_planService, maxIterations);
+                }
+                else
+                {
+                    messages = await StartKoboldWorkAsync(kobold.Id, maxIterations);
+                }
 
                 // Check Kobold's final state
                 if (kobold.IsSuccess)

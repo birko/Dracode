@@ -25,6 +25,11 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Path for storing projects. Defaults to current working directory + "./projects"
         /// </summary>
         public string ProjectsPath { get; set; } = "./projects";
+
+        /// <summary>
+        /// Configuration for Kobold implementation planning
+        /// </summary>
+        public PlanningConfiguration Planning { get; set; } = new();
     }
 
     /// <summary>
@@ -47,5 +52,42 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Timeout in minutes before a working Kobold is considered stuck (default: 30)
         /// </summary>
         public int StuckKoboldTimeoutMinutes { get; set; } = 30;
+    }
+
+    /// <summary>
+    /// Configuration for Kobold implementation planning.
+    /// Plans enable resumability and visibility of task execution.
+    /// </summary>
+    public class PlanningConfiguration
+    {
+        /// <summary>
+        /// Whether implementation planning is enabled (default: true)
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Provider to use for the planner agent (null uses default Kobold provider)
+        /// </summary>
+        public string? PlannerProvider { get; set; }
+
+        /// <summary>
+        /// Model to use for the planner agent (null uses provider default)
+        /// </summary>
+        public string? PlannerModel { get; set; }
+
+        /// <summary>
+        /// Maximum iterations for plan generation (default: 5)
+        /// </summary>
+        public int MaxPlanningIterations { get; set; } = 5;
+
+        /// <summary>
+        /// Whether to save plan progress after each step (default: true)
+        /// </summary>
+        public bool SavePlanProgress { get; set; } = true;
+
+        /// <summary>
+        /// Whether to resume from saved plans on restart (default: true)
+        /// </summary>
+        public bool ResumeFromPlan { get; set; } = true;
     }
 }

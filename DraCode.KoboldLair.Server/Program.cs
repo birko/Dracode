@@ -91,7 +91,10 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
     var gitService = sp.GetRequiredService<GitService>();
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService);
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var projectsPath = config.ProjectsPath ?? "./projects";
+    var planningEnabled = config.Planning?.Enabled ?? true;
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService, projectsPath, planningEnabled);
 });
 
 // Register services
