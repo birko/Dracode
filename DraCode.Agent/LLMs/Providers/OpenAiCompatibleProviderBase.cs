@@ -61,14 +61,26 @@ namespace DraCode.Agent.LLMs.Providers
             {
                 var payload = BuildPayload(messages, tools, systemPrompt);
                 var json = JsonSerializer.Serialize(payload);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var url = $"{BaseUrl}/v1/chat/completions";
 
-                var response = await HttpClient.PostAsync($"{BaseUrl}/v1/chat/completions", content);
-                var responseJson = await response.Content.ReadAsStringAsync();
+                // Use retry logic for transient failures
+                var (response, responseJson) = await SendWithRetryAsync(
+                    HttpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, url);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    ProviderName);
+
+                if (response == null || responseJson == null)
+                {
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"{ProviderName} API Error: {response.StatusCode}");
                     SendMessage("error", $"Response: {responseJson}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }

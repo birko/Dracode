@@ -38,7 +38,7 @@ namespace DraCode.Agent.LLMs.Providers
         {
             // Update OAuth service with current callback
             _oauthService = GetOAuthService();
-            
+
             if (!await EnsureAuthenticatedAsync())
             {
                 return NotConfigured();
@@ -52,42 +52,52 @@ namespace DraCode.Agent.LLMs.Providers
             };
 
             var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
-            request.Headers.Add("Authorization", $"Bearer {_currentToken!.AccessToken}");
-            request.Headers.Add("Editor-Version", "vscode/1.96.0");
-            request.Headers.Add("Editor-Plugin-Version", "copilot-chat/0.23.2");
-            request.Content = content;
+            HttpRequestMessage CreateRequest()
+            {
+                var request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
+                request.Headers.Add("Authorization", $"Bearer {_currentToken!.AccessToken}");
+                request.Headers.Add("Editor-Version", "vscode/1.96.0");
+                request.Headers.Add("Editor-Plugin-Version", "copilot-chat/0.23.2");
+                request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                return request;
+            }
 
             try
             {
-                var response = await _httpClient.SendAsync(request);
-                
+                // Use retry logic for transient failures
+                var (response, responseJson) = await SendWithRetryAsync(
+                    _httpClient,
+                    CreateRequest,
+                    Name);
+
+                if (response == null || responseJson == null)
+                {
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
+
+                // Handle 401 separately - refresh token and retry once
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    // Token expired, try to refresh and retry
                     _currentToken = await _oauthService.GetValidTokenAsync(forceRefresh: true);
                     if (_currentToken != null)
                     {
-                        request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
-                        request.Headers.Add("Authorization", $"Bearer {_currentToken.AccessToken}");
-                        request.Headers.Add("Editor-Version", "vscode/1.96.0");
-                        request.Headers.Add("Editor-Plugin-Version", "copilot-chat/0.23.2");
-                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-                        response = await _httpClient.SendAsync(request);
+                        (response, responseJson) = await SendWithRetryAsync(
+                            _httpClient,
+                            CreateRequest,
+                            Name);
                     }
                 }
 
-                var responseJson = await response.Content.ReadAsStringAsync();
-                
-                if (!response.IsSuccessStatusCode)
+                if (response == null || responseJson == null || !response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"GitHub Copilot API Error: {response.StatusCode}");
-                    SendMessage("error", $"Response: {responseJson}");
+                    if (responseJson != null)
+                    {
+                        SendMessage("error", $"Response: {responseJson}");
+                    }
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
-                
+
                 return ParseOpenAiStyleResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)

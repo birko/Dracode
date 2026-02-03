@@ -15,10 +15,12 @@ This file tracks planned enhancements and their implementation status.
   - Configurable timeout via `AgentLimits.StuckKoboldTimeoutMinutes` (default: 30)
   - Monitoring interval via `AgentLimits.MonitoringIntervalSeconds` (default: 60)
 
-- [ ] **Retry Logic for API Calls** - Agent/Providers
-  - Implement exponential backoff for transient failures
-  - Add configurable retry count and delays
-  - Effort: Low (~2-4 hours)
+- [x] **Retry Logic for API Calls** - Agent/Providers *(Completed 2026-02-03)*
+  - Added `RetryPolicy` class with configurable settings (MaxRetries, InitialDelayMs, BackoffMultiplier, AddJitter)
+  - Added `SendWithRetryAsync` method to `LlmProviderBase` with exponential backoff
+  - Handles 429 (rate limiting), 5xx errors, timeouts, and network failures
+  - Respects `Retry-After` header when present
+  - Updated all 10 providers: OpenAI, Claude, Gemini, Azure OpenAI, GitHub Copilot, Ollama, Z.AI, and OpenAI-compatible base (LlamaCpp, vLLM, SGLang)
 
 - [ ] **Proper Logging System** - Solution-wide
   - Integrate Serilog or similar
@@ -149,7 +151,7 @@ This file tracks planned enhancements and their implementation status.
 | Implement proper logging system | Medium | Low | Pending |
 | Add XML documentation comments | Low | Medium | Pending |
 | Refactor configuration loading | Medium | Medium | Pending |
-| Add retry logic for API calls | High | Low | Pending |
+| Add retry logic for API calls | High | Low | **Done** |
 | Implement rate limiting | Medium | Medium | Pending |
 
 ---
@@ -169,4 +171,4 @@ This file tracks planned enhancements and their implementation status.
 
 ---
 
-*Last updated: 2026-02-01*
+*Last updated: 2026-02-03*

@@ -29,15 +29,26 @@ namespace DraCode.Agent.LLMs.Providers
             {
                 var payload = BuildRequestPayload(messages, tools, systemPrompt);
                 var json = JsonSerializer.Serialize(payload);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
                 var url = $"{_baseUrl}{_model}:generateContent?key={_apiKey}";
-                var response = await _httpClient.PostAsync(url, content);
-                var responseJson = await response.Content.ReadAsStringAsync();
+
+                // Use retry logic for transient failures
+                var (response, responseJson) = await SendWithRetryAsync(
+                    _httpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, url);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    Name);
+
+                if (response == null || responseJson == null)
+                {
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"Gemini API Error: {response.StatusCode}");
                     SendMessage("error", $"Response: {responseJson}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }

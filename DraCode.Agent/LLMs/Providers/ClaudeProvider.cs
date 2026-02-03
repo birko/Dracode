@@ -31,14 +31,25 @@ namespace DraCode.Agent.LLMs.Providers
             {
                 var payload = BuildRequestPayload(messages, tools, systemPrompt, _model);
                 var json = JsonSerializer.Serialize(payload);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync(_baseUrl, content);
-                var responseJson = await response.Content.ReadAsStringAsync();
+                // Use retry logic for transient failures
+                var (response, responseJson) = await SendWithRetryAsync(
+                    _httpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    Name);
+
+                if (response == null || responseJson == null)
+                {
+                    return new LlmResponse { StopReason = "error", Content = [] };
+                }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"Claude API Error: {response.StatusCode}");
                     SendMessage("error", $"Response: {responseJson}");
                     return new LlmResponse { StopReason = "error", Content = [] };
                 }
