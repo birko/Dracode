@@ -51,13 +51,17 @@ Wyrm (Automatic)         ← Analyzes specs, creates task breakdown (background 
     ↓ Creates task files
 Drake (Automatic)        ← Supervises task execution (background service, 60s)
     ↓ Assigns and monitors
-Kobold (Automatic)       ← Code generation workers (per-project parallel limits)
+Kobold Planner (Automatic) ← Creates implementation plans with atomic steps
+    ↓ Plans ready for execution
+Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel limits)
 ```
 
 - **Dragon**: Interactive chat for requirements → creates project folder and `specification.md`
+  - Sub-agents: WardenAgent (security), LibrarianAgent (documentation), ArchitectAgent (design)
 - **Wyrm**: Reads specs, breaks into tasks → creates `{area}-tasks.md` files
 - **Drake**: Monitors tasks, summons Kobolds → updates task status
-- **Kobold**: Executes code generation → outputs to `workspace/` subfolder
+- **Kobold Planner**: Creates structured implementation plans → enables resumability
+- **Kobold**: Executes plans step-by-step → outputs to `workspace/` subfolder
 
 ### Agent Types (17 total)
 
@@ -92,12 +96,33 @@ Located in `DraCode.Agent/Tools/`:
 - `ask_user` - User interaction
 - `display_text` - Output display
 
+### Dragon Tools (9)
+
+Located in `DraCode.KoboldLair/Agents/Tools/`:
+- `list_projects` - List all registered projects
+- `manage_specification` - Create, update, load specifications
+- `manage_features` - Manage features within specifications
+- `approve_specification` - Approve projects for processing
+- `add_existing_project` - Register existing projects
+- `git_status` - View branch status and merge readiness
+- `git_merge` - Merge feature branches with conflict detection
+- `manage_external_paths` - Add/remove allowed external paths
+- `select_agent` - Select agent type for tasks
+
+### Kobold Planner Tool (1)
+
+Located in `DraCode.KoboldLair/Agents/Tools/`:
+- `create_implementation_plan` - Creates structured plans with atomic steps
+
 ## Key Technical Details
 
 - **.NET 10.0**, C# 14.0, nullable reference types enabled
 - **TypeScript 5.7** for DraCode.Web (ES2020 modules, zero runtime dependencies)
 - Configuration in `appsettings.json` / `appsettings.Development.json`
 - Providers disabled by default in base config, enabled per-environment
+- **LLM Retry Logic**: All providers use exponential backoff with `SendWithRetryAsync`
+  - Handles 429 (rate limiting), 5xx errors, timeouts, network failures
+  - Respects `Retry-After` header; configurable via `RetryPolicy`
 
 ### Environment Variables
 
@@ -134,7 +159,7 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
 - **Message History**: Up to 100 messages stored per session for replay
 - **Cleanup**: Automatic cleanup timer runs every 60 seconds
 - **Reconnection**: Sessions persist across disconnects; message history replayed on reconnect
-- **Message Types**: `session_resumed`, `dragon_message`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`
+- **Message Types**: `session_resumed`, `dragon_message`, `dragon_thinking`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`
 
 ### Data Storage Locations (Consolidated Per-Project Folders)
 
@@ -177,6 +202,33 @@ Runtime settings that persist across restarts. Supports per-agent-type provider 
 1. `koboldAgentTypeSettings[agentType]` (if matching entry exists)
 2. `koboldProvider` / `koboldModel` (global Kobold fallback)
 3. `defaultProvider` (system default)
+
+### Planning Configuration
+
+Kobold Planner creates implementation plans before execution:
+
+```json
+{
+  "KoboldLair": {
+    "Planning": {
+      "Enabled": true,
+      "PlannerProvider": null,
+      "PlannerModel": null,
+      "MaxPlanningIterations": 5,
+      "SavePlanProgress": true,
+      "ResumeFromPlan": true
+    }
+  }
+}
+```
+
+### Allowed External Paths
+
+Per-project access control for directories outside workspace:
+- Managed via `manage_external_paths` tool or `ProjectConfigurationService`
+- Stored in project config (`AllowedExternalPaths` property)
+- Kobolds inherit project's allowed paths during execution
+- PathHelper validates all file operations against workspace + allowed paths
 
 ## Important Patterns
 

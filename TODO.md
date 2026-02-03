@@ -168,7 +168,19 @@ This file tracks planned enhancements and their implementation status.
 - [x] DrakeMonitoringService created
 - [x] Dragon multi-session support
 - [x] Wyvern project analyzer
+- [x] Git integration (GitService, GitStatusTool, GitMergeTool)
+- [x] Kobold Implementation Planner
+- [x] Allowed External Paths feature
+- [x] Dragon Sub-Agents (Warden, Librarian, Architect)
+- [x] LLM Retry Logic with exponential backoff
 
 ---
+
+## Recently Completed (v2.4.0)
+
+- [x] **Kobold Implementation Planner** - KoboldPlannerAgent creates structured plans before execution
+- [x] **Allowed External Paths** - Per-project access control for directories outside workspace
+- [x] **Dragon Sub-Agents** - Specialized agents (Warden, Librarian, Architect)
+- [x] **LLM Retry Logic** - Exponential backoff for all 10 providers
 
 *Last updated: 2026-02-03*

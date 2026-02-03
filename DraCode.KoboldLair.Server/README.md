@@ -11,6 +11,9 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
 - **REST API** for project management and provider configuration
 - **Multi-provider AI support** (OpenAI, Claude, Gemini, Ollama, Azure OpenAI, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp)
 - **Per-project resource limiting** to control parallel kobold execution
+- **Kobold Implementation Planning** - Structured plans with resumability
+- **Allowed External Paths** - Per-project access control for directories outside workspace
+- **LLM Retry Logic** - Robust API handling with exponential backoff
 
 ## Configuration
 
@@ -179,6 +182,41 @@ Control how many kobolds can run in parallel per project to manage resource cons
 }
 ```
 
+### Implementation Planning Configuration
+
+Kobold Planner creates structured implementation plans before task execution, enabling resumability and visibility.
+
+```json
+{
+  "KoboldLair": {
+    "Planning": {
+      "Enabled": true,
+      "PlannerProvider": null,
+      "PlannerModel": null,
+      "MaxPlanningIterations": 5,
+      "SavePlanProgress": true,
+      "ResumeFromPlan": true
+    }
+  }
+}
+```
+
+**Configuration Options:**
+- `Enabled` - Whether to create plans before execution (default: true)
+- `PlannerProvider` - Override provider for planner agent (null uses Kobold provider)
+- `PlannerModel` - Override model for planner agent (null uses provider default)
+- `MaxPlanningIterations` - Max iterations for plan generation (default: 5)
+- `SavePlanProgress` - Save progress after each step (default: true)
+- `ResumeFromPlan` - Resume from saved plans on restart (default: true)
+
+**How Planning Works:**
+1. Drake assigns task to Kobold
+2. Kobold Planner creates implementation plan with atomic steps
+3. Plan is saved to project folder
+4. Kobold executes plan step-by-step
+5. Progress is saved after each step (if enabled)
+6. On restart, execution resumes from last completed step (if enabled)
+
 ## Authentication
 
 The server supports token-based authentication with optional IP address binding for enhanced security.
@@ -322,10 +360,17 @@ DraCode.KoboldLair.Server/
 ├── Agents/                         # Agent Implementations
 │   ├── AgentFactory.cs             # Creates Dragon, Wyrm, Drake agents
 │   ├── DragonAgent.cs              # Interactive requirements gathering
+│   ├── KoboldPlannerAgent.cs       # Implementation planning
 │   ├── WyrmAgent.cs                # Project analyzer
 │   ├── WyvernAgent.cs              # Task delegator
+│   ├── SubAgents/                  # Dragon sub-agents
+│   │   ├── WardenAgent.cs          # Security and access management
+│   │   ├── LibrarianAgent.cs       # Documentation and search
+│   │   └── ArchitectAgent.cs       # Design decisions
 │   └── Tools/                      # Dragon-specific tools
 │       ├── AddExistingProjectTool.cs    # Import existing projects from disk
+│       ├── CreateImplementationPlanTool.cs  # Kobold Planner tool
+│       ├── ExternalPathTool.cs          # Manage allowed external paths
 │       ├── GitMergeTool.cs              # Merge feature branches to main
 │       ├── GitStatusTool.cs             # View branch status and merge readiness
 │       ├── ProjectApprovalTool.cs       # Approve specs (Prototype → New)
@@ -442,6 +487,7 @@ Dragon uses specialized tools for project management:
 | `list_projects` | List all registered projects with status |
 | `git_status` | View branch status, unmerged feature branches, and merge readiness |
 | `git_merge` | Merge feature branches to main with conflict detection and safe workflow |
+| `manage_external_paths` | Add, remove, or list allowed external paths for a project |
 
 ### Tool Details
 
@@ -469,11 +515,27 @@ Dragon uses specialized tools for project management:
 - Checks merge readiness (clean working tree, no conflicts)
 - Maps branches to features for tracking progress
 
-**git_merge** (NEW)
+**git_merge**
 - Merges feature branches to main branch
 - Pre-checks for conflicts before merging
 - Returns detailed merge results (success, conflicts, or errors)
 - Supports safe merge workflow with rollback on failure
+
+**manage_external_paths**
+- Allows projects to access directories outside their workspace
+- Actions: `list` (view allowed paths), `add` (grant access), `remove` (revoke access)
+- Paths are validated to prevent unauthorized access
+- Kobolds inherit project's allowed paths during execution
+
+## Dragon Sub-Agents
+
+Dragon delegates specialized tasks to sub-agents:
+
+| Sub-Agent | Responsibility |
+|-----------|----------------|
+| **WardenAgent** | Security and access management (external paths, permissions) |
+| **LibrarianAgent** | Project documentation and code search |
+| **ArchitectAgent** | Technical design decisions and architecture |
 
 ## Related
 

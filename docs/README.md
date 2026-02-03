@@ -5,19 +5,25 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 ## Quick Links
 
 - **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete spec for regenerating the project
-- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.3.0 - February 2026)
+- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.4.0 - February 2026)
 - **[KoboldLair Core Library](../DraCode.KoboldLair/README.md)** - Multi-agent orchestration library
 - **[KoboldLair Server](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
 - **[KoboldLair Client](../DraCode.KoboldLair.Client/README.md)** - Multi-agent web UI
 
-## Latest Updates (v2.3.0)
+## Latest Updates (v2.4.0)
 
-- **Git Integration**: Complete Git tooling support with GitService, GitStatusTool, and GitMergeTool
-- **Thinking Indicator**: Real-time `dragon_thinking` message type for processing feedback
+- **Kobold Implementation Planner**: New KoboldPlannerAgent creates structured plans before task execution
+  - Enables resumability, visibility, and better-structured code generation
+  - Configurable via `Planning` section in KoboldLair config
+- **Allowed External Paths**: Per-project access control for directories outside workspace
+  - `manage_external_paths` tool for adding/removing paths
+  - WardenAgent sub-agent for security management
+- **LLM Retry Logic**: Robust API handling with exponential backoff
+  - All 10 providers updated with `SendWithRetryAsync`
+  - Handles rate limiting, timeouts, and network failures
+- **Dragon Sub-Agents**: Specialized agents (Warden, Librarian, Architect) for different responsibilities
 - **17 Specialized Agents**: Including PHP, Python, SVG, Bitmap, and Media specialists
 - **10 LLM Providers**: OpenAI, Claude, Gemini, Azure, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp
-- **Per-Agent-Type Providers**: Configure different LLM providers for different Kobold agent types
-- **Dragon Multi-Session**: Persistent sessions with 10-minute timeout, message history replay on reconnect
 
 ---
 
@@ -32,6 +38,7 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 | **Dragon** | Requirements gathering | Yes | [Dragon-Requirements-Agent.md](Dragon-Requirements-Agent.md) |
 | **Wyrm** | Project analysis & task organization | Automatic | [Wyvern-Project-Analyzer.md](Wyvern-Project-Analyzer.md) |
 | **Drake** | Task supervision & Kobold management | Automatic | [Drake-Monitoring-System.md](Drake-Monitoring-System.md) |
+| **Kobold Planner** | Implementation planning before execution | Automatic | [Kobold-System.md](Kobold-System.md) |
 | **Kobold** | Code generation workers | Automatic | [Kobold-System.md](Kobold-System.md) |
 
 ### How It Works
@@ -41,7 +48,8 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 3. **Wyrm is assigned** → background service runs every 60s
 4. **Wyrm analyzes** → creates organized task files
 5. **Drake monitors** → assigns tasks to Kobolds
-6. **Kobolds generate code** → completely automatic
+6. **Kobold Planner** → creates implementation plan with atomic steps
+7. **Kobolds execute plan** → generates code step-by-step (resumable)
 
 Only Dragon requires interaction - everything else is automatic!
 

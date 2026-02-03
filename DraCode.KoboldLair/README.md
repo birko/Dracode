@@ -16,7 +16,10 @@ Wyvern (Automatic)       <- Analyzes specs, creates task breakdown
 Drake (Automatic)        <- Supervises task execution
     |
     v Assigns and monitors
-Kobold (Automatic)       <- Code generation workers
+Kobold Planner (Automatic) <- Creates implementation plans
+    |
+    v Plans ready for execution
+Kobold (Automatic)       <- Executes plans step-by-step
 ```
 
 ## Project Structure
@@ -27,7 +30,14 @@ DraCode.KoboldLair/
 │   ├── DragonAgent.cs      # Interactive requirements gathering
 │   ├── WyvernAgent.cs      # Specification analysis and task delegation
 │   ├── WyrmAgent.cs        # Task delegation and agent selection
+│   ├── KoboldPlannerAgent.cs  # Implementation planning before execution
+│   ├── SubAgents/          # Dragon sub-agents for specialized tasks
+│   │   ├── WardenAgent.cs     # Security and access management
+│   │   ├── LibrarianAgent.cs  # Project documentation and search
+│   │   └── ArchitectAgent.cs  # Technical design decisions
 │   └── Tools/              # Agent-specific tools
+│       ├── CreateImplementationPlanTool.cs  # Kobold Planner tool
+│       ├── ExternalPathTool.cs              # Manage allowed external paths
 │       ├── FeatureManagementTool.cs
 │       ├── GitMergeTool.cs         # Merge feature branches to main
 │       ├── GitStatusTool.cs        # View branch status and merge readiness
@@ -79,6 +89,12 @@ The user-facing agent for interactive requirements gathering.
 - `AddExistingProjectTool` - Register existing projects
 - `GitStatusTool` - View branch status, unmerged branches, merge readiness
 - `GitMergeTool` - Merge feature branches to main with conflict detection
+- `ExternalPathTool` - Manage allowed external paths for project access
+
+**Dragon Sub-Agents:**
+- `WardenAgent` - Security and access management (external paths, permissions)
+- `LibrarianAgent` - Project documentation and code search
+- `ArchitectAgent` - Technical design decisions and architecture
 
 ### Wyvern
 
@@ -104,6 +120,41 @@ Handles task delegation and agent selection.
 - Analyzes task descriptions
 - Recommends appropriate agent types
 - Provides reasoning for agent selection
+
+### Kobold Planner
+
+Creates implementation plans before Kobold task execution.
+
+**Responsibilities:**
+- Analyzes tasks and breaks them into atomic steps
+- Identifies files to create and modify for each step
+- Orders steps by dependencies
+- Enables resumability if execution is interrupted
+
+**Available Tools:**
+- `CreateImplementationPlanTool` - Creates structured implementation plans
+
+**Benefits:**
+- **Visibility**: See what steps Kobold will perform before execution
+- **Resumability**: Restart from last completed step after interruption
+- **Quality**: Better structured approach to complex tasks
+- **Debugging**: Easier to identify where issues occur
+
+**Configuration:**
+```json
+{
+  "KoboldLair": {
+    "Planning": {
+      "Enabled": true,
+      "PlannerProvider": null,
+      "PlannerModel": null,
+      "MaxPlanningIterations": 5,
+      "SavePlanProgress": true,
+      "ResumeFromPlan": true
+    }
+  }
+}
+```
 
 ## Orchestrators
 
@@ -279,6 +330,36 @@ Projects are stored in a consolidated folder structure:
     ├── analysis.md                  # Wyvern analysis report
     └── workspace/                   # Generated code output
 ```
+
+## Allowed External Paths
+
+Projects can access directories outside their workspace through the allowed external paths feature.
+
+### Managing External Paths
+
+```csharp
+// Add an allowed path
+projectConfigService.AddAllowedExternalPath(projectId, "/shared/libraries");
+
+// Remove an allowed path
+projectConfigService.RemoveAllowedExternalPath(projectId, "/shared/libraries");
+
+// Get allowed paths for a project
+var paths = projectConfigService.GetAllowedExternalPaths(projectId);
+```
+
+### Dragon Tool Usage
+
+In Dragon chat:
+- "Show allowed paths for project" - Lists current allowed paths
+- "Add external path /my/shared/code" - Grants access to a directory
+- "Remove external path /my/shared/code" - Revokes access
+
+### Security
+
+- Paths are validated by PathHelper.IsPathSafe()
+- Both workspace and allowed external paths are checked
+- Kobolds inherit project's allowed paths during execution
 
 ## Dependencies
 

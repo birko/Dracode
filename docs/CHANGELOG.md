@@ -4,6 +4,101 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.4.0] - 2026-02-03
+
+### 🤖 Added - Kobold Implementation Planner
+
+**Intelligent task planning before Kobold execution:**
+
+- **KoboldPlannerAgent** - New specialized agent that creates implementation plans
+  - Analyzes tasks and breaks them into concrete, atomic steps
+  - Identifies files to create and modify for each step
+  - Orders steps by dependencies
+  - Enables resumability if execution is interrupted
+
+- **CreateImplementationPlanTool** (`create_implementation_plan`)
+  - Creates structured plans with steps, files, and descriptions
+  - Returns plan summary with step count and file operations
+
+- **PlanningConfiguration** - New configuration options
+  - `Enabled` - Toggle planning on/off (default: true)
+  - `PlannerProvider` - Override provider for planner agent
+  - `PlannerModel` - Override model for planner agent
+  - `MaxPlanningIterations` - Max iterations for plan generation (default: 5)
+  - `SavePlanProgress` - Save progress after each step (default: true)
+  - `ResumeFromPlan` - Resume from saved plans on restart (default: true)
+
+**Benefits:**
+- **Visibility**: See what steps Kobold will perform before execution
+- **Resumability**: Restart from last completed step after interruption
+- **Quality**: Better structured approach to complex tasks
+- **Debugging**: Easier to identify where issues occur
+
+### 🔒 Added - Allowed External Paths
+
+**Per-project access control for external directories:**
+
+- **ExternalPathTool** (`manage_external_paths`) - Dragon tool for managing paths
+  - `list` - View allowed external paths for a project
+  - `add` - Grant access to an external directory
+  - `remove` - Revoke access to a path
+
+- **WardenAgent** - New Dragon sub-agent for security management
+  - Handles external path management
+  - Helps users understand and configure access permissions
+
+- **PathHelper** - Enhanced path safety validation
+  - Checks both workspace and allowed external paths
+  - Prevents unauthorized file system access
+
+- **ProjectConfig** - New `AllowedExternalPaths` property
+  - Stores per-project allowed paths
+  - Persisted in project configuration
+
+**Use Cases:**
+- Access shared libraries outside workspace
+- Read configuration from common directories
+- Reference existing code during generation
+
+### 🔄 Added - LLM Retry Logic
+
+**Robust API call handling with exponential backoff:**
+
+- **RetryPolicy** class with configurable settings
+  - `MaxRetries` - Maximum retry attempts (default: 3)
+  - `InitialDelayMs` - Initial delay before retry (default: 1000ms)
+  - `BackoffMultiplier` - Exponential backoff factor (default: 2.0)
+  - `AddJitter` - Add randomness to prevent thundering herd
+
+- **SendWithRetryAsync** method in `LlmProviderBase`
+  - Handles 429 (rate limiting), 5xx errors, timeouts, network failures
+  - Respects `Retry-After` header when present
+  - Logs retry attempts for debugging
+
+- **All 10 providers updated:**
+  - OpenAI, Claude, Gemini, Azure OpenAI, GitHub Copilot
+  - Ollama, Z.AI, LlamaCpp, vLLM, SGLang
+
+### 🐉 Added - Dragon Sub-Agents
+
+**Specialized agents for different Dragon responsibilities:**
+
+- **WardenAgent** - Security and access management
+- **LibrarianAgent** - Project documentation and search
+- **ArchitectAgent** - Technical design decisions
+
+**Benefits:**
+- Clearer separation of concerns
+- More focused system prompts
+- Easier to extend with new capabilities
+
+### 🐛 Fixed
+
+- Project naming and path validation issues
+- Parameter ordering in service initialization
+
+---
+
 ## [2.3.0] - 2026-02-01
 
 ### 🔧 Added - Git Integration
@@ -585,6 +680,7 @@ Execute multiple tasks sequentially with fresh agent instances for each task.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.4.0 | Feb 2026 | Kobold Planner, allowed external paths, LLM retry, Dragon sub-agents |
 | 2.3.0 | Feb 2026 | Git integration, thinking indicator, parameter fixes |
 | 2.2.2 | Jan 2026 | New specialized agent types (PHP, Python, SVG, Bitmap, Media) |
 | 2.2.1 | Jan 2026 | DraCode.KoboldLair README documentation |
