@@ -4,6 +4,76 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.4.2] - 2026-02-04
+
+### ⚡ Changed - Parallel Execution & Threading Improvements
+
+**Significant performance improvements through parallelization:**
+
+- **DrakeExecutionService** - All operations now run in parallel:
+  - Projects processed in parallel using `Task.WhenAll`
+  - Drakes per project processed in parallel
+  - Tasks per Drake executed in parallel (respecting Kobold limits)
+  - Expected: 4-8x speedup for task execution
+
+- **WyvernProcessingService** - Project processing parallelized:
+  - Wyvern assignment runs in parallel across projects
+  - Project analysis runs in parallel
+  - Specification reanalysis runs in parallel
+  - Expected: 3-5x speedup with multiple queued projects
+
+- **DrakeMonitoringService** - Drake monitoring parallelized:
+  - All Drakes monitored simultaneously using `Task.WhenAll`
+  - Expected: 2-3x speedup
+
+- **DrakeFactory** - Lock scope optimized:
+  - Expensive initialization moved outside lock
+  - Lock only held during dictionary insertion
+  - Double-check pattern prevents race conditions
+  - Expected: 20-30% speedup on Drake creation
+
+### 🔧 Changed - Project Configuration Restructured
+
+**New sectioned configuration format for `project-configs.json`:**
+
+```json
+{
+  "projects": [{
+    "project": { "id": "...", "name": "..." },
+    "agents": {
+      "wyrm": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
+      "wyvern": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
+      "drake": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
+      "koboldPlanner": { "enabled": true, "provider": null, "model": null, "maxParallel": 1, "timeout": 0 },
+      "kobold": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 }
+    },
+    "security": { "allowedExternalPaths": [], "sandboxMode": "workspace" },
+    "metadata": { "lastUpdated": "...", "createdAt": "..." }
+  }]
+}
+```
+
+**New configuration model files:**
+- `AgentConfig.cs` - Per-agent settings (enabled, provider, model, maxParallel, timeout)
+- `AgentsConfig.cs` - Container for all 5 agent types
+- `ProjectIdentity.cs` - Project ID and name
+- `SecurityConfig.cs` - Security settings (paths, sandbox mode)
+- `MetadataConfig.cs` - Timestamps (lastUpdated, createdAt)
+
+**New features:**
+- **Kobold Planner** configuration section
+- **Timeout** per agent type (in seconds)
+- **Sandbox Mode** setting (workspace/relaxed/strict)
+- **Created At** timestamp for audit tracking
+
+**Benefits:**
+- Cleaner, more organized configuration
+- Per-agent timeout control
+- Kobold Planner now configurable separately
+- Better security controls with sandbox modes
+
+---
+
 ## [2.4.1] - 2026-02-04
 
 ### 🚀 Added - Drake Execution Service
@@ -771,6 +841,7 @@ Execute multiple tasks sequentially with fresh agent instances for each task.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.4.2 | Feb 2026 | Parallel execution, threading improvements, sectioned project config, Kobold Planner config |
 | 2.4.1 | Feb 2026 | Drake Execution Service, Wyvern persistence, retry analysis, performance optimizations |
 | 2.4.0 | Feb 2026 | Kobold Planner, allowed external paths, LLM retry, Dragon sub-agents |
 | 2.3.0 | Feb 2026 | Git integration, thinking indicator, parameter fixes |

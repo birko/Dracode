@@ -179,10 +179,52 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
         analysis.md                   # Wyvern analysis report (human-readable)
         analysis.json                 # Wyvern analysis (machine-readable, persisted)
         workspace/                    # Generated code output
-project-configs.json                  # Per-project kobold limits
+project-configs.json                  # Per-project agent configuration (sectioned format)
 provider-config.json                  # Provider configuration
 user-settings.json                    # User runtime settings (agent providers)
 ```
+
+### Project Configuration (project-configs.json)
+
+Sectioned configuration format for per-project agent settings:
+
+```json
+{
+  "projects": [{
+    "project": {
+      "id": "uuid-here",
+      "name": "my-project"
+    },
+    "agents": {
+      "wyrm": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
+      "wyvern": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
+      "drake": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
+      "koboldPlanner": { "enabled": true, "provider": null, "model": null, "maxParallel": 1, "timeout": 0 },
+      "kobold": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 4, "timeout": 1800 }
+    },
+    "security": {
+      "allowedExternalPaths": [],
+      "sandboxMode": "workspace"
+    },
+    "metadata": {
+      "lastUpdated": "2026-02-04T07:01:50Z",
+      "createdAt": "2026-02-04T06:00:00Z"
+    }
+  }]
+}
+```
+
+**Agent Config Fields:**
+- `enabled` - Whether this agent is active for the project
+- `provider` - LLM provider override (null = use global default)
+- `model` - Model override (null = use provider default)
+- `maxParallel` - Maximum concurrent instances of this agent type
+- `timeout` - Timeout in seconds (0 = no timeout)
+
+**Security Modes:**
+- `workspace` - Only project workspace accessible (default)
+- `relaxed` - Workspace + allowed external paths
+- `strict` - Minimal access, explicit allowlist only
 
 ### User Settings (user-settings.json)
 
