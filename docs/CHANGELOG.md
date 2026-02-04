@@ -79,13 +79,14 @@ All notable changes to this project will be documented in this file.
   - OpenAI, Claude, Gemini, Azure OpenAI, GitHub Copilot
   - Ollama, Z.AI, LlamaCpp, vLLM, SGLang
 
-### 🐉 Added - Dragon Sub-Agents
+### 🐉 Added - Dragon Council (Sub-Agents)
 
-**Specialized agents for different Dragon responsibilities:**
+**Specialized council members for different Dragon responsibilities:**
 
-- **WardenAgent** - Security and access management
-- **LibrarianAgent** - Project documentation and search
-- **ArchitectAgent** - Technical design decisions
+- **SageAgent** - Specifications, features, project approval
+- **SeekerAgent** - Scan and import existing codebases
+- **SentinelAgent** - Git operations, branches, merging
+- **WardenAgent** - Agent configuration, limits, external paths
 
 **Benefits:**
 - Clearer separation of concerns

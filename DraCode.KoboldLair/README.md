@@ -31,12 +31,16 @@ DraCode.KoboldLair/
 │   ├── WyvernAgent.cs      # Specification analysis and task delegation
 │   ├── WyrmAgent.cs        # Task delegation and agent selection
 │   ├── KoboldPlannerAgent.cs  # Implementation planning before execution
-│   ├── SubAgents/          # Dragon sub-agents for specialized tasks
-│   │   ├── WardenAgent.cs     # Security and access management
-│   │   ├── LibrarianAgent.cs  # Project documentation and search
-│   │   └── ArchitectAgent.cs  # Technical design decisions
+│   ├── SubAgents/          # Dragon Council members
+│   │   ├── SageAgent.cs       # Specifications, features, approval
+│   │   ├── SeekerAgent.cs     # Scan/import existing codebases
+│   │   ├── SentinelAgent.cs   # Git operations, branches, merging
+│   │   └── WardenAgent.cs     # Agent config, limits, external paths
 │   └── Tools/              # Agent-specific tools
+│       ├── AddExistingProjectTool.cs        # Import existing projects
+│       ├── AgentConfigurationTool.cs        # Configure agent providers
 │       ├── CreateImplementationPlanTool.cs  # Kobold Planner tool
+│       ├── DelegateToCouncilTool.cs         # Dragon council delegation
 │       ├── ExternalPathTool.cs              # Manage allowed external paths
 │       ├── FeatureManagementTool.cs
 │       ├── GitMergeTool.cs         # Merge feature branches to main
@@ -44,12 +48,10 @@ DraCode.KoboldLair/
 │       ├── ListProjectsTool.cs
 │       ├── ProjectApprovalTool.cs
 │       ├── SelectAgentTool.cs
-│       ├── SpecificationManagementTool.cs
-│       └── SpecificationWriterTool.cs
+│       └── SpecificationManagementTool.cs
 ├── Factories/              # Agent and orchestrator creation
 │   ├── DrakeFactory.cs     # Creates Drake supervisors
 │   ├── KoboldFactory.cs    # Creates Kobold workers
-│   ├── KoboldLairAgentFactory.cs
 │   ├── WyrmFactory.cs      # Creates Wyrm analyzers
 │   └── WyvernFactory.cs    # Creates Wyvern orchestrators
 ├── Models/                 # Data models
@@ -81,20 +83,18 @@ The user-facing agent for interactive requirements gathering.
 - Manages features within specifications
 - Supports multi-session with persistent conversation history
 
-**Available Tools:**
+**Available Tools (Dragon):**
 - `ListProjectsTool` - Lists all registered projects
-- `SpecificationManagementTool` - Create, update, and load specifications
-- `FeatureManagementTool` - Manage features within specifications
-- `ProjectApprovalTool` - Approve projects for processing
-- `AddExistingProjectTool` - Register existing projects
-- `GitStatusTool` - View branch status, unmerged branches, merge readiness
-- `GitMergeTool` - Merge feature branches to main with conflict detection
-- `ExternalPathTool` - Manage allowed external paths for project access
+- `DelegateToCouncilTool` - Routes tasks to council members
 
-**Dragon Sub-Agents:**
-- `WardenAgent` - Security and access management (external paths, permissions)
-- `LibrarianAgent` - Project documentation and code search
-- `ArchitectAgent` - Technical design decisions and architecture
+**Dragon Council (Sub-Agents):**
+
+| Agent | Tools | Responsibility |
+|-------|-------|----------------|
+| **SageAgent** | `SpecificationManagementTool`, `FeatureManagementTool`, `ProjectApprovalTool` | Specifications, features, approval |
+| **SeekerAgent** | `AddExistingProjectTool` | Scan and import existing codebases |
+| **SentinelAgent** | `GitStatusTool`, `GitMergeTool` | Git operations, branches, merging |
+| **WardenAgent** | `ExternalPathTool`, `AgentConfigurationTool`, `SelectAgentTool` | Config, limits, external paths |
 
 ### Wyvern
 

@@ -57,7 +57,7 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 ```
 
 - **Dragon**: Interactive chat for requirements → creates project folder and `specification.md`
-  - Sub-agents: WardenAgent (security), LibrarianAgent (documentation), ArchitectAgent (design)
+  - Dragon Council: SageAgent (specs/features), SeekerAgent (import), SentinelAgent (git), WardenAgent (config)
 - **Wyrm**: Reads specs, breaks into tasks → creates `{area}-tasks.md` files
 - **Drake**: Monitors tasks, summons Kobolds → updates task status
 - **Kobold Planner**: Creates structured implementation plans → enables resumability

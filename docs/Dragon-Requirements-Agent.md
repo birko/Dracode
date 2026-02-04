@@ -13,19 +13,23 @@ User (via WebSocket)
     ↓
 DragonService (/dragon endpoint)
     ↓
-DragonAgent (Interactive conversation)
+DragonAgent (Council Leader)
     ↓ Uses tools:
 ┌─────────────────────────────────────┐
-│ write_specification    → Creates spec (Prototype status)
-│ add_existing_project   → Imports existing code
-│ approve_specification  → Changes status (Prototype → New)
-│ manage_features        → Add/edit features
 │ list_projects          → Show all projects
+│ delegate_to_council    → Route to council members
+└─────────────────────────────────────┘
+    ↓ Delegates to Dragon Council:
+┌─────────────────────────────────────┐
+│ Sage     → Specifications, features, approval
+│ Seeker   → Import existing codebases
+│ Sentinel → Git operations, merging
+│ Warden   → Config, limits, external paths
 └─────────────────────────────────────┘
     ↓ Creates
 {ProjectsPath}/{project-name}/specification.md (Status: Prototype)
     ↓ User confirms
-Dragon calls approve_specification
+Sage calls approve_specification
     ↓ Status changes to "New"
 ProjectService triggers processing
     ↓ Automatic Background Processing
@@ -52,20 +56,26 @@ Prototype → New → Analyzing → Active → Completed
 ### 1. DragonAgent (`Agents/DragonAgent.cs`)
 
 Specialized agent that inherits from `Agent` with:
-- **Custom System Prompt**: Senior requirements analyst persona
-- **SpecificationWriterTool**: Saves specifications to markdown
+- **Custom System Prompt**: Dragon Council leader persona
+- **Dragon Council**: Delegates to specialized sub-agents (Sage, Seeker, Sentinel, Warden)
 - **Interactive Mode**: Conducts back-and-forth conversations
 
 **Key Features:**
-- Asks targeted questions about purpose, scope, requirements
-- Uncovers technical details, architecture, integrations
-- Confirms understanding before writing specification
-- Creates structured markdown documents
+- Routes tasks to appropriate council members
+- Coordinates specification creation via Sage
+- Imports existing projects via Seeker
+- Manages git operations via Sentinel
+- Handles configuration via Warden
 
 **Usage:**
 ```csharp
 var provider = new OpenAiProvider(apiKey, "gpt-4o");
-var dragon = new DragonAgent(provider, options, projectsPath: "./projects");
+var dragon = new DragonAgent(
+    provider,
+    options,
+    getProjects: () => projectService.GetAllProjects(),
+    delegateToCouncil: async (member, task) => await councilService.DelegateAsync(member, task)
+);
 
 // Start conversation
 var response = await dragon.StartSessionAsync("I want to build a web app");
@@ -154,73 +164,52 @@ public record SessionMessage(string MessageId, string Type, object Data, DateTim
 
 ### 3. Dragon Tools (`Agents/Tools/`)
 
-Dragon uses several specialized tools for project management:
+Dragon uses the Dragon Council pattern - it has two direct tools and delegates specialized work to council members.
 
-#### SpecificationWriterTool
-Writes specifications to markdown files.
+#### Dragon's Direct Tools
 
-```json
-{
-  "name": "write_specification",
-  "description": "Writes a project or task specification to markdown...",
-  "parameters": {
-    "filename": "project-name.md",
-    "content": "# Project Specification\n..."
-  }
-}
-```
+| Tool | Purpose |
+|------|---------|
+| `list_projects` | List all registered projects with status |
+| `delegate_to_council` | Route tasks to council members |
 
-#### AddExistingProjectTool (NEW)
-Scans and imports existing projects from disk.
+#### Dragon Council Tools
 
-```json
-{
-  "name": "add_existing_project",
-  "description": "Scans a directory, analyzes its structure, and registers it as a project",
-  "parameters": {
-    "path": "/path/to/existing/project",
-    "project_name": "optional-name"
-  }
-}
-```
+Each council member has specialized tools:
 
-**Features:**
-- Auto-detect 50+ technologies (C#, TypeScript, Python, etc.)
-- Analyze project structure and dependencies
-- Generate initial specification from existing code
-- Support for solution files (.sln, .slnx), package managers, configs
+**Sage** (Specifications & Features):
+| Tool | Purpose |
+|------|---------|
+| `manage_specification` | Create/edit specification content |
+| `manage_features` | Add/update/remove project features |
+| `approve_specification` | Approve specs (Prototype → New) |
 
-#### ProjectApprovalTool (NEW)
-Approves specifications to trigger Wyvern processing.
+**Seeker** (Project Import):
+| Tool | Purpose |
+|------|---------|
+| `add_existing_project` | Scan and import existing codebases |
 
-```json
-{
-  "name": "approve_specification",
-  "description": "Approves a project specification (Prototype → New status)",
-  "parameters": {
-    "project_name": "my-project",
-    "confirmation": "yes"
-  }
-}
-```
+**Sentinel** (Git Operations):
+| Tool | Purpose |
+|------|---------|
+| `git_status` | View branch status and merge readiness |
+| `git_merge` | Merge feature branches to main |
 
-**Two-Stage Specification Workflow:**
-1. Dragon creates **Prototype** specification
+**Warden** (Configuration):
+| Tool | Purpose |
+|------|---------|
+| `manage_external_paths` | Add/remove allowed external paths |
+| `agent_configuration` | Configure agent providers and models |
+| `select_agent` | Select agent type for tasks |
+
+#### Two-Stage Specification Workflow
+
+1. Dragon delegates to Sage to create **Prototype** specification
 2. User reviews and confirms
-3. Dragon uses `approve_specification` tool
+3. Sage uses `approve_specification` tool
 4. Status changes to **New** → Wyvern processes
 
 This prevents accidental task generation from incomplete specifications.
-
-**All Tools:**
-| Tool | Purpose |
-|------|---------|
-| `write_specification` | Create/update specification files |
-| `add_existing_project` | Import existing projects from disk |
-| `approve_specification` | Approve specs (Prototype → New) |
-| `manage_specification` | Edit specification content |
-| `manage_features` | Add/update/remove project features |
-| `list_projects` | List all registered projects |
 
 ### 4. Frontend (`wwwroot/dragon.html`, `dragon.js`, `dragon.css`)
 
@@ -276,7 +265,9 @@ Dragon: "Understood. Tell me about the dashboard:
 ```
 Dragon has enough information
   ↓
-Calls write_specification tool
+Delegates to Sage (via delegate_to_council)
+  ↓
+Sage calls manage_specification tool
   ↓
 Creates: ./projects/web-app-with-auth/specification.md
   ↓
@@ -471,7 +462,7 @@ Each project gets its own folder with all related files:
 
 **Specification:**
 - "I have enough information to create the specification!"
-- Calls write_specification tool
+- Delegates to Sage to create specification
 - Provides confirmation and next steps
 
 ## Tips for Users
@@ -546,17 +537,27 @@ public class DragonAgent : Agent
     public DragonAgent(
         ILlmProvider provider,
         AgentOptions? options = null,
-        string specificationsPath = "./specifications"
+        Func<List<ProjectInfo>>? getProjects = null,
+        Func<string, string, Task<string>>? delegateToCouncil = null
     )
 
     // Methods
     public async Task<string> StartSessionAsync(string? initialMessage = null)
     public async Task<string> ContinueSessionAsync(string userMessage)
-    
-    // Properties
-    public string SpecificationsPath { get; }
+
+    // Tools (created internally)
+    // - ListProjectsTool: Lists all registered projects
+    // - DelegateToCouncilTool: Routes tasks to council members (Sage, Seeker, Sentinel, Warden)
 }
 ```
+
+#### Dragon Council Pattern
+
+DragonAgent coordinates with specialized sub-agents via the `delegateToCouncil` callback:
+- **Sage**: Specifications, features, project approval
+- **Seeker**: Scan/import existing codebases
+- **Sentinel**: Git operations, branches, merging
+- **Warden**: Agent configuration, limits, external paths
 
 ### DragonService
 
@@ -598,15 +599,32 @@ public class DragonStatistics
 }
 ```
 
-### SpecificationWriterTool
+### SpecificationManagementTool (Sage)
 
 ```csharp
-public class SpecificationWriterTool : Tool
+public class SpecificationManagementTool : Tool
 {
-    public override string Name => "write_specification";
+    public override string Name => "manage_specification";
     public override string Description { get; }
     public override object? InputSchema { get; }
-    
+
+    public override string Execute(
+        string workingDirectory,
+        Dictionary<string, object> input
+    )
+}
+```
+
+### DelegateToCouncilTool (Dragon)
+
+```csharp
+public class DelegateToCouncilTool : Tool
+{
+    public override string Name => "delegate_to_council";
+    public override string Description { get; }
+    public override object? InputSchema { get; }
+
+    // Delegates to: Sage, Seeker, Sentinel, Warden
     public override string Execute(
         string workingDirectory,
         Dictionary<string, object> input

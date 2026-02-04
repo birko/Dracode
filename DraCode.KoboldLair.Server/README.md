@@ -318,14 +318,7 @@ dotnet run --project DraCode.KoboldLair.Server --configuration Release
 
 ## API Endpoints
 
-- `GET /` - Health check
-- `GET /api/hierarchy` - Get project hierarchy and statistics
-- `GET /api/projects` - Get all projects
-- `GET /api/stats` - Get system statistics
-- `GET /api/providers` - Get provider configuration
-- `POST /api/providers/configure` - Update provider settings
-- `GET /api/projects/{id}/providers` - Get project-specific providers
-- `POST /api/projects/{id}/providers` - Update project providers
+- `GET /` - Health check (returns status and available WebSocket endpoints)
 
 ## WebSocket Protocol
 
@@ -357,77 +350,26 @@ All messages are JSON:
 
 ```
 DraCode.KoboldLair.Server/
-├── Agents/                         # Agent Implementations
-│   ├── AgentFactory.cs             # Creates Dragon, Wyrm, Drake agents
-│   ├── DragonAgent.cs              # Interactive requirements gathering
-│   ├── KoboldPlannerAgent.cs       # Implementation planning
-│   ├── WyrmAgent.cs                # Project analyzer
-│   ├── WyvernAgent.cs              # Task delegator
-│   ├── SubAgents/                  # Dragon sub-agents
-│   │   ├── WardenAgent.cs          # Security and access management
-│   │   ├── LibrarianAgent.cs       # Documentation and search
-│   │   └── ArchitectAgent.cs       # Design decisions
-│   └── Tools/                      # Dragon-specific tools
-│       ├── AddExistingProjectTool.cs    # Import existing projects from disk
-│       ├── CreateImplementationPlanTool.cs  # Kobold Planner tool
-│       ├── ExternalPathTool.cs          # Manage allowed external paths
-│       ├── GitMergeTool.cs              # Merge feature branches to main
-│       ├── GitStatusTool.cs             # View branch status and merge readiness
-│       ├── ProjectApprovalTool.cs       # Approve specs (Prototype → New)
-│       ├── SpecificationWriterTool.cs   # Write specification files
-│       ├── SpecificationManagementTool.cs
-│       ├── FeatureManagementTool.cs
-│       └── ListProjectsTool.cs
-├── Factories/                      # Factory Pattern - Resource Creation
-│   ├── KoboldFactory.cs            # Creates Kobolds with parallel limits
-│   ├── DrakeFactory.cs             # Creates Drake supervisors
-│   ├── WyvernFactory.cs            # Creates Wyvern orchestrators
-│   └── WyrmFactory.cs              # Creates Wyrm analyzers
-├── Orchestrators/                  # High-Level Orchestration
-│   ├── Drake.cs                    # Task supervisor
-│   ├── WyrmRunner.cs               # Task running orchestrator
-│   └── Wyvern.cs                   # Task delegation orchestrator
-├── Models/                         # Data Models (organized by domain)
-│   ├── Agents/                     # Agent-related models
-│   │   ├── DragonMessage.cs
-│   │   ├── DragonStatistics.cs
-│   │   ├── DrakeStatistics.cs
-│   │   ├── Kobold.cs
-│   │   ├── KoboldStatistics.cs
-│   │   └── WyvernAnalysis.cs
-│   ├── Configuration/              # Configuration models
-│   │   ├── ProjectConfig.cs
-│   │   ├── ProviderConfig.cs
-│   │   ├── KoboldLairConfiguration.cs
-│   │   └── UserSettings.cs
-│   ├── Projects/                   # Project models
-│   │   ├── Project.cs
-│   │   ├── ProjectInfo.cs
-│   │   ├── ProjectStatistics.cs
-│   │   ├── Specification.cs
-│   │   └── WorkArea.cs
-│   ├── Tasks/                      # Task models
-│   │   ├── TaskRecord.cs
-│   │   ├── TaskStatus.cs
-│   │   ├── TaskTracker.cs
-│   │   └── Feature.cs
-│   └── WebSocket/                  # WebSocket models
+├── Models/                         # Server-specific models
+│   ├── Configuration/              # Authentication configuration
+│   │   ├── AuthenticationConfiguration.cs
+│   │   └── TokenIpBinding.cs
+│   └── WebSocket/                  # WebSocket protocol models
 │       ├── WebSocketCommand.cs
 │       └── WebSocketRequest.cs
-├── Services/                       # Business Logic Services
-│   ├── DragonService.cs            # Dragon WebSocket service
-│   ├── GitService.cs               # Git operations (branch, merge, commit)
-│   ├── WyrmService.cs              # Wyrm analysis service
+├── Services/                       # Server services
+│   ├── DragonService.cs            # Dragon WebSocket handler
+│   ├── WyrmService.cs              # Wyrm WebSocket handler
 │   ├── WyvernProcessingService.cs  # Wyvern background processing (60s)
 │   ├── DrakeMonitoringService.cs   # Drake background monitoring (60s)
-│   ├── ProjectService.cs           # Project management
-│   ├── ProjectConfigurationService.cs
-│   ├── ProviderConfigurationService.cs
-│   └── WebSocketCommandHandler.cs
+│   ├── WebSocketAuthenticationService.cs  # Token/IP authentication
+│   └── WebSocketCommandHandler.cs  # WebSocket command routing
 ├── Program.cs                      # ASP.NET Core startup & DI
-├── appsettings.json                # Base configuration (simplified)
+├── appsettings.json                # Base configuration
 ├── appsettings.local.example.json  # Example local configuration
 └── project-configs.json            # Per-project resource limits
+
+Note: Agents, Factories, Orchestrators, and core Models are in DraCode.KoboldLair (the library).
 ```
 
 ## Dragon Session Management
@@ -475,67 +417,67 @@ Dragon supports multi-session with persistent connections and automatic reconnec
 
 ## Dragon Tools
 
-Dragon uses specialized tools for project management:
+Dragon coordinates through its council. Direct Dragon tools:
 
 | Tool | Description |
 |------|-------------|
-| `add_existing_project` | Scan and import existing projects from disk with auto-detected technologies (50+ tech stacks) |
-| `approve_specification` | Approve a specification (Prototype → New status) to trigger Wyvern processing |
-| `write_specification` | Create or update project specification files |
-| `manage_specification` | Edit and manage specification content |
-| `manage_features` | Add, update, or remove project features |
 | `list_projects` | List all registered projects with status |
-| `git_status` | View branch status, unmerged feature branches, and merge readiness |
-| `git_merge` | Merge feature branches to main with conflict detection and safe workflow |
-| `manage_external_paths` | Add, remove, or list allowed external paths for a project |
+| `delegate_to_council` | Route tasks to council members (Sage, Seeker, Sentinel, Warden) |
+
+### Council Member Tools
+
+| Council Member | Tool | Description |
+|----------------|------|-------------|
+| **Sage** | `manage_specification` | Create, edit, and manage specification content |
+| **Sage** | `manage_features` | Add, update, or remove project features |
+| **Sage** | `approve_specification` | Approve spec (Prototype → New) to trigger Wyvern |
+| **Seeker** | `add_existing_project` | Scan and import existing projects (50+ tech stacks) |
+| **Sentinel** | `git_status` | View branch status, unmerged branches, merge readiness |
+| **Sentinel** | `git_merge` | Merge feature branches with conflict detection |
+| **Warden** | `manage_external_paths` | Add/remove allowed external paths for a project |
+| **Warden** | `agent_configuration` | Configure agent providers and models |
+| **Warden** | `select_agent` | Select agent type for specific tasks |
 
 ### Tool Details
+
+**approve_specification** (Two-Stage Workflow)
+1. Dragon creates specification with **Prototype** status
+2. User reviews and confirms requirements
+3. Sage calls `approve_specification` tool
+4. Status changes to **New** → WyvernProcessingService picks up
+5. Prevents accidental task generation from incomplete specs
 
 **add_existing_project**
 - Scans directory for project files (.sln, .slnx, package.json, requirements.txt, etc.)
 - Auto-detects 50+ technologies (C#, TypeScript, Python, Go, Rust, etc.)
 - Analyzes project structure and dependencies
 - Generates initial specification from existing code
-- Registers project in ProjectService
 
-**approve_specification** (Two-Stage Workflow)
-1. Dragon creates specification with **Prototype** status
-2. User reviews and confirms requirements
-3. Dragon calls `approve_specification` tool
-4. Status changes to **New** → WyvernProcessingService picks up
-5. Prevents accidental task generation from incomplete specs
-
-**list_projects**
-- Returns all registered projects with: ID, Name, Status, FeatureCount, CreatedAt, UpdatedAt
-- Used by Dragon to show available projects during conversation
-
-**git_status** (NEW)
+**git_status**
 - Shows current branch and commit information
 - Lists unmerged feature branches with their status
 - Checks merge readiness (clean working tree, no conflicts)
-- Maps branches to features for tracking progress
 
 **git_merge**
 - Merges feature branches to main branch
 - Pre-checks for conflicts before merging
-- Returns detailed merge results (success, conflicts, or errors)
 - Supports safe merge workflow with rollback on failure
 
 **manage_external_paths**
 - Allows projects to access directories outside their workspace
-- Actions: `list` (view allowed paths), `add` (grant access), `remove` (revoke access)
-- Paths are validated to prevent unauthorized access
+- Actions: `list`, `add`, `remove`
 - Kobolds inherit project's allowed paths during execution
 
-## Dragon Sub-Agents
+## Dragon Sub-Agents (Dragon Council)
 
-Dragon delegates specialized tasks to sub-agents:
+Dragon delegates specialized tasks to council members:
 
 | Sub-Agent | Responsibility |
 |-----------|----------------|
-| **WardenAgent** | Security and access management (external paths, permissions) |
-| **LibrarianAgent** | Project documentation and code search |
-| **ArchitectAgent** | Technical design decisions and architecture |
+| **SageAgent** | Specifications, features, project approval |
+| **SeekerAgent** | Scan and import existing codebases |
+| **SentinelAgent** | Git operations, branches, merging |
+| **WardenAgent** | Agent configuration, limits, external paths |
 
 ## Related
 

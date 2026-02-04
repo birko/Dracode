@@ -11,7 +11,7 @@ This guide explains how to use the **DraCode.WebSocket** server and **DraCode.We
 dotnet run --project DraCode.AppHost
 
 # Access:
-# - Aspire Dashboard: https://localhost:17169 (or check console output)
+# - Aspire Dashboard: https://localhost:17094 (or check console output)
 # - WebSocket Server: ws://localhost:5000/ws (or ws://localhost:5000/ws?token=YOUR_TOKEN if auth enabled)
 # - Web Client: http://localhost:5001
 ```
