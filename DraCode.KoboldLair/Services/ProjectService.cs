@@ -243,7 +243,9 @@ namespace DraCode.KoboldLair.Services
             var wyvern = _wyvernFactory.GetWyvern(project.Name);
             if (wyvern == null)
             {
-                throw new InvalidOperationException($"No Wyvern assigned to project: {project.Name}");
+                // Wyvern may have been lost after server restart - re-assign it
+                _logger.LogWarning("🔄 Wyvern not found for project {ProjectName}, re-assigning...", project.Name);
+                wyvern = await AssignWyvernAsync(project.Id);
             }
 
             try

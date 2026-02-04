@@ -15,6 +15,8 @@ namespace DraCode.KoboldLair.Orchestrators
     /// </summary>
     public class Wyvern
     {
+        private const string AnalysisJsonFileName = "analysis.json";
+
         private readonly string _projectName;
         private readonly string _specificationPath;
         private readonly WyvernAgent _analyzerAgent;
@@ -33,6 +35,13 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly GitService? _gitService;
 
         private WyvernAnalysis? _analysis;
+
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = true
+        };
 
         /// <summary>
         /// Creates a new Wyvern for a project
@@ -76,6 +85,85 @@ namespace DraCode.KoboldLair.Orchestrators
 
             // Git integration
             _gitService = gitService;
+
+            // Try to load existing analysis from disk
+            TryLoadAnalysis();
+        }
+
+        /// <summary>
+        /// Gets the path to the analysis JSON file
+        /// </summary>
+        private string AnalysisJsonPath => Path.Combine(_outputPath, AnalysisJsonFileName);
+
+        /// <summary>
+        /// Tries to load analysis from disk if it exists
+        /// </summary>
+        private void TryLoadAnalysis()
+        {
+            if (_analysis != null)
+                return;
+
+            try
+            {
+                if (File.Exists(AnalysisJsonPath))
+                {
+                    var json = File.ReadAllText(AnalysisJsonPath);
+                    _analysis = JsonSerializer.Deserialize<WyvernAnalysis>(json, _jsonOptions);
+                }
+            }
+            catch
+            {
+                // Silently ignore load errors - will re-analyze if needed
+                _analysis = null;
+            }
+        }
+
+        /// <summary>
+        /// Loads analysis from disk asynchronously
+        /// </summary>
+        /// <returns>The loaded analysis, or null if not found or failed to load</returns>
+        public async Task<WyvernAnalysis?> LoadAnalysisAsync()
+        {
+            if (_analysis != null)
+                return _analysis;
+
+            try
+            {
+                if (File.Exists(AnalysisJsonPath))
+                {
+                    var json = await File.ReadAllTextAsync(AnalysisJsonPath);
+                    _analysis = JsonSerializer.Deserialize<WyvernAnalysis>(json, _jsonOptions);
+                    return _analysis;
+                }
+            }
+            catch
+            {
+                // Silently ignore load errors
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Saves the current analysis to disk
+        /// </summary>
+        public async Task SaveAnalysisAsync()
+        {
+            if (_analysis == null)
+                return;
+
+            try
+            {
+                // Ensure output directory exists
+                Directory.CreateDirectory(_outputPath);
+
+                var json = JsonSerializer.Serialize(_analysis, _jsonOptions);
+                await File.WriteAllTextAsync(AnalysisJsonPath, json);
+            }
+            catch
+            {
+                // Silently ignore save errors - analysis is still in memory
+            }
         }
 
         /// <summary>
@@ -311,10 +399,7 @@ namespace DraCode.KoboldLair.Orchestrators
 
             try
             {
-                _analysis = JsonSerializer.Deserialize<WyvernAnalysis>(analysisJson, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                _analysis = JsonSerializer.Deserialize<WyvernAnalysis>(analysisJson, _jsonOptions);
 
                 if (_analysis == null)
                 {
@@ -332,6 +417,9 @@ namespace DraCode.KoboldLair.Orchestrators
                         .Select(f => f.Id)
                         .ToList();
                 }
+
+                // Persist analysis to disk for recovery after restart
+                await SaveAnalysisAsync();
 
                 return _analysis;
             }
@@ -437,7 +525,26 @@ namespace DraCode.KoboldLair.Orchestrators
             return report.ToString();
         }
 
-        public WyvernAnalysis? Analysis => _analysis;
+        /// <summary>
+        /// Gets the current analysis. Attempts to load from disk if not in memory.
+        /// </summary>
+        public WyvernAnalysis? Analysis
+        {
+            get
+            {
+                if (_analysis == null)
+                {
+                    TryLoadAnalysis();
+                }
+                return _analysis;
+            }
+        }
+
+        /// <summary>
+        /// Gets the path to the persisted analysis JSON file
+        /// </summary>
+        public string AnalysisPath => AnalysisJsonPath;
+
         public string ProjectName => _projectName;
         public string SpecificationPath => _specificationPath;
     }

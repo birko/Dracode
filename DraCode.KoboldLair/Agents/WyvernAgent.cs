@@ -69,18 +69,23 @@ Response must be pure JSON - no code blocks or explanations.";
       /// <returns>JSON string with organized tasks</returns>
       public async Task<string> AnalyzeSpecificationAsync(string specificationContent)
       {
-         var prompt = $@"Please analyze the following project specification and break it down into organized, dependency-aware tasks.
+         var prompt = $@"Analyze this specification and return ONLY a JSON object (no markdown, no explanations, no text before or after):
 
 SPECIFICATION:
 {specificationContent}
 
-Respond with the JSON structure as defined in your system prompt.";
+IMPORTANT: Your entire response must be valid JSON starting with {{ and ending with }}. Do not include any other text.";
 
          var messages = await RunAsync(prompt, maxIterations: 1);
 
          // Return the last assistant message (should be JSON)
          var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
-         var content = lastMessage?.Content?.ToString() ?? "{}";
+
+         // Extract text from content blocks (Content is object but contains List<ContentBlock>)
+         var content = ExtractTextFromContent(lastMessage?.Content);
+
+         if (string.IsNullOrWhiteSpace(content))
+            content = "{}";
 
          // Extract JSON from the response if the LLM added extra text
          return ExtractJson(content);
@@ -92,7 +97,7 @@ Respond with the JSON structure as defined in your system prompt.";
       private static string ExtractJson(string content)
       {
          if (string.IsNullOrWhiteSpace(content))
-            return "{}";
+            throw new InvalidOperationException("Wyvern returned empty response. The LLM may have failed to generate an analysis.");
 
          // If it already starts with '{', assume it's valid JSON
          var trimmed = content.Trim();
@@ -117,8 +122,112 @@ Respond with the JSON structure as defined in your system prompt.";
          if (jsonMatch.Success)
             return jsonMatch.Groups[1].Value.Trim();
 
-         // Return original if no JSON found - let the caller handle the error
-         return content;
+         // No JSON found - provide helpful error with preview of what was received
+         var preview = content.Length > 100 ? content.Substring(0, 100) + "..." : content;
+         throw new InvalidOperationException($"Wyvern did not return valid JSON. Response started with: {preview}");
+      }
+
+      /// <summary>
+      /// Extracts text content from a Message.Content object which may be various types.
+      /// Handles List&lt;ContentBlock&gt;, IEnumerable&lt;ContentBlock&gt;, string, and other edge cases
+      /// without falling back to ToString() which would produce type names.
+      /// </summary>
+      private static string ExtractTextFromContent(object? content)
+      {
+         if (content == null)
+            return string.Empty;
+
+         // Direct string content
+         if (content is string text)
+            return text;
+
+         // Single ContentBlock
+         if (content is ContentBlock block)
+            return block.Text ?? string.Empty;
+
+         // List<ContentBlock> or IEnumerable<ContentBlock>
+         if (content is IEnumerable<ContentBlock> contentBlocks)
+         {
+            return string.Join("\n", contentBlocks
+                .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
+                .Select(b => b.Text));
+         }
+
+         // Handle case where Content was serialized/deserialized as List<object> or JsonElement
+         if (content is System.Text.Json.JsonElement jsonElement)
+         {
+            if (jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+               var texts = new List<string>();
+               foreach (var element in jsonElement.EnumerateArray())
+               {
+                  if (element.TryGetProperty("type", out var typeEl) &&
+                      typeEl.GetString() == "text" &&
+                      element.TryGetProperty("text", out var textEl))
+                  {
+                     var t = textEl.GetString();
+                     if (!string.IsNullOrEmpty(t))
+                        texts.Add(t);
+                  }
+               }
+               return string.Join("\n", texts);
+            }
+            else if (jsonElement.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+               return jsonElement.GetString() ?? string.Empty;
+            }
+         }
+
+         // Handle IEnumerable<object> which might contain ContentBlocks or anonymous objects
+         if (content is IEnumerable<object> objects)
+         {
+            var texts = new List<string>();
+            foreach (var obj in objects)
+            {
+               if (obj is ContentBlock cb && cb.Type == "text" && !string.IsNullOrEmpty(cb.Text))
+               {
+                  texts.Add(cb.Text);
+               }
+               else if (obj is string str)
+               {
+                  texts.Add(str);
+               }
+               // Check for anonymous object or dynamic with Type and Text properties
+               else if (obj != null)
+               {
+                  var objType = obj.GetType();
+                  var typeProp = objType.GetProperty("Type") ?? objType.GetProperty("type");
+                  var textProp = objType.GetProperty("Text") ?? objType.GetProperty("text");
+
+                  if (typeProp != null && textProp != null)
+                  {
+                     var typeVal = typeProp.GetValue(obj)?.ToString();
+                     if (typeVal == "text")
+                     {
+                        var textVal = textProp.GetValue(obj)?.ToString();
+                        if (!string.IsNullOrEmpty(textVal))
+                           texts.Add(textVal);
+                     }
+                  }
+               }
+            }
+            if (texts.Count > 0)
+               return string.Join("\n", texts);
+         }
+
+         // Last resort: if content looks like it might already be JSON or text, return it
+         // But NEVER call ToString() on collection types as that produces type names
+         var contentType = content.GetType();
+         if (contentType.IsGenericType &&
+             (contentType.GetGenericTypeDefinition() == typeof(List<>) ||
+              contentType.Name.Contains("Enumerable")))
+         {
+            // This is a collection we couldn't process - return empty rather than type name
+            return string.Empty;
+         }
+
+         // For primitive types and simple objects, ToString is safe
+         return content.ToString() ?? string.Empty;
       }
    }
 }

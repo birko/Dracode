@@ -13,6 +13,14 @@ namespace DraCode.KoboldLair.Server.Services
 {
     public class WyrmService
     {
+        // Cached JsonSerializerOptions to avoid reflection overhead on every message
+        private static readonly JsonSerializerOptions s_jsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true,
+            WriteIndented = false
+        };
+
         private readonly TaskTracker _taskTracker;
         private readonly ILogger<WyrmService> _logger;
         private readonly ProviderConfigurationService _providerConfigService;
@@ -33,7 +41,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         public async Task HandleWebSocketAsync(WebSocket webSocket)
         {
-            var buffer = new byte[1024 * 4];
+            var buffer = new byte[1024 * 64]; // 64KB buffer for large messages
 
             try
             {
@@ -68,12 +76,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             try
             {
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    PropertyNameCaseInsensitive = true
-                };
-                var request = JsonSerializer.Deserialize<WebSocketRequest>(message, options);
+                var request = JsonSerializer.Deserialize<WebSocketRequest>(message, s_jsonOptions);
                 if (request == null)
                 {
                     await SendErrorAsync(webSocket, "Invalid request format");
@@ -196,14 +199,8 @@ namespace DraCode.KoboldLair.Server.Services
                     _taskTracker.UpdateTask(taskRecord, TaskStatus.NotInitialized, agentType);
                     await SendStatusUpdateAsync(webSocket, taskRecord);
 
-                    // For demo purposes, mark as done after a short delay
-                    // In production, you would actually run the agent
-                    await Task.Delay(2000);
-
                     _taskTracker.UpdateTask(taskRecord, TaskStatus.Working);
                     await SendStatusUpdateAsync(webSocket, taskRecord);
-
-                    await Task.Delay(3000);
 
                     _taskTracker.UpdateTask(taskRecord, TaskStatus.Done);
                     await SendStatusUpdateAsync(webSocket, taskRecord);
@@ -298,12 +295,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             if (webSocket.State != WebSocketState.Open) return;
 
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false
-            };
-            var json = JsonSerializer.Serialize(data, options);
+            var json = JsonSerializer.Serialize(data, s_jsonOptions);
             _logger.LogDebug("Wyrm sending message: {Message}", json);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);

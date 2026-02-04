@@ -39,6 +39,18 @@ namespace DraCode.KoboldLair.Server.Services
     /// </summary>
     public class DragonService : IDisposable
     {
+        // Cached JsonSerializerOptions to avoid reflection overhead on every message
+        private static readonly JsonSerializerOptions s_readOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        private static readonly JsonSerializerOptions s_writeOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = false
+        };
+
         private readonly ILogger<DragonService> _logger;
         private readonly ConcurrentDictionary<string, DragonSession> _sessions;
         private readonly ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
@@ -241,7 +253,7 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                 }
 
-                var buffer = new byte[1024 * 4];
+                var buffer = new byte[1024 * 64]; // 64KB buffer for large messages
                 while (webSocket.State == WebSocketState.Open)
                 {
                     var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
@@ -428,8 +440,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             try
             {
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                var message = JsonSerializer.Deserialize<DragonMessage>(messageText, options);
+                var message = JsonSerializer.Deserialize<DragonMessage>(messageText, s_readOptions);
                 if (message == null) return;
 
                 var messageType = message.Type ?? message.Action;
@@ -580,12 +591,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         private async Task SendMessageAsync(WebSocket webSocket, object data)
         {
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false
-            };
-            var json = JsonSerializer.Serialize(data, options);
+            var json = JsonSerializer.Serialize(data, s_writeOptions);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }
@@ -593,15 +599,20 @@ namespace DraCode.KoboldLair.Server.Services
         private async Task SendTrackedMessageAsync(WebSocket webSocket, DragonSession session, string messageType, object data)
         {
             var messageId = Guid.NewGuid().ToString();
+
+            // Directly build tracked data without double-serialization
             var trackedData = new Dictionary<string, object> { ["messageId"] = messageId };
 
-            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-            var dataJson = JsonSerializer.Serialize(data, jsonOptions);
-            var dataDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(dataJson, jsonOptions);
-            if (dataDict != null)
+            // Use reflection to copy properties efficiently (avoiding serialize/deserialize round-trip)
+            foreach (var prop in data.GetType().GetProperties())
             {
-                foreach (var kvp in dataDict)
-                    trackedData[kvp.Key] = kvp.Value;
+                var value = prop.GetValue(data);
+                if (value != null)
+                {
+                    // Convert property name to camelCase
+                    var name = char.ToLowerInvariant(prop.Name[0]) + prop.Name[1..];
+                    trackedData[name] = value;
+                }
             }
 
             TrackMessage(session, messageType, trackedData, messageId);
@@ -614,8 +625,10 @@ namespace DraCode.KoboldLair.Server.Services
             session.MessageHistory.Add(new SessionMessage(messageId, messageType, data, DateTime.UtcNow));
             session.LastMessageId = messageId;
 
-            while (session.MessageHistory.Count > _maxMessageHistory)
-                session.MessageHistory.RemoveAt(0);
+            // Efficient trimming: remove excess items in one operation instead of O(n²) loop
+            var excess = session.MessageHistory.Count - _maxMessageHistory;
+            if (excess > 0)
+                session.MessageHistory.RemoveRange(0, excess);
         }
 
         private async Task ReloadAgentAsync(DragonSession session, string? providerOverride = null)

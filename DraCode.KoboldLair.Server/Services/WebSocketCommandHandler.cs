@@ -16,6 +16,24 @@ namespace DraCode.KoboldLair.Server.Services
     /// </summary>
     public class WebSocketCommandHandler
     {
+        // Cached JsonSerializerOptions to avoid reflection overhead on every message
+        private static readonly JsonSerializerOptions s_camelCaseOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
+        };
+
+        private static readonly JsonSerializerOptions s_writeOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = false
+        };
+
+        private static readonly JsonSerializerOptions s_readOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
         private readonly ILogger<WebSocketCommandHandler> _logger;
         private readonly ProjectService _projectService;
         private readonly DragonService _dragonService;
@@ -47,12 +65,7 @@ namespace DraCode.KoboldLair.Server.Services
             try
             {
                 _logger.LogDebug("Received command message: {Message}", messageText);
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    PropertyNameCaseInsensitive = true
-                };
-                var message = JsonSerializer.Deserialize<WebSocketCommand>(messageText, options);
+                var message = JsonSerializer.Deserialize<WebSocketCommand>(messageText, s_camelCaseOptions);
                 if (message == null)
                 {
                     await SendErrorAsync(webSocket, null, "Invalid message format");
@@ -406,11 +419,7 @@ namespace DraCode.KoboldLair.Server.Services
             if (data == null) throw new ArgumentNullException(nameof(data));
 
             var projectId = data.Value.GetProperty("projectId").GetString();
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            };
-            var config = JsonSerializer.Deserialize<ProjectConfig>(data.Value.GetRawText(), options);
+            var config = JsonSerializer.Deserialize<ProjectConfig>(data.Value.GetRawText(), s_readOptions);
             if (config != null)
             {
                 config.ProjectId = projectId!;
@@ -527,12 +536,7 @@ namespace DraCode.KoboldLair.Server.Services
                 timestamp = DateTime.UtcNow
             };
 
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false
-            };
-            var json = JsonSerializer.Serialize(response, options);
+            var json = JsonSerializer.Serialize(response, s_writeOptions);
             _logger.LogDebug("Sending response: {Response}", json);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
@@ -550,12 +554,7 @@ namespace DraCode.KoboldLair.Server.Services
                 timestamp = DateTime.UtcNow
             };
 
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false
-            };
-            var json = JsonSerializer.Serialize(response, options);
+            var json = JsonSerializer.Serialize(response, s_writeOptions);
             _logger.LogWarning("Sending error: {Error}", json);
             var bytes = Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
