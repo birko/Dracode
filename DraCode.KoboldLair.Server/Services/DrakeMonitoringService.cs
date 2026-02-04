@@ -99,7 +99,7 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Monitors all Drakes and their Kobolds
+        /// Monitors all Drakes and their Kobolds in parallel
         /// </summary>
         private async Task MonitorDrakesAsync(CancellationToken cancellationToken)
         {
@@ -111,12 +111,13 @@ namespace DraCode.KoboldLair.Server.Services
                 return;
             }
 
-            _logger.LogInformation("🔍 Monitoring {Count} Drake(s)", drakes.Count);
+            _logger.LogInformation("🔍 Monitoring {Count} Drake(s) in parallel", drakes.Count);
 
-            foreach (var drake in drakes)
+            // Monitor all Drakes in parallel
+            var monitoringTasks = drakes.Select(async drake =>
             {
                 if (cancellationToken.IsCancellationRequested)
-                    break;
+                    return;
 
                 try
                 {
@@ -126,7 +127,9 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     _logger.LogError(ex, "❌ Error monitoring Drake");
                 }
-            }
+            });
+
+            await Task.WhenAll(monitoringTasks);
 
             _logger.LogInformation("✅ Monitoring cycle completed");
         }

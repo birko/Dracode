@@ -113,12 +113,13 @@ namespace DraCode.KoboldLair.Server.Services
                 return;
             }
 
-            _logger.LogInformation("🔄 Processing {Count} project(s)", projectsToProcess.Count);
+            _logger.LogInformation("🔄 Processing {Count} project(s) in parallel", projectsToProcess.Count);
 
-            foreach (var project in projectsToProcess)
+            // Process all projects in parallel
+            var projectTasks = projectsToProcess.Select(async project =>
             {
                 if (cancellationToken.IsCancellationRequested)
-                    break;
+                    return;
 
                 try
                 {
@@ -128,7 +129,9 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     _logger.LogError(ex, "❌ Error processing project {ProjectName}", project.Name);
                 }
-            }
+            });
+
+            await Task.WhenAll(projectTasks);
         }
 
         /// <summary>
@@ -154,14 +157,11 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogInformation("📋 Project {ProjectName} transitioned to InProgress", project.Name);
             }
 
-            // Process each Drake - find unassigned tasks and execute them
-            foreach (var drake in drakes)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
+            // Process all Drakes in parallel - find unassigned tasks and execute them
+            var drakeTasks = drakes.Select(drake =>
+                ProcessDrakeTasksAsync(drake, project, cancellationToken));
 
-                await ProcessDrakeTasksAsync(drake, project, cancellationToken);
-            }
+            await Task.WhenAll(drakeTasks);
 
             // Check if all tasks are complete
             await CheckProjectCompletionAsync(project, drakes);
@@ -255,10 +255,13 @@ namespace DraCode.KoboldLair.Server.Services
             // Find tasks that are unassigned and ready (no pending dependencies)
             var tasksToExecute = GetReadyTasks(drake);
 
-            foreach (var (task, agentType) in tasksToExecute)
+            // Execute all ready tasks in parallel (Kobold limits are enforced by the factory)
+            var taskExecutions = tasksToExecute.Select(async item =>
             {
+                var (task, agentType) = item;
+
                 if (cancellationToken.IsCancellationRequested)
-                    break;
+                    return;
 
                 try
                 {
@@ -282,7 +285,9 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     _logger.LogError(ex, "❌ Failed to execute task {TaskId}", task.Id);
                 }
-            }
+            });
+
+            await Task.WhenAll(taskExecutions);
         }
 
         /// <summary>

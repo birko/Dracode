@@ -94,76 +94,103 @@ namespace DraCode.KoboldLair.Server.Services
 
             _logger.LogInformation("📋 Found {Count} project(s)", allProjects.Count);
 
-            // Process projects that need Wyrm assignment
-            var projectsNeedingWyrm = _projectService.GetProjectsByStatus(ProjectStatus.New);
-            foreach (var project in projectsNeedingWyrm)
+            // Process projects that need Wyrm assignment (in parallel)
+            var projectsNeedingWyrm = _projectService.GetProjectsByStatus(ProjectStatus.New)
+                .Where(p => _projectService.IsAgentEnabled(p.Id, "wyvern"))
+                .ToList();
+
+            var skippedWyrm = _projectService.GetProjectsByStatus(ProjectStatus.New)
+                .Except(projectsNeedingWyrm)
+                .ToList();
+            foreach (var project in skippedWyrm)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
-
-                // Check if Wyrm is enabled for this project
-                if (!_projectService.IsAgentEnabled(project.Id, "wyvern"))
-                {
-                    _logger.LogInformation("⏭️ Skipping project {ProjectName} - Wyvern disabled", project.Name);
-                    continue;
-                }
-
-                try
-                {
-                    await AssignWyvernToProjectAsync(project);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to assign Wyvern to project: {ProjectId}", project.Id);
-                }
+                _logger.LogInformation("⏭️ Skipping project {ProjectName} - Wyvern disabled", project.Name);
             }
 
-            // Process projects that need analysis
-            var projectsNeedingAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyvernAssigned);
-            foreach (var project in projectsNeedingAnalysis)
+            if (projectsNeedingWyrm.Count > 0)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
+                _logger.LogInformation("🐲 Assigning Wyvern to {Count} project(s) in parallel", projectsNeedingWyrm.Count);
+                var wyrmTasks = projectsNeedingWyrm.Select(async project =>
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
 
-                // Check if Wyvern is enabled for this project
-                if (!_projectService.IsAgentEnabled(project.Id, "wyvern"))
-                {
-                    _logger.LogInformation("⏭️ Skipping analysis for project {ProjectName} - Wyvern disabled", project.Name);
-                    continue;
-                }
-
-                try
-                {
-                    await AnalyzeProjectAsync(project);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to analyze project: {ProjectId}", project.Id);
-                }
+                    try
+                    {
+                        await AssignWyvernToProjectAsync(project);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to assign Wyvern to project: {ProjectId}", project.Id);
+                    }
+                });
+                await Task.WhenAll(wyrmTasks);
             }
 
-            // Process projects with modified specifications (reprocessing)
-            var projectsWithModifiedSpecs = _projectService.GetProjectsByStatus(ProjectStatus.SpecificationModified);
-            foreach (var project in projectsWithModifiedSpecs)
+            // Process projects that need analysis (in parallel)
+            var projectsNeedingAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyvernAssigned)
+                .Where(p => _projectService.IsAgentEnabled(p.Id, "wyvern"))
+                .ToList();
+
+            var skippedAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyvernAssigned)
+                .Except(projectsNeedingAnalysis)
+                .ToList();
+            foreach (var project in skippedAnalysis)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
+                _logger.LogInformation("⏭️ Skipping analysis for project {ProjectName} - Wyvern disabled", project.Name);
+            }
 
-                // Check if Wyvern is enabled for this project
-                if (!_projectService.IsAgentEnabled(project.Id, "wyvern"))
+            if (projectsNeedingAnalysis.Count > 0)
+            {
+                _logger.LogInformation("🔍 Analyzing {Count} project(s) in parallel", projectsNeedingAnalysis.Count);
+                var analysisTasks = projectsNeedingAnalysis.Select(async project =>
                 {
-                    _logger.LogInformation("⏭️ Skipping reanalysis for project {ProjectName} - Wyvern disabled", project.Name);
-                    continue;
-                }
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
 
-                try
+                    try
+                    {
+                        await AnalyzeProjectAsync(project);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to analyze project: {ProjectId}", project.Id);
+                    }
+                });
+                await Task.WhenAll(analysisTasks);
+            }
+
+            // Process projects with modified specifications (in parallel)
+            var projectsWithModifiedSpecs = _projectService.GetProjectsByStatus(ProjectStatus.SpecificationModified)
+                .Where(p => _projectService.IsAgentEnabled(p.Id, "wyvern"))
+                .ToList();
+
+            var skippedReanalysis = _projectService.GetProjectsByStatus(ProjectStatus.SpecificationModified)
+                .Except(projectsWithModifiedSpecs)
+                .ToList();
+            foreach (var project in skippedReanalysis)
+            {
+                _logger.LogInformation("⏭️ Skipping reanalysis for project {ProjectName} - Wyvern disabled", project.Name);
+            }
+
+            if (projectsWithModifiedSpecs.Count > 0)
+            {
+                _logger.LogInformation("🔄 Reanalyzing {Count} modified project(s) in parallel", projectsWithModifiedSpecs.Count);
+                var reanalysisTasks = projectsWithModifiedSpecs.Select(async project =>
                 {
-                    await ReanalyzeModifiedProjectAsync(project);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to reanalyze modified project: {ProjectId}", project.Id);
-                }
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
+
+                    try
+                    {
+                        await ReanalyzeModifiedProjectAsync(project);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to reanalyze modified project: {ProjectId}", project.Id);
+                    }
+                });
+                await Task.WhenAll(reanalysisTasks);
             }
 
             // Log statistics

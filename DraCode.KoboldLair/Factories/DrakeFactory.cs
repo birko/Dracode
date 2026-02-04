@@ -73,89 +73,101 @@ namespace DraCode.KoboldLair.Factories
             string? specificationPath = null,
             string? projectId = null)
         {
+            var name = drakeName ?? taskFilePath;
+
+            // Quick check if Drake already exists (avoids expensive initialization)
             lock (_lock)
             {
-                var name = drakeName ?? taskFilePath;
-
                 if (_drakes.ContainsKey(name))
                 {
                     throw new InvalidOperationException($"Drake with name '{name}' already exists");
                 }
+            }
 
-                // Get provider settings
-                string effectiveProvider;
-                Dictionary<string, string> config;
-                AgentOptions options;
+            // Perform expensive initialization outside the lock
+            // Get provider settings
+            string effectiveProvider;
+            Dictionary<string, string> config;
+            AgentOptions options;
 
-                if (provider != null)
+            if (provider != null)
+            {
+                (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern");
+                effectiveProvider = provider;
+                if (model != null)
                 {
-                    (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern");
-                    effectiveProvider = provider;
-                    if (model != null)
-                    {
-                        config["model"] = model;
-                    }
+                    config["model"] = model;
                 }
-                else
-                {
-                    (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern");
-                }
+            }
+            else
+            {
+                (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern");
+            }
 
-                // Create task tracker by reading the file if it exists
-                var taskTracker = new TaskTracker();
-                if (File.Exists(taskFilePath))
-                {
-                    // Load existing tasks from file
-                    LoadTasksFromFile(taskTracker, taskFilePath);
-                }
+            // Create task tracker by reading the file if it exists
+            var taskTracker = new TaskTracker();
+            if (File.Exists(taskFilePath))
+            {
+                // Load existing tasks from file
+                LoadTasksFromFile(taskTracker, taskFilePath);
+            }
 
-                // Create logger for Drake
-                var logger = _loggerFactory?.CreateLogger<Drake>();
+            // Create logger for Drake
+            var logger = _loggerFactory?.CreateLogger<Drake>();
 
-                // Create plan service and planner agent if planning is enabled
-                KoboldPlanService? planService = null;
-                KoboldPlannerAgent? plannerAgent = null;
+            // Create plan service and planner agent if planning is enabled
+            KoboldPlanService? planService = null;
+            KoboldPlannerAgent? plannerAgent = null;
 
-                if (_planningEnabled)
-                {
-                    planService = new KoboldPlanService(
-                        _projectsPath,
-                        _loggerFactory?.CreateLogger<KoboldPlanService>()
-                    );
-
-                    // Create planner agent using kobold provider settings
-                    var (plannerProvider, plannerConfig, plannerOptions) =
-                        _providerConfigService.GetProviderSettingsForAgent("kobold");
-
-                    // Set working directory to project workspace if available
-                    if (!string.IsNullOrEmpty(projectId))
-                    {
-                        var workspacePath = Path.Combine(_projectsPath, projectId, "workspace");
-                        plannerOptions.WorkingDirectory = workspacePath;
-                    }
-
-                    var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(plannerProvider, plannerConfig);
-                    plannerAgent = new KoboldPlannerAgent(llmProvider, plannerOptions);
-                }
-
-                // Create the Drake with all dependencies including plan service
-                var drake = new Drake(
-                    _koboldFactory,
-                    taskTracker,
-                    taskFilePath,
-                    effectiveProvider,
-                    config,
-                    options,
-                    specificationPath,
-                    projectId,
-                    logger,
-                    _providerConfigService,
-                    _projectConfigService,
-                    _gitService,
-                    planService,
-                    plannerAgent,
-                    _planningEnabled
+            if (_planningEnabled)
+            {
+                planService = new KoboldPlanService(
+                    _projectsPath,
+                    _loggerFactory?.CreateLogger<KoboldPlanService>()
                 );
+
+                // Create planner agent using kobold provider settings
+                var (plannerProvider, plannerConfig, plannerOptions) =
+                    _providerConfigService.GetProviderSettingsForAgent("kobold");
+
+                // Set working directory to project workspace if available
+                if (!string.IsNullOrEmpty(projectId))
+                {
+                    var workspacePath = Path.Combine(_projectsPath, projectId, "workspace");
+                    plannerOptions.WorkingDirectory = workspacePath;
+                }
+
+                var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(plannerProvider, plannerConfig);
+                plannerAgent = new KoboldPlannerAgent(llmProvider, plannerOptions);
+            }
+
+            // Create the Drake with all dependencies including plan service
+            var drake = new Drake(
+                _koboldFactory,
+                taskTracker,
+                taskFilePath,
+                effectiveProvider,
+                config,
+                options,
+                specificationPath,
+                projectId,
+                logger,
+                _providerConfigService,
+                _projectConfigService,
+                _gitService,
+                planService,
+                plannerAgent,
+                _planningEnabled
+            );
+
+            // Lock only for dictionary insertion, with race condition check
+            lock (_lock)
+            {
+                // Double-check in case another thread created it while we were initializing
+                if (_drakes.ContainsKey(name))
+                {
+                    throw new InvalidOperationException($"Drake with name '{name}' already exists (race condition)");
+                }
 
                 _drakes[name] = drake;
                 _drakeProjectIds[name] = projectId;
