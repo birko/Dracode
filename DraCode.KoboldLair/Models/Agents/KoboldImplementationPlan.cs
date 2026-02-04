@@ -17,6 +17,13 @@ namespace DraCode.KoboldLair.Models.Agents
         public string ProjectId { get; set; } = string.Empty;
 
         /// <summary>
+        /// Human-readable filename for this plan (without extension).
+        /// Generated from task description with uniqueness suffix.
+        /// Example: "frontend-1-user-authentication-a7f3"
+        /// </summary>
+        public string? PlanFilename { get; set; }
+
+        /// <summary>
         /// Original task description
         /// </summary>
         public string TaskDescription { get; set; } = string.Empty;

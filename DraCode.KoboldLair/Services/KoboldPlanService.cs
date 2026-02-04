@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DraCode.KoboldLair.Models.Agents;
 
 namespace DraCode.KoboldLair.Services
@@ -7,17 +9,22 @@ namespace DraCode.KoboldLair.Services
     /// <summary>
     /// Service for managing Kobold implementation plans.
     /// Handles persistence of plans to both JSON (for machine reading) and Markdown (for human reading).
-    /// Plans are stored in {ProjectsPath}/{project-name}/kobold-plans/
+    /// Plans are stored in {ProjectOutputPath}/kobold-plans/ with human-readable filenames.
     /// </summary>
     public class KoboldPlanService
     {
         private readonly string _projectsPath;
+        private readonly ProjectRepository? _projectRepository;
         private readonly ILogger<KoboldPlanService>? _logger;
         private readonly JsonSerializerOptions _jsonOptions;
 
-        public KoboldPlanService(string projectsPath, ILogger<KoboldPlanService>? logger = null)
+        private const string IndexFileName = "plan-index.json";
+        private const int MaxFilenameDescriptionLength = 40;
+
+        public KoboldPlanService(string projectsPath, ILogger<KoboldPlanService>? logger = null, ProjectRepository? projectRepository = null)
         {
             _projectsPath = projectsPath;
+            _projectRepository = projectRepository;
             _logger = logger;
             _jsonOptions = new JsonSerializerOptions
             {
@@ -28,27 +35,185 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Gets the project output path by resolving project ID through the repository.
+        /// Falls back to using projectId directly if repository is not available.
+        /// </summary>
+        private string GetProjectOutputPath(string projectId)
+        {
+            if (_projectRepository != null)
+            {
+                var project = _projectRepository.GetById(projectId);
+                if (project != null && !string.IsNullOrEmpty(project.OutputPath))
+                {
+                    return project.OutputPath;
+                }
+            }
+
+            // Fallback to using projectId as path segment (legacy behavior)
+            return Path.Combine(_projectsPath, projectId);
+        }
+
+        /// <summary>
         /// Gets the plans directory for a project
         /// </summary>
         private string GetPlansDirectory(string projectId)
         {
-            return Path.Combine(_projectsPath, projectId, "kobold-plans");
+            var outputPath = GetProjectOutputPath(projectId);
+            return Path.Combine(outputPath, "kobold-plans");
         }
 
         /// <summary>
-        /// Gets the JSON file path for a plan
+        /// Gets the plan index file path for a project
         /// </summary>
-        private string GetPlanJsonPath(string projectId, string taskId)
+        private string GetPlanIndexPath(string projectId)
+        {
+            return Path.Combine(GetPlansDirectory(projectId), IndexFileName);
+        }
+
+        /// <summary>
+        /// Generates a human-readable filename from a task description.
+        /// Format: {sanitized-description}-{4char-hash}
+        /// Example: "[frontend-1] Create user auth" -> "frontend-1-create-user-auth-a7f3"
+        /// </summary>
+        public static string GeneratePlanFilename(string taskDescription, string taskId)
+        {
+            // Extract meaningful words from task description
+            var cleaned = taskDescription;
+
+            // Remove markdown formatting
+            cleaned = Regex.Replace(cleaned, @"\*\*|\*|__|_|`", "");
+
+            // Extract content from brackets like [frontend-1]
+            var bracketMatch = Regex.Match(cleaned, @"^\[([^\]]+)\]");
+            var prefix = bracketMatch.Success ? bracketMatch.Groups[1].Value : "";
+            if (bracketMatch.Success)
+            {
+                cleaned = cleaned[(bracketMatch.Index + bracketMatch.Length)..].Trim();
+            }
+
+            // Remove common prefixes like "Task:", "Implement:", etc.
+            cleaned = Regex.Replace(cleaned, @"^(Task|Implement|Create|Add|Fix|Update|Build|Setup|Configure):\s*", "", RegexOptions.IgnoreCase);
+
+            // Keep only alphanumeric, spaces, and hyphens
+            cleaned = Regex.Replace(cleaned, @"[^a-zA-Z0-9\s-]", " ");
+
+            // Split into words
+            var words = cleaned.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries);
+
+            // Build filename with max length
+            var result = new StringBuilder();
+            if (!string.IsNullOrEmpty(prefix))
+            {
+                result.Append(SanitizeForFilename(prefix));
+            }
+
+            var currentLength = result.Length;
+            foreach (var word in words)
+            {
+                var sanitized = SanitizeForFilename(word);
+                if (string.IsNullOrEmpty(sanitized)) continue;
+
+                // Check if adding this word would exceed max length
+                var separator = result.Length > 0 ? "-" : "";
+                if (currentLength + separator.Length + sanitized.Length > MaxFilenameDescriptionLength)
+                {
+                    break;
+                }
+
+                result.Append(separator);
+                result.Append(sanitized);
+                currentLength = result.Length;
+            }
+
+            // Generate 4-character hash from taskId for uniqueness
+            var hash = GenerateShortHash(taskId);
+
+            // Combine: description-hash
+            var filename = result.Length > 0
+                ? $"{result}-{hash}"
+                : hash; // Fallback to just hash if description is empty
+
+            return filename.ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Sanitizes a string for use in a filename
+        /// </summary>
+        private static string SanitizeForFilename(string input)
+        {
+            // Remove invalid filename characters and convert to lowercase
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var sanitized = string.Join("", input.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
+            return sanitized.Trim().ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Generates a 4-character hash from a string (typically taskId)
+        /// </summary>
+        private static string GenerateShortHash(string input)
+        {
+            var bytes = Encoding.UTF8.GetBytes(input);
+            var hash = MD5.HashData(bytes);
+            return Convert.ToHexString(hash)[..4].ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Loads the plan index for a project
+        /// </summary>
+        private async Task<Dictionary<string, string>> LoadPlanIndexAsync(string projectId)
+        {
+            var indexPath = GetPlanIndexPath(projectId);
+
+            if (!File.Exists(indexPath))
+            {
+                return new Dictionary<string, string>();
+            }
+
+            try
+            {
+                var json = await File.ReadAllTextAsync(indexPath);
+                return JsonSerializer.Deserialize<Dictionary<string, string>>(json, _jsonOptions)
+                    ?? new Dictionary<string, string>();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to load plan index from {Path}", indexPath);
+                return new Dictionary<string, string>();
+            }
+        }
+
+        /// <summary>
+        /// Saves the plan index for a project
+        /// </summary>
+        private async Task SavePlanIndexAsync(string projectId, Dictionary<string, string> index)
+        {
+            var indexPath = GetPlanIndexPath(projectId);
+            var json = JsonSerializer.Serialize(index, _jsonOptions);
+            await File.WriteAllTextAsync(indexPath, json);
+        }
+
+        /// <summary>
+        /// Gets the JSON file path for a plan using human-readable filename
+        /// </summary>
+        private string GetPlanJsonPath(string projectId, string planFilename)
+        {
+            return Path.Combine(GetPlansDirectory(projectId), $"{planFilename}-plan.json");
+        }
+
+        /// <summary>
+        /// Gets the Markdown file path for a plan using human-readable filename
+        /// </summary>
+        private string GetPlanMarkdownPath(string projectId, string planFilename)
+        {
+            return Path.Combine(GetPlansDirectory(projectId), $"{planFilename}-plan.md");
+        }
+
+        /// <summary>
+        /// Gets the legacy JSON file path for a plan (using taskId directly)
+        /// </summary>
+        private string GetLegacyPlanJsonPath(string projectId, string taskId)
         {
             return Path.Combine(GetPlansDirectory(projectId), $"{taskId}-plan.json");
-        }
-
-        /// <summary>
-        /// Gets the Markdown file path for a plan
-        /// </summary>
-        private string GetPlanMarkdownPath(string projectId, string taskId)
-        {
-            return Path.Combine(GetPlansDirectory(projectId), $"{taskId}-plan.md");
         }
 
         /// <summary>
@@ -66,18 +231,29 @@ namespace DraCode.KoboldLair.Services
 
             plan.UpdatedAt = DateTime.UtcNow;
 
-            // Save JSON
-            var jsonPath = GetPlanJsonPath(plan.ProjectId, plan.TaskId);
+            // Generate human-readable filename if not already set
+            if (string.IsNullOrEmpty(plan.PlanFilename))
+            {
+                plan.PlanFilename = GeneratePlanFilename(plan.TaskDescription, plan.TaskId);
+            }
+
+            // Save JSON with human-readable filename
+            var jsonPath = GetPlanJsonPath(plan.ProjectId, plan.PlanFilename);
             var json = JsonSerializer.Serialize(plan, _jsonOptions);
             await File.WriteAllTextAsync(jsonPath, json);
 
-            // Save Markdown
-            var mdPath = GetPlanMarkdownPath(plan.ProjectId, plan.TaskId);
+            // Save Markdown with human-readable filename
+            var mdPath = GetPlanMarkdownPath(plan.ProjectId, plan.PlanFilename);
             var markdown = GeneratePlanMarkdown(plan);
             await File.WriteAllTextAsync(mdPath, markdown);
 
-            _logger?.LogDebug("Saved plan for task {TaskId} in project {ProjectId}",
-                plan.TaskId[..Math.Min(8, plan.TaskId.Length)], plan.ProjectId);
+            // Update index
+            var index = await LoadPlanIndexAsync(plan.ProjectId);
+            index[plan.TaskId] = plan.PlanFilename;
+            await SavePlanIndexAsync(plan.ProjectId, index);
+
+            _logger?.LogDebug("Saved plan '{PlanFilename}' for task {TaskId} in project {ProjectId}",
+                plan.PlanFilename, plan.TaskId[..Math.Min(8, plan.TaskId.Length)], plan.ProjectId);
         }
 
         /// <summary>
@@ -85,9 +261,27 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         public async Task<KoboldImplementationPlan?> LoadPlanAsync(string projectId, string taskId)
         {
-            var jsonPath = GetPlanJsonPath(projectId, taskId);
+            // First check the index for human-readable filename
+            var index = await LoadPlanIndexAsync(projectId);
+            string? jsonPath = null;
 
-            if (!File.Exists(jsonPath))
+            if (index.TryGetValue(taskId, out var planFilename))
+            {
+                jsonPath = GetPlanJsonPath(projectId, planFilename);
+            }
+
+            // Fallback to legacy path if not found in index or file doesn't exist
+            if (jsonPath == null || !File.Exists(jsonPath))
+            {
+                var legacyPath = GetLegacyPlanJsonPath(projectId, taskId);
+                if (File.Exists(legacyPath))
+                {
+                    jsonPath = legacyPath;
+                    _logger?.LogDebug("Using legacy plan path for task {TaskId}", taskId[..Math.Min(8, taskId.Length)]);
+                }
+            }
+
+            if (jsonPath == null || !File.Exists(jsonPath))
             {
                 return null;
             }
@@ -115,34 +309,54 @@ namespace DraCode.KoboldLair.Services
         /// <summary>
         /// Checks if a plan exists for the given project and task
         /// </summary>
-        public Task<bool> PlanExistsAsync(string projectId, string taskId)
+        public async Task<bool> PlanExistsAsync(string projectId, string taskId)
         {
-            var jsonPath = GetPlanJsonPath(projectId, taskId);
-            return Task.FromResult(File.Exists(jsonPath));
+            // Check index first
+            var index = await LoadPlanIndexAsync(projectId);
+            if (index.TryGetValue(taskId, out var planFilename))
+            {
+                var jsonPath = GetPlanJsonPath(projectId, planFilename);
+                if (File.Exists(jsonPath))
+                {
+                    return true;
+                }
+            }
+
+            // Fallback to legacy path
+            var legacyPath = GetLegacyPlanJsonPath(projectId, taskId);
+            return File.Exists(legacyPath);
         }
 
         /// <summary>
         /// Deletes a plan from disk
         /// </summary>
-        public Task DeletePlanAsync(string projectId, string taskId)
+        public async Task DeletePlanAsync(string projectId, string taskId)
         {
-            var jsonPath = GetPlanJsonPath(projectId, taskId);
-            var mdPath = GetPlanMarkdownPath(projectId, taskId);
+            // Check index for human-readable filename
+            var index = await LoadPlanIndexAsync(projectId);
 
-            if (File.Exists(jsonPath))
+            if (index.TryGetValue(taskId, out var planFilename))
             {
-                File.Delete(jsonPath);
+                var jsonPath = GetPlanJsonPath(projectId, planFilename);
+                var mdPath = GetPlanMarkdownPath(projectId, planFilename);
+
+                if (File.Exists(jsonPath)) File.Delete(jsonPath);
+                if (File.Exists(mdPath)) File.Delete(mdPath);
+
+                // Remove from index
+                index.Remove(taskId);
+                await SavePlanIndexAsync(projectId, index);
             }
 
-            if (File.Exists(mdPath))
-            {
-                File.Delete(mdPath);
-            }
+            // Also clean up legacy files if they exist
+            var legacyJsonPath = GetLegacyPlanJsonPath(projectId, taskId);
+            var legacyMdPath = Path.Combine(GetPlansDirectory(projectId), $"{taskId}-plan.md");
+
+            if (File.Exists(legacyJsonPath)) File.Delete(legacyJsonPath);
+            if (File.Exists(legacyMdPath)) File.Delete(legacyMdPath);
 
             _logger?.LogDebug("Deleted plan for task {TaskId} in project {ProjectId}",
                 taskId[..Math.Min(8, taskId.Length)], projectId);
-
-            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -195,6 +409,10 @@ namespace DraCode.KoboldLair.Services
             // Metadata
             sb.AppendLine($"**Task ID:** `{plan.TaskId}`");
             sb.AppendLine($"**Project:** {plan.ProjectId}");
+            if (!string.IsNullOrEmpty(plan.PlanFilename))
+            {
+                sb.AppendLine($"**Plan File:** `{plan.PlanFilename}`");
+            }
             sb.AppendLine($"**Created:** {plan.CreatedAt:yyyy-MM-dd HH:mm:ss} UTC");
             sb.AppendLine($"**Updated:** {plan.UpdatedAt:yyyy-MM-dd HH:mm:ss} UTC");
             sb.AppendLine($"**Status:** {GetStatusEmoji(plan.Status)} {plan.Status}");

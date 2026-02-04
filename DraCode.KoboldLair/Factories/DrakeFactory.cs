@@ -17,6 +17,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly KoboldFactory _koboldFactory;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
+        private readonly ProjectRepository? _projectRepository;
         private readonly GitService? _gitService;
         private readonly ILoggerFactory? _loggerFactory;
         private readonly string _projectsPath;
@@ -35,6 +36,7 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         /// <param name="projectsPath">Path to projects directory for plan storage</param>
         /// <param name="planningEnabled">Whether to enable implementation planning (default: true)</param>
+        /// <param name="projectRepository">Optional project repository for resolving project paths</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
             ProviderConfigurationService providerConfigService,
@@ -42,11 +44,13 @@ namespace DraCode.KoboldLair.Factories
             ILoggerFactory? loggerFactory = null,
             GitService? gitService = null,
             string projectsPath = "./projects",
-            bool planningEnabled = true)
+            bool planningEnabled = true,
+            ProjectRepository? projectRepository = null)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
+            _projectRepository = projectRepository;
             _loggerFactory = loggerFactory;
             _gitService = gitService;
             _projectsPath = projectsPath;
@@ -123,7 +127,8 @@ namespace DraCode.KoboldLair.Factories
             {
                 planService = new KoboldPlanService(
                     _projectsPath,
-                    _loggerFactory?.CreateLogger<KoboldPlanService>()
+                    _loggerFactory?.CreateLogger<KoboldPlanService>(),
+                    _projectRepository
                 );
 
                 // Create planner agent using kobold provider settings
