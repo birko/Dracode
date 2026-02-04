@@ -77,6 +77,8 @@ Selection guidelines:
 - If task involves general media (video, audio, formats), choose 'media'
 - If task is general coding or multiple languages, choose 'coding'
 - If task is about pure JavaScript without frameworks, choose 'javascript'
+- If task involves testing, QA, test automation, or cross-browser testing, choose 'coding' (tests are code)
+- If task involves documentation, README, or technical writing, choose 'coding'
 - Be decisive and choose the single most appropriate agent
 
 You must call the 'select_agent' tool to make your decision.";

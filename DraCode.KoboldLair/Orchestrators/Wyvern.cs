@@ -463,13 +463,17 @@ namespace DraCode.KoboldLair.Orchestrators
                     var areaOutputPath = Path.Combine(_outputPath, $"{area.Name.ToLower()}-tasks.md");
                     var orchestratorInput = CreateOrchestratorInput(area);
 
+                    // Create a clean display name for task tracking
+                    var taskDisplayName = $"[{area.Name}] {area.Tasks.Count} task(s)";
+
                     // Use WyrmRunner with Wyrm-specific provider/config settings
                     await WyrmRunner.RunAsync(
                         _wyrmProvider,
                         orchestratorInput,
                         _wyrmOptions,
                         _wyrmConfig,
-                        outputMarkdownPath: areaOutputPath
+                        outputMarkdownPath: areaOutputPath,
+                        taskDisplayName: taskDisplayName
                     );
 
                     taskFiles[area.Name] = areaOutputPath;

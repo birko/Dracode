@@ -113,10 +113,13 @@ namespace DraCode.KoboldLair.Models.Tasks
 
                 foreach (var task in _tasks)
                 {
-                    var taskDisplay = task.Task.Length > 80 
-                        ? task.Task.Substring(0, 77) + "..." 
-                        : task.Task;
-                    
+                    // Remove newlines and normalize whitespace for table display
+                    var taskNormalized = Regex.Replace(task.Task, @"\s+", " ").Trim();
+
+                    var taskDisplay = taskNormalized.Length > 80
+                        ? taskNormalized.Substring(0, 77) + "..."
+                        : taskNormalized;
+
                     // Escape pipe characters in task description
                     taskDisplay = taskDisplay.Replace("|", "\\|");
 

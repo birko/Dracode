@@ -16,6 +16,15 @@ namespace DraCode.KoboldLair.Orchestrators
         /// Runs a task through the delegator, which will select and delegate to the appropriate specialized agent.
         /// Tracks task status and saves results to a markdown file.
         /// </summary>
+        /// <param name="provider">LLM provider to use</param>
+        /// <param name="task">The full task prompt for the agent</param>
+        /// <param name="options">Agent options</param>
+        /// <param name="config">Provider configuration</param>
+        /// <param name="outputMarkdownPath">Path to save the task report</param>
+        /// <param name="maxIterations">Maximum iterations for the agent</param>
+        /// <param name="messageCallback">Callback for progress messages</param>
+        /// <param name="tracker">Task tracker instance (creates new if null)</param>
+        /// <param name="taskDisplayName">Short display name for task tracking (uses task if null)</param>
         public static async Task<(string selectedAgentType, List<Message> WyrmConversation, List<Message>? delegatedConversation, TaskTracker tracker)> RunAsync(
             string provider,
             string task,
@@ -24,13 +33,14 @@ namespace DraCode.KoboldLair.Orchestrators
             string? outputMarkdownPath = null,
             int? maxIterations = null,
             Action<string, string>? messageCallback = null,
-            TaskTracker? tracker = null)
+            TaskTracker? tracker = null,
+            string? taskDisplayName = null)
         {
             options ??= new AgentOptions();
             tracker ??= new TaskTracker();
-            
-            // Add task to tracker
-            var taskRecord = tracker.AddTask(task);
+
+            // Add task to tracker with display name (falls back to task if not provided)
+            var taskRecord = tracker.AddTask(taskDisplayName ?? task);
             
             // Save initial state
             if (outputMarkdownPath != null)
