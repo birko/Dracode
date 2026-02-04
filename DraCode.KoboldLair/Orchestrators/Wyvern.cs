@@ -430,13 +430,13 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Creates tasks using the orchestrator for each area.
+        /// Creates task files for each area containing individual tasks from the analysis.
         /// Can optionally process only specific areas (for reprocessing pending areas).
         /// </summary>
         /// <param name="areasToProcess">Optional list of area names to process. If null, processes all areas.</param>
         /// <param name="existingTaskFiles">Optional existing task files dictionary to merge with.</param>
         /// <returns>Dictionary of area names to task file paths, and list of areas that failed processing.</returns>
-        public async Task<(Dictionary<string, string> TaskFiles, List<string> FailedAreas)> CreateTasksAsync(
+        public Task<(Dictionary<string, string> TaskFiles, List<string> FailedAreas)> CreateTasksAsync(
             List<string>? areasToProcess = null,
             Dictionary<string, string>? existingTaskFiles = null)
         {
@@ -461,20 +461,28 @@ namespace DraCode.KoboldLair.Orchestrators
                 {
                     // Simplified naming: {area}-tasks.md (project folder provides context)
                     var areaOutputPath = Path.Combine(_outputPath, $"{area.Name.ToLower()}-tasks.md");
-                    var orchestratorInput = CreateOrchestratorInput(area);
 
-                    // Create a clean display name for task tracking
-                    var taskDisplayName = $"[{area.Name}] {area.Tasks.Count} task(s)";
+                    // Create a TaskTracker and populate it with all individual tasks from the area
+                    var tracker = new TaskTracker();
+                    foreach (var task in area.Tasks.OrderBy(t => t.DependencyLevel))
+                    {
+                        // Format: [task-id] Task name: Description
+                        var deps = task.Dependencies.Any()
+                            ? $" (depends on: {string.Join(", ", task.Dependencies)})"
+                            : "";
+                        var taskDescription = $"[{task.Id}] {task.Name}{deps}";
 
-                    // Use WyrmRunner with Wyrm-specific provider/config settings
-                    await WyrmRunner.RunAsync(
-                        _wyrmProvider,
-                        orchestratorInput,
-                        _wyrmOptions,
-                        _wyrmConfig,
-                        outputMarkdownPath: areaOutputPath,
-                        taskDisplayName: taskDisplayName
-                    );
+                        var taskRecord = tracker.AddTask(taskDescription);
+
+                        // Set the recommended agent type if available
+                        if (!string.IsNullOrEmpty(task.AgentType))
+                        {
+                            tracker.UpdateTask(taskRecord, TaskStatus.Unassigned, task.AgentType);
+                        }
+                    }
+
+                    // Save the tracker with all individual tasks
+                    tracker.SaveToFile(areaOutputPath, $"KoboldLair {area.Name} Tasks");
 
                     taskFiles[area.Name] = areaOutputPath;
                 }
@@ -485,7 +493,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
             }
 
-            return (taskFiles, failedAreas);
+            return Task.FromResult((taskFiles, failedAreas));
         }
 
         /// <summary>
