@@ -14,6 +14,7 @@ class DragonSession {
         this.sessionId = null;
         this.receivedMessageIds = new Set();
         this.isConnected = false;
+        this.isProcessing = false;
         this.name = `Session ${id}`;
     }
 
@@ -106,12 +107,16 @@ class DragonSession {
             this.view.showNotification(`Failed to restore conversation: ${data.error}`, 'error');
             return;
         } else if (data.type === 'dragon_message') {
-            // Hide thinking indicator when response arrives
+            // Hide thinking indicator and re-enable input when response arrives
+            this.isProcessing = false;
             this.view.hideThinkingIndicator();
+            this.view.setInputEnabled(true);
             this.addMessage('assistant', data.message, data.messageId);
         } else if (data.type === 'dragon_reloaded') {
             // Hide thinking indicator and clear session on reload
+            this.isProcessing = false;
             this.view.hideThinkingIndicator();
+            this.view.setInputEnabled(true);
             this.clearMessages();
             this.sessionId = data.sessionId;
             this.ws.setSessionId(this.sessionId);
@@ -119,14 +124,18 @@ class DragonSession {
             this.addMessage('system', data.message, data.messageId);
             this.view.saveAllSessions();
         } else if (data.type === 'dragon_typing') {
-            // Show initial thinking indicator
+            // Show initial thinking indicator and disable input
+            this.isProcessing = true;
             this.view.showThinkingIndicator();
+            this.view.setInputEnabled(false);
         } else if (data.type === 'dragon_thinking') {
             // Update thinking indicator with tool/processing info
             this.view.updateThinkingIndicator(data.description, data.toolName);
         } else if (data.type === 'error') {
-            // Hide thinking indicator on error
+            // Hide thinking indicator and re-enable input on error
+            this.isProcessing = false;
             this.view.hideThinkingIndicator();
+            this.view.setInputEnabled(true);
             this.addErrorMessage(data);
         } else if (data.type !== 'user_message') {
             this.addMessage('assistant', data.content || JSON.stringify(data), data.messageId);
@@ -340,10 +349,20 @@ export class DragonView {
         if (!this.sessions.has(id)) return;
         if (this.activeSessionId === id) return;
 
+        // Hide thinking indicator from previous session
+        this.hideThinkingIndicator();
+
         this.activeSessionId = id;
         this.saveAllSessions();
         this.renderTabs();
         this.renderActiveSessionMessages();
+
+        // Sync input state with new session
+        const session = this.sessions.get(id);
+        this.setInputEnabled(!session?.isProcessing);
+        if (session?.isProcessing) {
+            this.showThinkingIndicator();
+        }
     }
 
     /**
@@ -530,6 +549,13 @@ export class DragonView {
         if (messagesContainer) {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
+
+        // Sync input state with active session
+        const activeSession = this.sessions.get(this.activeSessionId);
+        if (activeSession?.isProcessing) {
+            this.setInputEnabled(false);
+            this.showThinkingIndicator();
+        }
     }
 
     attachEventListeners() {
@@ -599,9 +625,13 @@ export class DragonView {
 
         if (message) {
             const session = this.sessions.get(this.activeSessionId);
-            if (session) {
+            if (session && !session.isProcessing) {
                 session.sendMessage(message);
                 input.value = '';
+                // Disable input immediately while waiting for response
+                session.isProcessing = true;
+                this.setInputEnabled(false);
+                this.showThinkingIndicator();
             }
         }
     }
@@ -871,6 +901,25 @@ export class DragonView {
         const indicator = document.getElementById('dragonThinkingIndicator');
         if (indicator) {
             indicator.remove();
+        }
+    }
+
+    /**
+     * Enable or disable the input textarea and send button
+     * @param {boolean} enabled - Whether input should be enabled
+     */
+    setInputEnabled(enabled) {
+        const input = document.getElementById('dragonInput');
+        const sendBtn = document.getElementById('dragonSendBtn');
+
+        if (input) {
+            input.disabled = !enabled;
+            input.placeholder = enabled
+                ? 'Type your message here...'
+                : 'Dragon is thinking...';
+        }
+        if (sendBtn) {
+            sendBtn.disabled = !enabled;
         }
     }
 
