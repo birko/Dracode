@@ -524,6 +524,12 @@ export class DragonView {
 
         this.attachEventListeners();
         this.attachTabEventListeners();
+
+        // Scroll to last message
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
     }
 
     attachEventListeners() {
