@@ -35,6 +35,8 @@ namespace DraCode.KoboldLair.Agents
         {
             _getProjects = getProjects;
             _delegateToCouncil = delegateToCouncil;
+            // Rebuild tools now that our fields are set (base constructor called CreateTools before these were assigned)
+            RebuildTools();
         }
 
         /// <summary>

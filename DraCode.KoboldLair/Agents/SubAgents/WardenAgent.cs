@@ -41,6 +41,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _addExternalPath = addExternalPath;
             _removeExternalPath = removeExternalPath;
             _getExternalPaths = getExternalPaths;
+            RebuildTools();
         }
 
         protected override List<Tool> CreateTools()

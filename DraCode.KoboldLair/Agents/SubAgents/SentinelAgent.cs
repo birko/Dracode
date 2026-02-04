@@ -30,6 +30,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _gitService = gitService;
             _getProjectFolder = getProjectFolder;
             _projectsPath = projectsPath ?? "./projects";
+            RebuildTools();
         }
 
         protected override List<Tool> CreateTools()

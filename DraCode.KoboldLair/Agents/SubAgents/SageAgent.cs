@@ -36,6 +36,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _onSpecificationUpdated = onSpecificationUpdated;
             _approveProject = approveProject;
             _getProjectFolder = getProjectFolder;
+            RebuildTools();
         }
 
         protected override List<Tool> CreateTools()

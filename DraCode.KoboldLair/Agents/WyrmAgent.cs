@@ -16,6 +16,7 @@ namespace DraCode.KoboldLair.Agents
         {
             _provider = provider;
             _config = config;
+            RebuildTools();
         }
 
         protected override string SystemPrompt

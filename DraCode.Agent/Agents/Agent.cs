@@ -8,7 +8,7 @@ namespace DraCode.Agent.Agents
     {
         private readonly ILlmProvider _llmProvider;
         private readonly AgentOptions _options;
-        private readonly List<Tool> _tools;
+        private List<Tool> _tools;
         private Action<string, string>? _messageCallback;
 
         protected Agent(ILlmProvider llmProvider, AgentOptions? options = null, Action<string, string>? messageCallback = null)
@@ -72,6 +72,20 @@ namespace DraCode.Agent.Agents
                 new DisplayText(),
                 new AskUser()
             ];
+        }
+
+        /// <summary>
+        /// Rebuilds the tools list. Call this from derived class constructors
+        /// after setting fields that CreateTools() depends on.
+        /// </summary>
+        protected void RebuildTools()
+        {
+            _tools = CreateTools();
+            foreach (var tool in _tools)
+            {
+                tool.MessageCallback = _messageCallback;
+                tool.Options = _options;
+            }
         }
 
         public ILlmProvider Provider => _llmProvider;

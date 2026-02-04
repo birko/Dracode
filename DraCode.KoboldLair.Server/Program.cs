@@ -163,6 +163,7 @@ using (var scope = app.Services.CreateScope())
     if (logger?.IsEnabled(LogLevel.Information) ?? false)
     {
         logger.LogInformation("Environment: {EnvironmentName}", builder.Environment.EnvironmentName);
+        logger.LogInformation("Projects loaded: {Count}", projectService.GetAllProjects().Count);
         logger.LogInformation("Initializing configurations for existing projects...");
     }
     projectService.InitializeProjectConfigurations(providerConfigService);

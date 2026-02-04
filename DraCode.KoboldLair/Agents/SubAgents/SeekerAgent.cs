@@ -23,6 +23,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             : base(provider, options)
         {
             _registerExistingProject = registerExistingProject;
+            RebuildTools();
         }
 
         protected override List<Tool> CreateTools()
