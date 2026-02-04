@@ -96,7 +96,7 @@ namespace DraCode.KoboldLair.Factories
                     }
                 }
 
-                var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create("wyvern", wyvernOptions, wyvernConfig);
+                var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, wyvernOptions, wyvernConfig, "wyvern");
 
                 var wyvern = new Wyvern(
                     projectName,
