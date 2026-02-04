@@ -600,5 +600,67 @@ namespace DraCode.KoboldLair.Orchestrators
         {
             SaveTasksToFile();
         }
+
+        /// <summary>
+        /// Gets all unassigned tasks that are ready for execution.
+        /// Returns tasks with their recommended agent type parsed from the task description.
+        /// </summary>
+        /// <returns>List of (TaskRecord, AgentType) tuples for tasks ready to execute</returns>
+        public List<(TaskRecord Task, string AgentType)> GetUnassignedTasks()
+        {
+            var result = new List<(TaskRecord, string)>();
+            var allTasks = _taskTracker.GetAllTasks();
+            var doneTasks = allTasks.Where(t => t.Status == TaskStatus.Done).Select(t => t.Task).ToHashSet();
+
+            foreach (var task in allTasks.Where(t => t.Status == TaskStatus.Unassigned))
+            {
+                // Check if dependencies are met (parse from task description)
+                // Format: [task-id] Task name (depends on: dep1, dep2)
+                var dependenciesMet = true;
+                var dependsOnMatch = System.Text.RegularExpressions.Regex.Match(
+                    task.Task, @"\(depends on:\s*([^)]+)\)");
+
+                if (dependsOnMatch.Success)
+                {
+                    var dependencies = dependsOnMatch.Groups[1].Value
+                        .Split(',')
+                        .Select(d => d.Trim())
+                        .Where(d => !string.IsNullOrEmpty(d));
+
+                    foreach (var dep in dependencies)
+                    {
+                        // Check if any done task contains this dependency ID
+                        var depMet = doneTasks.Any(doneTask =>
+                            doneTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
+
+                        if (!depMet)
+                        {
+                            dependenciesMet = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (!dependenciesMet)
+                    continue;
+
+                // Get agent type from AssignedAgent field (set during task creation)
+                var agentType = !string.IsNullOrEmpty(task.AssignedAgent)
+                    ? task.AssignedAgent
+                    : "coding"; // Default fallback
+
+                result.Add((task, agentType));
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Gets all tasks from the tracker
+        /// </summary>
+        public List<TaskRecord> GetAllTasks()
+        {
+            return _taskTracker.GetAllTasks();
+        }
     }
 }

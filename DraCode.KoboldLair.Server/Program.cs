@@ -132,6 +132,19 @@ builder.Services.AddHostedService<DrakeMonitoringService>(sp =>
         stuckKoboldTimeoutMinutes: limits.StuckKoboldTimeoutMinutes);
 });
 
+// Register Drake execution service (picks up analyzed projects and starts Kobolds)
+builder.Services.AddHostedService<DrakeExecutionService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<DrakeExecutionService>>();
+    var projectService = sp.GetRequiredService<ProjectService>();
+    var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    return new DrakeExecutionService(
+        logger,
+        projectService,
+        drakeFactory,
+        executionIntervalSeconds: 30);
+});
+
 // Register Wyvern processing background service (checks every 60 seconds)
 builder.Services.AddHostedService<WyvernProcessingService>(sp =>
 {
