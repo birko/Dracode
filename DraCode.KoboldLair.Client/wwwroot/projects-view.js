@@ -1,8 +1,9 @@
 import { ApiClient } from './api.js';
 
 export class ProjectsView {
-    constructor(api) {
+    constructor(api, onRefresh) {
         this.api = api;
+        this.onRefresh = onRefresh;
     }
 
     async render() {
@@ -39,6 +40,7 @@ export class ProjectsView {
     }
 
     renderProject(project) {
+        const isFailed = project.status === 'Failed';
         return `
             <div class="list-item">
                 <div class="list-item-main">
@@ -51,7 +53,7 @@ export class ProjectsView {
                         </div>
                         ${project.errorMessage ? `
                             <div class="list-item-subtitle" style="color: var(--accent-error)">
-                                Error: ${project.errorMessage}
+                                ⚠️ Error: ${project.errorMessage}
                             </div>
                         ` : ''}
                         ${project.specificationPath ? `
@@ -72,6 +74,9 @@ export class ProjectsView {
                     </div>
                 </div>
                 <div class="list-item-actions">
+                    ${isFailed ? `
+                        <button class="btn btn-sm btn-warning retry-btn" data-project-id="${project.id}" title="Retry analysis">🔄 Retry</button>
+                    ` : ''}
                     ${project.maxParallelKobolds ? `
                         <span class="badge badge-info">Max Kobolds: ${project.maxParallelKobolds}</span>
                     ` : ''}
@@ -89,5 +94,28 @@ export class ProjectsView {
             'Created': 'info'
         };
         return map[status] || 'info';
+    }
+
+    attachEventListeners(container) {
+        const retryButtons = container.querySelectorAll('.retry-btn');
+        retryButtons.forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const projectId = btn.dataset.projectId;
+                btn.disabled = true;
+                btn.textContent = '⏳ Retrying...';
+                try {
+                    await this.api.retryAnalysis(projectId);
+                    if (this.onRefresh) {
+                        this.onRefresh();
+                    }
+                } catch (error) {
+                    console.error('Retry failed:', error);
+                    alert(`Retry failed: ${error.message}`);
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Retry';
+                }
+            });
+        });
     }
 }

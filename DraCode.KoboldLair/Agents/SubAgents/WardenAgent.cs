@@ -19,6 +19,9 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Action<string, string>? _addExternalPath;
         private readonly Func<string, string, bool>? _removeExternalPath;
         private readonly Func<string, IReadOnlyList<string>>? _getExternalPaths;
+        private readonly Func<string, (bool Success, string? ErrorMessage, string? Status)>? _getProjectStatus;
+        private readonly Func<string, bool>? _retryAnalysis;
+        private readonly Func<List<(string Id, string Name, string Status, string? ErrorMessage)>>? _getFailedProjects;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -31,7 +34,10 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Action<string, string, int>? setAgentLimit = null,
             Action<string, string>? addExternalPath = null,
             Func<string, string, bool>? removeExternalPath = null,
-            Func<string, IReadOnlyList<string>>? getExternalPaths = null)
+            Func<string, IReadOnlyList<string>>? getExternalPaths = null,
+            Func<string, (bool Success, string? ErrorMessage, string? Status)>? getProjectStatus = null,
+            Func<string, bool>? retryAnalysis = null,
+            Func<List<(string Id, string Name, string Status, string? ErrorMessage)>>? getFailedProjects = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -41,6 +47,9 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _addExternalPath = addExternalPath;
             _removeExternalPath = removeExternalPath;
             _getExternalPaths = getExternalPaths;
+            _getProjectStatus = getProjectStatus;
+            _retryAnalysis = retryAnalysis;
+            _getFailedProjects = getFailedProjects;
             RebuildTools();
         }
 
@@ -49,7 +58,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             var tools = new List<Tool>
             {
                 new AgentConfigurationTool(_getProjectConfig, _getAllProjects, _setAgentEnabled, _setAgentLimit),
-                new ExternalPathTool(_getExternalPaths, _addExternalPath, _removeExternalPath, _getAllProjects)
+                new ExternalPathTool(_getExternalPaths, _addExternalPath, _removeExternalPath, _getAllProjects),
+                new RetryAnalysisTool(_getProjectStatus, _retryAnalysis, _getFailedProjects)
             };
             return tools;
         }
@@ -65,10 +75,12 @@ Your role is to manage the workforce - the background agents that process projec
 2. **Enable/disable agents** - control which agents process a project
 3. **Set parallel limits** - control how many agents run concurrently
 4. **Manage external path access** - grant/revoke file access outside workspace
+5. **Retry failed analysis** - view and retry projects with failed Wyvern analysis
 
 ## Tools Available:
 - **manage_agents**: View and manage agent configurations (actions: status, get, enable, disable, set_limit)
 - **manage_external_paths**: Control which external paths agents can access (actions: list, add, remove)
+- **retry_analysis**: View failed projects and retry Wyvern analysis (actions: list, retry, status)
 
 ## Agent Types You Oversee:
 - **Wyvern**: Analyzes specifications, creates task breakdowns (first step after approval)
@@ -101,6 +113,12 @@ Your role is to manage the workforce - the background agents that process projec
 - External paths allow agents to read/write files in other locations
 - This is useful when agents need access to shared libraries, templates, or existing codebases
 
+### Retrying Failed Analysis:
+- Use retry_analysis with action:'list' to see all failed projects and their errors
+- Use action:'status' with project name to see a specific project's status and full error message
+- Use action:'retry' with project name to reset the project and trigger reanalysis
+- After retry, the project goes back to 'New' status and Wyvern will pick it up within 60 seconds
+
 ## Processing Pipeline:
 When all agents are enabled, the flow is:
 1. Wyvern analyzes spec → creates tasks (every 60s check)
@@ -111,7 +129,8 @@ When all agents are enabled, the flow is:
 - Be authoritative but helpful
 - Explain what each setting does
 - Warn about implications of changes (especially for external path access - it's a security consideration)
-- Suggest optimal configurations";
+- Suggest optimal configurations
+- When users ask about failed projects or errors, proactively offer to show the error details and retry";
         }
 
         /// <summary>

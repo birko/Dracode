@@ -332,7 +332,16 @@ namespace DraCode.KoboldLair.Server.Services
                         _logger.LogInformation("External path removed for {Project}: {Path}", id, path);
                     return removed;
                 },
-                getExternalPaths: (id) => _projectConfigService.GetAllowedExternalPaths(id));
+                getExternalPaths: (id) => _projectConfigService.GetAllowedExternalPaths(id),
+                getProjectStatus: GetProjectStatusForRetry,
+                retryAnalysis: (projectIdOrName) =>
+                {
+                    var success = _projectService.RetryAnalysis(projectIdOrName);
+                    if (success)
+                        _logger.LogInformation("Retry initiated for project: {Project}", projectIdOrName);
+                    return success;
+                },
+                getFailedProjects: GetFailedProjects);
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(
@@ -679,6 +688,35 @@ namespace DraCode.KoboldLair.Server.Services
                 CreatedAt = p.CreatedAt,
                 UpdatedAt = p.UpdatedAt
             }).ToList();
+        }
+
+        /// <summary>
+        /// Gets project status and error message for retry tool
+        /// </summary>
+        private (bool Success, string? ErrorMessage, string? Status) GetProjectStatusForRetry(string projectIdOrName)
+        {
+            var projects = _projectService.GetAllProjects();
+            var project = projects.FirstOrDefault(p =>
+                p.Name.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase) ||
+                p.Id.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+            {
+                return (false, null, null);
+            }
+
+            return (true, project.ErrorMessage, project.Status.ToString());
+        }
+
+        /// <summary>
+        /// Gets list of failed projects for retry tool
+        /// </summary>
+        private List<(string Id, string Name, string Status, string? ErrorMessage)> GetFailedProjects()
+        {
+            return _projectService.GetAllProjects()
+                .Where(p => p.Status == ProjectStatus.Failed)
+                .Select(p => (p.Id, p.Name, p.Status.ToString(), p.ErrorMessage))
+                .ToList();
         }
 
         public DragonStatistics GetStatistics()

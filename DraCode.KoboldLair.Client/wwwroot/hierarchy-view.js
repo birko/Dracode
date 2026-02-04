@@ -1,13 +1,21 @@
 import { ApiClient } from './api.js';
 
 export class HierarchyView {
-    constructor(api) {
+    constructor(api, onRefresh) {
         this.api = api;
+        this.onRefresh = onRefresh;
     }
 
     async render() {
         try {
             const data = await this.api.getHierarchy();
+            // Store projects with error messages for lookup
+            this.projectsData = {};
+            if (data.projects) {
+                for (const p of data.projects) {
+                    this.projectsData[p.id] = p;
+                }
+            }
 
             return `
                 <div class="card">
@@ -46,13 +54,24 @@ export class HierarchyView {
     }
 
     renderProject(project) {
+        // Get full project data with error message
+        const projectData = this.projectsData?.[project.id] || {};
+        const isFailed = project.status === 'failed';
+        const errorMessage = projectData.errorMessage;
+
         return `
             <div class="tree-node">
                 <div class="tree-node-content">
                     <span class="tree-node-icon">${project.icon}</span>
                     <span>${project.name}</span>
                     <span class="badge badge-${this.getStatusBadge(project.status)}">${project.status}</span>
+                    ${isFailed ? `<button class="btn btn-sm btn-warning retry-btn" data-project-id="${project.id}" title="Retry analysis">🔄 Retry</button>` : ''}
                 </div>
+                ${isFailed && errorMessage ? `
+                    <div class="tree-node-error" style="color: var(--accent-error); margin-left: 24px; font-size: 0.85em; padding: 4px 0;">
+                        ⚠️ ${errorMessage}
+                    </div>
+                ` : ''}
                 ${project.wyrm ? `
                     <div class="tree-node-children">
                         <div class="tree-node-content">
@@ -75,5 +94,28 @@ export class HierarchyView {
             'created': 'info'
         };
         return map[status] || 'info';
+    }
+
+    attachEventListeners(container) {
+        const retryButtons = container.querySelectorAll('.retry-btn');
+        retryButtons.forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const projectId = btn.dataset.projectId;
+                btn.disabled = true;
+                btn.textContent = '⏳ Retrying...';
+                try {
+                    await this.api.retryAnalysis(projectId);
+                    if (this.onRefresh) {
+                        this.onRefresh();
+                    }
+                } catch (error) {
+                    console.error('Retry failed:', error);
+                    alert(`Retry failed: ${error.message}`);
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Retry';
+                }
+            });
+        });
     }
 }

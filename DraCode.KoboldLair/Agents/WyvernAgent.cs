@@ -80,7 +80,45 @@ Respond with the JSON structure as defined in your system prompt.";
 
          // Return the last assistant message (should be JSON)
          var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
-         return lastMessage?.Content?.ToString() ?? "{}";
+         var content = lastMessage?.Content?.ToString() ?? "{}";
+
+         // Extract JSON from the response if the LLM added extra text
+         return ExtractJson(content);
+      }
+
+      /// <summary>
+      /// Extracts JSON from a response that may contain markdown code blocks or surrounding text
+      /// </summary>
+      private static string ExtractJson(string content)
+      {
+         if (string.IsNullOrWhiteSpace(content))
+            return "{}";
+
+         // If it already starts with '{', assume it's valid JSON
+         var trimmed = content.Trim();
+         if (trimmed.StartsWith('{'))
+            return trimmed;
+
+         // Try to extract from markdown code block (```json ... ``` or ``` ... ```)
+         var jsonBlockMatch = System.Text.RegularExpressions.Regex.Match(
+            content,
+            @"```(?:json)?\s*\n?(\{[\s\S]*?\})\s*\n?```",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+
+         if (jsonBlockMatch.Success)
+            return jsonBlockMatch.Groups[1].Value.Trim();
+
+         // Try to find JSON object anywhere in the text
+         var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+            content,
+            @"(\{[\s\S]*\})",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+
+         if (jsonMatch.Success)
+            return jsonMatch.Groups[1].Value.Trim();
+
+         // Return original if no JSON found - let the caller handle the error
+         return content;
       }
    }
 }

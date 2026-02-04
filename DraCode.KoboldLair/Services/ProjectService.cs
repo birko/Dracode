@@ -371,6 +371,47 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Resets a failed project so Wyvern analysis can be retried.
+        /// Clears the error message and sets status back to New for reprocessing.
+        /// </summary>
+        /// <param name="projectId">Project ID or name</param>
+        /// <returns>True if retry was initiated successfully</returns>
+        public bool RetryAnalysis(string projectId)
+        {
+            var project = _repository.GetById(projectId) ?? _repository.GetByName(projectId);
+            if (project == null)
+            {
+                _logger.LogWarning("Cannot retry analysis - project not found: {ProjectId}", projectId);
+                return false;
+            }
+
+            if (project.Status != ProjectStatus.Failed)
+            {
+                _logger.LogWarning("Cannot retry analysis for project {ProjectName} - status is {Status}, not Failed",
+                    project.Name, project.Status);
+                return false;
+            }
+
+            // Clear Wyvern assignment so it gets recreated
+            if (project.WyvernId != null)
+            {
+                _wyvernFactory.RemoveWyvern(project.Name);
+                project.WyvernId = null;
+            }
+
+            // Reset project state
+            project.Status = ProjectStatus.New;
+            project.ErrorMessage = null;
+            project.PendingAreas.Clear();
+            project.UpdatedAt = DateTime.UtcNow;
+
+            _repository.Update(project);
+            _logger.LogInformation("🔄 Retry initiated for project '{ProjectName}' - reset to New status", project.Name);
+
+            return true;
+        }
+
+        /// <summary>
         /// Marks a project's specification as modified, triggering reprocessing by Wyvern.
         /// Called when Dragon updates an existing specification.
         /// </summary>

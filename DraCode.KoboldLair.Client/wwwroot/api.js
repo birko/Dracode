@@ -172,6 +172,10 @@ export class ApiClient {
         return this.sendCommand('update_agent_config', { projectId, agentType, provider, model, enabled });
     }
 
+    async retryAnalysis(projectId) {
+        return this.sendCommand('retry_analysis', { projectId });
+    }
+
     disconnect() {
         if (this.ws) {
             this.ws.disconnect();

@@ -82,6 +82,7 @@ namespace DraCode.KoboldLair.Server.Services
                     "delete_project_config" => await DeleteProjectConfigAsync(message.Data),
                     "get_agent_config" => await GetAgentConfigAsync(message.Data),
                     "update_agent_config" => await UpdateAgentConfigAsync(message.Data),
+                    "retry_analysis" => await RetryAnalysisAsync(message.Data),
                     _ => throw new InvalidOperationException($"Unknown command: {message.Command}")
                 };
 
@@ -492,6 +493,26 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             return new { success = true, message = $"{agentType} configuration updated" };
+        }
+
+        private async Task<object> RetryAnalysisAsync(JsonElement? data)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+
+            var projectId = data.Value.GetProperty("projectId").GetString();
+            var success = _projectService.RetryAnalysis(projectId!);
+
+            if (!success)
+            {
+                var project = _projectService.GetProject(projectId!);
+                if (project == null)
+                {
+                    throw new InvalidOperationException($"Project not found: {projectId}");
+                }
+                throw new InvalidOperationException($"Cannot retry analysis - project status is {project.Status}, not Failed");
+            }
+
+            return new { success = true, message = "Analysis retry initiated. Project will be reprocessed shortly." };
         }
 
         private async Task SendResponseAsync(WebSocket webSocket, string? requestId, object? data)

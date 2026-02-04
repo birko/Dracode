@@ -459,6 +459,21 @@ body {
     border-color: var(--text-tertiary);
 }
 
+.btn-warning {
+    background: var(--accent-warning);
+    color: var(--bg-primary);
+}
+
+.btn-warning:hover {
+    background: #e6a700;
+}
+
+.btn-warning:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+}
+
 .btn:active {
     transform: scale(0.98);
 }

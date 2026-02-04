@@ -60,7 +60,7 @@ namespace DraCode.KoboldLair.Agents
 - **Sage** 📜: Specifications, features, approval
 - **Seeker** 🔍: Scan/import existing codebases
 - **Sentinel** 🛡️: Git operations, branches, merging
-- **Warden** ⚙️: Enable/disable agents, limits, external paths
+- **Warden** ⚙️: Enable/disable agents, limits, external paths, retry failed analysis
 
 ## Tools:
 - **list_projects**: List all projects (ALWAYS use on first message)
@@ -74,7 +74,7 @@ namespace DraCode.KoboldLair.Agents
 - Sage: create/update specs, add features, approve projects
 - Seeker: scan folder, import existing project
 - Sentinel: branches, merge, conflicts, delete branch
-- Warden: agent status, enable/disable, limits, external path access
+- Warden: agent status, enable/disable, limits, external path access, retry failed analysis, view errors
 
 ## Rules:
 1. ALWAYS list_projects first
@@ -82,7 +82,7 @@ namespace DraCode.KoboldLair.Agents
 3. Present responses naturally
 4. Be conversational
 
-## Project Status: Prototype → New → Analyzed → InProgress → Completed";
+## Project Status: Prototype → New → Analyzed → InProgress → Completed → Failed (can retry)";
         }
 
         /// <summary>

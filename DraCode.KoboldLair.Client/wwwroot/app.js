@@ -15,17 +15,28 @@ class App {
         this.api = new ApiClient();
         this.wsHealth = null;
         this.currentView = null;
+        this.currentViewName = null;
         this.serverSelector = new ServerSelector();
+
+        // Create refresh callback that reloads the current view
+        const refreshCallback = () => this.refreshCurrentView();
+
         this.views = new Map([
             ['dashboard', new DashboardView(this.api)],
             ['dragon', new DragonView(this.api)],
-            ['hierarchy', new HierarchyView(this.api)],
-            ['projects', new ProjectsView(this.api)],
+            ['hierarchy', new HierarchyView(this.api, refreshCallback)],
+            ['projects', new ProjectsView(this.api, refreshCallback)],
             ['providers', new ProvidersView(this.api)],
             ['settings', new ProjectConfigView(this.api)]
         ]);
 
         this.init();
+    }
+
+    async refreshCurrentView() {
+        if (this.currentViewName) {
+            await this.loadView(this.currentViewName);
+        }
     }
 
     async init() {
@@ -183,7 +194,7 @@ class App {
     async loadView(viewName) {
         const content = document.getElementById('content');
         const pageTitle = document.getElementById('pageTitle');
-        
+
         if (!content || !pageTitle) return;
 
         if (this.currentView?.onUnmount) {
@@ -197,9 +208,15 @@ class App {
             const view = this.views.get(viewName);
             if (view) {
                 this.currentView = view;
+                this.currentViewName = viewName;
                 const html = await view.render();
                 content.innerHTML = html;
-                
+
+                // Attach event listeners if the view supports it
+                if (view.attachEventListeners) {
+                    view.attachEventListeners(content);
+                }
+
                 if (view.onMount) {
                     view.onMount();
                 }
