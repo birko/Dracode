@@ -1,113 +1,74 @@
 namespace DraCode.KoboldLair.Models.Configuration
 {
     /// <summary>
-    /// Configuration for a specific project including resource limits, providers, and agent settings
+    /// Configuration for a specific project including resource limits, providers, and agent settings.
+    /// Uses a sectioned structure for better organization.
     /// </summary>
     public class ProjectConfig
     {
         /// <summary>
-        /// Unique identifier for the project
+        /// Project identity information (ID and name)
         /// </summary>
-        public string ProjectId { get; set; } = string.Empty;
+        public ProjectIdentity Project { get; set; } = new();
 
         /// <summary>
-        /// Optional project name for display purposes
+        /// Configuration for all agent types
         /// </summary>
-        public string? ProjectName { get; set; }
+        public AgentsConfig Agents { get; set; } = new();
 
         /// <summary>
-        /// Maximum number of kobolds that can run in parallel for this project.
-        /// Default: 1
+        /// Security settings for the project
         /// </summary>
-        public int MaxParallelKobolds { get; set; } = 1;
+        public SecurityConfig Security { get; set; } = new();
 
         /// <summary>
-        /// Maximum number of drakes that can run in parallel for this project.
-        /// Default: 1
+        /// Metadata for tracking and auditing
         /// </summary>
-        public int MaxParallelDrakes { get; set; } = 1;
+        public MetadataConfig Metadata { get; set; } = new();
 
         /// <summary>
-        /// Maximum number of wyrms that can run in parallel for this project.
-        /// Default: 1
+        /// Gets the agent configuration for a specific agent type
         /// </summary>
-        public int MaxParallelWyrms { get; set; } = 1;
+        public AgentConfig GetAgentConfig(string agentType)
+        {
+            return agentType.ToLowerInvariant() switch
+            {
+                "wyrm" => Agents.Wyrm,
+                "wyvern" => Agents.Wyvern,
+                "drake" => Agents.Drake,
+                "kobold-planner" or "koboldplanner" or "planner" => Agents.KoboldPlanner,
+                "kobold" => Agents.Kobold,
+                _ => throw new ArgumentException($"Unknown agent type: {agentType}")
+            };
+        }
 
         /// <summary>
-        /// Maximum number of wyverns that can run in parallel for this project.
-        /// Default: 1
+        /// Sets the agent configuration for a specific agent type
         /// </summary>
-        public int MaxParallelWyverns { get; set; } = 1;
-
-        /// <summary>
-        /// Provider used for the Wyrm agent analyzing this task
-        /// </summary>
-        public string? WyrmProvider { get; set; }
-
-        /// <summary>
-        /// Model override for Wyrm (if any)
-        /// </summary>
-        public string? WyrmModel { get; set; }
-
-        /// <summary>
-        /// Whether Wyrm analysis is enabled for this project
-        /// </summary>
-        public bool WyrmEnabled { get; set; } = false;
-
-        /// <summary>
-        /// Provider used for the Wyvern agent analyzing this project
-        /// </summary>
-        public string? WyvernProvider { get; set; }
-
-        /// <summary>
-        /// Model override for Wyvern (if any)
-        /// </summary>
-        public string? WyvernModel { get; set; }
-
-        /// <summary>
-        /// Whether Wyvern analysis is enabled for this project
-        /// </summary>
-        public bool WyvernEnabled { get; set; } = false;
-
-        /// <summary>
-        /// Provider used for Drake supervisors in this project
-        /// </summary>
-        public string? DrakeProvider { get; set; }
-
-        /// <summary>
-        /// Model override for Drakes (if any)
-        /// </summary>
-        public string? DrakeModel { get; set; }
-
-        /// <summary>
-        /// Whether Drake supervisors are enabled for this project
-        /// </summary>
-        public bool DrakeEnabled { get; set; } = false;
-
-        /// <summary>
-        /// Provider used for Kobold workers in this project
-        /// </summary>
-        public string? KoboldProvider { get; set; }
-
-        /// <summary>
-        /// Model override for Kobolds (if any)
-        /// </summary>
-        public string? KoboldModel { get; set; }
-
-        /// <summary>
-        /// Whether Kobold workers are enabled for this project
-        /// </summary>
-        public bool KoboldEnabled { get; set; } = false;
-
-        /// <summary>
-        /// Timestamp when configuration was last updated
-        /// </summary>
-        public DateTime? LastUpdated { get; set; }
-
-        /// <summary>
-        /// External paths (outside workspace) that the user has explicitly allowed for this project.
-        /// These paths can be accessed by agents in addition to the project workspace.
-        /// </summary>
-        public List<string> AllowedExternalPaths { get; set; } = new();
+        public void SetAgentConfig(string agentType, AgentConfig config)
+        {
+            switch (agentType.ToLowerInvariant())
+            {
+                case "wyrm":
+                    Agents.Wyrm = config;
+                    break;
+                case "wyvern":
+                    Agents.Wyvern = config;
+                    break;
+                case "drake":
+                    Agents.Drake = config;
+                    break;
+                case "kobold-planner":
+                case "koboldplanner":
+                case "planner":
+                    Agents.KoboldPlanner = config;
+                    break;
+                case "kobold":
+                    Agents.Kobold = config;
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown agent type: {agentType}");
+            }
+        }
     }
 }

@@ -687,11 +687,11 @@ namespace DraCode.KoboldLair.Services
                     var newConfig = _projectConfigService.GetOrCreateProjectConfig(project.Id, project.Name);
 
                     // Initialize with global defaults if not set
-                    if (string.IsNullOrEmpty(newConfig.WyvernProvider))
+                    if (string.IsNullOrEmpty(newConfig.Agents.Wyvern.Provider))
                     {
-                        newConfig.WyvernProvider = globalConfig.GetProviderForAgent("wyvern");
-                        newConfig.DrakeProvider = globalConfig.GetProviderForAgent("wyvern");
-                        newConfig.KoboldProvider = globalConfig.GetProviderForAgent("kobold");
+                        newConfig.Agents.Wyvern.Provider = globalConfig.GetProviderForAgent("wyvern");
+                        newConfig.Agents.Drake.Provider = globalConfig.GetProviderForAgent("wyvern");
+                        newConfig.Agents.Kobold.Provider = globalConfig.GetProviderForAgent("kobold");
                         _projectConfigService.UpdateProjectConfig(newConfig);
                     }
 

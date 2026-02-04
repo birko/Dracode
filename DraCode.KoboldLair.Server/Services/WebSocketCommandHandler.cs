@@ -323,16 +323,16 @@ namespace DraCode.KoboldLair.Server.Services
                 projectName = project.Name,
                 providers = new
                 {
-                    WyvernProvider = config.WyvernProvider,
-                    WyvernModel = config.WyvernModel,
-                    WyvernEnabled = config.WyvernEnabled,
-                    drakeProvider = config.DrakeProvider,
-                    drakeModel = config.DrakeModel,
-                    drakeEnabled = config.DrakeEnabled,
-                    koboldProvider = config.KoboldProvider,
-                    koboldModel = config.KoboldModel,
-                    koboldEnabled = config.KoboldEnabled,
-                    lastUpdated = config.LastUpdated
+                    WyvernProvider = config.Agents.Wyvern.Provider,
+                    WyvernModel = config.Agents.Wyvern.Model,
+                    WyvernEnabled = config.Agents.Wyvern.Enabled,
+                    drakeProvider = config.Agents.Drake.Provider,
+                    drakeModel = config.Agents.Drake.Model,
+                    drakeEnabled = config.Agents.Drake.Enabled,
+                    koboldProvider = config.Agents.Kobold.Provider,
+                    koboldModel = config.Agents.Kobold.Model,
+                    koboldEnabled = config.Agents.Kobold.Enabled,
+                    lastUpdated = config.Metadata.LastUpdated
                 },
                 availableProviders = _providerConfigService.GetAvailableProviders().Select(p => new
                 {
@@ -422,7 +422,7 @@ namespace DraCode.KoboldLair.Server.Services
             var config = JsonSerializer.Deserialize<ProjectConfig>(data.Value.GetRawText(), s_readOptions);
             if (config != null)
             {
-                config.ProjectId = projectId!;
+                config.Project.Id = projectId!;
                 _projectConfigService.UpdateProjectConfig(config);
             }
 
@@ -455,27 +455,14 @@ namespace DraCode.KoboldLair.Server.Services
                 throw new InvalidOperationException($"Configuration not found for project: {projectId}");
             }
 
-            var agentConfig = agentType!.ToLowerInvariant() switch
+            var agentCfg = config.GetAgentConfig(agentType!);
+            var agentConfig = new
             {
-                "wyvern" or "wyvern" => new
-                {
-                    provider = config.WyvernProvider,
-                    model = config.WyvernModel,
-                    enabled = config.WyvernEnabled
-                },
-                "drake" => new
-                {
-                    provider = config.DrakeProvider,
-                    model = config.DrakeModel,
-                    enabled = config.DrakeEnabled
-                },
-                "kobold" => new
-                {
-                    provider = config.KoboldProvider,
-                    model = config.KoboldModel,
-                    enabled = config.KoboldEnabled
-                },
-                _ => throw new InvalidOperationException($"Unknown agent type: {agentType}")
+                provider = agentCfg.Provider,
+                model = agentCfg.Model,
+                enabled = agentCfg.Enabled,
+                maxParallel = agentCfg.MaxParallel,
+                timeout = agentCfg.Timeout
             };
 
             return agentConfig;

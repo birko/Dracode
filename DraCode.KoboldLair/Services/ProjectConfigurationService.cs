@@ -16,6 +16,19 @@ namespace DraCode.KoboldLair.Services
         private ProjectConfigurations _configurations;
         private readonly object _lock = new();
 
+        private static readonly JsonSerializerOptions ReadOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true
+        };
+
+        private static readonly JsonSerializerOptions WriteOptions = new()
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
         public ProjectConfigurationService(
             ProviderConfigurationService providerConfig,
             ILogger<ProjectConfigurationService> logger,
@@ -46,7 +59,7 @@ namespace DraCode.KoboldLair.Services
             lock (_lock)
             {
                 return _configurations.Projects
-                    .FirstOrDefault(p => p.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(p => p.Project.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase));
             }
         }
 
@@ -63,12 +76,25 @@ namespace DraCode.KoboldLair.Services
                     var limits = _providerConfig.GetDefaultLimits();
                     config = new ProjectConfig
                     {
-                        ProjectId = projectId,
-                        ProjectName = projectName,
-                        MaxParallelKobolds = limits.MaxParallelKobolds,
-                        MaxParallelDrakes = limits.MaxParallelDrakes,
-                        MaxParallelWyrms = limits.MaxParallelWyrms,
-                        MaxParallelWyverns = limits.MaxParallelWyverns
+                        Project = new ProjectIdentity
+                        {
+                            Id = projectId,
+                            Name = projectName
+                        },
+                        Agents = new AgentsConfig
+                        {
+                            Wyrm = new AgentConfig { MaxParallel = limits.MaxParallelWyrms },
+                            Wyvern = new AgentConfig { MaxParallel = limits.MaxParallelWyverns },
+                            Drake = new AgentConfig { MaxParallel = limits.MaxParallelDrakes },
+                            KoboldPlanner = new AgentConfig { MaxParallel = 1 },
+                            Kobold = new AgentConfig { MaxParallel = limits.MaxParallelKobolds }
+                        },
+                        Security = new SecurityConfig(),
+                        Metadata = new MetadataConfig
+                        {
+                            CreatedAt = DateTime.UtcNow,
+                            LastUpdated = DateTime.UtcNow
+                        }
                     };
                     _configurations.Projects.Add(config);
                     SaveConfigurations();
@@ -85,63 +111,72 @@ namespace DraCode.KoboldLair.Services
             lock (_lock)
             {
                 var existing = _configurations.Projects
-                    .FirstOrDefault(p => p.ProjectId.Equals(config.ProjectId, StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(p => p.Project.Id.Equals(config.Project.Id, StringComparison.OrdinalIgnoreCase));
                 if (existing != null)
                 {
                     _configurations.Projects.Remove(existing);
                 }
 
-                config.LastUpdated = DateTime.UtcNow;
+                config.Metadata.LastUpdated = DateTime.UtcNow;
                 _configurations.Projects.Add(config);
                 SaveConfigurations();
             }
         }
 
         /// <summary>
-        /// Gets the maximum parallel kobolds for a project (project override or default)
+        /// Gets the maximum parallel agents for a specific type in a project
         /// </summary>
-        public int GetMaxParallelKobolds(string projectId)
+        public int GetMaxParallel(string projectId, string agentType)
         {
             var config = GetProjectConfig(projectId);
-            return config?.MaxParallelKobolds ?? _providerConfig.GetDefaultLimits().MaxParallelKobolds;
+            if (config == null)
+            {
+                var limits = _providerConfig.GetDefaultLimits();
+                return agentType.ToLowerInvariant() switch
+                {
+                    "wyrm" => limits.MaxParallelWyrms,
+                    "wyvern" => limits.MaxParallelWyverns,
+                    "drake" => limits.MaxParallelDrakes,
+                    "kobold-planner" or "koboldplanner" or "planner" => 1,
+                    "kobold" => limits.MaxParallelKobolds,
+                    _ => 1
+                };
+            }
+
+            return config.GetAgentConfig(agentType).MaxParallel;
         }
+
+        /// <summary>
+        /// Gets the maximum parallel kobolds for a project (project override or default)
+        /// </summary>
+        public int GetMaxParallelKobolds(string projectId) => GetMaxParallel(projectId, "kobold");
 
         /// <summary>
         /// Gets the maximum parallel drakes for a project (project override or default)
         /// </summary>
-        public int GetMaxParallelDrakes(string projectId)
-        {
-            var config = GetProjectConfig(projectId);
-            return config?.MaxParallelDrakes ?? _providerConfig.GetDefaultLimits().MaxParallelDrakes;
-        }
+        public int GetMaxParallelDrakes(string projectId) => GetMaxParallel(projectId, "drake");
 
         /// <summary>
         /// Gets the maximum parallel wyrms for a project (project override or default)
         /// </summary>
-        public int GetMaxParallelWyrms(string projectId)
-        {
-            var config = GetProjectConfig(projectId);
-            return config?.MaxParallelWyrms ?? _providerConfig.GetDefaultLimits().MaxParallelWyrms;
-        }
+        public int GetMaxParallelWyrms(string projectId) => GetMaxParallel(projectId, "wyrm");
 
         /// <summary>
         /// Gets the maximum parallel wyverns for a project (project override or default)
         /// </summary>
-        public int GetMaxParallelWyverns(string projectId)
-        {
-            var config = GetProjectConfig(projectId);
-            return config?.MaxParallelWyverns ?? _providerConfig.GetDefaultLimits().MaxParallelWyverns;
-        }
+        public int GetMaxParallelWyverns(string projectId) => GetMaxParallel(projectId, "wyvern");
+
+        /// <summary>
+        /// Gets the maximum parallel kobold planners for a project
+        /// </summary>
+        public int GetMaxParallelKoboldPlanners(string projectId) => GetMaxParallel(projectId, "kobold-planner");
 
         /// <summary>
         /// Sets the maximum parallel kobolds for a specific project
         /// </summary>
         public void SetMaxParallelKobolds(string projectId, int maxParallel)
         {
-            var config = GetOrCreateProjectConfig(projectId);
-            config.MaxParallelKobolds = maxParallel;
-            config.LastUpdated = DateTime.UtcNow;
-            SaveConfigurations();
+            SetAgentLimit(projectId, "kobold", maxParallel);
         }
 
         /// <summary>
@@ -153,27 +188,36 @@ namespace DraCode.KoboldLair.Services
                 throw new ArgumentException("Max parallel must be at least 1", nameof(maxParallel));
 
             var config = GetOrCreateProjectConfig(projectId);
+            var agentConfig = config.GetAgentConfig(agentType);
+            agentConfig.MaxParallel = maxParallel;
 
-            switch (agentType.ToLowerInvariant())
-            {
-                case "wyrm":
-                    config.MaxParallelWyrms = maxParallel;
-                    break;
-                case "wyvern":
-                    config.MaxParallelWyverns = maxParallel;
-                    break;
-                case "drake":
-                    config.MaxParallelDrakes = maxParallel;
-                    break;
-                case "kobold":
-                    config.MaxParallelKobolds = maxParallel;
-                    break;
-                default:
-                    throw new ArgumentException($"Unknown agent type: {agentType}");
-            }
-
-            config.LastUpdated = DateTime.UtcNow;
+            config.Metadata.LastUpdated = DateTime.UtcNow;
             SaveConfigurations();
+        }
+
+        /// <summary>
+        /// Sets the timeout for a specific agent type in a project
+        /// </summary>
+        public void SetAgentTimeout(string projectId, string agentType, int timeoutSeconds)
+        {
+            if (timeoutSeconds < 0)
+                throw new ArgumentException("Timeout must be non-negative", nameof(timeoutSeconds));
+
+            var config = GetOrCreateProjectConfig(projectId);
+            var agentConfig = config.GetAgentConfig(agentType);
+            agentConfig.Timeout = timeoutSeconds;
+
+            config.Metadata.LastUpdated = DateTime.UtcNow;
+            SaveConfigurations();
+        }
+
+        /// <summary>
+        /// Gets the timeout for a specific agent type in a project
+        /// </summary>
+        public int GetAgentTimeout(string projectId, string agentType)
+        {
+            var config = GetProjectConfig(projectId);
+            return config?.GetAgentConfig(agentType).Timeout ?? 0;
         }
 
         /// <summary>
@@ -182,26 +226,10 @@ namespace DraCode.KoboldLair.Services
         public void SetAgentEnabled(string projectId, string agentType, bool enabled)
         {
             var config = GetOrCreateProjectConfig(projectId);
+            var agentConfig = config.GetAgentConfig(agentType);
+            agentConfig.Enabled = enabled;
 
-            switch (agentType.ToLowerInvariant())
-            {
-                case "wyrm":
-                    config.WyrmEnabled = enabled;
-                    break;
-                case "wyvern":
-                    config.WyvernEnabled = enabled;
-                    break;
-                case "drake":
-                    config.DrakeEnabled = enabled;
-                    break;
-                case "kobold":
-                    config.KoboldEnabled = enabled;
-                    break;
-                default:
-                    throw new ArgumentException($"Unknown agent type: {agentType}");
-            }
-
-            config.LastUpdated = DateTime.UtcNow;
+            config.Metadata.LastUpdated = DateTime.UtcNow;
             SaveConfigurations();
         }
 
@@ -214,14 +242,14 @@ namespace DraCode.KoboldLair.Services
             if (config == null)
                 return false;
 
-            return agentType.ToLowerInvariant() switch
+            try
             {
-                "wyrm" => config.WyrmEnabled,
-                "wyvern" => config.WyvernEnabled,
-                "drake" => config.DrakeEnabled,
-                "kobold" => config.KoboldEnabled,
-                _ => false
-            };
+                return config.GetAgentConfig(agentType).Enabled;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -230,30 +258,11 @@ namespace DraCode.KoboldLair.Services
         public void SetProjectProvider(string projectId, string agentType, string? provider, string? model = null)
         {
             var config = GetOrCreateProjectConfig(projectId);
+            var agentConfig = config.GetAgentConfig(agentType);
+            agentConfig.Provider = provider;
+            agentConfig.Model = model;
 
-            switch (agentType.ToLowerInvariant())
-            {
-                case "wyrm":
-                    config.WyrmProvider = provider;
-                    config.WyrmModel = model;
-                    break;
-                case "wyvern":
-                    config.WyvernProvider = provider;
-                    config.WyvernModel = model;
-                    break;
-                case "drake":
-                    config.DrakeProvider = provider;
-                    config.DrakeModel = model;
-                    break;
-                case "kobold":
-                    config.KoboldProvider = provider;
-                    config.KoboldModel = model;
-                    break;
-                default:
-                    throw new ArgumentException($"Unknown agent type: {agentType}");
-            }
-
-            config.LastUpdated = DateTime.UtcNow;
+            config.Metadata.LastUpdated = DateTime.UtcNow;
             SaveConfigurations();
         }
 
@@ -266,14 +275,14 @@ namespace DraCode.KoboldLair.Services
             if (config == null)
                 return null;
 
-            return agentType.ToLowerInvariant() switch
+            try
             {
-                "wyvern" => config.WyvernProvider,
-                "wyrm" => config.WyrmProvider,
-                "drake" => config.DrakeProvider,
-                "kobold" => config.KoboldProvider,
-                _ => null
-            };
+                return config.GetAgentConfig(agentType).Provider;
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -285,14 +294,14 @@ namespace DraCode.KoboldLair.Services
             if (config == null)
                 return null;
 
-            return agentType.ToLowerInvariant() switch
+            try
             {
-                "wyvern" => config.WyvernModel,
-                "wyrm" => config.WyrmModel,
-                "drake" => config.DrakeModel,
-                "kobold" => config.KoboldModel,
-                _ => null
-            };
+                return config.GetAgentConfig(agentType).Model;
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -314,7 +323,7 @@ namespace DraCode.KoboldLair.Services
             lock (_lock)
             {
                 var config = _configurations.Projects
-                    .FirstOrDefault(p => p.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(p => p.Project.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase));
                 if (config == null)
                     return false;
 
@@ -347,8 +356,6 @@ namespace DraCode.KoboldLair.Services
         /// <summary>
         /// Adds an allowed external path for a project
         /// </summary>
-        /// <param name="projectId">Project ID</param>
-        /// <param name="path">External path to allow</param>
         public void AddAllowedExternalPath(string projectId, string path)
         {
             if (string.IsNullOrEmpty(path))
@@ -359,10 +366,10 @@ namespace DraCode.KoboldLair.Services
 
             lock (_lock)
             {
-                if (!config.AllowedExternalPaths.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
+                if (!config.Security.AllowedExternalPaths.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
                 {
-                    config.AllowedExternalPaths.Add(normalizedPath);
-                    config.LastUpdated = DateTime.UtcNow;
+                    config.Security.AllowedExternalPaths.Add(normalizedPath);
+                    config.Metadata.LastUpdated = DateTime.UtcNow;
                     SaveConfigurations();
                     _logger.LogInformation("Added allowed external path for {Project}: {Path}", projectId, normalizedPath);
                 }
@@ -372,9 +379,6 @@ namespace DraCode.KoboldLair.Services
         /// <summary>
         /// Removes an allowed external path from a project
         /// </summary>
-        /// <param name="projectId">Project ID</param>
-        /// <param name="path">External path to remove</param>
-        /// <returns>True if the path was removed, false if it wasn't found</returns>
         public bool RemoveAllowedExternalPath(string projectId, string path)
         {
             if (string.IsNullOrEmpty(path))
@@ -388,13 +392,13 @@ namespace DraCode.KoboldLair.Services
 
             lock (_lock)
             {
-                var existingPath = config.AllowedExternalPaths
+                var existingPath = config.Security.AllowedExternalPaths
                     .FirstOrDefault(p => p.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
 
                 if (existingPath != null)
                 {
-                    config.AllowedExternalPaths.Remove(existingPath);
-                    config.LastUpdated = DateTime.UtcNow;
+                    config.Security.AllowedExternalPaths.Remove(existingPath);
+                    config.Metadata.LastUpdated = DateTime.UtcNow;
                     SaveConfigurations();
                     _logger.LogInformation("Removed allowed external path for {Project}: {Path}", projectId, normalizedPath);
                     return true;
@@ -407,8 +411,6 @@ namespace DraCode.KoboldLair.Services
         /// <summary>
         /// Gets the allowed external paths for a project
         /// </summary>
-        /// <param name="projectId">Project ID</param>
-        /// <returns>List of allowed external paths</returns>
         public IReadOnlyList<string> GetAllowedExternalPaths(string projectId)
         {
             var config = GetProjectConfig(projectId);
@@ -417,8 +419,32 @@ namespace DraCode.KoboldLair.Services
 
             lock (_lock)
             {
-                return config.AllowedExternalPaths.ToList().AsReadOnly();
+                return config.Security.AllowedExternalPaths.ToList().AsReadOnly();
             }
+        }
+
+        /// <summary>
+        /// Sets the sandbox mode for a project
+        /// </summary>
+        public void SetSandboxMode(string projectId, string mode)
+        {
+            var validModes = new[] { "workspace", "relaxed", "strict" };
+            if (!validModes.Contains(mode.ToLowerInvariant()))
+                throw new ArgumentException($"Invalid sandbox mode: {mode}. Valid modes: {string.Join(", ", validModes)}");
+
+            var config = GetOrCreateProjectConfig(projectId);
+            config.Security.SandboxMode = mode.ToLowerInvariant();
+            config.Metadata.LastUpdated = DateTime.UtcNow;
+            SaveConfigurations();
+        }
+
+        /// <summary>
+        /// Gets the sandbox mode for a project
+        /// </summary>
+        public string GetSandboxMode(string projectId)
+        {
+            var config = GetProjectConfig(projectId);
+            return config?.Security.SandboxMode ?? "workspace";
         }
 
         private ProjectConfigurations LoadConfigurations()
@@ -432,12 +458,7 @@ namespace DraCode.KoboldLair.Services
             try
             {
                 var json = File.ReadAllText(_configPath);
-                var configs = JsonSerializer.Deserialize<ProjectConfigurations>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip,
-                    AllowTrailingCommas = true
-                });
+                var configs = JsonSerializer.Deserialize<ProjectConfigurations>(json, ReadOptions);
 
                 if (configs == null)
                 {
@@ -460,12 +481,7 @@ namespace DraCode.KoboldLair.Services
         {
             try
             {
-                var json = JsonSerializer.Serialize(_configurations, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
-
+                var json = JsonSerializer.Serialize(_configurations, WriteOptions);
                 File.WriteAllText(_configPath, json);
                 _logger.LogDebug("Saved project configurations to {Path}", _configPath);
             }

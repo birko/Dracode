@@ -417,20 +417,20 @@ namespace DraCode.KoboldLair.Server.Services
         {
             return new ProjectAgentConfig
             {
-                ProjectId = config.ProjectId,
-                ProjectName = config.ProjectName ?? fallbackName,
-                WyvernEnabled = config.WyvernEnabled,
-                WyrmEnabled = config.WyrmEnabled,
-                DrakeEnabled = config.DrakeEnabled,
-                KoboldEnabled = config.KoboldEnabled,
-                MaxParallelWyverns = config.MaxParallelWyverns,
-                MaxParallelWyrms = config.MaxParallelWyrms,
-                MaxParallelDrakes = config.MaxParallelDrakes,
-                MaxParallelKobolds = config.MaxParallelKobolds,
-                WyvernProvider = config.WyvernProvider,
-                WyrmProvider = config.WyrmProvider,
-                DrakeProvider = config.DrakeProvider,
-                KoboldProvider = config.KoboldProvider
+                ProjectId = config.Project.Id,
+                ProjectName = config.Project.Name ?? fallbackName,
+                WyvernEnabled = config.Agents.Wyvern.Enabled,
+                WyrmEnabled = config.Agents.Wyrm.Enabled,
+                DrakeEnabled = config.Agents.Drake.Enabled,
+                KoboldEnabled = config.Agents.Kobold.Enabled,
+                MaxParallelWyverns = config.Agents.Wyvern.MaxParallel,
+                MaxParallelWyrms = config.Agents.Wyrm.MaxParallel,
+                MaxParallelDrakes = config.Agents.Drake.MaxParallel,
+                MaxParallelKobolds = config.Agents.Kobold.MaxParallel,
+                WyvernProvider = config.Agents.Wyvern.Provider,
+                WyrmProvider = config.Agents.Wyrm.Provider,
+                DrakeProvider = config.Agents.Drake.Provider,
+                KoboldProvider = config.Agents.Kobold.Provider
             };
         }
 
