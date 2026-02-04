@@ -132,14 +132,25 @@ namespace DraCode.KoboldLair.Orchestrators
                 return null;
             }
 
-            // Create options with external paths if available
-            AgentOptions? effectiveOptions = _defaultOptions;
+            // Create options with workspace path and external paths
+            var effectiveOptions = _defaultOptions?.Clone() ?? new AgentOptions();
+
+            // Set working directory to project workspace folder
+            // Derive from task file path: ./projects/my-project/backend-tasks.md -> ./projects/my-project/workspace
+            var projectFolder = Path.GetDirectoryName(_outputMarkdownPath);
+            if (!string.IsNullOrEmpty(projectFolder))
+            {
+                var workspacePath = Path.Combine(projectFolder, "workspace");
+                effectiveOptions.WorkingDirectory = workspacePath;
+                _logger?.LogDebug("Kobold workspace set to {WorkspacePath}", workspacePath);
+            }
+
+            // Add external paths if available
             if (!string.IsNullOrEmpty(projectId) && _projectConfigService != null)
             {
                 var externalPaths = _projectConfigService.GetAllowedExternalPaths(projectId);
                 if (externalPaths.Count > 0)
                 {
-                    effectiveOptions = _defaultOptions?.Clone() ?? new AgentOptions();
                     effectiveOptions.AllowedExternalPaths = externalPaths.ToList();
                     _logger?.LogDebug("Kobold for project {ProjectId} has {Count} allowed external paths",
                         projectId, externalPaths.Count);
