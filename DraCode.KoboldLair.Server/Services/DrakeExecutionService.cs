@@ -182,7 +182,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             foreach (var (areaName, taskFilePath) in project.TaskFiles)
             {
-                // Normalize the path
+                // Paths are pre-resolved by ProjectRepository, normalize for safety
                 var normalizedPath = Path.GetFullPath(taskFilePath);
                 var drakeName = $"{project.Name}:{areaName}";
 
