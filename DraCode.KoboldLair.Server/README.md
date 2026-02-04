@@ -14,6 +14,9 @@ WebSocket server for the KoboldLair autonomous multi-agent coding system with to
 - **Kobold Implementation Planning** - Structured plans with resumability
 - **Allowed External Paths** - Per-project access control for directories outside workspace
 - **LLM Retry Logic** - Robust API handling with exponential backoff
+- **DrakeExecutionService** - Automatic task execution (picks up analyzed projects, summons Kobolds)
+- **Wyvern Analysis Persistence** - Analysis survives server restarts
+- **Retry Analysis** - Retry failed Wyvern analysis via Warden agent
 
 ## Configuration
 
@@ -361,6 +364,7 @@ DraCode.KoboldLair.Server/
 │   ├── DragonService.cs            # Dragon WebSocket handler
 │   ├── WyrmService.cs              # Wyrm WebSocket handler
 │   ├── WyvernProcessingService.cs  # Wyvern background processing (60s)
+│   ├── DrakeExecutionService.cs    # Drake task execution service (30s) - NEW
 │   ├── DrakeMonitoringService.cs   # Drake background monitoring (60s)
 │   ├── WebSocketAuthenticationService.cs  # Token/IP authentication
 │   └── WebSocketCommandHandler.cs  # WebSocket command routing
@@ -437,6 +441,7 @@ Dragon coordinates through its council. Direct Dragon tools:
 | **Warden** | `manage_external_paths` | Add/remove allowed external paths for a project |
 | **Warden** | `agent_configuration` | Configure agent providers and models |
 | **Warden** | `select_agent` | Select agent type for specific tasks |
+| **Warden** | `retry_analysis` | Retry failed Wyvern analysis (list/retry/status) |
 
 ### Tool Details
 

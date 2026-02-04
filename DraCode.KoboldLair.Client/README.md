@@ -107,6 +107,8 @@ Start `dracode-koboldlair-client` from the Aspire Dashboard.
 - **Smooth animations** - Beautiful message transitions and effects
 - **Mobile responsive** - Optimized for all screen sizes
 - **Agent Reload** - 🔄 Reload agent button to clear context and reload provider settings
+- **Retry Analysis** - 🔄 Retry button for failed projects to trigger Wyvern reanalysis
+- **Error Display** - Shows error messages for failed projects
 - Requirements gathering and specification generation
 - Project creation and management
 

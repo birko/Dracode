@@ -47,19 +47,21 @@ cd DraCode.Web && npm run build
 ```
 Dragon (Interactive)     ← User's only touchpoint - requirements gathering
     ↓ Creates specification
-Wyrm (Automatic)         ← Analyzes specs, creates task breakdown (background service, 60s)
-    ↓ Creates task files
-Drake (Automatic)        ← Supervises task execution (background service, 60s)
-    ↓ Assigns and monitors
+Wyrm (Automatic)         ← Analyzes specs, creates task breakdown (WyvernProcessingService, 60s)
+    ↓ Creates task files + analysis.json
+Drake (Automatic)        ← Supervises task execution (DrakeExecutionService, 30s)
+    ↓ Creates Drakes, summons Kobolds
 Kobold Planner (Automatic) ← Creates implementation plans with atomic steps
     ↓ Plans ready for execution
 Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel limits)
 ```
 
 - **Dragon**: Interactive chat for requirements → creates project folder and `specification.md`
-  - Dragon Council: SageAgent (specs/features), SeekerAgent (import), SentinelAgent (git), WardenAgent (config)
-- **Wyrm**: Reads specs, breaks into tasks → creates `{area}-tasks.md` files
+  - Dragon Council: SageAgent (specs/features), SeekerAgent (import), SentinelAgent (git), WardenAgent (config/retry)
+- **Wyrm**: Reads specs, breaks into tasks → creates `{area}-tasks.md` files, persists `analysis.json`
 - **Drake**: Monitors tasks, summons Kobolds → updates task status
+  - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
+  - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
 - **Kobold Planner**: Creates structured implementation plans → enables resumability
 - **Kobold**: Executes plans step-by-step → outputs to `workspace/` subfolder
 
@@ -96,7 +98,7 @@ Located in `DraCode.Agent/Tools/`:
 - `ask_user` - User interaction
 - `display_text` - Output display
 
-### Dragon Tools (9)
+### Dragon Tools (10)
 
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `list_projects` - List all registered projects
@@ -108,6 +110,7 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `git_merge` - Merge feature branches with conflict detection
 - `manage_external_paths` - Add/remove allowed external paths
 - `select_agent` - Select agent type for tasks
+- `retry_analysis` - Retry failed Wyvern analysis (list/retry/status actions)
 
 ### Kobold Planner Tool (1)
 
@@ -173,7 +176,8 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
         specification.md              # Project specification
         specification.features.json   # Feature list
         {area}-tasks.md               # Task files (e.g., backend-tasks.md)
-        analysis.md                   # Wyvern analysis report
+        analysis.md                   # Wyvern analysis report (human-readable)
+        analysis.json                 # Wyvern analysis (machine-readable, persisted)
         workspace/                    # Generated code output
 project-configs.json                  # Per-project kobold limits
 provider-config.json                  # Provider configuration

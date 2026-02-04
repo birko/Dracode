@@ -47,6 +47,7 @@ DraCode.KoboldLair/
 │       ├── GitStatusTool.cs        # View branch status and merge readiness
 │       ├── ListProjectsTool.cs
 │       ├── ProjectApprovalTool.cs
+│       ├── RetryAnalysisTool.cs    # Retry failed Wyvern analysis
 │       ├── SelectAgentTool.cs
 │       └── SpecificationManagementTool.cs
 ├── Factories/              # Agent and orchestrator creation
@@ -94,7 +95,7 @@ The user-facing agent for interactive requirements gathering.
 | **SageAgent** | `SpecificationManagementTool`, `FeatureManagementTool`, `ProjectApprovalTool` | Specifications, features, approval |
 | **SeekerAgent** | `AddExistingProjectTool` | Scan and import existing codebases |
 | **SentinelAgent** | `GitStatusTool`, `GitMergeTool` | Git operations, branches, merging |
-| **WardenAgent** | `ExternalPathTool`, `AgentConfigurationTool`, `SelectAgentTool` | Config, limits, external paths |
+| **WardenAgent** | `ExternalPathTool`, `AgentConfigurationTool`, `SelectAgentTool`, `RetryAnalysisTool` | Config, limits, external paths, retry analysis |
 
 ### Wyvern
 

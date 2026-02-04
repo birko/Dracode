@@ -19,7 +19,7 @@ dotnet run --project DraCode.AppHost
 # Open http://localhost:5001 in your browser
 ```
 
-📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md) (v2.4.0)
+📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md) (v2.4.1)
 
 ## 🏰 KoboldLair - Autonomous Multi-Agent Coding System
 
@@ -60,9 +60,9 @@ dotnet run --project DraCode.AppHost
 - **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
 - **Verbose Mode Control**: Toggle between detailed execution info or clean minimal output
 - **Autonomous Agent System**: Multi-turn conversations with iterative problem solving
-- **Tool System**: 7 built-in tools + 9 Dragon-specific tools + 1 Planner tool
+- **Tool System**: 7 built-in tools + 10 Dragon-specific tools + 1 Planner tool
   - **Built-in**: `list_files`, `read_file`, `write_file`, `search_code`, `run_command`, `ask_user`, `display_text`
-  - **Dragon Tools**: `git_status`, `git_merge`, `manage_specification`, `manage_features`, `approve_specification`, `list_projects`, `add_existing_project`, `select_agent`, `manage_external_paths`
+  - **Dragon Tools**: `git_status`, `git_merge`, `manage_specification`, `manage_features`, `approve_specification`, `list_projects`, `add_existing_project`, `select_agent`, `manage_external_paths`, `retry_analysis`
   - **Planner Tool**: `create_implementation_plan`
 - **GitHub Copilot OAuth**: Integrated device flow authentication
 - **Sandboxed Workspace**: All operations restricted to working directory

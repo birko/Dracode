@@ -201,6 +201,7 @@ Each council member has specialized tools:
 | `manage_external_paths` | Add/remove allowed external paths |
 | `agent_configuration` | Configure agent providers and models |
 | `select_agent` | Select agent type for tasks |
+| `retry_analysis` | Retry failed Wyvern analysis (list/retry/status) |
 
 #### Two-Stage Specification Workflow
 

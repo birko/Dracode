@@ -1,7 +1,7 @@
 # DraCode Technical Specification Document
 
-**Version:** 1.0  
-**Last Updated:** January 20, 2026  
+**Version:** 2.4.1
+**Last Updated:** February 4, 2026
 **Document Type:** Comprehensive Technical Specification
 
 ---

@@ -2,11 +2,12 @@
 
 ## Overview
 
-The Drake Monitoring System provides automated background monitoring and lifecycle management for Kobolds in the KoboldLair system. **Drakes work automatically** - they're monitored by DrakeMonitoringService running every 60 seconds in the background.
+The Drake Monitoring System provides automated background monitoring, task execution, and lifecycle management for Kobolds in the KoboldLair system. **Drakes work automatically** - they're created and managed by background services that run continuously.
 
 Components:
 - **DrakeFactory**: Creates and manages Drake instances from task file paths
-- **DrakeMonitoringService**: Background service that monitors Drakes and updates task status
+- **DrakeExecutionService**: Background service that bridges Wyvern analysis to task execution (every 30s)
+- **DrakeMonitoringService**: Background service that monitors Drakes and handles stuck Kobolds (every 60s)
 - **Drake**: Supervisor that manages Kobolds and synchronizes with markdown task files
 
 **Drake is NOT interactive** - it automatically manages Kobold workers based on task files created by Wyvern.
@@ -15,14 +16,23 @@ Components:
 
 ```
 ┌─────────────────────────────────────────┐
-│   DrakeMonitoringService (Background)   │
-│   - Runs every 60 seconds               │
+│   DrakeExecutionService (Background)    │  ← NEW: Task execution (30s)
+│   - Creates Drakes for task files       │
+│   - Summons Kobolds for tasks           │
+│   - Tracks project completion           │
+└──────────────────┬──────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────┐
+│   DrakeMonitoringService (Background)   │  ← Monitoring (60s)
+│   - Monitors stuck Kobolds              │
+│   - Handles timeouts                    │
 │   - Mutex prevents overlapping runs     │
 └──────────────────┬──────────────────────┘
                    │
                    ▼
          ┌─────────────────┐
-         │  DrakeFactory   │ 
+         │  DrakeFactory   │
          │  - Tracks all   │
          │    Drakes       │
          └────────┬────────┘
@@ -76,7 +86,86 @@ var specificDrake = drakeFactory.GetDrake("my-drake");
 Console.WriteLine($"Total Drakes: {drakeFactory.TotalDrakes}");
 ```
 
-### 2. DrakeMonitoringService
+### 2. DrakeExecutionService (NEW in v2.4.1)
+
+Background service that bridges Wyvern analysis to actual task execution. Runs every 30 seconds.
+
+**Features:**
+- Picks up analyzed projects and creates Drakes for each task file
+- Ensures all task files have corresponding Drake supervisors
+- Finds unassigned, ready tasks and summons Kobolds automatically
+- Monitors project completion and updates status to `Completed`
+- Thread-safe with mutex to prevent overlapping execution cycles
+
+**Lifecycle:**
+```
+Start
+  ↓
+┌─────────────────┐
+│ Wait 30 seconds │
+└────────┬────────┘
+         ↓
+    Check _isExecuting
+         │
+    ┌────┴─────┐
+    │ Running? │
+    └────┬─────┘
+    No   │   Yes
+    ▼    │    ▼
+Process  │   Skip cycle
+Projects │   (Log warning)
+    │    │
+    ▼    │
+1. Find analyzed projects
+2. Create Drakes for task files
+3. Find unassigned tasks
+4. Summon Kobolds
+5. Check completion
+    │
+    └──────> Loop back
+```
+
+**Execution Process:**
+```csharp
+// For each analyzed project
+foreach (var project in GetAnalyzedProjects())
+{
+    // Ensure Drakes exist for all task files
+    foreach (var taskFile in GetTaskFiles(project))
+    {
+        var drake = drakeFactory.GetOrCreateDrake(taskFile);
+
+        // Find and execute unassigned tasks
+        var unassignedTasks = drake.GetUnassignedTasks();
+        foreach (var (task, agentType) in unassignedTasks)
+        {
+            await drake.SummonKobold(task, agentType);
+        }
+    }
+
+    // Check if all tasks complete
+    if (AllTasksComplete(project))
+    {
+        project.Status = ProjectStatus.Completed;
+    }
+}
+```
+
+**Configuration:**
+```csharp
+// In Program.cs
+builder.Services.AddHostedService<DrakeExecutionService>(sp =>
+{
+    return new DrakeExecutionService(
+        sp.GetRequiredService<ILogger<DrakeExecutionService>>(),
+        sp.GetRequiredService<DrakeFactory>(),
+        sp.GetRequiredService<ProjectService>(),
+        executionIntervalSeconds: 30  // Configurable
+    );
+});
+```
+
+### 3. DrakeMonitoringService
 
 Background service that runs every 60 seconds (configurable) and monitors all Drakes.
 
@@ -568,6 +657,7 @@ DraCode.KoboldLair/                    # Core Library
 
 DraCode.KoboldLair.Server/             # WebSocket Server
 └── Services/
+    ├── DrakeExecutionService.cs       # Task execution service (30s) - NEW
     └── DrakeMonitoringService.cs      # Background monitoring service (60s)
 ```
 
@@ -595,12 +685,14 @@ See:
 
 1. ✅ DrakeFactory created
 2. ✅ DrakeMonitoringService created
-3. ✅ Services registered in Program.cs
-4. ✅ Documentation complete
-5. ✅ Stuck Kobold detection and handling (configurable timeout)
-6. ✅ LoadTasksFromFile markdown parser (TaskTracker.LoadFromFile)
-7. ⏳ Test monitoring service with real tasks
-8. ⏳ Add metrics/telemetry
+3. ✅ DrakeExecutionService created (v2.4.1)
+4. ✅ Services registered in Program.cs
+5. ✅ Documentation complete
+6. ✅ Stuck Kobold detection and handling (configurable timeout)
+7. ✅ LoadTasksFromFile markdown parser (TaskTracker.LoadFromFile)
+8. ✅ End-to-end automation: Dragon → Wyvern → Drake → Kobold
+9. ⏳ Add metrics/telemetry
+10. ⏳ Dashboard for Drake statistics
 
 ## Related Documentation
 

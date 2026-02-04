@@ -4,6 +4,96 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.4.1] - 2026-02-04
+
+### 🚀 Added - Drake Execution Service
+
+**Bridges Wyvern analysis to actual task execution:**
+
+- **DrakeExecutionService** (`Services/DrakeExecutionService.cs`) - New background service
+  - Picks up analyzed projects and creates Drakes for each task file
+  - Runs every 30 seconds to check for new work
+  - Ensures Drakes exist for all task files in analyzed projects
+  - Finds unassigned, ready tasks and summons Kobolds automatically
+  - Monitors project completion and updates status to `Completed`
+  - Thread-safe with mutex to prevent overlapping execution cycles
+
+- **New Drake Methods**:
+  - `GetUnassignedTasks()` - Returns tasks ready for execution with agent types
+  - `GetAllTasks()` - Retrieves all tasks from tracker
+
+**Benefits:**
+- **Automatic Execution**: No manual intervention needed after analysis
+- **End-to-End Automation**: Dragon → Wyvern → Drake → Kobold fully automated
+- **Progress Tracking**: Projects automatically marked complete when all tasks done
+
+### 💾 Added - Wyvern Analysis Persistence
+
+**Analysis recovery and persistence across restarts:**
+
+- **SaveAnalysisAsync()** - Persists analysis to disk as `analysis.json`
+- **LoadAnalysisAsync()** - Loads analysis from disk asynchronously
+- **TryLoadAnalysis()** - Constructor-called recovery from disk on startup
+- **AnalysisPath** property - Access to persisted analysis file location
+- Enhanced `Analysis` property with auto-loading from disk if in-memory is null
+
+**Benefits:**
+- **Server Restart Recovery**: Analysis survives server restarts
+- **Debugging**: Persistent analysis files for inspection
+- **Resilience**: Silent error handling without disrupting operation
+
+### 🔄 Added - Retry Analysis Tool
+
+**Allows users to retry failed Wyvern analysis:**
+
+- **RetryAnalysisTool** (`Agents/Tools/RetryAnalysisTool.cs`) - New Warden tool
+  - `list` action - View failed projects with error messages
+  - `retry` action - Reset project status and trigger reanalysis
+  - `status` action - Check specific project analysis status
+- **UI Support** - Retry button in Dragon view for failed projects
+- **Error Display** - Failed projects show error messages in UI
+
+### ⚡ Changed - Performance Optimizations
+
+**Significant performance improvements across services:**
+
+- **JSON Serialization Caching**:
+  - Static cached `JsonSerializerOptions` in DragonService, WyrmService, WebSocketCommandHandler
+  - Eliminates reflection overhead on every serialization call
+  - Options reused across all JSON operations
+
+- **WebSocket Buffer Optimization**:
+  - Increased buffer size from 4KB to 64KB for large messages
+  - Reduces fragmentation for specification and analysis transfers
+
+- **Message History Trimming**:
+  - Optimized from O(n²) loop to O(n) `RemoveRange()` operation
+  - Efficient property copying using reflection instead of serialize/deserialize
+
+### 🔧 Improved - WyvernAgent JSON Handling
+
+**Robust content extraction from LLM responses:**
+
+- **ExtractTextFromContent()** - New method handling various content types:
+  - `string` - Direct text extraction
+  - `ContentBlock` - Text block extraction
+  - `List<ContentBlock>` / `IEnumerable<ContentBlock>` - Collection handling
+  - `JsonElement` - Serialization edge cases
+  - Anonymous objects with Type/Text properties
+- **Improved Error Handling**:
+  - Throws `InvalidOperationException` on empty responses (instead of `{}`)
+  - Throws error with preview when JSON not found in response
+  - Better diagnostics for LLM failure scenarios
+
+### 🐛 Fixed
+
+- **Analysis Generation**: Fixed empty response and JSON extraction issues
+- **Task File Generation**: Proper task file creation by WyrmAgent
+- **TaskTracker**: Improved task status tracking and file persistence
+- **WyrmRunner**: Enhanced task file handling (18 LOC changes)
+
+---
+
 ## [2.4.0] - 2026-02-03
 
 ### 🤖 Added - Kobold Implementation Planner
@@ -681,6 +771,7 @@ Execute multiple tasks sequentially with fresh agent instances for each task.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.4.1 | Feb 2026 | Drake Execution Service, Wyvern persistence, retry analysis, performance optimizations |
 | 2.4.0 | Feb 2026 | Kobold Planner, allowed external paths, LLM retry, Dragon sub-agents |
 | 2.3.0 | Feb 2026 | Git integration, thinking indicator, parameter fixes |
 | 2.2.2 | Jan 2026 | New specialized agent types (PHP, Python, SVG, Bitmap, Media) |

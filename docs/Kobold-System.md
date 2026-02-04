@@ -3,7 +3,7 @@
 ## Overview
 The Kobold system provides a worker pattern for managing AI agent instances in KoboldLair. Each Kobold is a dedicated worker agent that handles one specific task at a time, with full lifecycle tracking.
 
-**Kobolds work automatically** - they're created and managed by Drake supervisors, assigned tasks automatically, and execute code generation without user interaction.
+**Kobolds work automatically** - they're created and managed by Drake supervisors via the DrakeExecutionService (runs every 30s), assigned tasks automatically, and execute code generation without user interaction.
 
 ## Architecture
 

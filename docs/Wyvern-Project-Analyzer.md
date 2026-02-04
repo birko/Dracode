@@ -68,6 +68,15 @@ Main class that orchestrates the entire analysis and task creation process.
 - `AnalyzeProjectAsync()` - Analyzes specification, returns organized structure
 - `CreateTasksAsync()` - Creates Wyvern tasks for each area
 - `GenerateReport()` - Creates comprehensive analysis report
+- `SaveAnalysisAsync()` - Persists analysis to disk as `analysis.json` (NEW in v2.4.1)
+- `LoadAnalysisAsync()` - Loads analysis from disk asynchronously (NEW in v2.4.1)
+- `TryLoadAnalysis()` - Constructor-called recovery from disk on startup (NEW in v2.4.1)
+
+**Analysis Persistence (v2.4.1):**
+- Analysis is automatically saved to `{ProjectsPath}/{project}/analysis.json`
+- Survives server restarts - `TryLoadAnalysis()` called on Wyvern creation
+- `Analysis` property auto-loads from disk if in-memory is null
+- Silent error handling - persistence failures don't disrupt operation
 
 **Usage:**
 ```csharp
@@ -484,10 +493,16 @@ public class Wyvern
     public async Task<Dictionary<string, string>> CreateTasksAsync()
     public string GenerateReport()
 
+    // Persistence Methods (v2.4.1)
+    public async Task SaveAnalysisAsync()      // Save to analysis.json
+    public async Task<bool> LoadAnalysisAsync() // Load from disk
+    public void TryLoadAnalysis()               // Called in constructor
+
     // Properties
-    public WyvernAnalysis? Analysis { get; }
+    public WyvernAnalysis? Analysis { get; }   // Auto-loads from disk if null
     public string ProjectName { get; }
     public string SpecificationPath { get; }
+    public string AnalysisPath { get; }        // Path to analysis.json (v2.4.1)
 }
 ```
 
@@ -568,7 +583,8 @@ DraCode.KoboldLair.Server/             # WebSocket Server
     ├── specification.md               # Project specification
     ├── specification.features.json    # Feature list
     ├── {area}-tasks.md                # Task files (backend-tasks.md, etc.)
-    ├── analysis.md                    # Wyvern analysis report
+    ├── analysis.md                    # Wyvern analysis report (human-readable)
+    ├── analysis.json                  # Wyvern analysis (machine-readable, v2.4.1)
     └── workspace/                     # Generated code output
 ```
 

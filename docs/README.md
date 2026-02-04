@@ -5,24 +5,28 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 ## Quick Links
 
 - **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete spec for regenerating the project
-- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.4.0 - February 2026)
+- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.4.1 - February 2026)
 - **[KoboldLair Core Library](../DraCode.KoboldLair/README.md)** - Multi-agent orchestration library
 - **[KoboldLair Server](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
 - **[KoboldLair Client](../DraCode.KoboldLair.Client/README.md)** - Multi-agent web UI
 
-## Latest Updates (v2.4.0)
+## Latest Updates (v2.4.1)
 
-- **Kobold Implementation Planner**: New KoboldPlannerAgent creates structured plans before task execution
-  - Enables resumability, visibility, and better-structured code generation
-  - Configurable via `Planning` section in KoboldLair config
-- **Allowed External Paths**: Per-project access control for directories outside workspace
-  - `manage_external_paths` tool for adding/removing paths
-  - WardenAgent sub-agent for security management
-- **LLM Retry Logic**: Robust API handling with exponential backoff
-  - All 10 providers updated with `SendWithRetryAsync`
-  - Handles rate limiting, timeouts, and network failures
-- **Dragon Sub-Agents**: Specialized agents (Warden, Librarian, Architect) for different responsibilities
-- **17 Specialized Agents**: Including PHP, Python, SVG, Bitmap, and Media specialists
+- **Drake Execution Service**: New background service bridges Wyvern analysis to task execution
+  - Automatically picks up analyzed projects and creates Drakes
+  - Finds unassigned tasks and summons Kobolds for execution
+  - Tracks project completion and updates status automatically
+- **Wyvern Analysis Persistence**: Analysis survives server restarts
+  - `SaveAnalysisAsync()` / `LoadAnalysisAsync()` for disk persistence
+  - Auto-recovery on startup with `TryLoadAnalysis()`
+- **Retry Analysis Tool**: Retry failed Wyvern analysis via Warden agent
+  - UI retry button for failed projects in Dragon view
+- **Performance Optimizations**: JSON serialization caching, 64KB WebSocket buffer
+- **Kobold Implementation Planner**: Creates structured plans before task execution (v2.4.0)
+- **Allowed External Paths**: Per-project access control for external directories (v2.4.0)
+- **LLM Retry Logic**: Exponential backoff for all 10 providers (v2.4.0)
+- **Dragon Council**: Specialized sub-agents (Sage, Seeker, Sentinel, Warden) (v2.4.0)
+- **17 Specialized Agents**: Coding, Media, and Diagramming specialists
 - **10 LLM Providers**: OpenAI, Claude, Gemini, Azure, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp
 
 ---
