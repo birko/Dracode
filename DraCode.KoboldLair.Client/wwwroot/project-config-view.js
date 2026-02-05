@@ -61,34 +61,41 @@ export class ProjectConfigView {
     }
 
     renderConfigItem(config) {
-        const wyrmStatus = config.wyrmEnabled ? 'success' : 'error';
-        const wyvernStatus = config.wyvernEnabled ? 'success' : 'error';
-        const drakeStatus = config.drakeEnabled ? 'success' : 'error';
-        const koboldStatus = config.koboldEnabled ? 'success' : 'error';
+        // Use nested structure: config.project, config.agents
+        const projectId = config.project?.id || '';
+        const projectName = config.project?.name || projectId;
+        const agents = config.agents || {};
+
+        const wyrmStatus = agents.wyrm?.enabled ? 'success' : 'error';
+        const wyvernStatus = agents.wyvern?.enabled ? 'success' : 'error';
+        const drakeStatus = agents.drake?.enabled ? 'success' : 'error';
+        const plannerStatus = agents.koboldPlanner?.enabled ? 'success' : 'error';
+        const koboldStatus = agents.kobold?.enabled ? 'success' : 'error';
 
         return `
-            <div class="list-item config-item" data-project-id="${config.projectId}">
+            <div class="list-item config-item" data-project-id="${projectId}">
                 <div class="list-item-main">
                     <span class="list-item-icon">Folder</span>
                     <div class="list-item-content">
-                        <div class="list-item-title">${config.projectName || config.projectId}</div>
+                        <div class="list-item-title">${projectName}</div>
                         <div class="list-item-subtitle">
-                            Limits: ${config.maxParallelKobolds || 1} Kobolds,
-                            ${config.maxParallelDrakes || 1} Drakes,
-                            ${config.maxParallelWyrms || 1} Wyrms,
-                            ${config.maxParallelWyverns || 1} Wyverns
+                            Limits: ${agents.kobold?.maxParallel || 1} Kobolds,
+                            ${agents.drake?.maxParallel || 1} Drakes,
+                            ${agents.wyrm?.maxParallel || 1} Wyrms,
+                            ${agents.wyvern?.maxParallel || 1} Wyverns
                         </div>
                         <div class="config-agents">
-                            <span class="badge badge-${wyrmStatus}" title="Wyrm: ${config.wyrmProvider || 'default'}">Wyrm</span>
-                            <span class="badge badge-${wyvernStatus}" title="Wyvern: ${config.wyvernProvider || 'default'}">Wyvern</span>
-                            <span class="badge badge-${drakeStatus}" title="Drake: ${config.drakeProvider || 'default'}">Drake</span>
-                            <span class="badge badge-${koboldStatus}" title="Kobold: ${config.koboldProvider || 'default'}">Kobold</span>
+                            <span class="badge badge-${wyrmStatus}" title="Wyrm: ${agents.wyrm?.provider || 'default'}">Wyrm</span>
+                            <span class="badge badge-${wyvernStatus}" title="Wyvern: ${agents.wyvern?.provider || 'default'}">Wyvern</span>
+                            <span class="badge badge-${drakeStatus}" title="Drake: ${agents.drake?.provider || 'default'}">Drake</span>
+                            <span class="badge badge-${plannerStatus}" title="Planner: ${agents.koboldPlanner?.provider || 'default'}">Planner</span>
+                            <span class="badge badge-${koboldStatus}" title="Kobold: ${agents.kobold?.provider || 'default'}">Kobold</span>
                         </div>
                     </div>
                 </div>
                 <div class="list-item-actions">
-                    <button class="btn btn-primary btn-sm config-edit-btn" data-project-id="${config.projectId}">Edit</button>
-                    <button class="btn btn-secondary btn-sm config-delete-btn" data-project-id="${config.projectId}">Delete</button>
+                    <button class="btn btn-primary btn-sm config-edit-btn" data-project-id="${projectId}">Edit</button>
+                    <button class="btn btn-secondary btn-sm config-delete-btn" data-project-id="${projectId}">Delete</button>
                 </div>
             </div>
         `;
@@ -112,7 +119,7 @@ export class ProjectConfigView {
 
     async openEditModal(projectId) {
         this.selectedProjectId = projectId;
-        const config = this.configs.find(c => c.projectId === projectId);
+        const config = this.configs.find(c => c.project?.id === projectId);
         if (!config) return;
 
         const modalContainer = document.getElementById('configModal');
@@ -122,58 +129,41 @@ export class ProjectConfigView {
     }
 
     renderEditModal(config) {
+        const projectId = config.project?.id || '';
+        const projectName = config.project?.name || projectId;
+        const agents = config.agents || {};
+
         return `
             <div class="modal" id="editConfigModal">
                 <div class="modal-content modal-large">
                     <div class="modal-header">
-                        <h3>Edit Configuration: ${config.projectName || config.projectId}</h3>
+                        <h3>Edit Configuration: ${projectName}</h3>
                         <button class="modal-close" id="closeModal">X</button>
                     </div>
                     <div class="modal-body">
                         <div class="config-section">
-                            <h4 class="config-section-title">Resource Limits</h4>
-                            <div class="config-grid">
-                                <div class="form-group">
-                                    <label for="maxParallelKobolds">Max Parallel Kobolds</label>
-                                    <input type="number" class="form-control" id="maxParallelKobolds"
-                                           value="${config.maxParallelKobolds || 1}" min="1" max="10">
-                                </div>
-                                <div class="form-group">
-                                    <label for="maxParallelDrakes">Max Parallel Drakes</label>
-                                    <input type="number" class="form-control" id="maxParallelDrakes"
-                                           value="${config.maxParallelDrakes || 1}" min="1" max="5">
-                                </div>
-                                <div class="form-group">
-                                    <label for="maxParallelWyrms">Max Parallel Wyrms</label>
-                                    <input type="number" class="form-control" id="maxParallelWyrms"
-                                           value="${config.maxParallelWyrms || 1}" min="1" max="5">
-                                </div>
-                                <div class="form-group">
-                                    <label for="maxParallelWyverns">Max Parallel Wyverns</label>
-                                    <input type="number" class="form-control" id="maxParallelWyverns"
-                                           value="${config.maxParallelWyverns || 1}" min="1" max="5">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="config-section">
                             <h4 class="config-section-title">Wyrm Configuration</h4>
-                            ${this.renderAgentConfig('wyrm', config.wyrmProvider, config.wyrmModel, config.wyrmEnabled)}
+                            ${this.renderAgentConfig('wyrm', agents.wyrm)}
                         </div>
 
                         <div class="config-section">
                             <h4 class="config-section-title">Wyvern Configuration</h4>
-                            ${this.renderAgentConfig('wyvern', config.wyvernProvider, config.wyvernModel, config.wyvernEnabled)}
+                            ${this.renderAgentConfig('wyvern', agents.wyvern)}
                         </div>
 
                         <div class="config-section">
                             <h4 class="config-section-title">Drake Configuration</h4>
-                            ${this.renderAgentConfig('drake', config.drakeProvider, config.drakeModel, config.drakeEnabled)}
+                            ${this.renderAgentConfig('drake', agents.drake)}
+                        </div>
+
+                        <div class="config-section">
+                            <h4 class="config-section-title">Kobold Planner Configuration</h4>
+                            ${this.renderAgentConfig('koboldPlanner', agents.koboldPlanner)}
                         </div>
 
                         <div class="config-section">
                             <h4 class="config-section-title">Kobold Configuration</h4>
-                            ${this.renderAgentConfig('kobold', config.koboldProvider, config.koboldModel, config.koboldEnabled)}
+                            ${this.renderAgentConfig('kobold', agents.kobold)}
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -185,7 +175,14 @@ export class ProjectConfigView {
         `;
     }
 
-    renderAgentConfig(agentType, provider, model, enabled) {
+    renderAgentConfig(agentType, agentConfig) {
+        const config = agentConfig || {};
+        const provider = config.provider || '';
+        const model = config.model || '';
+        const enabled = config.enabled !== false;
+        const maxParallel = config.maxParallel || 1;
+        const timeout = config.timeout || 0;
+
         const providerOptions = this.providers
             .filter(p => p.isEnabled || p.name === provider)
             .map(p => `<option value="${p.name}" ${p.name === provider ? 'selected' : ''}>${p.displayName}</option>`)
@@ -209,7 +206,17 @@ export class ProjectConfigView {
                 <div class="form-group">
                     <label for="${agentType}Model">Model Override</label>
                     <input type="text" class="form-control" id="${agentType}Model"
-                           value="${model || ''}" placeholder="Use provider default">
+                           value="${model}" placeholder="Use provider default">
+                </div>
+                <div class="form-group">
+                    <label for="${agentType}MaxParallel">Max Parallel</label>
+                    <input type="number" class="form-control" id="${agentType}MaxParallel"
+                           value="${maxParallel}" min="1" max="10">
+                </div>
+                <div class="form-group">
+                    <label for="${agentType}Timeout">Timeout (sec)</label>
+                    <input type="number" class="form-control" id="${agentType}Timeout"
+                           value="${timeout}" min="0" placeholder="0 = no timeout">
                 </div>
             </div>
         `;
@@ -235,27 +242,45 @@ export class ProjectConfigView {
         saveBtn.addEventListener('click', () => this.saveConfig());
     }
 
+    getAgentConfigFromForm(agentType) {
+        return {
+            enabled: document.getElementById(`${agentType}Enabled`).checked,
+            provider: document.getElementById(`${agentType}Provider`).value || null,
+            model: document.getElementById(`${agentType}Model`).value || null,
+            maxParallel: parseInt(document.getElementById(`${agentType}MaxParallel`).value) || 1,
+            timeout: parseInt(document.getElementById(`${agentType}Timeout`).value) || 0
+        };
+    }
+
     async saveConfig() {
         if (!this.selectedProjectId) return;
 
+        // Find existing config to preserve project name and other data
+        const existingConfig = this.configs.find(c => c.project?.id === this.selectedProjectId);
+        const projectName = existingConfig?.project?.name || this.selectedProjectId;
+
+        // Build nested config structure matching server's ProjectConfig model
         const config = {
             projectId: this.selectedProjectId,
-            maxParallelKobolds: parseInt(document.getElementById('maxParallelKobolds').value) || 1,
-            maxParallelDrakes: parseInt(document.getElementById('maxParallelDrakes').value) || 1,
-            maxParallelWyrms: parseInt(document.getElementById('maxParallelWyrms').value) || 1,
-            maxParallelWyverns: parseInt(document.getElementById('maxParallelWyverns').value) || 1,
-            wyrmProvider: document.getElementById('wyrmProvider').value || null,
-            wyrmModel: document.getElementById('wyrmModel').value || null,
-            wyrmEnabled: document.getElementById('wyrmEnabled').checked,
-            wyvernProvider: document.getElementById('wyvernProvider').value || null,
-            wyvernModel: document.getElementById('wyvernModel').value || null,
-            wyvernEnabled: document.getElementById('wyvernEnabled').checked,
-            drakeProvider: document.getElementById('drakeProvider').value || null,
-            drakeModel: document.getElementById('drakeModel').value || null,
-            drakeEnabled: document.getElementById('drakeEnabled').checked,
-            koboldProvider: document.getElementById('koboldProvider').value || null,
-            koboldModel: document.getElementById('koboldModel').value || null,
-            koboldEnabled: document.getElementById('koboldEnabled').checked
+            project: {
+                id: this.selectedProjectId,
+                name: projectName
+            },
+            agents: {
+                wyrm: this.getAgentConfigFromForm('wyrm'),
+                wyvern: this.getAgentConfigFromForm('wyvern'),
+                drake: this.getAgentConfigFromForm('drake'),
+                koboldPlanner: this.getAgentConfigFromForm('koboldPlanner'),
+                kobold: this.getAgentConfigFromForm('kobold')
+            },
+            security: existingConfig?.security || {
+                allowedExternalPaths: [],
+                sandboxMode: 'workspace'
+            },
+            metadata: {
+                lastUpdated: new Date().toISOString(),
+                createdAt: existingConfig?.metadata?.createdAt || new Date().toISOString()
+            }
         };
 
         try {

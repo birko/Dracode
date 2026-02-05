@@ -1250,7 +1250,7 @@ body {
 
 .agent-config-row {
     display: grid;
-    grid-template-columns: 100px 1fr 1fr;
+    grid-template-columns: 80px 1fr 1fr 100px 100px;
     gap: var(--spacing-md);
     align-items: end;
 }
@@ -1283,9 +1283,15 @@ body {
     text-align: center;
 }
 
+@media (max-width: 900px) {
+    .agent-config-row {
+        grid-template-columns: 80px 1fr 1fr;
+    }
+}
+
 @media (max-width: 600px) {
     .agent-config-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
     }
 
     .config-grid {
