@@ -2,6 +2,7 @@ using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
+using DraCode.KoboldLair.Models.Agents;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents.SubAgents
@@ -22,6 +23,9 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<string, (bool Success, string? ErrorMessage, string? Status)>? _getProjectStatus;
         private readonly Func<string, bool>? _retryAnalysis;
         private readonly Func<List<(string Id, string Name, string Status, string? ErrorMessage)>>? _getFailedProjects;
+        private readonly Func<List<RunningAgentInfo>>? _getRunningAgents;
+        private readonly Func<string, RunningAgentInfo?>? _getRunningAgentsForProject;
+        private readonly Func<KoboldStatistics>? _getGlobalKoboldStats;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -37,7 +41,10 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<string, IReadOnlyList<string>>? getExternalPaths = null,
             Func<string, (bool Success, string? ErrorMessage, string? Status)>? getProjectStatus = null,
             Func<string, bool>? retryAnalysis = null,
-            Func<List<(string Id, string Name, string Status, string? ErrorMessage)>>? getFailedProjects = null)
+            Func<List<(string Id, string Name, string Status, string? ErrorMessage)>>? getFailedProjects = null,
+            Func<List<RunningAgentInfo>>? getRunningAgents = null,
+            Func<string, RunningAgentInfo?>? getRunningAgentsForProject = null,
+            Func<KoboldStatistics>? getGlobalKoboldStats = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -50,6 +57,9 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _getProjectStatus = getProjectStatus;
             _retryAnalysis = retryAnalysis;
             _getFailedProjects = getFailedProjects;
+            _getRunningAgents = getRunningAgents;
+            _getRunningAgentsForProject = getRunningAgentsForProject;
+            _getGlobalKoboldStats = getGlobalKoboldStats;
             RebuildTools();
         }
 
@@ -59,7 +69,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             {
                 new AgentConfigurationTool(_getProjectConfig, _getAllProjects, _setAgentEnabled, _setAgentLimit),
                 new ExternalPathTool(_getExternalPaths, _addExternalPath, _removeExternalPath, _getAllProjects),
-                new RetryAnalysisTool(_getProjectStatus, _retryAnalysis, _getFailedProjects)
+                new RetryAnalysisTool(_getProjectStatus, _retryAnalysis, _getFailedProjects),
+                new AgentStatusTool(_getRunningAgents, _getRunningAgentsForProject, _getGlobalKoboldStats)
             };
             return tools;
         }
@@ -71,13 +82,15 @@ namespace DraCode.KoboldLair.Agents.SubAgents
 Your role is to manage the workforce - the background agents that process projects (Wyvern, Wyrm, Drake, Kobold).
 
 ## Your Responsibilities:
-1. **View agent status** - show enabled/disabled state and limits
-2. **Enable/disable agents** - control which agents process a project
-3. **Set parallel limits** - control how many agents run concurrently
-4. **Manage external path access** - grant/revoke file access outside workspace
-5. **Retry failed analysis** - view and retry projects with failed Wyvern analysis
+1. **View running agents** - see which Drakes and Kobolds are currently active per project
+2. **View agent status** - show enabled/disabled state and limits
+3. **Enable/disable agents** - control which agents process a project
+4. **Set parallel limits** - control how many agents run concurrently
+5. **Manage external path access** - grant/revoke file access outside workspace
+6. **Retry failed analysis** - view and retry projects with failed Wyvern analysis
 
 ## Tools Available:
+- **agent_status**: View running agents per project (actions: list, project, summary)
 - **manage_agents**: View and manage agent configurations (actions: status, get, enable, disable, set_limit)
 - **manage_external_paths**: Control which external paths agents can access (actions: list, add, remove)
 - **retry_analysis**: View failed projects and retry Wyvern analysis (actions: list, retry, status)
@@ -90,7 +103,14 @@ Your role is to manage the workforce - the background agents that process projec
 
 ## Workflow:
 
-### Viewing Status:
+### Viewing Running Agents:
+- Use agent_status with action:'list' to see all projects with running agents
+- Use action:'project' with project name to see detailed status for one project
+- Use action:'summary' to see global statistics across all projects
+- This shows Drakes (supervisors) and Kobolds (workers) currently active
+- Includes working duration, task progress, and stuck agent detection
+
+### Viewing Configuration Status:
 - Use action:'status' to show all projects' agent configurations
 - Use action:'get' with project name to see one project's details
 

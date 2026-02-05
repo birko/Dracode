@@ -101,6 +101,21 @@ namespace DraCode.KoboldLair.Orchestrators
         public KoboldPlanService? PlanService => _planService;
 
         /// <summary>
+        /// Gets the project ID this Drake is managing
+        /// </summary>
+        public string? ProjectId => _projectId;
+
+        /// <summary>
+        /// Gets the task file path this Drake is monitoring
+        /// </summary>
+        public string TaskFilePath => _outputMarkdownPath;
+
+        /// <summary>
+        /// Gets the name of this Drake (derived from task file name)
+        /// </summary>
+        public string Name => Path.GetFileNameWithoutExtension(_outputMarkdownPath);
+
+        /// <summary>
         /// Sets the Wyvern for this Drake to enable feature status updates
         /// </summary>
         public void SetWyvern(Wyvern wyvern)

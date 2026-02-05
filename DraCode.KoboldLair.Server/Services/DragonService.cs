@@ -6,6 +6,7 @@ using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.SubAgents;
 using DraCode.KoboldLair.Agents.Tools;
+using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
@@ -58,6 +59,8 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ProjectService _projectService;
         private readonly GitService _gitService;
+        private readonly KoboldFactory? _koboldFactory;
+        private readonly DrakeFactory? _drakeFactory;
         private readonly string _projectsPath;
         private readonly Timer _cleanupTimer;
         private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
@@ -70,7 +73,9 @@ namespace DraCode.KoboldLair.Server.Services
             ProjectConfigurationService projectConfigService,
             ProjectService projectService,
             GitService gitService,
-            string? projectsPath = "./projects")
+            string? projectsPath = "./projects",
+            KoboldFactory? koboldFactory = null,
+            DrakeFactory? drakeFactory = null)
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
@@ -79,6 +84,8 @@ namespace DraCode.KoboldLair.Server.Services
             _projectConfigService = projectConfigService;
             _projectService = projectService;
             _gitService = gitService;
+            _koboldFactory = koboldFactory;
+            _drakeFactory = drakeFactory;
             _projectsPath = projectsPath ?? "./projects";
 
             _cleanupTimer = new Timer(CleanupExpiredSessions, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
@@ -353,7 +360,10 @@ namespace DraCode.KoboldLair.Server.Services
                         _logger.LogInformation("Retry initiated for project: {Project}", projectIdOrName);
                     return success;
                 },
-                getFailedProjects: GetFailedProjects);
+                getFailedProjects: GetFailedProjects,
+                getRunningAgents: GetRunningAgents,
+                getRunningAgentsForProject: GetRunningAgentsForProject,
+                getGlobalKoboldStats: () => _koboldFactory?.GetStatistics() ?? new KoboldStatistics());
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(
@@ -730,6 +740,111 @@ namespace DraCode.KoboldLair.Server.Services
                 .Where(p => p.Status == ProjectStatus.Failed)
                 .Select(p => (p.Id, p.Name, p.Status.ToString(), p.ErrorMessage))
                 .ToList();
+        }
+
+        /// <summary>
+        /// Gets running agent information for all projects
+        /// </summary>
+        private List<RunningAgentInfo> GetRunningAgents()
+        {
+            var result = new List<RunningAgentInfo>();
+            var projects = _projectService.GetAllProjects();
+
+            foreach (var project in projects)
+            {
+                var info = BuildRunningAgentInfo(project);
+                if (info.ActiveDrakes > 0 || info.ActiveKobolds > 0)
+                {
+                    result.Add(info);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Gets running agent information for a specific project
+        /// </summary>
+        private RunningAgentInfo? GetRunningAgentsForProject(string projectIdOrName)
+        {
+            var projects = _projectService.GetAllProjects();
+            var project = projects.FirstOrDefault(p =>
+                p.Name.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase) ||
+                p.Id.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+            {
+                return null;
+            }
+
+            return BuildRunningAgentInfo(project);
+        }
+
+        /// <summary>
+        /// Builds running agent info for a project
+        /// </summary>
+        private RunningAgentInfo BuildRunningAgentInfo(Project project)
+        {
+            var info = new RunningAgentInfo
+            {
+                ProjectId = project.Id,
+                ProjectName = project.Name,
+                ProjectStatus = project.Status.ToString()
+            };
+
+            // Get Kobolds for this project
+            if (_koboldFactory != null)
+            {
+                var projectKobolds = _koboldFactory.GetAllKobolds()
+                    .Where(k => k.ProjectId == project.Id)
+                    .ToList();
+
+                info.ActiveKobolds = projectKobolds.Count(k =>
+                    k.Status == KoboldStatus.Assigned || k.Status == KoboldStatus.Working);
+                info.WorkingKobolds = projectKobolds.Count(k => k.Status == KoboldStatus.Working);
+                info.AssignedKobolds = projectKobolds.Count(k => k.Status == KoboldStatus.Assigned);
+
+                info.Kobolds = projectKobolds
+                    .Where(k => k.Status == KoboldStatus.Assigned || k.Status == KoboldStatus.Working)
+                    .Select(k => new KoboldInfo
+                    {
+                        Id = k.Id.ToString(),
+                        AgentType = k.AgentType,
+                        Status = k.Status.ToString(),
+                        TaskDescription = k.TaskDescription,
+                        StartedAt = k.StartedAt,
+                        WorkingDuration = k.StartedAt.HasValue ? DateTime.UtcNow - k.StartedAt.Value : null,
+                        IsStuck = k.IsStuck
+                    })
+                    .ToList();
+            }
+
+            // Get Drakes for this project
+            if (_drakeFactory != null)
+            {
+                var allDrakes = _drakeFactory.GetAllDrakes();
+                var projectDrakes = allDrakes
+                    .Where(d => d.ProjectId == project.Id)
+                    .ToList();
+
+                info.ActiveDrakes = projectDrakes.Count;
+
+                info.Drakes = projectDrakes.Select(d =>
+                {
+                    var stats = d.GetStatistics();
+                    return new DrakeInfo
+                    {
+                        Name = d.Name,
+                        TaskFile = d.TaskFilePath,
+                        TotalTasks = stats.TotalTasks,
+                        CompletedTasks = stats.DoneTasks,
+                        WorkingTasks = stats.WorkingTasks,
+                        PendingTasks = stats.UnassignedTasks
+                    };
+                }).ToList();
+            }
+
+            return info;
         }
 
         public DragonStatistics GetStatistics()
