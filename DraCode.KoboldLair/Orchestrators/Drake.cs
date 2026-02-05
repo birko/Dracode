@@ -727,6 +727,44 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Reloads tasks from the markdown file, refreshing in-memory state.
+        /// Preserves active Kobold mappings but updates task statuses from file.
+        /// Should be called before processing tasks to ensure state is current.
+        /// </summary>
+        /// <returns>Number of tasks loaded from file</returns>
+        public int ReloadTasksFromFile()
+        {
+            _logger?.LogDebug("🔄 Reloading tasks from {FilePath}", _outputMarkdownPath);
+
+            // Clear and reload from file
+            _taskTracker.Clear();
+            var tasksLoaded = _taskTracker.LoadFromFile(_outputMarkdownPath);
+
+            _logger?.LogDebug("📂 Reloaded {Count} task(s) from file", tasksLoaded);
+
+            return tasksLoaded;
+        }
+
+        /// <summary>
+        /// Reloads tasks from the markdown file asynchronously, refreshing in-memory state.
+        /// Preserves active Kobold mappings but updates task statuses from file.
+        /// Should be called before processing tasks to ensure state is current.
+        /// </summary>
+        /// <returns>Number of tasks loaded from file</returns>
+        public async Task<int> ReloadTasksFromFileAsync()
+        {
+            _logger?.LogDebug("🔄 Reloading tasks from {FilePath}", _outputMarkdownPath);
+
+            // Clear and reload from file
+            _taskTracker.Clear();
+            var tasksLoaded = await _taskTracker.LoadFromFileAsync(_outputMarkdownPath);
+
+            _logger?.LogDebug("📂 Reloaded {Count} task(s) from file", tasksLoaded);
+
+            return tasksLoaded;
+        }
+
+        /// <summary>
         /// Gets all unassigned tasks that are ready for execution.
         /// Returns tasks with their recommended agent type parsed from the task description.
         /// </summary>

@@ -246,6 +246,9 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task ProcessDrakeTasksAsync(Drake drake, Project project, CancellationToken cancellationToken)
         {
+            // Reload tasks from file to get current state (fixes stale Drake reuse bug)
+            await drake.ReloadTasksFromFileAsync();
+
             var stats = drake.GetStatistics();
 
             _logger.LogDebug("Drake stats - Tasks: {Total} (Unassigned: {Unassigned}, Working: {Working}, Done: {Done})",
