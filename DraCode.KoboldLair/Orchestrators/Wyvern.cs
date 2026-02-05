@@ -462,10 +462,34 @@ namespace DraCode.KoboldLair.Orchestrators
                     // Simplified naming: {area}-tasks.md (project folder provides context)
                     var areaOutputPath = Path.Combine(_outputPath, $"{area.Name.ToLower()}-tasks.md");
 
-                    // Create a TaskTracker and populate it with all individual tasks from the area
+                    // Load existing tracker if file exists to preserve task statuses
                     var tracker = new TaskTracker();
+                    var existingTaskIds = new HashSet<string>();
+
+                    if (File.Exists(areaOutputPath))
+                    {
+                        tracker.LoadFromFile(areaOutputPath);
+                        // Index existing tasks by their task ID (e.g., "BE-001")
+                        foreach (var existingTask in tracker.GetAllTasks())
+                        {
+                            // Extract task ID from task format: [frontend-1] Task name...
+                            var match = System.Text.RegularExpressions.Regex.Match(
+                                existingTask.Task, @"^\[([a-zA-Z]+-\d+)\]");
+                            if (match.Success)
+                            {
+                                existingTaskIds.Add(match.Groups[1].Value);
+                            }
+                        }
+                    }
+
                     foreach (var task in area.Tasks.OrderBy(t => t.DependencyLevel))
                     {
+                        // Skip tasks that already exist - preserve their current status
+                        if (existingTaskIds.Contains(task.Id))
+                        {
+                            continue;
+                        }
+
                         // Format: [task-id] Task name: Description
                         var deps = task.Dependencies.Any()
                             ? $" (depends on: {string.Join(", ", task.Dependencies)})"
