@@ -131,6 +131,15 @@ class DragonSession {
         } else if (data.type === 'dragon_thinking') {
             // Update thinking indicator with tool/processing info
             this.view.updateThinkingIndicator(data.description, data.toolName);
+        } else if (data.type === 'context_cleared') {
+            // Handle context cleared notification
+            this.addMessage('system', data.message || 'Conversation context cleared.', data.messageId);
+        } else if (data.type === 'specification_created') {
+            // Handle specification created notification
+            const projectName = data.projectFolder ? data.projectFolder.split(/[/\\]/).pop() : 'project';
+            const message = `✅ Specification created for project: **${projectName}**\n📄 File: \`${data.filename}\``;
+            this.addMessage('system', message, data.messageId);
+            this.view.showNotification(`Specification created: ${projectName}`, 'success');
         } else if (data.type === 'error') {
             // Hide thinking indicator and re-enable input on error
             this.isProcessing = false;
@@ -138,7 +147,12 @@ class DragonSession {
             this.view.setInputEnabled(true);
             this.addErrorMessage(data);
         } else if (data.type !== 'user_message') {
-            this.addMessage('assistant', data.content || JSON.stringify(data), data.messageId);
+            // Fallback for unknown message types - only show if content exists
+            if (data.content) {
+                this.addMessage('assistant', data.content, data.messageId);
+            } else {
+                console.warn(`[Session ${this.id}] Received message with unknown type and no content:`, data.type, data);
+            }
         }
     }
 
