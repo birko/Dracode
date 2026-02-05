@@ -141,10 +141,10 @@ namespace DraCode.KoboldLair.Server.Services
         {
             _logger.LogDebug("Processing project: {ProjectName} (Status: {Status})", project.Name, project.Status);
 
-            // Ensure Drakes exist for all task files
-            var drakes = EnsureDrakesForProject(project);
+            // Ensure Drakes exist for all task files (returns drake name with drake)
+            var drakesWithNames = EnsureDrakesForProject(project);
 
-            if (drakes.Count == 0)
+            if (drakesWithNames.Count == 0)
             {
                 _logger.LogWarning("No Drakes created for project {ProjectName} - no task files found", project.Name);
                 return;
@@ -158,21 +158,22 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             // Process all Drakes in parallel - find unassigned tasks and execute them
-            var drakeTasks = drakes.Select(drake =>
-                ProcessDrakeTasksAsync(drake, project, cancellationToken));
+            var drakeTasks = drakesWithNames.Select(item =>
+                ProcessDrakeTasksAsync(item.Drake, project, cancellationToken));
 
             await Task.WhenAll(drakeTasks);
 
-            // Check if all tasks are complete
-            await CheckProjectCompletionAsync(project, drakes);
+            // Check if all tasks are complete and clean up finished Drakes
+            await CheckProjectCompletionAsync(project, drakesWithNames);
         }
 
         /// <summary>
         /// Ensures Drakes exist for all task files in the project
         /// </summary>
-        private List<Drake> EnsureDrakesForProject(Project project)
+        /// <returns>List of tuples containing the Drake and its name for tracking</returns>
+        private List<(Drake Drake, string Name)> EnsureDrakesForProject(Project project)
         {
-            var drakes = new List<Drake>();
+            var drakes = new List<(Drake Drake, string Name)>();
 
             if (project.TaskFiles == null || project.TaskFiles.Count == 0)
             {
@@ -190,7 +191,7 @@ namespace DraCode.KoboldLair.Server.Services
                 var existingDrake = _drakeFactory.GetDrake(drakeName);
                 if (existingDrake != null)
                 {
-                    drakes.Add(existingDrake);
+                    drakes.Add((existingDrake, drakeName));
                     continue;
                 }
 
@@ -217,7 +218,7 @@ namespace DraCode.KoboldLair.Server.Services
                         projectId: project.Id
                     );
 
-                    drakes.Add(drake);
+                    drakes.Add((drake, drakeName));
                     _logger.LogInformation("🐉 Created Drake {DrakeName} for project {ProjectName}",
                         drakeName, project.Name);
                 }
@@ -299,20 +300,37 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Checks if all tasks in the project are complete and updates status
+        /// Checks if all tasks in the project are complete and updates status.
+        /// Also removes completed Drakes to free up resources for other areas.
         /// </summary>
-        private async Task CheckProjectCompletionAsync(Project project, List<Drake> drakes)
+        private async Task CheckProjectCompletionAsync(Project project, List<(Drake Drake, string Name)> drakesWithNames)
         {
             var totalTasks = 0;
             var doneTasks = 0;
+            var drakesToRemove = new List<string>();
 
-            foreach (var drake in drakes)
+            foreach (var (drake, drakeName) in drakesWithNames)
             {
                 var stats = drake.GetStatistics();
                 totalTasks += stats.TotalTasks;
                 doneTasks += stats.DoneTasks;
+
+                // Check if this individual Drake has completed all its tasks
+                // Only remove if all tasks are done and no Kobolds are still working
+                if (stats.TotalTasks > 0 && stats.DoneTasks == stats.TotalTasks && stats.WorkingTasks == 0)
+                {
+                    drakesToRemove.Add(drakeName);
+                }
             }
 
+            // Remove completed Drakes to free up resources
+            foreach (var drakeName in drakesToRemove)
+            {
+                _drakeFactory.RemoveDrake(drakeName);
+                _logger.LogInformation("🗑️ Removed completed Drake {DrakeName}", drakeName);
+            }
+
+            // Check if entire project is complete
             if (totalTasks > 0 && doneTasks == totalTasks)
             {
                 _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Completed);
