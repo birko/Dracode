@@ -21,6 +21,10 @@ namespace DraCode.KoboldLair.Server.Services
         private bool _isRunning;
         private readonly object _lock = new object();
 
+        // Throttle concurrent project processing to avoid overwhelming resources
+        private readonly SemaphoreSlim _projectThrottle;
+        private const int MaxConcurrentProjects = 5;
+
         /// <summary>
         /// Creates a new Drake execution service
         /// </summary>
@@ -39,6 +43,7 @@ namespace DraCode.KoboldLair.Server.Services
             _drakeFactory = drakeFactory;
             _executionInterval = TimeSpan.FromSeconds(executionIntervalSeconds);
             _isRunning = false;
+            _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -113,14 +118,15 @@ namespace DraCode.KoboldLair.Server.Services
                 return;
             }
 
-            _logger.LogInformation("🔄 Processing {Count} project(s) in parallel", projectsToProcess.Count);
+            _logger.LogInformation("🔄 Processing {Count} project(s) (max {Max} concurrent)", projectsToProcess.Count, MaxConcurrentProjects);
 
-            // Process all projects in parallel
+            // Process projects with throttled parallelism
             var projectTasks = projectsToProcess.Select(async project =>
             {
                 if (cancellationToken.IsCancellationRequested)
                     return;
 
+                await _projectThrottle.WaitAsync(cancellationToken);
                 try
                 {
                     await ProcessProjectAsync(project, cancellationToken);
@@ -128,6 +134,10 @@ namespace DraCode.KoboldLair.Server.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ Error processing project {ProjectName}", project.Name);
+                }
+                finally
+                {
+                    _projectThrottle.Release();
                 }
             });
 

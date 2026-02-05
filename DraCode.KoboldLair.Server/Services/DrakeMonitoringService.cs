@@ -17,6 +17,10 @@ namespace DraCode.KoboldLair.Server.Services
         private bool _isRunning;
         private readonly object _lock = new object();
 
+        // Throttle concurrent Drake monitoring to avoid overwhelming I/O
+        private readonly SemaphoreSlim _drakeThrottle;
+        private const int MaxConcurrentDrakes = 5;
+
         /// <summary>
         /// Default timeout for stuck Kobold detection (30 minutes)
         /// </summary>
@@ -40,6 +44,7 @@ namespace DraCode.KoboldLair.Server.Services
             _monitoringInterval = TimeSpan.FromSeconds(monitoringIntervalSeconds);
             _stuckKoboldTimeout = TimeSpan.FromMinutes(stuckKoboldTimeoutMinutes);
             _isRunning = false;
+            _drakeThrottle = new SemaphoreSlim(MaxConcurrentDrakes, MaxConcurrentDrakes);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -111,14 +116,15 @@ namespace DraCode.KoboldLair.Server.Services
                 return;
             }
 
-            _logger.LogInformation("🔍 Monitoring {Count} Drake(s) in parallel", drakes.Count);
+            _logger.LogDebug("🔍 Monitoring {Count} Drake(s) (max {Max} concurrent)", drakes.Count, MaxConcurrentDrakes);
 
-            // Monitor all Drakes in parallel
+            // Monitor Drakes with throttled parallelism
             var monitoringTasks = drakes.Select(async drake =>
             {
                 if (cancellationToken.IsCancellationRequested)
                     return;
 
+                await _drakeThrottle.WaitAsync(cancellationToken);
                 try
                 {
                     await MonitorSingleDrakeAsync(drake, cancellationToken);
@@ -126,6 +132,10 @@ namespace DraCode.KoboldLair.Server.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ Error monitoring Drake");
+                }
+                finally
+                {
+                    _drakeThrottle.Release();
                 }
             });
 

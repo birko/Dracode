@@ -28,22 +28,18 @@ This file tracks planned enhancements and their implementation status.
 
 ### High Priority (P1) - Additional Optimizations
 
-- [ ] **WebSocket Message Optimization** - Remove reflection from hot path
-  - `DragonService.cs` - `SendTrackedMessageAsync()` uses reflection
-  - Replace with typed message classes
-  - Effort: Medium
+- [x] **WebSocket Message Optimization** - Remove reflection from hot path *(Completed 2026-02-05)*
+  - `DragonService.cs` - `SendTrackedMessageAsync()` now uses `JsonSerializer.SerializeToNode`
+  - Eliminates reflection by using JSON DOM manipulation
 
-- [ ] **Background Service Throttling** - Add parallelism limits
-  - `DrakeExecutionService.cs` - Unbounded `Task.WhenAll`
-  - `DrakeMonitoringService.cs` - Unbounded `Task.WhenAll`
-  - `WyvernProcessingService.cs` - Unbounded `Task.WhenAll`
-  - Add SemaphoreSlim with max concurrency of 5
-  - Effort: Low
+- [x] **Background Service Throttling** - Add parallelism limits *(Completed 2026-02-05)*
+  - `DrakeExecutionService.cs` - Added SemaphoreSlim with max 5 concurrent projects
+  - `DrakeMonitoringService.cs` - Added SemaphoreSlim with max 5 concurrent Drakes
+  - `WyvernProcessingService.cs` - Added SemaphoreSlim with max 5 concurrent projects
 
-- [ ] **Cache Directory Enumeration** - Reduce filesystem calls
-  - `DragonService.cs` - `CheckForNewSpecifications()` runs after every message
-  - Cache results for 30 seconds
-  - Effort: Low
+- [x] **Cache Directory Enumeration** - Reduce filesystem calls *(Completed 2026-02-05)*
+  - `DragonService.cs` - Added 30-second cache for specification file enumeration
+  - `GetCachedSpecificationFiles()` method with thread-safe caching
 
 ---
 

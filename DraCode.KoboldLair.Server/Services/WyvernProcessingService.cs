@@ -15,6 +15,10 @@ namespace DraCode.KoboldLair.Server.Services
         private bool _isRunning;
         private readonly object _lock = new object();
 
+        // Throttle concurrent project processing to avoid overwhelming LLM providers
+        private readonly SemaphoreSlim _projectThrottle;
+        private const int MaxConcurrentProjects = 5;
+
         public WyvernProcessingService(
             ILogger<WyvernProcessingService> logger,
             ProjectService projectService,
@@ -24,6 +28,7 @@ namespace DraCode.KoboldLair.Server.Services
             _projectService = projectService;
             _checkInterval = TimeSpan.FromSeconds(checkIntervalSeconds);
             _isRunning = false;
+            _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -109,12 +114,13 @@ namespace DraCode.KoboldLair.Server.Services
 
             if (projectsNeedingWyrm.Count > 0)
             {
-                _logger.LogInformation("🐲 Assigning Wyvern to {Count} project(s) in parallel", projectsNeedingWyrm.Count);
+                _logger.LogInformation("🐲 Assigning Wyvern to {Count} project(s) (max {Max} concurrent)", projectsNeedingWyrm.Count, MaxConcurrentProjects);
                 var wyrmTasks = projectsNeedingWyrm.Select(async project =>
                 {
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
+                    await _projectThrottle.WaitAsync(cancellationToken);
                     try
                     {
                         await AssignWyvernToProjectAsync(project);
@@ -122,6 +128,10 @@ namespace DraCode.KoboldLair.Server.Services
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Failed to assign Wyvern to project: {ProjectId}", project.Id);
+                    }
+                    finally
+                    {
+                        _projectThrottle.Release();
                     }
                 });
                 await Task.WhenAll(wyrmTasks);
@@ -142,12 +152,13 @@ namespace DraCode.KoboldLair.Server.Services
 
             if (projectsNeedingAnalysis.Count > 0)
             {
-                _logger.LogInformation("🔍 Analyzing {Count} project(s) in parallel", projectsNeedingAnalysis.Count);
+                _logger.LogInformation("🔍 Analyzing {Count} project(s) (max {Max} concurrent)", projectsNeedingAnalysis.Count, MaxConcurrentProjects);
                 var analysisTasks = projectsNeedingAnalysis.Select(async project =>
                 {
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
+                    await _projectThrottle.WaitAsync(cancellationToken);
                     try
                     {
                         await AnalyzeProjectAsync(project);
@@ -155,6 +166,10 @@ namespace DraCode.KoboldLair.Server.Services
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Failed to analyze project: {ProjectId}", project.Id);
+                    }
+                    finally
+                    {
+                        _projectThrottle.Release();
                     }
                 });
                 await Task.WhenAll(analysisTasks);
@@ -175,12 +190,13 @@ namespace DraCode.KoboldLair.Server.Services
 
             if (projectsWithModifiedSpecs.Count > 0)
             {
-                _logger.LogInformation("🔄 Reanalyzing {Count} modified project(s) in parallel", projectsWithModifiedSpecs.Count);
+                _logger.LogInformation("🔄 Reanalyzing {Count} modified project(s) (max {Max} concurrent)", projectsWithModifiedSpecs.Count, MaxConcurrentProjects);
                 var reanalysisTasks = projectsWithModifiedSpecs.Select(async project =>
                 {
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
+                    await _projectThrottle.WaitAsync(cancellationToken);
                     try
                     {
                         await ReanalyzeModifiedProjectAsync(project);
@@ -188,6 +204,10 @@ namespace DraCode.KoboldLair.Server.Services
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Failed to reanalyze modified project: {ProjectId}", project.Id);
+                    }
+                    finally
+                    {
+                        _projectThrottle.Release();
                     }
                 });
                 await Task.WhenAll(reanalysisTasks);

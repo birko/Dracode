@@ -306,13 +306,13 @@ private string GetSpecificationContent()
 | 1.1 Async file ops | Medium | High | **P0** | **DONE** |
 | 1.2 Debounced writes | Medium | High | **P0** | **DONE** |
 | 1.3 Remove blocking calls | Low | High | **P0** | **DONE** |
-| 2.1 Typed messages | Medium | Medium | P1 | Pending |
+| 2.1 Typed messages | Medium | Medium | P1 | **DONE** |
 | 2.2 Batch history | Low | Medium | P1 | Pending |
 | 3.1 Debug logging | Low | Low | P2 | Partial |
 | 3.2 LoggerMessage | Medium | Low | P2 | Pending |
-| 4.1 Parallelism limits | Low | Medium | P1 | Pending |
+| 4.1 Parallelism limits | Low | Medium | P1 | **DONE** |
 | 4.2 Stagger intervals | Low | Low | P2 | Pending |
-| 5.1 Cache directories | Low | Medium | P1 | Pending |
+| 5.1 Cache directories | Low | Medium | P1 | **DONE** |
 | 5.2 Cache specs | Low | Low | P2 | Pending |
 
 ---
@@ -371,6 +371,30 @@ After all phases:
 - Changed `drake.HandleStuckKobolds()` → `await drake.HandleStuckKoboldsAsync()`
 - Changed `drake.UpdateTasksFile()` → `await drake.UpdateTasksFileAsync()`
 - Reduced logging verbosity (stats logging moved to Debug level)
+
+### Phase 2 (P1) - Completed
+
+**8. DragonService.cs** - WebSocket message optimization:
+- Replaced reflection-based property copying with `JsonSerializer.SerializeToNode`
+- `SendTrackedMessageAsync()` now uses JSON DOM manipulation to inject messageId
+- Eliminates reflection overhead in hot message path
+
+**9. DrakeExecutionService.cs** - Parallelism throttling:
+- Added `SemaphoreSlim _projectThrottle` with max 5 concurrent projects
+- `ExecuteCycleAsync()` now uses semaphore to limit concurrent project processing
+
+**10. DrakeMonitoringService.cs** - Parallelism throttling:
+- Added `SemaphoreSlim _drakeThrottle` with max 5 concurrent Drakes
+- `MonitorDrakesAsync()` now uses semaphore to limit concurrent Drake monitoring
+
+**11. WyvernProcessingService.cs** - Parallelism throttling:
+- Added `SemaphoreSlim _projectThrottle` with max 5 concurrent projects
+- All three parallel operations (Wyvern assignment, analysis, reanalysis) now throttled
+
+**12. DragonService.cs** - Directory enumeration caching:
+- Added `_specFilesCache` with 30-second expiry
+- `GetCachedSpecificationFiles()` method avoids filesystem calls after every message
+- `InvalidateSpecFilesCache()` method for manual cache invalidation
 
 ---
 

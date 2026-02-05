@@ -65,6 +65,12 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly Timer _cleanupTimer;
         private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
         private readonly int _maxMessageHistory = 100;
+
+        // Cache for specification file enumeration to avoid frequent filesystem calls
+        private List<string>? _specFilesCache;
+        private DateTime _specFilesCacheTime = DateTime.MinValue;
+        private readonly TimeSpan _specFilesCacheExpiry = TimeSpan.FromSeconds(30);
+        private readonly object _specFilesCacheLock = new();
         private bool _disposed;
 
         public DragonService(
@@ -521,12 +527,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             if (!Directory.Exists(_projectsPath)) return;
 
-            var specFiles = Directory.GetDirectories(_projectsPath)
-                .Select(dir => Path.Combine(dir, "specification.md"))
-                .Where(File.Exists)
-                .OrderByDescending(File.GetLastWriteTime)
-                .ToList();
-
+            var specFiles = GetCachedSpecificationFiles();
             var latestSpec = specFiles.FirstOrDefault();
             if (latestSpec != null)
             {
@@ -556,6 +557,44 @@ namespace DraCode.KoboldLair.Server.Services
                         _logger.LogError(ex, "Failed to auto-register project: {Path}", latestSpec);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets specification files with caching to avoid frequent filesystem enumeration.
+        /// Cache is refreshed every 30 seconds.
+        /// </summary>
+        private List<string> GetCachedSpecificationFiles()
+        {
+            lock (_specFilesCacheLock)
+            {
+                // Check if cache is still valid
+                if (_specFilesCache != null && DateTime.UtcNow - _specFilesCacheTime < _specFilesCacheExpiry)
+                {
+                    return _specFilesCache;
+                }
+
+                // Refresh cache
+                _specFilesCache = Directory.GetDirectories(_projectsPath)
+                    .Select(dir => Path.Combine(dir, "specification.md"))
+                    .Where(File.Exists)
+                    .OrderByDescending(File.GetLastWriteTime)
+                    .ToList();
+                _specFilesCacheTime = DateTime.UtcNow;
+
+                return _specFilesCache;
+            }
+        }
+
+        /// <summary>
+        /// Invalidates the specification files cache (call when a new spec is created)
+        /// </summary>
+        private void InvalidateSpecFilesCache()
+        {
+            lock (_specFilesCacheLock)
+            {
+                _specFilesCache = null;
+                _specFilesCacheTime = DateTime.MinValue;
             }
         }
 
@@ -610,23 +649,20 @@ namespace DraCode.KoboldLair.Server.Services
         {
             var messageId = Guid.NewGuid().ToString();
 
-            // Directly build tracked data without double-serialization
-            var trackedData = new Dictionary<string, object> { ["messageId"] = messageId };
-
-            // Use reflection to copy properties efficiently (avoiding serialize/deserialize round-trip)
-            foreach (var prop in data.GetType().GetProperties())
+            // Use JsonNode for efficient property injection without reflection
+            // Serialize to JsonNode, add messageId, then serialize to bytes
+            var jsonNode = JsonSerializer.SerializeToNode(data, s_writeOptions);
+            if (jsonNode is System.Text.Json.Nodes.JsonObject jsonObject)
             {
-                var value = prop.GetValue(data);
-                if (value != null)
-                {
-                    // Convert property name to camelCase
-                    var name = char.ToLowerInvariant(prop.Name[0]) + prop.Name[1..];
-                    trackedData[name] = value;
-                }
+                jsonObject["messageId"] = messageId;
             }
 
-            TrackMessage(session, messageType, trackedData, messageId);
-            await SendMessageAsync(webSocket, trackedData);
+            TrackMessage(session, messageType, jsonNode ?? data, messageId);
+
+            // Serialize directly to bytes for WebSocket send
+            var json = jsonNode?.ToJsonString(s_writeOptions) ?? JsonSerializer.Serialize(data, s_writeOptions);
+            var bytes = Encoding.UTF8.GetBytes(json);
+            await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }
 
         private void TrackMessage(DragonSession session, string messageType, object data, string? messageId = null)
