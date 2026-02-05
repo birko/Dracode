@@ -92,6 +92,34 @@ namespace DraCode.Agent.Agents
         public IReadOnlyList<Tool> Tools => _tools;
         public string ProviderName => _llmProvider.Name;
         public AgentOptions Options => _options;
+
+        /// <summary>
+        /// Adds a tool to the agent's tool list. Use this to inject context-specific tools
+        /// that need to be added after agent construction.
+        /// </summary>
+        /// <param name="tool">The tool to add</param>
+        public void AddTool(Tool tool)
+        {
+            tool.MessageCallback = _messageCallback;
+            tool.Options = _options;
+            _tools.Add(tool);
+        }
+
+        /// <summary>
+        /// Removes a tool from the agent's tool list by name.
+        /// </summary>
+        /// <param name="toolName">Name of the tool to remove</param>
+        /// <returns>True if the tool was found and removed, false otherwise</returns>
+        public bool RemoveTool(string toolName)
+        {
+            var tool = _tools.FirstOrDefault(t => t.Name == toolName);
+            if (tool != null)
+            {
+                _tools.Remove(tool);
+                return true;
+            }
+            return false;
+        }
         
         // Legacy properties for backward compatibility
         public string WorkingDirectory => _options.WorkingDirectory;

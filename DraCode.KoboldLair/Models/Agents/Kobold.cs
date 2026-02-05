@@ -1,6 +1,7 @@
 using DraCode.Agent;
 using DraCode.Agent.Agents;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Models.Agents
@@ -226,6 +227,7 @@ You are working on a task that is part of a larger project. Below is the project
         /// <summary>
         /// Starts working on the assigned task with plan awareness.
         /// If a plan exists, includes the plan in the prompt and tracks progress.
+        /// Injects the update_plan_step tool to allow the agent to mark steps as completed.
         /// </summary>
         /// <param name="planService">Service for plan persistence (can be null to skip plan updates)</param>
         /// <param name="maxIterations">Maximum iterations for agent execution</param>
@@ -246,6 +248,18 @@ You are working on a task that is part of a larger project. Below is the project
 
             Status = KoboldStatus.Working;
             StartedAt = DateTime.UtcNow;
+
+            // If we have a plan, inject the update_plan_step tool and register context
+            bool toolInjected = false;
+            if (ImplementationPlan != null)
+            {
+                // Register the plan context for the tool
+                UpdatePlanStepTool.RegisterContext(ImplementationPlan, planService);
+
+                // Add the tool to the agent
+                Agent.AddTool(new UpdatePlanStepTool());
+                toolInjected = true;
+            }
 
             try
             {
@@ -286,6 +300,15 @@ You are working on a task that is part of a larger project. Below is the project
                 CompletedAt = DateTime.UtcNow;
                 throw;
             }
+            finally
+            {
+                // Clean up: remove tool and clear context
+                if (toolInjected)
+                {
+                    Agent.RemoveTool("update_plan_step");
+                    UpdatePlanStepTool.ClearContext();
+                }
+            }
         }
 
         /// <summary>
@@ -317,6 +340,9 @@ You are working on a task that is part of a larger project. Below is the project
                 sb.AppendLine("## Implementation Plan");
                 sb.AppendLine();
                 sb.AppendLine("You have an implementation plan to follow. Execute each step in order.");
+                sb.AppendLine();
+                sb.AppendLine("**CRITICAL**: After completing each step, you MUST call the `update_plan_step` tool to mark it as completed.");
+                sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
                 sb.AppendLine();
 
                 // Show plan summary
@@ -384,7 +410,14 @@ You are working on a task that is part of a larger project. Below is the project
 
             if (ImplementationPlan != null)
             {
-                sb.AppendLine("**Important**: Follow the implementation plan above. Complete each step in order, verifying your work as you go.");
+                sb.AppendLine("**Important**: Follow the implementation plan above. For each step:");
+                sb.AppendLine("1. Complete the step's work (create/modify files as specified)");
+                sb.AppendLine("2. Verify your work is correct");
+                sb.AppendLine("3. Call `update_plan_step` with the step number and status \"completed\"");
+                sb.AppendLine("4. Move to the next step");
+                sb.AppendLine();
+                sb.AppendLine("If a step fails, call `update_plan_step` with status \"failed\" and explain why.");
+                sb.AppendLine("If a step should be skipped, call `update_plan_step` with status \"skipped\" and explain why.");
             }
             else if (!string.IsNullOrEmpty(SpecificationContext))
             {
@@ -406,7 +439,21 @@ You are working on a task that is part of a larger project. Below is the project
 
             if (success)
             {
-                ImplementationPlan.MarkCompleted();
+                // Only mark the plan as completed if all steps are actually done
+                var allStepsFinished = ImplementationPlan.Steps.All(s =>
+                    s.Status == StepStatus.Completed ||
+                    s.Status == StepStatus.Skipped ||
+                    s.Status == StepStatus.Failed);
+
+                if (allStepsFinished)
+                {
+                    ImplementationPlan.MarkCompleted();
+                }
+                else
+                {
+                    // Agent finished but not all steps are done - keep plan in progress for resumption
+                    ImplementationPlan.AddLogEntry($"Kobold {Id.ToString()[..8]} finished work session, {ImplementationPlan.CompletedStepsCount}/{ImplementationPlan.Steps.Count} steps completed");
+                }
             }
             else
             {
