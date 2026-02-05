@@ -4,7 +4,54 @@ This file tracks planned enhancements and their implementation status.
 
 ---
 
-## Phase A - Quick Wins & Foundation (Current)
+## Phase 0 - Performance Critical (Current - HIGH PRIORITY)
+
+### Critical Priority (P0) - Server Lag Fixes
+
+- [ ] **Async File Operations** - Convert synchronous I/O to async
+  - `Drake.cs` - `SaveTasksToFile()` blocks on every task state change
+  - `TaskTracker.cs` - `SaveToFile()` and `LoadFromFile()` are synchronous
+  - `ProjectRepository.cs` - `LoadProjects()` and `SaveProjects()` block
+  - `ProjectConfigurationService.cs` - `SaveConfigurations()` blocks
+  - `Wyvern.cs` - `TryLoadAnalysis()` blocks in constructor
+  - Impact: 100+ blocking writes/minute with parallel Kobolds
+  - Effort: Medium
+
+- [ ] **Debounced Task File Writes** - Coalesce rapid writes
+  - Implement write channel in Drake to batch status updates
+  - Write once every 2 seconds instead of on every state change
+  - Impact: 50x reduction in file I/O
+  - Effort: Medium
+
+- [ ] **Remove GetAwaiter().GetResult()** - Eliminate deadlock risk
+  - `ProjectService.cs` lines 89, 582, 714 - Git operations
+  - `Drake.cs` line 305 - `CommitTaskCompletionAsync` in sync context
+  - `Wyvern.cs` line 189 - Blocking git calls in loop
+  - Impact: Eliminates thread starvation and deadlock risk
+  - Effort: Low
+
+### High Priority (P1) - Additional Optimizations
+
+- [ ] **WebSocket Message Optimization** - Remove reflection from hot path
+  - `DragonService.cs` - `SendTrackedMessageAsync()` uses reflection
+  - Replace with typed message classes
+  - Effort: Medium
+
+- [ ] **Background Service Throttling** - Add parallelism limits
+  - `DrakeExecutionService.cs` - Unbounded `Task.WhenAll`
+  - `DrakeMonitoringService.cs` - Unbounded `Task.WhenAll`
+  - `WyvernProcessingService.cs` - Unbounded `Task.WhenAll`
+  - Add SemaphoreSlim with max concurrency of 5
+  - Effort: Low
+
+- [ ] **Cache Directory Enumeration** - Reduce filesystem calls
+  - `DragonService.cs` - `CheckForNewSpecifications()` runs after every message
+  - Cache results for 30 seconds
+  - Effort: Low
+
+---
+
+## Phase A - Quick Wins & Foundation
 
 ### High Priority
 
