@@ -61,13 +61,13 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Creates a project folder under ./projects/{sanitized-name}/ and returns the folder path.
+        /// Creates a project folder under ./projects/{sanitized-name}/ and returns the folder path (async version).
         /// This should be called before Dragon saves the specification so files go to the right place.
         /// Also initializes a git repository if git is available.
         /// </summary>
         /// <param name="projectName">Name of the project</param>
         /// <returns>The full path to the project folder</returns>
-        public string CreateProjectFolder(string projectName)
+        public async Task<string> CreateProjectFolderAsync(string projectName)
         {
             var sanitizedName = SanitizeProjectName(projectName);
             var folder = Path.Combine(_projectsPath, sanitizedName);
@@ -86,9 +86,22 @@ namespace DraCode.KoboldLair.Services
             }
 
             // Initialize git repository if git is available
-            InitializeGitRepositoryAsync(folder).GetAwaiter().GetResult();
+            await InitializeGitRepositoryAsync(folder);
 
             return folder;
+        }
+
+        /// <summary>
+        /// Creates a project folder under ./projects/{sanitized-name}/ and returns the folder path.
+        /// This should be called before Dragon saves the specification so files go to the right place.
+        /// Also initializes a git repository if git is available.
+        /// Note: Prefer CreateProjectFolderAsync() for non-blocking operation.
+        /// </summary>
+        /// <param name="projectName">Name of the project</param>
+        /// <returns>The full path to the project folder</returns>
+        public string CreateProjectFolder(string projectName)
+        {
+            return CreateProjectFolderAsync(projectName).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -552,13 +565,13 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Approves a project specification, changing status from Prototype to New.
+        /// Approves a project specification, changing status from Prototype to New (async version).
         /// This allows Wyvern to start processing the project.
         /// Also creates an initial git commit if git is enabled.
         /// </summary>
         /// <param name="projectId">Project ID or name</param>
         /// <returns>True if approved successfully</returns>
-        public bool ApproveProject(string projectId)
+        public async Task<bool> ApproveProjectAsync(string projectId)
         {
             var project = _repository.GetById(projectId) ?? _repository.GetByName(projectId);
             if (project == null)
@@ -579,10 +592,23 @@ namespace DraCode.KoboldLair.Services
             _repository.Update(project);
 
             // Create initial git commit with the specification
-            CreateInitialGitCommitAsync(project).GetAwaiter().GetResult();
+            await CreateInitialGitCommitAsync(project);
 
             _logger.LogInformation("✅ Project '{ProjectName}' approved and ready for Wyvern processing", project.Name);
             return true;
+        }
+
+        /// <summary>
+        /// Approves a project specification, changing status from Prototype to New.
+        /// This allows Wyvern to start processing the project.
+        /// Also creates an initial git commit if git is enabled.
+        /// Note: Prefer ApproveProjectAsync() for non-blocking operation.
+        /// </summary>
+        /// <param name="projectId">Project ID or name</param>
+        /// <returns>True if approved successfully</returns>
+        public bool ApproveProject(string projectId)
+        {
+            return ApproveProjectAsync(projectId).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>

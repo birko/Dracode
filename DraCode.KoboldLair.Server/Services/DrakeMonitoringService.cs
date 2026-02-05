@@ -139,13 +139,13 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task MonitorSingleDrakeAsync(Drake drake, CancellationToken cancellationToken)
         {
-            // Monitor tasks to sync status
-            drake.MonitorTasks();
+            // Monitor tasks to sync status (async to avoid blocking on git operations)
+            await drake.MonitorTasksAsync();
 
             // Get statistics
             var stats = drake.GetStatistics();
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "📊 Drake Stats - Kobolds: {TotalKobolds} (Working: {Working}, Done: {Done}) | Tasks: {TotalTasks} (Working: {WorkingTasks}, Done: {DoneTasks})",
                 stats.TotalKobolds,
                 stats.WorkingKobolds,
@@ -158,10 +158,10 @@ namespace DraCode.KoboldLair.Server.Services
             // Check for stuck Kobolds (working longer than timeout threshold)
             if (stats.WorkingKobolds > 0)
             {
-                _logger.LogInformation("⚡ {Count} Kobold(s) currently working", stats.WorkingKobolds);
+                _logger.LogDebug("⚡ {Count} Kobold(s) currently working", stats.WorkingKobolds);
 
-                // Detect and handle stuck Kobolds
-                var stuckKobolds = drake.HandleStuckKobolds(_stuckKoboldTimeout);
+                // Detect and handle stuck Kobolds (async to avoid blocking on git operations)
+                var stuckKobolds = await drake.HandleStuckKoboldsAsync(_stuckKoboldTimeout);
 
                 if (stuckKobolds.Count > 0)
                 {
@@ -191,10 +191,8 @@ namespace DraCode.KoboldLair.Server.Services
                 }
             }
 
-            // Update the task file
-            drake.UpdateTasksFile();
-
-            await Task.CompletedTask;
+            // Update the task file (async to avoid blocking)
+            await drake.UpdateTasksFileAsync();
         }
 
         /// <summary>

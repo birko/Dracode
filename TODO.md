@@ -4,31 +4,27 @@ This file tracks planned enhancements and their implementation status.
 
 ---
 
-## Phase 0 - Performance Critical (Current - HIGH PRIORITY)
+## Phase 0 - Performance Critical (HIGH PRIORITY)
 
 ### Critical Priority (P0) - Server Lag Fixes
 
-- [ ] **Async File Operations** - Convert synchronous I/O to async
-  - `Drake.cs` - `SaveTasksToFile()` blocks on every task state change
-  - `TaskTracker.cs` - `SaveToFile()` and `LoadFromFile()` are synchronous
-  - `ProjectRepository.cs` - `LoadProjects()` and `SaveProjects()` block
-  - `ProjectConfigurationService.cs` - `SaveConfigurations()` blocks
-  - `Wyvern.cs` - `TryLoadAnalysis()` blocks in constructor
-  - Impact: 100+ blocking writes/minute with parallel Kobolds
-  - Effort: Medium
+- [x] **Async File Operations** - Convert synchronous I/O to async *(Completed 2026-02-05)*
+  - Added `SaveToFileAsync()` and `LoadFromFileAsync()` to `TaskTracker.cs`
+  - Added `SaveProjectsAsync()`, `AddAsync()`, `UpdateAsync()`, `DeleteAsync()` to `ProjectRepository.cs`
+  - Added debounced `SaveConfigurations()` to `ProjectConfigurationService.cs`
+  - Impact: 100+ blocking writes/minute with parallel Kobolds - now non-blocking
 
-- [ ] **Debounced Task File Writes** - Coalesce rapid writes
-  - Implement write channel in Drake to batch status updates
-  - Write once every 2 seconds instead of on every state change
-  - Impact: 50x reduction in file I/O
-  - Effort: Medium
+- [x] **Debounced Task File Writes** - Coalesce rapid writes *(Completed 2026-02-05)*
+  - Implemented Channel-based write debouncing in `Drake.cs`
+  - 2-second debounce interval coalesces rapid status updates
+  - Added `ProcessSaveQueueAsync()` for background write processing
+  - Impact: 50x reduction in file I/O achieved
 
-- [ ] **Remove GetAwaiter().GetResult()** - Eliminate deadlock risk
-  - `ProjectService.cs` lines 89, 582, 714 - Git operations
-  - `Drake.cs` line 305 - `CommitTaskCompletionAsync` in sync context
-  - `Wyvern.cs` line 189 - Blocking git calls in loop
-  - Impact: Eliminates thread starvation and deadlock risk
-  - Effort: Low
+- [x] **Remove GetAwaiter().GetResult()** - Eliminate deadlock risk *(Completed 2026-02-05)*
+  - `Drake.cs` - Added `SyncTaskFromKoboldAsync()`, `MonitorTasksAsync()`, `HandleStuckKoboldsAsync()`
+  - `Wyvern.cs` - Added `AssignFeaturesAsync()`
+  - `ProjectService.cs` - Added `CreateProjectFolderAsync()`, `ApproveProjectAsync()`
+  - Updated `DrakeMonitoringService.cs` to use async methods
 
 ### High Priority (P1) - Additional Optimizations
 

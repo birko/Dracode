@@ -176,9 +176,9 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Marks features as assigned to Wyvern and creates git branches for each feature
+        /// Marks features as assigned to Wyvern and creates git branches for each feature (async version)
         /// </summary>
-        public void AssignFeatures(List<Feature> features)
+        public async Task AssignFeaturesAsync(List<Feature> features)
         {
             foreach (var feature in features)
             {
@@ -186,8 +186,17 @@ namespace DraCode.KoboldLair.Orchestrators
                 feature.UpdatedAt = DateTime.UtcNow;
 
                 // Create git branch for the feature if git is available
-                CreateFeatureBranchAsync(feature).GetAwaiter().GetResult();
+                await CreateFeatureBranchAsync(feature);
             }
+        }
+
+        /// <summary>
+        /// Marks features as assigned to Wyvern and creates git branches for each feature
+        /// Note: Prefer AssignFeaturesAsync() for non-blocking operation.
+        /// </summary>
+        public void AssignFeatures(List<Feature> features)
+        {
+            AssignFeaturesAsync(features).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -392,7 +401,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
 
                 // Mark features as assigned
-                AssignFeatures(newFeatures);
+                await AssignFeaturesAsync(newFeatures);
             }
 
             var analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(prompt);

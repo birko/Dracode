@@ -34,7 +34,7 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Loads projects from disk
+        /// Loads projects from disk (synchronous - called from constructor)
         /// </summary>
         private void LoadProjects()
         {
@@ -64,6 +64,48 @@ namespace DraCode.KoboldLair.Services
                 catch (Exception ex)
                 {
                     _logger?.LogError(ex, "Error loading projects from storage, starting with empty list");
+                    _projects = new List<Project>();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Loads projects from disk asynchronously
+        /// </summary>
+        private async Task LoadProjectsAsync()
+        {
+            try
+            {
+                if (File.Exists(_projectsFilePath))
+                {
+                    var json = await File.ReadAllTextAsync(_projectsFilePath);
+                    lock (_lock)
+                    {
+                        _projects = JsonSerializer.Deserialize<List<Project>>(json) ?? new List<Project>();
+
+                        // Resolve all relative paths to absolute paths
+                        foreach (var project in _projects)
+                        {
+                            ResolveProjectPaths(project);
+                        }
+                    }
+
+                    _logger?.LogInformation("Loaded {Count} project(s) from storage", _projects.Count);
+                }
+                else
+                {
+                    lock (_lock)
+                    {
+                        _projects = new List<Project>();
+                    }
+                    _logger?.LogInformation("No existing projects file found, starting fresh");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error loading projects from storage, starting with empty list");
+                lock (_lock)
+                {
                     _projects = new List<Project>();
                 }
             }
@@ -122,7 +164,7 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Saves projects to disk
+        /// Saves projects to disk (synchronous - prefer SaveProjectsAsync)
         /// </summary>
         private void SaveProjects()
         {
@@ -145,6 +187,37 @@ namespace DraCode.KoboldLair.Services
                     _logger?.LogError(ex, "Error saving projects to storage");
                     throw;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Saves projects to disk asynchronously
+        /// </summary>
+        private async Task SaveProjectsAsync()
+        {
+            List<Project> projectsToSave;
+            int count;
+
+            lock (_lock)
+            {
+                // Create copies with relative paths for storage (keeps JSON portable)
+                projectsToSave = _projects.Select(p => CreateProjectWithRelativePaths(p)).ToList();
+                count = _projects.Count;
+            }
+
+            try
+            {
+                var json = JsonSerializer.Serialize(projectsToSave, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+                await File.WriteAllTextAsync(_projectsFilePath, json);
+                _logger?.LogDebug("Saved {Count} project(s) to storage", count);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error saving projects to storage");
+                throw;
             }
         }
 
@@ -208,7 +281,7 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Adds a new project
+        /// Adds a new project (synchronous - prefer AddAsync)
         /// </summary>
         public void Add(Project project)
         {
@@ -223,7 +296,22 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Updates an existing project
+        /// Adds a new project asynchronously
+        /// </summary>
+        public async Task AddAsync(Project project)
+        {
+            lock (_lock)
+            {
+                project.CreatedAt = DateTime.UtcNow;
+                project.UpdatedAt = DateTime.UtcNow;
+                _projects.Add(project);
+            }
+            await SaveProjectsAsync();
+            _logger?.LogInformation("Added project: {ProjectId} - {ProjectName}", project.Id, project.Name);
+        }
+
+        /// <summary>
+        /// Updates an existing project (synchronous - prefer UpdateAsync)
         /// </summary>
         public void Update(Project project)
         {
@@ -242,6 +330,28 @@ namespace DraCode.KoboldLair.Services
                     throw new InvalidOperationException($"Project not found: {project.Id}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Updates an existing project asynchronously
+        /// </summary>
+        public async Task UpdateAsync(Project project)
+        {
+            lock (_lock)
+            {
+                var index = _projects.FindIndex(p => p.Id == project.Id);
+                if (index >= 0)
+                {
+                    project.UpdatedAt = DateTime.UtcNow;
+                    _projects[index] = project;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Project not found: {project.Id}");
+                }
+            }
+            await SaveProjectsAsync();
+            _logger?.LogInformation("Updated project: {ProjectId} - {ProjectName}", project.Id, project.Name);
         }
 
         /// <summary>
@@ -337,7 +447,7 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Deletes a project
+        /// Deletes a project (synchronous - prefer DeleteAsync)
         /// </summary>
         public void Delete(string id)
         {
@@ -350,6 +460,28 @@ namespace DraCode.KoboldLair.Services
                     SaveProjects();
                     _logger?.LogInformation("Deleted project: {ProjectId}", id);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Deletes a project asynchronously
+        /// </summary>
+        public async Task DeleteAsync(string id)
+        {
+            bool deleted = false;
+            lock (_lock)
+            {
+                var project = _projects.FirstOrDefault(p => p.Id == id);
+                if (project != null)
+                {
+                    _projects.Remove(project);
+                    deleted = true;
+                }
+            }
+            if (deleted)
+            {
+                await SaveProjectsAsync();
+                _logger?.LogInformation("Deleted project: {ProjectId}", id);
             }
         }
 

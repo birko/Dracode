@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Factories;
@@ -31,6 +32,11 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly KoboldPlannerAgent? _plannerAgent;
         private readonly bool _planningEnabled;
         private Wyvern? _wyvern;
+
+        // Debounced file write support
+        private readonly Channel<bool> _saveChannel;
+        private readonly Task _saveTask;
+        private readonly TimeSpan _debounceInterval = TimeSpan.FromSeconds(2);
 
         /// <summary>
         /// Maps TaskId to KoboldId for tracking active assignments
@@ -88,6 +94,13 @@ namespace DraCode.KoboldLair.Orchestrators
             _plannerAgent = plannerAgent;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _taskToKoboldMap = new Dictionary<string, Guid>();
+
+            // Initialize debounced save channel (bounded to 1 to coalesce writes)
+            _saveChannel = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
+            {
+                FullMode = BoundedChannelFullMode.DropWrite // Discard if already queued
+            });
+            _saveTask = ProcessSaveQueueAsync();
         }
 
         /// <summary>
@@ -257,7 +270,7 @@ namespace DraCode.KoboldLair.Orchestrators
             var messages = await kobold.StartWorkingAsync(maxIterations);
 
             // Sync task status from Kobold's final state
-            SyncTaskFromKobold(kobold);
+            await SyncTaskFromKoboldAsync(kobold);
 
             return messages;
         }
@@ -269,6 +282,17 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         /// <param name="kobold">Kobold to sync from</param>
         private void SyncTaskFromKobold(Kobold kobold)
+        {
+            SyncTaskFromKoboldAsync(kobold).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Syncs task status from Kobold's current state (async version).
+        /// Drake observes Kobold state but does not forcefully change it.
+        /// Also commits changes to git when a task completes successfully.
+        /// </summary>
+        /// <param name="kobold">Kobold to sync from</param>
+        private async Task SyncTaskFromKoboldAsync(Kobold kobold)
         {
             if (!kobold.TaskId.HasValue)
                 return;
@@ -302,7 +326,7 @@ namespace DraCode.KoboldLair.Orchestrators
             // Commit changes to git when task completes successfully
             if (previousStatus != TaskStatus.Done && taskStatus == TaskStatus.Done && kobold.IsSuccess)
             {
-                CommitTaskCompletionAsync(kobold, task).GetAwaiter().GetResult();
+                await CommitTaskCompletionAsync(kobold, task);
             }
         }
 
@@ -446,12 +470,12 @@ namespace DraCode.KoboldLair.Orchestrators
                 messages = new List<Message>();
 
                 // Sync status from Kobold (it should have captured the error)
-                SyncTaskFromKobold(kobold);
+                await SyncTaskFromKoboldAsync(kobold);
                 throw;
             }
 
             // Final sync of task status from Kobold
-            SyncTaskFromKobold(kobold);
+            await SyncTaskFromKoboldAsync(kobold);
 
             // Update feature status if Wyvern is available
             UpdateFeatureStatus();
@@ -460,11 +484,11 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Monitors all tasks and syncs their status from associated Kobolds.
+        /// Monitors all tasks and syncs their status from associated Kobolds (async version).
         /// Drake observes Kobold states but does not force state changes.
         /// Also updates feature status through Wyvern if available.
         /// </summary>
-        public void MonitorTasks()
+        public async Task MonitorTasksAsync()
         {
             var allTasks = _taskTracker.GetAllTasks();
 
@@ -477,7 +501,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     if (kobold != null)
                     {
                         // Sync task status from Kobold's current state
-                        SyncTaskFromKobold(kobold);
+                        await SyncTaskFromKoboldAsync(kobold);
                     }
                     else
                     {
@@ -491,6 +515,17 @@ namespace DraCode.KoboldLair.Orchestrators
 
             // Update feature status if Wyvern is available
             UpdateFeatureStatus();
+        }
+
+        /// <summary>
+        /// Monitors all tasks and syncs their status from associated Kobolds.
+        /// Drake observes Kobold states but does not force state changes.
+        /// Also updates feature status through Wyvern if available.
+        /// Note: Prefer MonitorTasksAsync() for non-blocking operation.
+        /// </summary>
+        public void MonitorTasks()
+        {
+            MonitorTasksAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -528,12 +563,12 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Detects and handles Kobolds that have been working longer than the specified timeout.
+        /// Detects and handles Kobolds that have been working longer than the specified timeout (async version).
         /// Stuck Kobolds are marked as failed and their tasks are updated accordingly.
         /// </summary>
         /// <param name="timeout">Maximum allowed working duration before a Kobold is considered stuck</param>
         /// <returns>List of stuck Kobold info (ID, task ID, working duration)</returns>
-        public List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)> HandleStuckKobolds(TimeSpan timeout)
+        public async Task<List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)>> HandleStuckKoboldsAsync(TimeSpan timeout)
         {
             var stuckKobolds = _koboldFactory.GetStuckKobolds(timeout);
             var result = new List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)>();
@@ -550,7 +585,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 kobold.MarkAsStuck(workingDuration, timeout);
 
                 // Sync the task status from the now-failed Kobold
-                SyncTaskFromKobold(kobold);
+                await SyncTaskFromKoboldAsync(kobold);
 
                 result.Add((kobold.Id, kobold.TaskId?.ToString(), workingDuration));
             }
@@ -561,6 +596,18 @@ namespace DraCode.KoboldLair.Orchestrators
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Detects and handles Kobolds that have been working longer than the specified timeout.
+        /// Stuck Kobolds are marked as failed and their tasks are updated accordingly.
+        /// Note: Prefer HandleStuckKoboldsAsync() for non-blocking operation.
+        /// </summary>
+        /// <param name="timeout">Maximum allowed working duration before a Kobold is considered stuck</param>
+        /// <returns>List of stuck Kobold info (ID, task ID, working duration)</returns>
+        public List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)> HandleStuckKobolds(TimeSpan timeout)
+        {
+            return HandleStuckKoboldsAsync(timeout).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -611,20 +658,72 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Saves the current task state to the markdown file
+        /// Queues a debounced save of the current task state.
+        /// Writes are coalesced - multiple rapid calls result in a single write after the debounce interval.
         /// </summary>
         private void SaveTasksToFile()
         {
-            var markdown = _taskTracker.GenerateMarkdown("Drake Task Report");
-            File.WriteAllText(_outputMarkdownPath, markdown);
+            // Queue a save request (non-blocking, drops if already queued)
+            _saveChannel.Writer.TryWrite(true);
         }
 
         /// <summary>
-        /// Forces a save of the current task state
+        /// Processes the save queue, debouncing rapid writes
+        /// </summary>
+        private async Task ProcessSaveQueueAsync()
+        {
+            try
+            {
+                while (await _saveChannel.Reader.WaitToReadAsync())
+                {
+                    // Drain any pending requests (coalesce)
+                    while (_saveChannel.Reader.TryRead(out _)) { }
+
+                    // Wait for debounce interval to allow more writes to coalesce
+                    await Task.Delay(_debounceInterval);
+
+                    // Drain again in case more came in during the delay
+                    while (_saveChannel.Reader.TryRead(out _)) { }
+
+                    // Perform the actual save
+                    try
+                    {
+                        await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to save task file: {Path}", _outputMarkdownPath);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Channel was closed, exit gracefully
+            }
+        }
+
+        /// <summary>
+        /// Forces an immediate save of the current task state (async)
+        /// </summary>
+        public async Task SaveTasksToFileAsync()
+        {
+            await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
+        }
+
+        /// <summary>
+        /// Forces a save of the current task state (queues debounced write)
         /// </summary>
         public void UpdateTasksFile()
         {
             SaveTasksToFile();
+        }
+
+        /// <summary>
+        /// Forces an immediate save of the current task state (async, bypasses debounce)
+        /// </summary>
+        public async Task UpdateTasksFileAsync()
+        {
+            await SaveTasksToFileAsync();
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using DraCode.KoboldLair.Models.Configuration;
 
 namespace DraCode.KoboldLair.Services
@@ -15,6 +16,11 @@ namespace DraCode.KoboldLair.Services
         private readonly string _configPath;
         private ProjectConfigurations _configurations;
         private readonly object _lock = new();
+
+        // Debounced save support
+        private readonly Channel<bool> _saveChannel;
+        private readonly Task _saveTask;
+        private readonly TimeSpan _debounceInterval = TimeSpan.FromSeconds(2);
 
         private static readonly JsonSerializerOptions ReadOptions = new()
         {
@@ -38,6 +44,13 @@ namespace DraCode.KoboldLair.Services
             _logger = logger;
             _configPath = configPath;
             _configurations = LoadConfigurations();
+
+            // Initialize debounced save channel
+            _saveChannel = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
+            {
+                FullMode = BoundedChannelFullMode.DropWrite
+            });
+            _saveTask = ProcessSaveQueueAsync();
 
             var limits = _providerConfig.GetDefaultLimits();
             _logger.LogInformation(
@@ -477,18 +490,70 @@ namespace DraCode.KoboldLair.Services
             }
         }
 
+        /// <summary>
+        /// Queues a debounced save of the current configurations.
+        /// Writes are coalesced - multiple rapid calls result in a single write after the debounce interval.
+        /// </summary>
         private void SaveConfigurations()
+        {
+            _saveChannel.Writer.TryWrite(true);
+        }
+
+        /// <summary>
+        /// Processes the save queue, debouncing rapid writes
+        /// </summary>
+        private async Task ProcessSaveQueueAsync()
         {
             try
             {
-                var json = JsonSerializer.Serialize(_configurations, WriteOptions);
-                File.WriteAllText(_configPath, json);
+                while (await _saveChannel.Reader.WaitToReadAsync())
+                {
+                    // Drain any pending requests
+                    while (_saveChannel.Reader.TryRead(out _)) { }
+
+                    // Wait for debounce interval
+                    await Task.Delay(_debounceInterval);
+
+                    // Drain again in case more came in during the delay
+                    while (_saveChannel.Reader.TryRead(out _)) { }
+
+                    // Perform the actual save
+                    await SaveConfigurationsInternalAsync();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Channel was closed, exit gracefully
+            }
+        }
+
+        /// <summary>
+        /// Saves configurations to disk immediately (async)
+        /// </summary>
+        private async Task SaveConfigurationsInternalAsync()
+        {
+            try
+            {
+                string json;
+                lock (_lock)
+                {
+                    json = JsonSerializer.Serialize(_configurations, WriteOptions);
+                }
+                await File.WriteAllTextAsync(_configPath, json);
                 _logger.LogDebug("Saved project configurations to {Path}", _configPath);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving project configurations to {Path}", _configPath);
             }
+        }
+
+        /// <summary>
+        /// Forces an immediate save of the current configurations (async, bypasses debounce)
+        /// </summary>
+        public async Task SaveConfigurationsAsync()
+        {
+            await SaveConfigurationsInternalAsync();
         }
     }
 }
