@@ -96,35 +96,31 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             if (branches.Count == 0)
             {
-                return $"No unmerged feature branches found in project '{projectName}'.\n\nAll features have been merged to main.";
-            }
-
-            var sb = new StringBuilder();
-            sb.AppendLine($"## Unmerged Feature Branches in '{projectName}'");
-            sb.AppendLine();
-
-            foreach (var branch in branches.OrderByDescending(b => b.LastCommitDate))
-            {
-                var conflictStatus = branch.HasConflictsWithMain ? "Has conflicts" : "Can merge";
-                var featureInfo = !string.IsNullOrEmpty(branch.FeatureName)
-                    ? $" (Feature: {branch.FeatureName})"
-                    : "";
-
-                sb.AppendLine($"### {branch.Name}{featureInfo}");
-                sb.AppendLine($"- Commits ahead of main: {branch.CommitsAheadOfMain}");
-                sb.AppendLine($"- Last commit: {branch.LastCommitMessage}");
-                sb.AppendLine($"- Last updated: {branch.LastCommitDate:yyyy-MM-dd HH:mm}");
-                sb.AppendLine($"- Merge status: {conflictStatus}");
-                sb.AppendLine();
+                return $"No unmerged branches in '{projectName}'. All merged to main.";
             }
 
             var canMergeCount = branches.Count(b => !b.HasConflictsWithMain);
             var conflictCount = branches.Count(b => b.HasConflictsWithMain);
 
-            sb.AppendLine("---");
-            sb.AppendLine($"**Summary**: {branches.Count} branches total, {canMergeCount} can merge cleanly, {conflictCount} have conflicts");
+            var sb = new StringBuilder();
+            sb.AppendLine($"**Unmerged branches in '{projectName}':** {branches.Count} total ({canMergeCount} mergeable, {conflictCount} conflicts)\n");
+            sb.AppendLine("| Branch | Feature | Ahead | Updated | Status |");
+            sb.AppendLine("|--------|---------|-------|---------|--------|");
+
+            foreach (var branch in branches.OrderByDescending(b => b.LastCommitDate))
+            {
+                var status = branch.HasConflictsWithMain ? "❌ Conflicts" : "✅ Ready";
+                var feature = !string.IsNullOrEmpty(branch.FeatureName) ? Truncate(branch.FeatureName, 15) : "-";
+                sb.AppendLine($"| {Truncate(branch.Name, 20)} | {feature} | {branch.CommitsAheadOfMain} | {branch.LastCommitDate:MM-dd HH:mm} | {status} |");
+            }
 
             return sb.ToString();
+        }
+
+        private static string Truncate(string text, int maxLength)
+        {
+            if (string.IsNullOrEmpty(text) || text.Length <= maxLength) return text;
+            return text[..(maxLength - 2)] + "..";
         }
 
         private string GetStatus(string projectFolder, string projectName)
@@ -133,20 +129,16 @@ namespace DraCode.KoboldLair.Agents.Tools
             var status = _gitService.GetStatusAsync(projectFolder).GetAwaiter().GetResult();
 
             var sb = new StringBuilder();
-            sb.AppendLine($"## Git Status for '{projectName}'");
-            sb.AppendLine();
-            sb.AppendLine($"**Current branch**: {currentBranch ?? "unknown"}");
-            sb.AppendLine();
+            sb.AppendLine($"**{projectName}** on `{currentBranch ?? "unknown"}`");
 
             if (string.IsNullOrWhiteSpace(status))
             {
-                sb.AppendLine("Working tree is clean - no uncommitted changes.");
+                sb.Append(" - Clean (no changes)");
             }
             else
             {
-                sb.AppendLine("**Uncommitted changes**:");
-                sb.AppendLine("```");
-                sb.AppendLine(status);
+                sb.AppendLine("\n```");
+                sb.AppendLine(status.Trim());
                 sb.AppendLine("```");
             }
 
@@ -161,47 +153,23 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
 
             var branchName = branchNameObj.ToString() ?? "";
-
             var result = _gitService!.CanMergeBranchAsync(projectFolder, branchName).GetAwaiter().GetResult();
-
-            var sb = new StringBuilder();
-            sb.AppendLine($"## Merge Check: {branchName} → main");
-            sb.AppendLine();
 
             if (!string.IsNullOrEmpty(result.ErrorMessage))
             {
-                sb.AppendLine($"**Error**: {result.ErrorMessage}");
-                return sb.ToString();
+                return $"❌ Merge check failed: {result.ErrorMessage}";
             }
 
             if (result.CanMerge)
             {
-                sb.AppendLine("**Result**: Branch can be merged cleanly");
-                sb.AppendLine();
-                sb.AppendLine($"- Commits to merge: {result.CommitsToMerge}");
-                sb.AppendLine($"- Fast-forward possible: {(result.CanFastForward ? "Yes" : "No")}");
-                sb.AppendLine();
-                sb.AppendLine("You can proceed with the merge using the `git_merge` tool.");
-            }
-            else
-            {
-                sb.AppendLine("**Result**: Merge would have conflicts");
-                sb.AppendLine();
-
-                if (result.PotentialConflicts.Count > 0)
-                {
-                    sb.AppendLine("**Conflicting files**:");
-                    foreach (var file in result.PotentialConflicts)
-                    {
-                        sb.AppendLine($"- {file}");
-                    }
-                }
-
-                sb.AppendLine();
-                sb.AppendLine("The conflicts need to be resolved before merging.");
+                var ff = result.CanFastForward ? "fast-forward" : "merge commit";
+                return $"✅ `{branchName}` → main: Ready ({result.CommitsToMerge} commits, {ff})";
             }
 
-            return sb.ToString();
+            var conflicts = result.PotentialConflicts.Count > 0
+                ? $" Conflicts: {string.Join(", ", result.PotentialConflicts.Take(5))}" + (result.PotentialConflicts.Count > 5 ? $" +{result.PotentialConflicts.Count - 5} more" : "")
+                : "";
+            return $"❌ `{branchName}` → main: Has conflicts.{conflicts}";
         }
     }
 }

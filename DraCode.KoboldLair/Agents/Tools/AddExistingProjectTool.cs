@@ -160,82 +160,56 @@ namespace DraCode.KoboldLair.Agents.Tools
                 ? nameObj.ToString()
                 : Path.GetFileName(path);
 
-            result.AppendLine($"# Project Scan: {projectName}");
-            result.AppendLine($"**Location:** `{path}`");
-            result.AppendLine();
-
             // Analyze the project
             var analysis = AnalyzeDirectory(path);
 
-            // Summary
-            result.AppendLine("## Summary");
-            result.AppendLine($"- **Total Files:** {analysis.TotalFiles}");
-            result.AppendLine($"- **Total Directories:** {analysis.TotalDirectories}");
-            result.AppendLine($"- **Total Size:** {FormatFileSize(analysis.TotalSize)}");
+            // Header with summary
+            result.AppendLine($"**{projectName}** at `{path}`");
+            result.AppendLine($"{analysis.TotalFiles} files, {analysis.TotalDirectories} dirs, {FormatFileSize(analysis.TotalSize)}");
             result.AppendLine();
 
-            // Technologies detected
+            // Technologies as table
             if (analysis.Technologies.Count > 0)
             {
-                result.AppendLine("## Technologies Detected");
-                foreach (var tech in analysis.Technologies.OrderByDescending(t => t.Value.FileCount))
+                result.AppendLine("| Technology | Files | Size |");
+                result.AppendLine("|------------|-------|------|");
+                foreach (var tech in analysis.Technologies.OrderByDescending(t => t.Value.FileCount).Take(8))
                 {
-                    result.AppendLine($"- **{tech.Key}**: {tech.Value.FileCount} files ({FormatFileSize(tech.Value.TotalSize)})");
+                    result.AppendLine($"| {tech.Key} | {tech.Value.FileCount} | {FormatFileSize(tech.Value.TotalSize)} |");
+                }
+                if (analysis.Technologies.Count > 8)
+                {
+                    result.AppendLine($"*+{analysis.Technologies.Count - 8} more technologies*");
                 }
                 result.AppendLine();
             }
 
-            // Project type indicators
+            // Project indicators as comma-separated
             if (analysis.ProjectIndicators.Count > 0)
             {
-                result.AppendLine("## Project Type Indicators");
-                foreach (var indicator in analysis.ProjectIndicators)
-                {
-                    result.AppendLine($"- {indicator}");
-                }
+                var indicators = string.Join(", ", analysis.ProjectIndicators.Select(i => i.Replace(" detected", "").Replace(" found", "").Replace(" configured", "")));
+                result.AppendLine($"**Detected:** {indicators}");
                 result.AppendLine();
             }
 
-            // Key files found
-            if (analysis.KeyFiles.Count > 0)
-            {
-                result.AppendLine("## Key Files Found");
-                foreach (var file in analysis.KeyFiles.Take(20))
-                {
-                    result.AppendLine($"- `{file}`");
-                }
-                if (analysis.KeyFiles.Count > 20)
-                {
-                    result.AppendLine($"- ... and {analysis.KeyFiles.Count - 20} more");
-                }
-                result.AppendLine();
-            }
-
-            // Directory structure (top level)
-            result.AppendLine("## Top-Level Structure");
+            // Key files and structure combined
             var topDirs = Directory.GetDirectories(path)
                 .Select(d => Path.GetFileName(d))
                 .Where(d => !SkipDirectories.Contains(d))
-                .Take(15)
+                .Take(8)
                 .ToList();
-
             var topFiles = Directory.GetFiles(path)
                 .Select(f => Path.GetFileName(f))
-                .Take(10)
+                .Take(6)
                 .ToList();
 
-            foreach (var dir in topDirs)
+            if (topDirs.Count > 0 || topFiles.Count > 0)
             {
-                result.AppendLine($"- 📁 {dir}/");
+                var structure = string.Join(", ", topDirs.Select(d => $"📁{d}").Concat(topFiles.Select(f => $"📄{f}")));
+                result.AppendLine($"**Structure:** {structure}");
             }
-            foreach (var file in topFiles)
-            {
-                result.AppendLine($"- 📄 {file}");
-            }
-            result.AppendLine();
 
-            result.AppendLine("---");
-            result.AppendLine("To add this project, use the 'register' action with this path.");
+            result.AppendLine("\n*Use 'register' action to add this project.*");
 
             return result.ToString();
         }
@@ -267,18 +241,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 SendMessage("success", $"Project registered: {projectName}");
 
-                return $@"✅ **Project '{projectName}' registered successfully!**
-
-**Project ID:** {projectId}
-**Source Path:** `{path}`
-**Status:** Prototype (awaiting specification)
-
-The project has been added to KoboldLair. You can now:
-1. Create a specification for this project using `manage_specification` with action:'create'
-2. The specification should analyze and document the existing codebase
-3. Add features for planned improvements or new functionality
-
-Would you like me to help create a specification based on this existing codebase?";
+                return $"✅ **{projectName}** registered (ID: {projectId[..8]}..)\nPath: `{path}` | Status: Prototype\n\nUse `manage_specification` to create a spec, then add features.";
             }
             catch (Exception ex)
             {

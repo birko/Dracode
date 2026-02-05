@@ -114,11 +114,13 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 if (projects.Count == 0)
                 {
-                    return "No running agents found. All projects are idle.";
+                    return "No running agents. All projects idle.";
                 }
 
                 var result = new System.Text.StringBuilder();
-                result.AppendLine($"# Running Agents ({projects.Count} project(s) with activity)\n");
+                result.AppendLine($"**Running Agents ({projects.Count} project(s)):**\n");
+                result.AppendLine("| Status | Project | Drakes | Kobolds (W/A) |");
+                result.AppendLine("|--------|---------|--------|---------------|");
 
                 foreach (var project in projects.OrderByDescending(p => p.ActiveKobolds + p.ActiveDrakes))
                 {
@@ -130,41 +132,50 @@ namespace DraCode.KoboldLair.Agents.Tools
                         _ => "📦"
                     };
 
-                    result.AppendLine($"## {statusIcon} {project.ProjectName}");
-                    result.AppendLine($"   Status: {project.ProjectStatus}");
-                    result.AppendLine($"   Active Drakes: {project.ActiveDrakes}");
-                    result.AppendLine($"   Active Kobolds: {project.ActiveKobolds} (Working: {project.WorkingKobolds}, Assigned: {project.AssignedKobolds})");
+                    result.AppendLine($"| {statusIcon} {project.ProjectStatus} | {project.ProjectName} | {project.ActiveDrakes} | {project.ActiveKobolds} ({project.WorkingKobolds}/{project.AssignedKobolds}) |");
+                }
 
-                    if (project.Drakes.Count > 0)
+                // Show Drake details in compact format if any
+                var projectsWithDrakes = projects.Where(p => p.Drakes.Count > 0).ToList();
+                if (projectsWithDrakes.Count > 0)
+                {
+                    result.AppendLine();
+                    result.AppendLine("**Drake Progress:**");
+                    result.AppendLine("| Project | Drake | Done/Total | Working | Pending |");
+                    result.AppendLine("|---------|-------|------------|---------|---------|");
+                    foreach (var project in projectsWithDrakes)
                     {
-                        result.AppendLine("   Drakes:");
                         foreach (var drake in project.Drakes)
                         {
-                            result.AppendLine($"     - {drake.Name}: {drake.CompletedTasks}/{drake.TotalTasks} tasks done, {drake.WorkingTasks} working, {drake.PendingTasks} pending");
+                            result.AppendLine($"| {Truncate(project.ProjectName, 15)} | {drake.Name} | {drake.CompletedTasks}/{drake.TotalTasks} | {drake.WorkingTasks} | {drake.PendingTasks} |");
                         }
                     }
+                }
 
-                    if (project.Kobolds.Count > 0)
-                    {
-                        result.AppendLine("   Kobolds:");
-                        foreach (var kobold in project.Kobolds.Take(5)) // Limit to first 5 for readability
-                        {
-                            var durationStr = kobold.WorkingDuration.HasValue
-                                ? $" ({kobold.WorkingDuration.Value.TotalMinutes:F1}m)"
-                                : "";
-                            var stuckStr = kobold.IsStuck ? " ⚠️ STUCK" : "";
-                            var taskStr = !string.IsNullOrEmpty(kobold.TaskDescription)
-                                ? $" - {Truncate(kobold.TaskDescription, 50)}"
-                                : "";
-                            result.AppendLine($"     - [{kobold.AgentType}] {kobold.Status}{durationStr}{stuckStr}{taskStr}");
-                        }
-                        if (project.Kobolds.Count > 5)
-                        {
-                            result.AppendLine($"     ... and {project.Kobolds.Count - 5} more Kobolds");
-                        }
-                    }
-
+                // Show Kobold details in compact format if any working
+                var workingKobolds = projects.SelectMany(p => p.Kobolds.Select(k => new { Project = p.ProjectName, Kobold = k }))
+                    .Where(x => x.Kobold.Status == "Working" || x.Kobold.IsStuck)
+                    .Take(10)
+                    .ToList();
+                if (workingKobolds.Count > 0)
+                {
                     result.AppendLine();
+                    result.AppendLine("**Active Kobolds:**");
+                    result.AppendLine("| Project | Type | Time | Task |");
+                    result.AppendLine("|---------|------|------|------|");
+                    foreach (var item in workingKobolds)
+                    {
+                        var k = item.Kobold;
+                        var duration = k.WorkingDuration.HasValue ? $"{k.WorkingDuration.Value.TotalMinutes:F0}m" : "-";
+                        var stuck = k.IsStuck ? "⚠️" : "";
+                        var task = Truncate(k.TaskDescription ?? "-", 30);
+                        result.AppendLine($"| {Truncate(item.Project, 12)} | {k.AgentType}{stuck} | {duration} | {task} |");
+                    }
+                    var totalWorking = projects.Sum(p => p.WorkingKobolds);
+                    if (totalWorking > 10)
+                    {
+                        result.AppendLine($"*...and {totalWorking - 10} more active kobolds*");
+                    }
                 }
 
                 return result.ToString();
@@ -273,25 +284,14 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var koboldStats = _getGlobalKoboldStats();
 
                 var result = new System.Text.StringBuilder();
-                result.AppendLine("# Global Agent Status Summary\n");
 
-                // Kobold statistics
-                result.AppendLine("## Kobold Statistics");
-                result.AppendLine($"- **Total Kobolds:** {koboldStats.Total}");
-                result.AppendLine($"- Unassigned: {koboldStats.Unassigned}");
-                result.AppendLine($"- Assigned: {koboldStats.Assigned}");
-                result.AppendLine($"- Working: {koboldStats.Working}");
-                result.AppendLine($"- Done: {koboldStats.Done}");
-                result.AppendLine();
+                // Kobold statistics - compact single line
+                result.AppendLine($"**Kobolds:** {koboldStats.Total} total ({koboldStats.Working} working, {koboldStats.Assigned} assigned, {koboldStats.Unassigned} free, {koboldStats.Done} done)");
 
                 if (koboldStats.ByAgentType.Count > 0)
                 {
-                    result.AppendLine("### By Agent Type");
-                    foreach (var kvp in koboldStats.ByAgentType.OrderByDescending(k => k.Value))
-                    {
-                        result.AppendLine($"- {kvp.Key}: {kvp.Value}");
-                    }
-                    result.AppendLine();
+                    var types = string.Join(", ", koboldStats.ByAgentType.OrderByDescending(k => k.Value).Select(k => $"{k.Key}:{k.Value}"));
+                    result.AppendLine($"**By Type:** {types}");
                 }
 
                 // Project summary
@@ -299,23 +299,17 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var totalActiveKobolds = projects.Sum(p => p.ActiveKobolds);
                 var projectsWithActivity = projects.Count(p => p.ActiveDrakes > 0 || p.ActiveKobolds > 0);
 
-                result.AppendLine("## Project Overview");
-                result.AppendLine($"- **Projects with activity:** {projectsWithActivity}");
-                result.AppendLine($"- **Total active Drakes:** {totalDrakes}");
-                result.AppendLine($"- **Total active Kobolds:** {totalActiveKobolds}");
-                result.AppendLine();
+                result.AppendLine($"**Active:** {projectsWithActivity} project(s), {totalDrakes} drake(s), {totalActiveKobolds} kobold(s)");
 
                 if (projectsWithActivity > 0)
                 {
-                    result.AppendLine("### Active Projects");
+                    result.AppendLine();
+                    result.AppendLine("| Project | Drakes | Kobolds | Working |");
+                    result.AppendLine("|---------|--------|---------|---------|");
                     foreach (var project in projects.Where(p => p.ActiveDrakes > 0 || p.ActiveKobolds > 0).OrderByDescending(p => p.WorkingKobolds))
                     {
-                        result.AppendLine($"- **{project.ProjectName}**: {project.ActiveDrakes} Drake(s), {project.ActiveKobolds} Kobold(s) ({project.WorkingKobolds} working)");
+                        result.AppendLine($"| {project.ProjectName} | {project.ActiveDrakes} | {project.ActiveKobolds} | {project.WorkingKobolds} |");
                     }
-                }
-                else
-                {
-                    result.AppendLine("*No projects currently have running agents.*");
                 }
 
                 return result.ToString();

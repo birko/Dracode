@@ -156,23 +156,26 @@ namespace DraCode.KoboldLair.Agents.Tools
         {
             if (spec.Features.Count == 0)
             {
-                return $"No features found in specification '{spec.Name}'";
+                return $"No features in '{spec.Name}'";
             }
 
-            var grouped = spec.Features.GroupBy(f => f.Status);
             var result = new System.Text.StringBuilder();
-            result.AppendLine($"Features in '{spec.Name}':\n");
+            result.AppendLine($"**{spec.Features.Count} feature(s) in '{spec.Name}':**\n");
+            result.AppendLine("| Status | Priority | Feature | Description |");
+            result.AppendLine("|--------|----------|---------|-------------|");
 
-            foreach (var group in grouped.OrderBy(g => g.Key))
+            foreach (var feature in spec.Features.OrderBy(f => f.Status).ThenBy(f => f.Priority))
             {
-                result.AppendLine($"## {group.Key} ({group.Count()})");
-                foreach (var feature in group)
+                var statusIcon = feature.Status switch
                 {
-                    result.AppendLine($"- **{feature.Name}** (Priority: {feature.Priority})");
-                    result.AppendLine($"  {feature.Description}");
-                    result.AppendLine($"  ID: {feature.Id}");
-                }
-                result.AppendLine();
+                    Models.Tasks.FeatureStatus.New => "🆕",
+                    Models.Tasks.FeatureStatus.AssignedToWyvern => "📋",
+                    Models.Tasks.FeatureStatus.InProgress => "🔨",
+                    Models.Tasks.FeatureStatus.Completed => "✅",
+                    _ => "❓"
+                };
+                var desc = feature.Description.Length > 50 ? feature.Description[..47] + "..." : feature.Description;
+                result.AppendLine($"| {statusIcon} {feature.Status} | {feature.Priority} | {feature.Name} | {desc} |");
             }
 
             return result.ToString();
