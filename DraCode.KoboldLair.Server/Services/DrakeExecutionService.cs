@@ -305,15 +305,12 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task CheckProjectCompletionAsync(Project project, List<(Drake Drake, string Name)> drakesWithNames)
         {
-            var totalTasks = 0;
-            var doneTasks = 0;
             var drakesToRemove = new List<string>();
 
+            // Check active Drakes for cleanup
             foreach (var (drake, drakeName) in drakesWithNames)
             {
                 var stats = drake.GetStatistics();
-                totalTasks += stats.TotalTasks;
-                doneTasks += stats.DoneTasks;
 
                 // Check if this individual Drake has completed all its tasks
                 // Only remove if all tasks are done and no Kobolds are still working
@@ -330,6 +327,10 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogInformation("🗑️ Removed completed Drake {DrakeName}", drakeName);
             }
 
+            // Count tasks from ALL task files, not just active Drakes
+            // This ensures we don't mark a project complete if some areas have no Drake yet
+            var (totalTasks, doneTasks) = CountTasksFromAllFiles(project);
+
             // Check if entire project is complete
             if (totalTasks > 0 && doneTasks == totalTasks)
             {
@@ -337,6 +338,57 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogInformation("✅ Project {ProjectName} completed! All {Count} tasks done.",
                     project.Name, totalTasks);
             }
+            else
+            {
+                _logger.LogDebug("Project {ProjectName} progress: {Done}/{Total} tasks done",
+                    project.Name, doneTasks, totalTasks);
+            }
+        }
+
+        /// <summary>
+        /// Counts total and completed tasks from all task files in the project.
+        /// This reads directly from the task files to ensure accurate counts
+        /// even for areas without an active Drake.
+        /// </summary>
+        private (int Total, int Done) CountTasksFromAllFiles(Project project)
+        {
+            var totalTasks = 0;
+            var doneTasks = 0;
+
+            if (project.TaskFiles == null || project.TaskFiles.Count == 0)
+            {
+                return (0, 0);
+            }
+
+            foreach (var (areaName, taskFilePath) in project.TaskFiles)
+            {
+                var normalizedPath = Path.GetFullPath(taskFilePath);
+
+                if (!File.Exists(normalizedPath))
+                {
+                    _logger.LogWarning("Task file not found when checking completion: {Path}", normalizedPath);
+                    continue;
+                }
+
+                try
+                {
+                    var tracker = new TaskTracker();
+                    var loaded = tracker.LoadFromFile(normalizedPath);
+
+                    if (loaded > 0)
+                    {
+                        var tasks = tracker.GetAllTasks();
+                        totalTasks += tasks.Count;
+                        doneTasks += tasks.Count(t => t.Status == TaskStatus.Done);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to read task file {Path} for completion check", normalizedPath);
+                }
+            }
+
+            return (totalTasks, doneTasks);
         }
 
         /// <summary>
