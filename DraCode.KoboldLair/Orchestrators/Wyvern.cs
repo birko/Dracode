@@ -469,7 +469,21 @@ namespace DraCode.KoboldLair.Orchestrators
                 try
                 {
                     // Simplified naming: {area}-tasks.md (project folder provides context)
-                    var areaOutputPath = Path.Combine(_outputPath, $"{area.Name.ToLower()}-tasks.md");
+                    // Sanitize area name to remove spaces and special characters
+                    var sanitizedAreaName = System.Text.RegularExpressions.Regex.Replace(
+                        area.Name.ToLower(),
+                        @"\s+",
+                        "-"
+                    );
+
+                    // Ensure task subdirectory exists
+                    var taskDir = Path.Combine(_outputPath, "tasks");
+                    if (!Directory.Exists(taskDir))
+                    {
+                        Directory.CreateDirectory(taskDir);
+                    }
+
+                    var areaOutputPath = Path.Combine(taskDir, $"{sanitizedAreaName}-tasks.md");
 
                     // Load existing tracker if file exists to preserve task statuses
                     var tracker = new TaskTracker();

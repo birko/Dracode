@@ -175,9 +175,10 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
     {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
         specification.md              # Project specification
         specification.features.json   # Feature list
-        {area}-tasks.md               # Task files (e.g., backend-tasks.md)
         analysis.md                   # Wyvern analysis report (human-readable)
         analysis.json                 # Wyvern analysis (machine-readable, persisted)
+        tasks/                        # Task files subdirectory
+            {area}-tasks.md           # Task files (e.g., backend-tasks.md)
         workspace/                    # Generated code output
 project-configs.json                  # Per-project agent configuration (sectioned format)
 provider-config.json                  # Provider configuration

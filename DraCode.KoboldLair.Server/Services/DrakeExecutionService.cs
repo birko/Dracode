@@ -191,6 +191,9 @@ namespace DraCode.KoboldLair.Server.Services
                 return drakes;
             }
 
+            var currentDrakeCount = _drakeFactory.GetActiveDrakeCountForProject(project.Id);
+            _logger.LogDebug("Project {ProjectName} currently has {Count} active Drake(s)", project.Name, currentDrakeCount);
+
             foreach (var (areaName, taskFilePath) in project.TaskFiles)
             {
                 // Paths are pre-resolved by ProjectRepository, normalize for safety
@@ -201,14 +204,8 @@ namespace DraCode.KoboldLair.Server.Services
                 var existingDrake = _drakeFactory.GetDrake(drakeName);
                 if (existingDrake != null)
                 {
+                    _logger.LogDebug("Using existing Drake {DrakeName}", drakeName);
                     drakes.Add((existingDrake, drakeName));
-                    continue;
-                }
-
-                // Check if we can create a new Drake
-                if (!_drakeFactory.CanCreateDrakeForProject(project.Id))
-                {
-                    _logger.LogDebug("Cannot create Drake for {DrakeName} - project at Drake limit", drakeName);
                     continue;
                 }
 
@@ -216,6 +213,21 @@ namespace DraCode.KoboldLair.Server.Services
                 if (!File.Exists(normalizedPath))
                 {
                     _logger.LogWarning("Task file not found: {TaskFilePath}", normalizedPath);
+                    continue;
+                }
+
+                // Check if this area is already complete (all tasks done)
+                if (IsAreaComplete(normalizedPath))
+                {
+                    _logger.LogDebug("Skipping Drake creation for {DrakeName} - all tasks already complete", drakeName);
+                    continue;
+                }
+
+                // Check if we can create a new Drake
+                if (!_drakeFactory.CanCreateDrakeForProject(project.Id))
+                {
+                    _logger.LogDebug("Cannot create Drake for {DrakeName} - project at Drake limit (current: {Current})", 
+                        drakeName, currentDrakeCount);
                     continue;
                 }
 
@@ -257,17 +269,20 @@ namespace DraCode.KoboldLair.Server.Services
             // Skip if no unassigned tasks
             if (stats.UnassignedTasks == 0)
             {
+                _logger.LogDebug("No unassigned tasks for this Drake");
                 return;
             }
 
-            // Get unassigned tasks from the tracker
-            var allTasks = drake.GetStatistics();
-
-            // We need to access tasks through the Drake - get tasks that need processing
-            // For now, we'll use ExecuteTaskAsync which handles summoning and execution
-
             // Find tasks that are unassigned and ready (no pending dependencies)
             var tasksToExecute = GetReadyTasks(drake);
+            
+            if (tasksToExecute.Count == 0)
+            {
+                _logger.LogDebug("No ready tasks to execute (all unassigned tasks have unmet dependencies)");
+                return;
+            }
+
+            _logger.LogInformation("Found {Count} ready task(s) to execute", tasksToExecute.Count);
 
             // Execute all ready tasks in parallel (Kobold limits are enforced by the factory)
             var taskExecutions = tasksToExecute.Select(async item =>
@@ -336,8 +351,17 @@ namespace DraCode.KoboldLair.Server.Services
             // Remove completed Drakes to free up resources
             foreach (var drakeName in drakesToRemove)
             {
-                _drakeFactory.RemoveDrake(drakeName);
-                _logger.LogInformation("🗑️ Removed completed Drake {DrakeName}", drakeName);
+                var removed = _drakeFactory.RemoveDrake(drakeName);
+                if (removed)
+                {
+                    var remainingCount = _drakeFactory.GetActiveDrakeCountForProject(project.Id);
+                    _logger.LogInformation("🗑️ Removed completed Drake {DrakeName} (project now has {Count} active Drake(s))", 
+                        drakeName, remainingCount);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to remove Drake {DrakeName}", drakeName);
+                }
             }
 
             // Count tasks from ALL task files, not just active Drakes
@@ -355,6 +379,31 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _logger.LogDebug("Project {ProjectName} progress: {Done}/{Total} tasks done",
                     project.Name, doneTasks, totalTasks);
+            }
+        }
+
+        /// <summary>
+        /// Checks if all tasks in an area are complete
+        /// </summary>
+        private bool IsAreaComplete(string taskFilePath)
+        {
+            try
+            {
+                var tracker = new TaskTracker();
+                var loaded = tracker.LoadFromFile(taskFilePath);
+
+                if (loaded == 0)
+                {
+                    return false;
+                }
+
+                var tasks = tracker.GetAllTasks();
+                return tasks.Count > 0 && tasks.All(t => t.Status == TaskStatus.Done);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to check completion status for {Path}", taskFilePath);
+                return false;
             }
         }
 

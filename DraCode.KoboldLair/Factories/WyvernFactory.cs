@@ -69,7 +69,9 @@ namespace DraCode.KoboldLair.Factories
                 Dictionary<string, string> wyvernConfig;
                 AgentOptions wyvernOptions;
 
-                (effectiveWyvernProvider, wyvernConfig, wyvernOptions) = _providerConfigService.GetProviderSettingsForAgent("wyvern", outputPath);
+                // Set working directory to workspace subfolder
+                var workspacePath = Path.Combine(outputPath, "workspace");
+                (effectiveWyvernProvider, wyvernConfig, wyvernOptions) = _providerConfigService.GetProviderSettingsForAgent("wyvern", workspacePath);
                 if (wyvernProvider != null)
                 {
                     // Use specified provider
@@ -85,7 +87,8 @@ namespace DraCode.KoboldLair.Factories
                 Dictionary<string, string> wyrmConfig;
                 AgentOptions wyrmOptions;
 
-                (effectiveWyrmProvider, wyrmConfig, wyrmOptions) = _providerConfigService.GetProviderSettingsForAgent("wyrm", outputPath);
+                // Set working directory to workspace subfolder
+                (effectiveWyrmProvider, wyrmConfig, wyrmOptions) = _providerConfigService.GetProviderSettingsForAgent("wyrm", workspacePath);
                 if (wyrmProvider != null)
                 {
                     // Use specified provider override

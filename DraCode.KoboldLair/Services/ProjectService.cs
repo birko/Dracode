@@ -565,6 +565,31 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Updates the specification path for a project.
+        /// Called after a specification file is created for an existing project.
+        /// </summary>
+        /// <param name="projectId">Project ID or name</param>
+        /// <param name="specificationPath">Path to the specification file</param>
+        /// <returns>True if updated successfully</returns>
+        public bool UpdateSpecificationPath(string projectId, string specificationPath)
+        {
+            var project = _repository.GetById(projectId) ?? _repository.GetByName(projectId);
+            if (project == null)
+            {
+                _logger.LogWarning("Cannot update specification path - project not found: {ProjectId}", projectId);
+                return false;
+            }
+
+            project.SpecificationPath = specificationPath;
+            project.UpdatedAt = DateTime.UtcNow;
+            _repository.Update(project);
+
+            _logger.LogInformation("Updated specification path for project '{ProjectName}': {Path}",
+                project.Name, specificationPath);
+            return true;
+        }
+
+        /// <summary>
         /// Approves a project specification, changing status from Prototype to New (async version).
         /// This allows Wyvern to start processing the project.
         /// Also creates an initial git commit if git is enabled.
@@ -585,6 +610,30 @@ namespace DraCode.KoboldLair.Services
                 _logger.LogWarning("Cannot approve project {ProjectName} - status is {Status}, not Prototype",
                     project.Name, project.Status);
                 return false;
+            }
+
+            // If specification path is empty, try to find it in the project folder
+            if (string.IsNullOrEmpty(project.SpecificationPath))
+            {
+                var specPath = Path.Combine(project.OutputPath, "specification.md");
+                if (File.Exists(specPath))
+                {
+                    // Make relative path
+                    var relativePath = Path.GetRelativePath(_projectsPath, specPath).Replace('\\', '/');
+                    if (!relativePath.StartsWith("./"))
+                    {
+                        relativePath = "./" + relativePath;
+                    }
+                    project.SpecificationPath = relativePath;
+                    _logger.LogInformation("Auto-detected specification path for project '{ProjectName}': {Path}",
+                        project.Name, relativePath);
+                }
+                else
+                {
+                    _logger.LogWarning("Cannot approve project '{ProjectName}' - specification file not found at {Path}",
+                        project.Name, specPath);
+                    return false;
+                }
             }
 
             project.Status = ProjectStatus.New;

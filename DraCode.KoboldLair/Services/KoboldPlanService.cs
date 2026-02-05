@@ -37,6 +37,7 @@ namespace DraCode.KoboldLair.Services
         /// <summary>
         /// Gets the project output path by resolving project ID through the repository.
         /// Falls back to using projectId directly if repository is not available.
+        /// Ensures the returned path is absolute by combining relative paths with _projectsPath.
         /// </summary>
         private string GetProjectOutputPath(string projectId)
         {
@@ -45,12 +46,18 @@ namespace DraCode.KoboldLair.Services
                 var project = _projectRepository.GetById(projectId);
                 if (project != null && !string.IsNullOrEmpty(project.OutputPath))
                 {
-                    return project.OutputPath;
+                    var outputPath = project.OutputPath;
+                    // Handle relative paths by combining with projectsPath
+                    if (!Path.IsPathRooted(outputPath))
+                    {
+                        outputPath = Path.Combine(_projectsPath, outputPath);
+                    }
+                    return Path.GetFullPath(outputPath);
                 }
             }
 
             // Fallback to using projectId as path segment (legacy behavior)
-            return Path.Combine(_projectsPath, projectId);
+            return Path.GetFullPath(Path.Combine(_projectsPath, projectId));
         }
 
         /// <summary>
@@ -144,7 +151,12 @@ namespace DraCode.KoboldLair.Services
             // Remove invalid filename characters and convert to lowercase
             var invalidChars = Path.GetInvalidFileNameChars();
             var sanitized = string.Join("", input.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
-            return sanitized.Trim().ToLowerInvariant();
+            
+            // Replace spaces and multiple hyphens with single hyphen
+            sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"\s+", "-");
+            sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"-+", "-");
+            
+            return sanitized.Trim('-').ToLowerInvariant();
         }
 
         /// <summary>

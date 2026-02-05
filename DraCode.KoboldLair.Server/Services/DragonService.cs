@@ -217,14 +217,21 @@ namespace DraCode.KoboldLair.Server.Services
                     // Create all agents for this session
                     CreateSessionAgents(session);
 
-                    session.Dragon!.SetMessageCallback(async (type, content) =>
+                    // Set message callbacks for all agents to forward thinking updates
+                    Action<string, string> messageCallback = (type, content) =>
                     {
-                        _logger.LogInformation("[Dragon] [{Type}] {Content}", type, content);
+                        _logger.LogInformation("[Dragon Council] [{Type}] {Content}", type, content);
                         if (type == "tool_call" || type == "tool_result" || type == "info")
                         {
-                            await SendThinkingUpdateAsync(webSocket, currentSessionId, type, content);
+                            _ = SendThinkingUpdateAsync(webSocket, currentSessionId, type, content);
                         }
-                    });
+                    };
+
+                    session.Dragon!.SetMessageCallback(messageCallback);
+                    session.Sage!.SetMessageCallback(messageCallback);
+                    session.Seeker!.SetMessageCallback(messageCallback);
+                    session.Sentinel!.SetMessageCallback(messageCallback);
+                    session.Warden!.SetMessageCallback(messageCallback);
 
                     _logger.LogInformation("[Dragon] Starting session...");
                     try
@@ -690,11 +697,18 @@ namespace DraCode.KoboldLair.Server.Services
                 CreateSessionAgents(session);
                 session.MessageHistory.Clear();
 
-                session.Dragon!.SetMessageCallback(async (type, content) =>
+                // Set message callbacks for all agents to forward thinking updates
+                Action<string, string> messageCallback = (type, content) =>
                 {
                     if (type == "tool_call" || type == "tool_result" || type == "info")
-                        await SendThinkingUpdateAsync(webSocket, sessionId, type, content);
-                });
+                        _ = SendThinkingUpdateAsync(webSocket, sessionId, type, content);
+                };
+
+                session.Dragon!.SetMessageCallback(messageCallback);
+                session.Sage!.SetMessageCallback(messageCallback);
+                session.Seeker!.SetMessageCallback(messageCallback);
+                session.Sentinel!.SetMessageCallback(messageCallback);
+                session.Warden!.SetMessageCallback(messageCallback);
 
                 var welcomeResponse = await session.Dragon.StartSessionAsync();
 

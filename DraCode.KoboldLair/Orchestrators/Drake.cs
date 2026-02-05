@@ -164,8 +164,9 @@ namespace DraCode.KoboldLair.Orchestrators
             var effectiveOptions = _defaultOptions?.Clone() ?? new AgentOptions();
 
             // Set working directory to project workspace folder
-            // Derive from task file path: ./projects/my-project/backend-tasks.md -> ./projects/my-project/workspace
-            var projectFolder = Path.GetDirectoryName(_outputMarkdownPath);
+            // Derive from task file path: ./projects/my-project/tasks/backend-tasks.md -> ./projects/my-project/workspace
+            var taskFolder = Path.GetDirectoryName(_outputMarkdownPath);
+            var projectFolder = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
             if (!string.IsNullOrEmpty(projectFolder))
             {
                 var workspacePath = Path.Combine(projectFolder, "workspace");
@@ -321,7 +322,17 @@ namespace DraCode.KoboldLair.Orchestrators
             }
 
             _taskTracker.UpdateTask(task, taskStatus);
-            SaveTasksToFile();
+
+            // Use immediate save for task completion to prevent race condition with ReloadTasksFromFileAsync
+            // (debounced save could be overwritten by reload before it executes)
+            if (taskStatus == TaskStatus.Done)
+            {
+                await SaveTasksToFileAsync();
+            }
+            else
+            {
+                SaveTasksToFile();
+            }
 
             // Commit changes to git when task completes successfully
             if (previousStatus != TaskStatus.Done && taskStatus == TaskStatus.Done && kobold.IsSuccess)
@@ -748,6 +759,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <summary>
         /// Reloads tasks from the markdown file asynchronously, refreshing in-memory state.
         /// Preserves active Kobold mappings but updates task statuses from file.
+        /// Detects and recovers orphaned tasks (NotInitialized/Working with no active Kobold).
         /// Should be called before processing tasks to ensure state is current.
         /// </summary>
         /// <returns>Number of tasks loaded from file</returns>
@@ -761,7 +773,94 @@ namespace DraCode.KoboldLair.Orchestrators
 
             _logger?.LogDebug("📂 Reloaded {Count} task(s) from file", tasksLoaded);
 
+            // Recover orphaned tasks (NotInitialized or Working with no active Kobold)
+            // Tasks with completed plans are marked Done; others are reset to Unassigned
+            var orphansRecovered = await RecoverOrphanedTasksAsync();
+            if (orphansRecovered > 0)
+            {
+                _logger?.LogInformation("🔧 Recovered {Count} orphaned task(s)", orphansRecovered);
+                await SaveTasksToFileAsync();
+            }
+
             return tasksLoaded;
+        }
+
+        /// <summary>
+        /// Detects and recovers orphaned tasks.
+        /// A task is orphaned if it has status NotInitialized or Working but no active Kobold is working on it.
+        /// Orphaned tasks with completed plans are marked Done; others are reset to Unassigned.
+        /// </summary>
+        /// <returns>Number of tasks recovered</returns>
+        public async Task<int> RecoverOrphanedTasksAsync()
+        {
+            var recovered = 0;
+            var allTasks = _taskTracker.GetAllTasks();
+
+            // Get IDs of tasks that have active Kobolds
+            var activeTaskIds = _taskToKoboldMap.Keys.ToHashSet();
+
+            foreach (var task in allTasks)
+            {
+                // Check if task is in a "working" state but has no active Kobold
+                if ((task.Status == TaskStatus.NotInitialized || task.Status == TaskStatus.Working)
+                    && !activeTaskIds.Contains(task.Id))
+                {
+                    // Also verify the Kobold doesn't exist in the factory
+                    if (_taskToKoboldMap.TryGetValue(task.Id, out var koboldId))
+                    {
+                        var kobold = _koboldFactory.GetKobold(koboldId);
+                        if (kobold != null)
+                        {
+                            // Kobold exists, not orphaned
+                            continue;
+                        }
+                        // Kobold mapping exists but Kobold is gone - clean up mapping
+                        _taskToKoboldMap.Remove(task.Id);
+                    }
+
+                    // Check if the task has a completed plan - if so, mark as Done
+                    var newStatus = TaskStatus.Unassigned;
+                    _logger?.LogDebug("🔍 Checking plan for orphaned task {TaskId}, planService={HasPlanService}, projectId={ProjectId}",
+                        task.Id[..Math.Min(8, task.Id.Length)], _planService != null, _projectId ?? "(null)");
+
+                    if (_planService != null && !string.IsNullOrEmpty(_projectId))
+                    {
+                        try
+                        {
+                            var plan = await _planService.LoadPlanAsync(_projectId, task.Id);
+                            _logger?.LogDebug("🔍 Plan lookup result for task {TaskId}: found={Found}, status={Status}",
+                                task.Id[..Math.Min(8, task.Id.Length)], plan != null, plan?.Status.ToString() ?? "(null)");
+
+                            if (plan != null && plan.Status == PlanStatus.Completed)
+                            {
+                                newStatus = TaskStatus.Done;
+                                _logger?.LogInformation("✅ Orphaned task {TaskId} has completed plan - marking as Done",
+                                    task.Id[..Math.Min(8, task.Id.Length)]);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogWarning(ex, "Could not load plan for task {TaskId}", task.Id);
+                        }
+                    }
+                    else
+                    {
+                        _logger?.LogDebug("🔍 Cannot check plan for task {TaskId}: planService={HasPlanService}, projectId={ProjectId}",
+                            task.Id[..Math.Min(8, task.Id.Length)], _planService != null, _projectId ?? "(null)");
+                    }
+
+                    if (newStatus == TaskStatus.Unassigned)
+                    {
+                        _logger?.LogDebug("🔧 Recovering orphaned task {TaskId} (was {Status}) - resetting to Unassigned",
+                            task.Id[..Math.Min(8, task.Id.Length)], task.Status);
+                    }
+
+                    _taskTracker.UpdateTask(task, newStatus, task.AssignedAgent);
+                    recovered++;
+                }
+            }
+
+            return recovered;
         }
 
         /// <summary>
@@ -775,11 +874,16 @@ namespace DraCode.KoboldLair.Orchestrators
             var allTasks = _taskTracker.GetAllTasks();
             var doneTasks = allTasks.Where(t => t.Status == TaskStatus.Done).Select(t => t.Task).ToHashSet();
 
+            // Load done tasks from ALL task files in the project directory to check cross-area dependencies
+            var projectDoneTasks = LoadDoneTasksFromProject();
+            doneTasks.UnionWith(projectDoneTasks);
+
             foreach (var task in allTasks.Where(t => t.Status == TaskStatus.Unassigned))
             {
                 // Check if dependencies are met (parse from task description)
                 // Format: [task-id] Task name (depends on: dep1, dep2)
                 var dependenciesMet = true;
+                var unmeetDependencies = new List<string>();
                 var dependsOnMatch = System.Text.RegularExpressions.Regex.Match(
                     task.Task, @"\(depends on:\s*([^)]+)\)");
 
@@ -799,13 +903,20 @@ namespace DraCode.KoboldLair.Orchestrators
                         if (!depMet)
                         {
                             dependenciesMet = false;
-                            break;
+                            unmeetDependencies.Add(dep);
                         }
                     }
                 }
 
                 if (!dependenciesMet)
+                {
+                    _logger?.LogDebug(
+                        "Task {TaskId} has unmet dependencies: {Dependencies}",
+                        task.Id.ToString()[..Math.Min(8, task.Id.Length)],
+                        string.Join(", ", unmeetDependencies)
+                    );
                     continue;
+                }
 
                 // Get agent type from AssignedAgent field (set during task creation)
                 var agentType = !string.IsNullOrEmpty(task.AssignedAgent)
@@ -816,6 +927,61 @@ namespace DraCode.KoboldLair.Orchestrators
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Loads done tasks from all task files in the project directory.
+        /// This enables cross-area dependency checking.
+        /// </summary>
+        private HashSet<string> LoadDoneTasksFromProject()
+        {
+            var doneTasks = new HashSet<string>();
+
+            // Get project directory from task file path: ./projects/my-project/tasks/backend-tasks.md -> ./projects/my-project
+            var taskFolder = Path.GetDirectoryName(_outputMarkdownPath);
+            var projectDir = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
+            if (string.IsNullOrEmpty(projectDir) || !Directory.Exists(projectDir))
+            {
+                return doneTasks;
+            }
+
+            // Find all *-tasks.md files in the project task directory
+            var taskDir = Path.Combine(projectDir, "tasks");
+            if (!Directory.Exists(taskDir))
+            {
+                return doneTasks;
+            }
+
+            var taskFiles = Directory.GetFiles(taskDir, "*-tasks.md");
+
+            foreach (var taskFile in taskFiles)
+            {
+                // Skip the current task file (already loaded)
+                if (Path.GetFullPath(taskFile) == Path.GetFullPath(_outputMarkdownPath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var tracker = new TaskTracker();
+                    tracker.LoadFromFile(taskFile);
+                    var tasks = tracker.GetAllTasks()
+                        .Where(t => t.Status == TaskStatus.Done)
+                        .Select(t => t.Task);
+
+                    foreach (var task in tasks)
+                    {
+                        doneTasks.Add(task);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to load tasks from {TaskFile} for dependency checking", taskFile);
+                }
+            }
+
+            return doneTasks;
         }
 
         /// <summary>

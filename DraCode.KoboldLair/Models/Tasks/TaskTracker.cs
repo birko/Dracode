@@ -17,8 +17,10 @@ namespace DraCode.KoboldLair.Models.Tasks
             RegexOptions.Compiled);
 
         // Regex to match status with emoji: "🟡 working" or just "working"
+        // Uses \p{So} (Symbol, Other) to match any emoji rather than specific characters
+        // This handles encoding differences and various emoji representations
         private static readonly Regex StatusRegex = new(
-            @"^(?:[⚪🔵🟡🟢🔴]\s*)?(\w+)$",
+            @"^(?:\p{So}+\s*)?(\w+)$",
             RegexOptions.Compiled);
 
         // Regex to extract task ID from task description: [id:abc12345] Task description
@@ -385,9 +387,20 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// </summary>
         private static TaskStatus ParseStatus(string statusString)
         {
-            // Extract the status word from patterns like "🟡 working" or "working"
+            // Extract the status word - try regex first, fallback to simple extraction
+            string statusWord;
             var match = StatusRegex.Match(statusString);
-            var statusWord = match.Success ? match.Groups[1].Value : statusString;
+            if (match.Success && match.Groups[1].Success)
+            {
+                statusWord = match.Groups[1].Value;
+            }
+            else
+            {
+                // Fallback: extract last word (status keyword) from string
+                // Handles cases like "🟡 working" where emoji regex might not match
+                var parts = statusString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                statusWord = parts.Length > 0 ? parts[^1] : statusString;
+            }
 
             return statusWord.ToLowerInvariant() switch
             {
