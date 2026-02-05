@@ -21,7 +21,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         public override string Name => "git_status";
 
         public override string Description =>
-            "View git status for a project: list unmerged feature branches, check current status, or test if a branch can be merged cleanly.";
+            "Git operations for a project: list unmerged feature branches, check current status, test if a branch can be merged cleanly, or initialize a new git repository.";
 
         public override object? InputSchema => new
         {
@@ -31,8 +31,8 @@ namespace DraCode.KoboldLair.Agents.Tools
                 action = new
                 {
                     type = "string",
-                    description = "Action to perform: 'branches' (list unmerged feature branches), 'status' (current branch and changes), 'check_merge' (test if branch can merge without conflicts)",
-                    @enum = new[] { "branches", "status", "check_merge" }
+                    description = "Action to perform: 'branches' (list unmerged feature branches), 'status' (current branch and changes), 'check_merge' (test if branch can merge without conflicts), 'init' (initialize git repository)",
+                    @enum = new[] { "branches", "status", "check_merge", "init" }
                 },
                 project_name = new
                 {
@@ -76,9 +76,15 @@ namespace DraCode.KoboldLair.Agents.Tools
                 return "Git is not installed on this system.";
             }
 
+            // For init action, we don't require an existing repository
+            if (action == "init")
+            {
+                return InitRepository(projectFolder, projectName);
+            }
+
             if (!_gitService.IsRepositoryAsync(projectFolder).GetAwaiter().GetResult())
             {
-                return $"Project '{projectName}' does not have a git repository.";
+                return $"Project '{projectName}' does not have a git repository. Use the 'init' action to initialize one.";
             }
 
             return action switch
@@ -170,6 +176,26 @@ namespace DraCode.KoboldLair.Agents.Tools
                 ? $" Conflicts: {string.Join(", ", result.PotentialConflicts.Take(5))}" + (result.PotentialConflicts.Count > 5 ? $" +{result.PotentialConflicts.Count - 5} more" : "")
                 : "";
             return $"❌ `{branchName}` → main: Has conflicts.{conflicts}";
+        }
+
+        private string InitRepository(string projectFolder, string projectName)
+        {
+            // Check if already initialized
+            if (_gitService!.IsRepositoryAsync(projectFolder).GetAwaiter().GetResult())
+            {
+                return $"✅ Project '{projectName}' already has a git repository initialized.";
+            }
+
+            // Initialize the repository
+            var success = _gitService.InitRepositoryAsync(projectFolder).GetAwaiter().GetResult();
+
+            if (success)
+            {
+                SendMessage("git_initialized", $"Git repository initialized for project '{projectName}'");
+                return $"✅ Git repository initialized for '{projectName}' on branch 'main'.";
+            }
+
+            return $"❌ Failed to initialize git repository for '{projectName}'. Check if git is installed.";
         }
     }
 }

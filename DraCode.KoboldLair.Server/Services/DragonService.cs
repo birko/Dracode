@@ -709,7 +709,9 @@ namespace DraCode.KoboldLair.Server.Services
                 Status = p.Status.ToString(),
                 FeatureCount = p.Specification?.Features.Count ?? 0,
                 CreatedAt = p.CreatedAt,
-                UpdatedAt = p.UpdatedAt
+                UpdatedAt = p.UpdatedAt,
+                HasGitRepository = !string.IsNullOrEmpty(p.OutputPath) &&
+                    _gitService.IsRepositoryAsync(p.OutputPath).GetAwaiter().GetResult()
             }).ToList();
         }
 

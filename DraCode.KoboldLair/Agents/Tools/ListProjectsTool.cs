@@ -46,8 +46,8 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 var result = new System.Text.StringBuilder();
                 result.AppendLine($"**{projects.Count} project(s):**\n");
-                result.AppendLine("| Status | Project | Features | Updated |");
-                result.AppendLine("|--------|---------|----------|---------|");
+                result.AppendLine("| Status | Project | Features | Git | Updated |");
+                result.AppendLine("|--------|---------|----------|-----|---------|");
 
                 foreach (var project in projects.OrderByDescending(p => p.UpdatedAt))
                 {
@@ -63,7 +63,8 @@ namespace DraCode.KoboldLair.Agents.Tools
                         _ => "❓"
                     };
 
-                    result.AppendLine($"| {statusIcon} {project.Status} | {project.Name} | {project.FeatureCount} | {project.UpdatedAt:MM-dd HH:mm} |");
+                    var gitIcon = project.HasGitRepository ? "✓" : "✗";
+                    result.AppendLine($"| {statusIcon} {project.Status} | {project.Name} | {project.FeatureCount} | {gitIcon} | {project.UpdatedAt:MM-dd HH:mm} |");
                 }
 
                 return result.ToString();
