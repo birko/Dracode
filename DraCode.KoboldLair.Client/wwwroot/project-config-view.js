@@ -75,7 +75,7 @@ export class ProjectConfigView {
         return `
             <div class="list-item config-item" data-project-id="${projectId}">
                 <div class="list-item-main">
-                    <span class="list-item-icon">Folder</span>
+                    <span class="list-item-icon">📁</span>
                     <div class="list-item-content">
                         <div class="list-item-title">${projectName}</div>
                         <div class="list-item-subtitle">
