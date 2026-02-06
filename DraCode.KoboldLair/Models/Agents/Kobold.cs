@@ -3,6 +3,7 @@ using DraCode.Agent.Agents;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Services;
+using DraCode.KoboldLair.Models.Validation;
 using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Models.Agents
@@ -15,6 +16,8 @@ namespace DraCode.KoboldLair.Models.Agents
     public class Kobold
     {
         private readonly ILogger<Kobold>? _logger;
+        private readonly StepValidationService _validationService;
+
         /// <summary>
         /// Unique identifier for this Kobold
         /// </summary>
@@ -96,6 +99,7 @@ namespace DraCode.KoboldLair.Models.Agents
             Status = KoboldStatus.Unassigned;
             CreatedAt = DateTime.UtcNow;
             _logger = logger;
+            _validationService = new StepValidationService(logger as ILogger<StepValidationService>);
             
             _logger?.LogInformation("Kobold {KoboldId} created with agent type {AgentType} at {CreatedAt:o}", 
                 Id.ToString()[..8], agentType, CreatedAt);
@@ -691,6 +695,10 @@ You are working on a task that is part of a larger project. Below is the project
                                 if (newStepIndex != currentStepIndex && currentStepIndex < ImplementationPlan.Steps.Count)
                                 {
                                     var completedStep = ImplementationPlan.Steps[currentStepIndex];
+                                    
+                                    // Phase 3: Update telemetry
+                                    completedStep.Metrics.IterationsUsed = stepIterationCount;
+                                    
                                     _logger?.LogInformation(
                                         "✅ Step {StepIndex} completed: {StepTitle} ({IterationCount} iterations, status: {Status})",
                                         completedStep.Index, completedStep.Title, stepIterationCount, completedStep.Status);
@@ -749,6 +757,11 @@ You are working on a task that is part of a larger project. Below is the project
                                         currentStep.Index, currentStep.Title, stepIterationCount);
                                     
                                     currentStep.Complete($"Auto-completed by validation (agent didn't mark explicitly)");
+                                    
+                                    // Phase 3: Update telemetry
+                                    currentStep.Metrics.IterationsUsed = stepIterationCount;
+                                    currentStep.Metrics.AutoCompleted = true;
+                                    
                                     ImplementationPlan.CurrentStepIndex++;
                                     ImplementationPlan.AddLogEntry($"Auto-advanced from step {currentStep.Index} after validation passed");
                                     
@@ -821,9 +834,12 @@ You are working on a task that is part of a larger project. Below is the project
         }
 
         /// <summary>
-        /// Builds the full task prompt including plan context if available
+        /// Builds the full task prompt including plan context if available.
+        /// Phase 3: Supports progressive detail reveal to reduce token usage.
         /// </summary>
-        private string BuildFullPromptWithPlan()
+        /// <param name="useProgressiveReveal">Whether to use progressive detail reveal (default: true)</param>
+        /// <param name="mediumDetailCount">Number of upcoming steps to show medium details for (default: 2)</param>
+        private string BuildFullPromptWithPlan(bool useProgressiveReveal = true, int mediumDetailCount = 2)
         {
             var sb = new System.Text.StringBuilder();
 
@@ -881,34 +897,104 @@ You are working on a task that is part of a larger project. Below is the project
                     sb.AppendLine();
                 }
 
-                // Show details of pending steps
-                sb.AppendLine("### Step Details");
-                sb.AppendLine();
-                foreach (var step in ImplementationPlan.Steps.Where(s => s.Status == StepStatus.Pending || s.Status == StepStatus.InProgress))
+                // Phase 3: Progressive detail reveal
+                if (useProgressiveReveal && ImplementationPlan.Steps.Count > 3)
                 {
-                    sb.AppendLine($"**Step {step.Index}: {step.Title}**");
-                    sb.AppendLine();
-                    sb.AppendLine(step.Description);
+                    sb.AppendLine("### Step Details (Progressive)");
                     sb.AppendLine();
 
-                    if (step.FilesToCreate.Count > 0)
+                    var currentIndex = ImplementationPlan.CurrentStepIndex;
+                    
+                    // Full details for current step
+                    if (currentIndex < ImplementationPlan.Steps.Count)
                     {
-                        sb.AppendLine("Files to create:");
-                        foreach (var file in step.FilesToCreate)
+                        var currentStep = ImplementationPlan.Steps[currentIndex];
+                        sb.AppendLine($"**CURRENT STEP {currentStep.Index}: {currentStep.Title}** ⭐");
+                        sb.AppendLine();
+                        sb.AppendLine(currentStep.Description);
+                        sb.AppendLine();
+
+                        if (currentStep.FilesToCreate.Count > 0)
                         {
-                            sb.AppendLine($"- {file}");
+                            sb.AppendLine("Files to create:");
+                            foreach (var file in currentStep.FilesToCreate)
+                            {
+                                sb.AppendLine($"- {file}");
+                            }
+                            sb.AppendLine();
                         }
+
+                        if (currentStep.FilesToModify.Count > 0)
+                        {
+                            sb.AppendLine("Files to modify:");
+                            foreach (var file in currentStep.FilesToModify)
+                            {
+                                sb.AppendLine($"- {file}");
+                            }
+                            sb.AppendLine();
+                        }
+                    }
+
+                    // Medium details for next N steps
+                    for (int i = currentIndex + 1; i < Math.Min(currentIndex + 1 + mediumDetailCount, ImplementationPlan.Steps.Count); i++)
+                    {
+                        var step = ImplementationPlan.Steps[i];
+                        sb.AppendLine($"**Upcoming Step {step.Index}: {step.Title}**");
+                        sb.AppendLine();
+                        sb.AppendLine(step.Description);
                         sb.AppendLine();
                     }
 
-                    if (step.FilesToModify.Count > 0)
+                    // Summary only for remaining steps
+                    if (currentIndex + 1 + mediumDetailCount < ImplementationPlan.Steps.Count)
                     {
-                        sb.AppendLine("Files to modify:");
-                        foreach (var file in step.FilesToModify)
+                        sb.AppendLine("**Later Steps (Summary):**");
+                        for (int i = currentIndex + 1 + mediumDetailCount; i < ImplementationPlan.Steps.Count; i++)
                         {
-                            sb.AppendLine($"- {file}");
+                            var step = ImplementationPlan.Steps[i];
+                            var statusIcon = step.Status switch
+                            {
+                                StepStatus.Completed => "[x]",
+                                StepStatus.Failed => "[!]",
+                                StepStatus.Skipped => "[-]",
+                                _ => "[ ]"
+                            };
+                            sb.AppendLine($"{statusIcon} Step {step.Index}: {step.Title}");
                         }
                         sb.AppendLine();
+                    }
+                }
+                else
+                {
+                    // Original behavior: Show full details for all pending/in-progress steps
+                    sb.AppendLine("### Step Details");
+                    sb.AppendLine();
+                    foreach (var step in ImplementationPlan.Steps.Where(s => s.Status == StepStatus.Pending || s.Status == StepStatus.InProgress))
+                    {
+                        sb.AppendLine($"**Step {step.Index}: {step.Title}**");
+                        sb.AppendLine();
+                        sb.AppendLine(step.Description);
+                        sb.AppendLine();
+
+                        if (step.FilesToCreate.Count > 0)
+                        {
+                            sb.AppendLine("Files to create:");
+                            foreach (var file in step.FilesToCreate)
+                            {
+                                sb.AppendLine($"- {file}");
+                            }
+                            sb.AppendLine();
+                        }
+
+                        if (step.FilesToModify.Count > 0)
+                        {
+                            sb.AppendLine("Files to modify:");
+                            foreach (var file in step.FilesToModify)
+                            {
+                                sb.AppendLine($"- {file}");
+                            }
+                            sb.AppendLine();
+                        }
                     }
                 }
 
@@ -1066,46 +1152,16 @@ You are working on a task that is part of a larger project. Below is the project
         /// </summary>
         /// <param name="step">The step to validate</param>
         /// <returns>True if validation passed, false otherwise</returns>
+        /// <summary>
+        /// Validates whether a step's file expectations were met using the validation service.
+        /// </summary>
+        /// <param name="step">The step to validate</param>
+        /// <returns>True if validation passed, false otherwise with list of issues</returns>
         private async Task<(bool success, List<string> issues)> ValidateStepCompletionAsync(ImplementationStep step)
         {
-            var issues = new List<string>();
-
-            // Check files to create
-            foreach (var filePath in step.FilesToCreate)
-            {
-                var fullPath = Path.IsPathRooted(filePath) 
-                    ? filePath 
-                    : Path.Combine(Agent.Options.WorkingDirectory, filePath);
-
-                if (!File.Exists(fullPath))
-                {
-                    issues.Add($"Expected file not created: {filePath}");
-                }
-            }
-
-            // Check files to modify
-            foreach (var filePath in step.FilesToModify)
-            {
-                var fullPath = Path.IsPathRooted(filePath) 
-                    ? filePath 
-                    : Path.Combine(Agent.Options.WorkingDirectory, filePath);
-
-                if (!File.Exists(fullPath))
-                {
-                    issues.Add($"Expected file not found: {filePath}");
-                }
-                else if (step.StartedAt.HasValue)
-                {
-                    // Check if file was modified after step started
-                    var lastWrite = File.GetLastWriteTimeUtc(fullPath);
-                    if (lastWrite < step.StartedAt.Value)
-                    {
-                        issues.Add($"File not modified since step started: {filePath}");
-                    }
-                }
-            }
-
-            return (issues.Count == 0, issues);
+            // Phase 3: Use validation service
+            var result = await _validationService.ValidateStepAsync(step, Agent.Options.WorkingDirectory);
+            return (result.Success, result.AllIssues);
         }
 
         /// <summary>

@@ -101,6 +101,19 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// (default: true)
         /// </summary>
         public bool UseEnhancedExecution { get; set; } = true;
+
+        /// <summary>
+        /// Phase 3: Whether to use progressive detail reveal to reduce token usage for large plans.
+        /// When enabled, only shows full details for current step, medium details for next steps, and summary for remaining.
+        /// (default: true)
+        /// </summary>
+        public bool UseProgressiveDetailReveal { get; set; } = true;
+
+        /// <summary>
+        /// Phase 3: Number of upcoming steps to show medium details for (title + description).
+        /// Steps beyond this get summary only (title + status). (default: 2)
+        /// </summary>
+        public int MediumDetailStepCount { get; set; } = 2;
     }
 
     /// <summary>
