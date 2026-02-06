@@ -58,7 +58,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
+{GetFileOperationGuidelines()}
 - Read existing files and code before writing documentation
 - Use clear and concise language appropriate for the target audience
 - Follow consistent formatting and style conventions

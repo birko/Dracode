@@ -56,8 +56,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Follow PEP 8 style guide (snake_case, 4 spaces, max line 79-88 chars)
 - Use type hints for function parameters and return types
 - Prefer comprehensions over loops when readable
@@ -65,9 +64,7 @@ Important guidelines:
 - Follow the Zen of Python: explicit is better than implicit, simple is better than complex
 - Write docstrings for modules, classes, and functions
 - Use virtual environments for dependency isolation
-- Test your code after making changes
-- If something fails, analyze the error and try a different approach
-- Be methodical and thorough
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }

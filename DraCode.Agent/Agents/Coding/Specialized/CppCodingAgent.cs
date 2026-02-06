@@ -54,17 +54,15 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Prefer smart pointers (unique_ptr, shared_ptr) over raw pointers
 - Use RAII for resource management
 - Follow the Rule of Five/Zero for class design
 - Prefer std::array and std::vector over C-style arrays
 - Use const correctness throughout
 - Avoid undefined behavior and memory leaks
-- Test your code after making changes
 - If something fails, analyze compiler errors and try a different approach
-- Be methodical and thorough
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }

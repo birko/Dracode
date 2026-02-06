@@ -58,8 +58,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Use standalone components in Angular 14+ when appropriate
 - Follow Angular style guide and naming conventions
 - Properly implement lifecycle hooks (ngOnInit, ngOnDestroy, etc.)
@@ -70,9 +69,8 @@ Important guidelines:
 - Follow smart/dumb component pattern
 - Handle loading and error states properly
 - Use Angular CLI commands for generating components, services, etc.
-- Test your code after making changes
 - If something fails, analyze Angular error messages and try a different approach
-- Be methodical and thorough
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }

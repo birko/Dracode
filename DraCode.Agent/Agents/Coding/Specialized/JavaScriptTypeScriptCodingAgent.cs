@@ -55,8 +55,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Use const/let instead of var
 - Prefer arrow functions and functional programming patterns
 - Use TypeScript for type safety when appropriate
@@ -64,9 +63,7 @@ Important guidelines:
 - Handle errors properly with try/catch or error callbacks
 - Use async/await for asynchronous operations
 - Avoid using frameworks like React, Angular, Vue (stick to vanilla JS/TS)
-- Test your code after making changes
-- If something fails, analyze the error and try a different approach
-- Be methodical and thorough
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }

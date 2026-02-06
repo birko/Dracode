@@ -57,8 +57,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Choose appropriate formats for the use case (vector vs raster, lossy vs lossless)
 - Optimize file sizes without sacrificing necessary quality
 - Consider responsive design and multiple resolutions

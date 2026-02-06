@@ -57,8 +57,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Use CSS Grid for 2D layouts, Flexbox for 1D layouts
 - Prefer CSS custom properties for theming and reusable values
 - Use semantic class names (avoid overly generic names)
@@ -68,9 +67,8 @@ Important guidelines:
 - Consider accessibility (contrast ratios, focus states, screen readers)
 - Use CSS logical properties for better internationalization
 - Minimize CSS specificity wars
-- Test your styles after making changes
 - If something doesn't work, check browser compatibility and try a different approach
-- Be methodical and thorough
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }

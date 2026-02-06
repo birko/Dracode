@@ -53,15 +53,12 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Follow C# naming conventions (PascalCase for public members, camelCase for private)
 - Use nullable reference types appropriately
 - Prefer async/await over blocking operations
 - Write clear XML documentation comments for public APIs
-- Test your code after making changes
-- If something fails, analyze the error and try a different approach
-- Be methodical and thorough
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }

@@ -61,7 +61,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
+{GetFileOperationGuidelines()}
 - Read existing code/documentation to understand the system
 - Choose the right diagram type for the use case:
   * UML Class: Show structure, relationships, attributes, methods

@@ -55,17 +55,15 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Use clear, descriptive labels and comments
 - Document register usage and calling conventions
 - Be mindful of stack alignment and calling conventions
 - Consider endianness when working with multi-byte values
 - Use proper directives for data sections (.data, .bss, .text)
-- Test your code after making changes
 - If something fails, analyze assembler errors and runtime behavior
-- Be methodical and thorough
 - Always specify target architecture (x86, x64, ARM, etc.)
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }

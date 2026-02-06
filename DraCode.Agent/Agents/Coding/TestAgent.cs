@@ -68,7 +68,7 @@ When given a test generation task:
 {depthGuidance}
 
 Important testing guidelines:
-- Always explore the workspace first with list_files before making assumptions
+{GetFileOperationGuidelines()}
 - Read the code under test thoroughly to understand its behavior
 - Write clear, descriptive test names that explain what is being tested
 - Follow the AAA pattern: Arrange (setup), Act (execute), Assert (verify)

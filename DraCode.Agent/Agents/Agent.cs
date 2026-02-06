@@ -67,6 +67,8 @@ namespace DraCode.Agent.Agents
                 new ListFiles(),
                 new ReadFile(),
                 new WriteFile(),
+                new EditFile(),
+                new AppendToFile(),
                 new SearchCode(),
                 new RunCommand(),
                 new DisplayText(),
@@ -124,6 +126,31 @@ namespace DraCode.Agent.Agents
         // Legacy properties for backward compatibility
         public string WorkingDirectory => _options.WorkingDirectory;
         public bool Verbose => _options.Verbose;
+
+        /// <summary>
+        /// Returns common file operation guidelines for agents.
+        /// Use this in system prompts to reduce duplication.
+        /// </summary>
+        protected static string GetFileOperationGuidelines()
+        {
+            return @"- Always explore the workspace first with list_files before making assumptions
+- Read existing files before modifying them with read_file
+- Use edit_file for surgical changes to existing files (preserves other content)
+- Use write_file only for creating new files or completely replacing file content
+- Use append_to_file to add content to the end of a file
+- When making multiple changes to the same file, use edit_file for each change or read the file first, make all changes, then write once";
+        }
+
+        /// <summary>
+        /// Returns common best practices for agents.
+        /// Use this in system prompts to reduce duplication.
+        /// </summary>
+        protected static string GetCommonBestPractices()
+        {
+            return @"- Test your code after making changes
+- If something fails, analyze the error and try a different approach
+- Be methodical and thorough";
+        }
 
         public async Task<List<Message>> RunAsync(string task, int? maxIterations = null)
         {

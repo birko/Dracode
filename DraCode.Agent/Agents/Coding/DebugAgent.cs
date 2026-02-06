@@ -64,7 +64,8 @@ When given a debugging task:
 {depthGuidance}
 
 Important debugging guidelines:
-- Always explore the workspace first with list_files before making assumptions
+{GetFileOperationGuidelines()}
+- Use append_to_file to add logs or diagnostic output to files
 - Read error messages and stack traces carefully - they often point to the root cause
 - Reproduce the issue reliably before attempting fixes
 - Add diagnostic logging to understand program flow

@@ -64,7 +64,7 @@ When given a refactoring task:
 {depthGuidance}
 
 Important refactoring guidelines:
-- Always explore the workspace first with list_files before making assumptions
+{GetFileOperationGuidelines()}
 - Read and understand existing code thoroughly before refactoring
 - Preserve existing behavior - refactoring should not change functionality
 - Make small, incremental changes rather than large rewrites

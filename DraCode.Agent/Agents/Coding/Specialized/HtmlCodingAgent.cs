@@ -57,8 +57,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Use semantic HTML5 elements instead of generic divs/spans when possible
 - Include proper DOCTYPE, lang attribute, and meta charset
 - Ensure proper heading hierarchy (h1-h6)
@@ -69,9 +68,8 @@ Important guidelines:
 - Use <button> for buttons, <a> for links
 - Validate HTML structure and nesting rules
 - Consider SEO with proper meta tags and structured data
-- Test your markup after making changes
 - If something doesn't render correctly, check HTML validity
-- Be methodical and thorough
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }

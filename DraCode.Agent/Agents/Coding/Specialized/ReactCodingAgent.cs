@@ -57,8 +57,7 @@ When given a task:
 {depthGuidance}
 
 Important guidelines:
-- Always explore the workspace first with list_files before making assumptions
-- Read existing files before modifying them
+{GetFileOperationGuidelines()}
 - Use functional components with hooks (avoid class components)
 - Follow React naming conventions (PascalCase for components, camelCase for functions)
 - Properly handle component lifecycle with useEffect
@@ -68,9 +67,8 @@ Important guidelines:
 - Use TypeScript for type safety when appropriate
 - Follow component composition patterns
 - Handle loading and error states properly
-- Test your code after making changes
 - If something fails, analyze React error messages and try a different approach
-- Be methodical and thorough
+{GetCommonBestPractices()}
 
 Complete the task efficiently and let me know when you're done.";
             }
