@@ -181,6 +181,91 @@ namespace DraCode.Agent.Agents
         /// </summary>
         private async Task<List<Message>> RunWithHistoryAsync(List<Message> conversation, int? maxIterations = null)
         {
+            // Use streaming if enabled
+            if (_options.EnableStreaming)
+            {
+                try
+                {
+                    return await RunWithHistoryStreamingAsync(conversation, maxIterations);
+                }
+                catch (Exception ex) when (_options.StreamingFallbackToSync)
+                {
+                    SendMessage("warning", $"Streaming failed: {ex.Message}. Falling back to synchronous mode.");
+                    // Fall through to synchronous execution
+                }
+            }
+
+            return await RunWithHistorySyncAsync(conversation, maxIterations);
+        }
+
+        /// <summary>
+        /// Runs the agent loop with streaming responses.
+        /// Note: Streaming mode currently only supports text responses. Tool calls fall back to sync mode.
+        /// </summary>
+        private async Task<List<Message>> RunWithHistoryStreamingAsync(List<Message> conversation, int? maxIterations = null)
+        {
+            var maxIter = maxIterations ?? _options.MaxIterations;
+
+            // Streaming currently only supports single-turn text responses
+            // Multi-turn with tool calls requires sync mode
+            if (_options.Verbose)
+            {
+                SendMessage("info", "ITERATION 1 (streaming)");
+            }
+
+            var streamingResponse = await _llmProvider.SendMessageStreamingAsync(conversation, _tools, SystemPrompt);
+
+            if (!string.IsNullOrEmpty(streamingResponse.Error))
+            {
+                SendMessage("error", $"Streaming error: {streamingResponse.Error}");
+                throw new InvalidOperationException($"Streaming failed: {streamingResponse.Error}");
+            }
+
+            // Collect the full response from stream
+            var fullText = new System.Text.StringBuilder();
+            var stream = await streamingResponse.GetStreamAsync();
+
+            await foreach (var chunk in stream)
+            {
+                fullText.Append(chunk);
+                // Send streaming chunks to callback for real-time display
+                SendMessage("assistant_stream", chunk);
+            }
+
+            var responseText = fullText.ToString();
+
+            // For streaming, we only get text content (tool calls not yet supported in streaming mode)
+            var response = new LlmResponse
+            {
+                StopReason = "end_turn",
+                Content = new List<ContentBlock>
+                {
+                    new ContentBlock { Type = "text", Text = responseText }
+                }
+            };
+
+            if (_options.Verbose)
+            {
+                SendMessage("info", $"Stop reason: {response.StopReason}");
+            }
+
+            // Add assistant response to conversation
+            conversation.Add(new Message
+            {
+                Role = "assistant",
+                Content = response.Content
+            });
+
+            // Streaming mode currently only supports text responses (no tool calls)
+            SendMessage("assistant_final", responseText);
+            return conversation;
+        }
+
+        /// <summary>
+        /// Runs the agent loop with synchronous (non-streaming) responses.
+        /// </summary>
+        private async Task<List<Message>> RunWithHistorySyncAsync(List<Message> conversation, int? maxIterations = null)
+        {
             var maxIter = maxIterations ?? _options.MaxIterations;
 
             for (int iteration = 1; iteration <= maxIter; iteration++)

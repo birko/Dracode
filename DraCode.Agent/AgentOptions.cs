@@ -58,6 +58,17 @@ namespace DraCode.Agent
         public List<string> AllowedExternalPaths { get; set; } = new();
 
         /// <summary>
+        /// Enable streaming mode for LLM responses. Default: false (synchronous mode)
+        /// When true, responses are streamed token-by-token for better perceived latency.
+        /// </summary>
+        public bool EnableStreaming { get; set; } = false;
+
+        /// <summary>
+        /// Fallback to synchronous mode if streaming fails. Default: true
+        /// </summary>
+        public bool StreamingFallbackToSync { get; set; } = true;
+
+        /// <summary>
         /// Creates a copy of the current options
         /// </summary>
         public AgentOptions Clone()
@@ -72,7 +83,9 @@ namespace DraCode.Agent
                 PromptTimeout = PromptTimeout,
                 DefaultPromptResponse = DefaultPromptResponse,
                 ModelDepth = ModelDepth,
-                AllowedExternalPaths = new List<string>(AllowedExternalPaths)
+                AllowedExternalPaths = new List<string>(AllowedExternalPaths),
+                EnableStreaming = EnableStreaming,
+                StreamingFallbackToSync = StreamingFallbackToSync
             };
         }
 
@@ -95,6 +108,8 @@ namespace DraCode.Agent
             ModelDepth = other.ModelDepth;
             if (other.AllowedExternalPaths.Count > 0)
                 AllowedExternalPaths = new List<string>(other.AllowedExternalPaths);
+            EnableStreaming = other.EnableStreaming;
+            StreamingFallbackToSync = other.StreamingFallbackToSync;
         }
 
         /// <summary>
