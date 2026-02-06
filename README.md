@@ -55,7 +55,7 @@ dotnet run --project DraCode.AppHost
 ## 🚀 Features
 
 - **Multi-Provider LLM Support**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp
-- **17 Specialized Agent Types**: Coding (C#, C++, JavaScript, TypeScript, PHP, Python, etc.), Web (HTML, CSS, React, Angular), Media (SVG, Bitmap, Image), and Diagramming
+- **23 Specialized Agent Types**: Organized into hierarchies - Coding (Debug, Documentation, Refactor, Test), Specialized Coding (C#, C++, JavaScript, TypeScript, PHP, Python, etc.), Web (HTML, CSS, React, Angular), Media (SVG, Bitmap, Image), and Diagramming. Includes OrchestratorAgent base class with helper methods.
 - **Multi-Task Execution**: Define and execute multiple tasks sequentially with fresh agent instances
 - **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
 - **Verbose Mode Control**: Toggle between detailed execution info or clean minimal output
@@ -362,8 +362,8 @@ dotnet test
 ```
 DraCode/
 ├── DraCode/                      # Main CLI application
-├── DraCode.Agent/                # Agent library (17 agent types)
-│   ├── Agents/                  # Agent implementations (Coding, Media, Diagramming)
+├── DraCode.Agent/                # Agent library (21 agent types)
+│   ├── Agents/                  # Agent implementations (Coding, Media, Documentation, Debug, Refactor, Test, Diagramming)
 │   ├── Auth/                    # OAuth implementation
 │   ├── LLMs/                    # 10 LLM provider implementations
 │   ├── Tools/                   # 7 built-in tools

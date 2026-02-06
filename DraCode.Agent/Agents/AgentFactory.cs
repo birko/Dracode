@@ -1,3 +1,6 @@
+using DraCode.Agent.Agents.Coding;
+using DraCode.Agent.Agents.Coding.Specialized;
+using DraCode.Agent.Agents.Media;
 using DraCode.Agent.LLMs.Providers;
 
 namespace DraCode.Agent.Agents
@@ -45,7 +48,7 @@ namespace DraCode.Agent.Agents
 
         // Create an Agent with a specific provider name and configuration using AgentOptions
         // provider: "openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "vllm", "sglang", "githubcopilot"
-        // agentType: "coding", "csharp", "cpp", "assembler", "javascript", "css", "html", "react", "angular", "php", "python", "diagramming", "media", "image", "svg", "bitmap"
+        // agentType: "coding", "csharp", "cpp", "assembler", "javascript", "css", "html", "react", "angular", "php", "python", "documentation", "debug", "refactor", "test", "diagramming", "media", "image", "svg", "bitmap"
         public static Agents.Agent Create(
             string provider,
             AgentOptions? options = null,
@@ -70,12 +73,16 @@ namespace DraCode.Agent.Agents
                 "angular" => new AngularCodingAgent(llm, options),
                 "php" => new PhpCodingAgent(llm, options),
                 "python" => new PythonCodingAgent(llm, options),
+                "documentation" or "docs" => new DocumentationAgent(llm, options),
+                "debug" or "debugging" => new DebugAgent(llm, options),
+                "refactor" or "refactoring" => new RefactorAgent(llm, options),
+                "test" or "testing" => new TestAgent(llm, options),
                 "diagramming" or "diagram" => new DiagrammingAgent(llm, options),
                 "media" => new MediaAgent(llm, options),
                 "image" => new ImageAgent(llm, options),
                 "svg" => new SvgAgent(llm, options),
                 "bitmap" => new BitmapAgent(llm, options),
-                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding', 'csharp', 'cpp', 'assembler', 'javascript', 'typescript', 'css', 'html', 'react', 'angular', 'php', 'python', 'diagramming', 'media', 'image', 'svg', 'bitmap'")
+                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding', 'csharp', 'cpp', 'assembler', 'javascript', 'typescript', 'css', 'html', 'react', 'angular', 'php', 'python', 'documentation', 'debug', 'refactor', 'test', 'diagramming', 'media', 'image', 'svg', 'bitmap'")
             };
         }
 

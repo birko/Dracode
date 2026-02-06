@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.5.0] - 2026-02-06
+
+### ✨ Added - Agent Architecture Improvements
+
+**New OrchestratorAgent Base Class:**
+- Created `OrchestratorAgent` abstract base class for orchestration agents
+- Provides reusable helper methods for orchestrators (Dragon, Wyrm, Wyvern):
+  - `GetOrchestratorGuidance()` - Common orchestration best practices
+  - `GetDepthGuidance()` - Model-specific reasoning instructions (replaces inline switches)
+  - `ExtractTextFromContent()` - Robust content parsing (handles multiple formats)
+  - `ExtractJson()` - JSON extraction from markdown responses
+- All KoboldLair orchestrators now inherit from `OrchestratorAgent`
+- Reduces code duplication and improves maintainability
+
+### 🗂️ Changed - Agent Organization & Namespaces
+
+**Reorganized agent folder structure for better maintainability:**
+
+**Before (flat structure):**
+- `DraCode.Agent/Agents/` - 23 files in one folder
+
+**After (hierarchical structure):**
+- `DraCode.Agent/Agents/` (root) - 6 base classes
+  - Agent.cs, OrchestratorAgent.cs, CodingAgent.cs, MediaAgent.cs
+  - DiagrammingAgent.cs, AgentFactory.cs
+- `DraCode.Agent/Agents/Coding/` - 4 development workflow agents
+  - DebugAgent, DocumentationAgent, RefactorAgent, TestAgent
+  - Namespace: `DraCode.Agent.Agents.Coding`
+- `DraCode.Agent/Agents/Coding/Specialized/` - 10 language-specific agents
+  - Angular, Assembler, C++, C#, CSS, HTML, JavaScript/TypeScript, PHP, Python, React
+  - Namespace: `DraCode.Agent.Agents.Coding.Specialized`
+- `DraCode.Agent/Agents/Media/` - 3 media agents
+  - ImageAgent, BitmapAgent, SvgAgent
+  - Namespace: `DraCode.Agent.Agents.Media`
+
+**Benefits:**
+- Clear hierarchy mirroring inheritance relationships
+- Better navigation and discoverability
+- Reduced root folder clutter (23 files → 6 files + 3 organized folders)
+- Scalable structure for future agent additions
+
+**Breaking Changes:**
+- Updated namespaces for moved agents (compile-time errors ensure all references are caught)
+- AgentFactory updated with new using statements
+- No breaking changes to external consumers (AgentFactory API unchanged)
+
+### 📚 Updated - Documentation
+
+- Updated `CLAUDE.md` with new agent hierarchy and organization
+- Updated `docs/NEW_AGENT_TYPES.md` with folder structure and namespaces
+- Updated `README.md` to reflect 23 organized agent types
+- All documentation now reflects v2.5.0 organization
+
+---
+
 ## [2.4.2] - 2026-02-04
 
 ### ⚡ Changed - Parallel Execution & Threading Improvements

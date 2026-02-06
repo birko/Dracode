@@ -1,12 +1,12 @@
 using DraCode.Agent;
+using DraCode.Agent.Agents;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
-using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents
 {
-    public class WyrmAgent : AgentBase
+    public class WyrmAgent : OrchestratorAgent
     {
         private readonly string _provider;
         private readonly Dictionary<string, string>? _config;
@@ -23,22 +23,6 @@ namespace DraCode.KoboldLair.Agents
         {
             get
             {
-                var depthGuidance = Options.ModelDepth switch
-                {
-                    <= 3 => @"
-Reasoning approach: Quick and efficient
-- Make direct, straightforward decisions
-- Prioritize speed over exhaustive analysis",
-                    >= 7 => @"
-Reasoning approach: Deep and thorough
-- Think carefully through task requirements
-- Consider multiple aspects before deciding",
-                    _ => @"
-Reasoning approach: Balanced
-- Analyze the task requirements
-- Choose the most appropriate agent"
-                };
-
                 return $@"You are an intelligent task delegator working in a sandboxed workspace at {WorkingDirectory}.
 
 Your role is to analyze task descriptions and decide which specialized agent should handle them.
@@ -61,7 +45,7 @@ Available specialized agents:
 15. 'svg' - SVG creation/editing tasks (scalable vector graphics, icons, illustrations)
 16. 'bitmap' - Bitmap/raster image tasks (JPEG, PNG, WebP, photo editing, compression)
 
-{depthGuidance}
+{GetDepthGuidance()}
 
 When you receive a task:
 1. Analyze the task description carefully

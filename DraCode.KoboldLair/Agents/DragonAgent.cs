@@ -1,9 +1,9 @@
 using DraCode.Agent;
+using DraCode.Agent.Agents;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Projects;
-using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents
 {
@@ -11,7 +11,7 @@ namespace DraCode.KoboldLair.Agents
     /// DragonAgent - The Elder Dragon and coordinator of the Dragon Council.
     /// Routes user requests to specialized sub-agents (Sage, Seeker, Sentinel, Warden).
     /// </summary>
-    public class DragonAgent : AgentBase
+    public class DragonAgent : OrchestratorAgent
     {
         private List<Message> _conversationHistory = new();
         private readonly Func<List<ProjectInfo>>? _getProjects;
@@ -123,19 +123,6 @@ namespace DraCode.KoboldLair.Agents
             }
 
             return ExtractTextFromContent(lastMessage.Content);
-        }
-
-        private string ExtractTextFromContent(object content)
-        {
-            if (content is string text) return text;
-            if (content is ContentBlock block) return block.Text ?? "";
-            if (content is IEnumerable<ContentBlock> blocks)
-            {
-                return string.Join("\n", blocks
-                    .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
-                    .Select(b => b.Text));
-            }
-            return content?.ToString() ?? "";
         }
 
         /// <summary>

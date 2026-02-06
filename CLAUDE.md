@@ -31,7 +31,7 @@ cd DraCode.Web && npm run build
 | Project | Purpose |
 |---------|---------|
 | `DraCode` | CLI console application (Spectre.Console) |
-| `DraCode.Agent` | Core agent library with 17 specialized agents and 7 tools |
+| `DraCode.Agent` | Core agent library with 23 agents organized into hierarchies and 7 tools |
 | `DraCode.AppHost` | .NET Aspire orchestration (service discovery, telemetry) |
 | `DraCode.ServiceDefaults` | Shared Aspire configuration (health checks, resilience) |
 | `DraCode.WebSocket` | WebSocket API server (`/ws` endpoint) |
@@ -65,13 +65,40 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 - **Kobold Planner**: Creates structured implementation plans → enables resumability
 - **Kobold**: Executes plans step-by-step → outputs to `workspace/` subfolder
 
-### Agent Types (17 total)
+### Agent Types (23 total)
 
-**Coding (12)**: `coding`, `csharp`, `cpp`, `assembler`, `javascript`, `typescript`, `css`, `html`, `react`, `angular`, `php`, `python`
+**Base Classes**:
+- `Agent` - Abstract base for all agents
+- `OrchestratorAgent` - Base for orchestrators (Dragon, Wyrm, Wyvern) with helper methods:
+  - `GetOrchestratorGuidance()` - Common orchestration best practices
+  - `GetDepthGuidance()` - Model-specific reasoning instructions
+  - `ExtractTextFromContent()` - Robust content parsing
+  - `ExtractJson()` - JSON extraction from markdown
+- `CodingAgent` - Base for coding-related agents
+- `MediaAgent` - Base for media-related agents
 
-**Media (3)**: `media`, `image`, `svg`, `bitmap` (bitmap extends image, image extends media)
+**Coding Agents** (located in `DraCode.Agent/Agents/Coding/`):
+- `coding` - General coding tasks
+- `debug` - Debugging and troubleshooting
+- `documentation` - Technical documentation
+- `refactor` - Code refactoring
+- `test` - Testing and test automation
 
-**Other (2)**: `diagramming`, `wyrm`
+**Specialized Coding Agents** (located in `DraCode.Agent/Agents/Coding/Specialized/`):
+- `csharp`, `cpp`, `assembler` - Systems languages
+- `javascript`, `typescript`, `css`, `html` - Web fundamentals
+- `react`, `angular` - Web frameworks
+- `php`, `python` - Scripting languages
+
+**Media Agents** (located in `DraCode.Agent/Agents/Media/`):
+- `media` - General media tasks
+- `image` - Image processing (extends MediaAgent)
+- `svg` - Vector graphics (extends ImageAgent)
+- `bitmap` - Raster images (extends ImageAgent)
+
+**Specialized Agents**:
+- `diagramming` - UML, ERD, flowcharts
+- `wyrm` - Task delegation orchestrator
 
 ### LLM Providers (10)
 

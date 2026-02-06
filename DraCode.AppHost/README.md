@@ -111,7 +111,7 @@ The dashboard (typically at `https://localhost:17094`) provides:
                  ┌───────────────────┐
                  │  DraCode.Agent    │
                  │  (Agent Library)  │
-                 │  17 Agent Types   │
+                 │  21 Agent Types   │
                  └───────────────────┘
 ```
 

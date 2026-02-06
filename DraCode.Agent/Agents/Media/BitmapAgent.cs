@@ -1,6 +1,6 @@
 using DraCode.Agent.LLMs.Providers;
 
-namespace DraCode.Agent.Agents
+namespace DraCode.Agent.Agents.Media
 {
     public class BitmapAgent : ImageAgent
     {

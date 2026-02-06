@@ -117,10 +117,11 @@ This file tracks planned enhancements and their implementation status.
 
 ### Medium Priority
 
-- [ ] **Custom Agent Types**
-  - DebugAgent - Debugging assistance
-  - RefactorAgent - Code refactoring
-  - TestAgent - Test generation
+- [x] **Custom Agent Types** *(Completed 2026-02-06)*
+  - DebugAgent - Debugging assistance with error analysis and troubleshooting
+  - RefactorAgent - Code refactoring with design patterns and clean code principles
+  - TestAgent - Test generation with comprehensive testing strategies
+  - Added support for 'debug', 'refactor', 'test' agent types in AgentFactory
   - Effort: Medium (~1 week each)
 
 - [ ] **Plugin System for Custom Tools**
@@ -167,6 +168,17 @@ This file tracks planned enhancements and their implementation status.
   - GitHub Actions workflows
   - Docker containerization
   - Effort: Medium
+
+---
+
+---
+
+## Phase F - Fixes for later
+
+### Lower Priority
+
+- [ ] **UpdatePlanStepTool**
+  -  Add a save queue similar to Drake's debouncing mechanism - accumulates saves and flushes after a delay. More complex buthighest performance.
 
 ---
 

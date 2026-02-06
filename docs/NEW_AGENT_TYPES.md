@@ -1,20 +1,225 @@
-# New Agent Types - PHP, Python, and Media Specialists
+# New Agent Types - Expanded Capabilities
 
 ## Overview
 
-DraCode.Agent now includes 6 new specialized agent types for expanded development capabilities:
+DraCode.Agent now includes 23 specialized agent types organized into a clear hierarchy:
 
-- **2 Backend/Scripting Languages**: PHP, Python
-- **4 Media/Graphics Agents**: Media (base), Image, SVG, Bitmap
+**Agent Organization** (Located in `DraCode.Agent/Agents/`):
+- **Root (6 base classes)**: Agent, OrchestratorAgent, CodingAgent, MediaAgent, DiagrammingAgent, AgentFactory
+- **Coding/ (4 agents)**: Documentation, Debug, Refactor, Test
+- **Coding/Specialized/ (10 agents)**: C#, C++, JavaScript, TypeScript, CSS, HTML, React, Angular, PHP, Python, Assembler
+- **Media/ (3 agents)**: Image, SVG, Bitmap
 
-All agents follow the same patterns as existing specialized agents with deep domain expertise, best practices, and framework knowledge built into their system prompts.
+**Agent Hierarchy**:
+```
+Agent (abstract base)
+├── OrchestratorAgent (abstract) - Base for orchestrators with helper methods
+│   ├── DragonAgent (KoboldLair)
+│   ├── WyrmAgent (KoboldLair)
+│   └── WyvernAgent (KoboldLair)
+├── CodingAgent - Base for coding-related agents
+│   ├── Debug, Documentation, Refactor, Test (Coding/)
+│   └── C#, C++, JS/TS, CSS, HTML, React, Angular, PHP, Python, Assembler (Coding/Specialized/)
+├── MediaAgent - Base for media-related agents
+│   └── ImageAgent (Media/)
+│       ├── BitmapAgent (Media/)
+│       └── SvgAgent (Media/)
+└── DiagrammingAgent - Standalone visualization agent
+```
+
+**New in v2.1**:
+- ✅ **OrchestratorAgent base class** with reusable helper methods:
+  - `GetOrchestratorGuidance()` - Common orchestration best practices
+  - `GetDepthGuidance()` - Model-specific reasoning instructions  
+  - `ExtractTextFromContent()` - Robust content parsing
+  - `ExtractJson()` - JSON extraction from markdown
+- ✅ **Organized folder structure** - Agents organized by hierarchy and domain
+- ✅ **Clear namespaces** - `DraCode.Agent.Agents.Coding`, `DraCode.Agent.Agents.Coding.Specialized`, `DraCode.Agent.Agents.Media`
+
+All agents follow the same patterns with deep domain expertise, best practices, and framework knowledge built into their system prompts.
+
+## Documentation & Quality Agents (NEW)
+
+### DocumentationAgent
+
+**Agent Type**: `documentation` / `docs`  
+**File**: `DraCode.Agent/Agents/Coding/DocumentationAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Coding`  
+**Derives From**: `CodingAgent`
+
+**Specialization**: Technical documentation and writing
+
+**Expertise Areas**:
+- Technical writing: Clear, concise, and accurate documentation
+- Documentation formats: Markdown, reStructuredText, AsciiDoc, HTML
+- API documentation: OpenAPI/Swagger, JSDoc, XML documentation comments
+- User guides and tutorials: Step-by-step instructions, examples
+- Code comments: Inline documentation, docstrings
+- README files: Project overview, setup, usage instructions
+- Architecture documentation: System design, data flows, diagrams
+- Changelog and release notes: Version tracking, migration guides
+- Documentation tools: DocFX, Sphinx, MkDocs, Docusaurus, GitBook
+- Best practices: Information architecture, consistency, accessibility
+
+**Best Practices**:
+- Use clear and concise language appropriate for the target audience
+- Follow consistent formatting and style conventions
+- Include practical examples and code snippets where appropriate
+- Structure documentation logically with proper headings and sections
+- Keep documentation up-to-date with code changes
+- Document edge cases and common pitfalls
+
+**Usage**:
+```csharp
+var docsAgent = AgentFactory.Create("openai", options, config, "documentation");
+await docsAgent.RunAsync("Create comprehensive API documentation with examples");
+```
+
+**Example Tasks**:
+- "Create API documentation for REST endpoints"
+- "Write user guide for authentication system"
+- "Generate README with setup and usage instructions"
+- "Document architecture and system design"
+
+---
+
+### DebugAgent
+
+**Agent Type**: `debug` / `debugging`  
+**File**: `DraCode.Agent/Agents/Coding/DebugAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Coding`  
+**Derives From**: `CodingAgent`
+
+**Specialization**: Debugging assistance and error analysis
+
+**Expertise Areas**:
+- Debugging techniques: Breakpoints, logging, tracing, profiling
+- Error analysis: Stack traces, exception handling, error messages
+- Root cause analysis: Isolating issues, reproducing bugs
+- Common bug patterns: Off-by-one errors, null references, race conditions, memory leaks
+- Debugging tools: GDB, LLDB, Chrome DevTools, Visual Studio debugger, WinDbg
+- Performance debugging: CPU profiling, memory profiling, bottleneck identification
+- Multi-threaded debugging: Race conditions, deadlocks, thread synchronization
+- Network debugging: HTTP inspection, WebSocket debugging, API testing
+- Log analysis: Parsing logs, identifying patterns, correlating events
+
+**Best Practices**:
+- Read error messages and stack traces carefully
+- Reproduce the issue reliably before attempting fixes
+- Add diagnostic logging to understand program flow
+- Use binary search approach to narrow down problem area
+- Check recent changes in version control
+- Consider environmental factors and configuration
+- Test edge cases and boundary conditions
+
+**Usage**:
+```csharp
+var debugAgent = AgentFactory.Create("openai", options, config, "debug");
+await debugAgent.RunAsync("Debug the null reference exception in user authentication");
+```
+
+**Example Tasks**:
+- "Debug memory leak in long-running service"
+- "Analyze stack trace and identify root cause"
+- "Find race condition in multi-threaded code"
+- "Troubleshoot intermittent API timeout issues"
+
+---
+
+### RefactorAgent
+
+**Agent Type**: `refactor` / `refactoring`  
+**File**: `DraCode.Agent/Agents/Coding/RefactorAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Coding`  
+**Derives From**: `CodingAgent`
+
+**Specialization**: Code refactoring and quality improvement
+
+**Expertise Areas**:
+- Refactoring patterns: Extract Method, Extract Class, Inline, Move Method, Rename
+- Code smells: Long methods, large classes, duplicate code, dead code
+- Design patterns: Factory, Strategy, Observer, Decorator, Adapter, etc.
+- SOLID principles: Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+- Clean code principles: DRY, KISS, YAGNI
+- Code organization: Separation of concerns, modularity, cohesion, coupling
+- API design: Interface design, method signatures, naming conventions
+- Performance optimization: Algorithmic complexity, memory usage, caching
+- Maintainability: Code readability, testability, extensibility
+
+**Best Practices**:
+- Preserve existing behavior - refactoring should not change functionality
+- Make small, incremental changes rather than large rewrites
+- Run tests after each refactoring step
+- Extract methods to improve readability and reusability
+- Eliminate code duplication through abstraction
+- Reduce method and class size - aim for single responsibility
+- Improve naming: Variables, methods, classes should be self-documenting
+
+**Usage**:
+```csharp
+var refactorAgent = AgentFactory.Create("claude", options, config, "refactor");
+await refactorAgent.RunAsync("Refactor UserService to follow SOLID principles");
+```
+
+**Example Tasks**:
+- "Refactor large controller into smaller, focused classes"
+- "Extract duplicate code into reusable methods"
+- "Improve naming and code organization for maintainability"
+- "Apply design patterns to simplify complex logic"
+
+---
+
+### TestAgent
+
+**Agent Type**: `test` / `testing`  
+**File**: `DraCode.Agent/Agents/Coding/TestAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Coding`  
+**Derives From**: `CodingAgent`
+
+**Specialization**: Test generation and quality assurance
+
+**Expertise Areas**:
+- Testing frameworks: xUnit, NUnit, MSTest, Jest, Mocha, pytest, JUnit, TestNG
+- Test types: Unit tests, integration tests, end-to-end tests, acceptance tests
+- Test patterns: AAA (Arrange-Act-Assert), Given-When-Then, Test Fixtures
+- Mocking and stubbing: Moq, NSubstitute, Sinon, unittest.mock, Mockito
+- Test-driven development (TDD): Red-Green-Refactor cycle
+- Behavior-driven development (BDD): Gherkin, SpecFlow, Cucumber
+- Code coverage: Line coverage, branch coverage, path coverage
+- Parameterized tests: Data-driven tests, property-based testing
+- Async testing: Testing promises, async/await, callbacks
+
+**Best Practices**:
+- Write clear, descriptive test names that explain what is being tested
+- Follow the AAA pattern: Arrange (setup), Act (execute), Assert (verify)
+- Test one thing per test - keep tests focused and simple
+- Test behavior, not implementation details
+- Cover happy path, edge cases, and error conditions
+- Use meaningful test data that represents real scenarios
+- Mock external dependencies to keep tests fast and isolated
+- Ensure tests are repeatable and reliable
+
+**Usage**:
+```csharp
+var testAgent = AgentFactory.Create("openai", options, config, "test");
+await testAgent.RunAsync("Generate unit tests for UserRepository with 90% coverage");
+```
+
+**Example Tasks**:
+- "Create unit tests for authentication service"
+- "Generate integration tests for API endpoints"
+- "Write parameterized tests for validation logic"
+- "Add tests for error handling and edge cases"
+
+---
 
 ## Coding Agents
 
 ### PhpCodingAgent
 
 **Agent Type**: `php`  
-**File**: `DraCode.Agent/Agents/PhpCodingAgent.cs`  
+**File**: `DraCode.Agent/Agents/Coding/Specialized/PhpCodingAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Coding.Specialized`  
 **Derives From**: `CodingAgent`
 
 **Specialization**: Modern PHP development with framework expertise
@@ -67,7 +272,8 @@ var result = await phpAgent.RunAsync("Create a Laravel controller for user authe
 ### PythonCodingAgent
 
 **Agent Type**: `python`  
-**File**: `DraCode.Agent/Agents/PythonCodingAgent.cs`  
+**File**: `DraCode.Agent/Agents/Coding/Specialized/PythonCodingAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Coding.Specialized`  
 **Derives From**: `CodingAgent`
 
 **Specialization**: Python development with data science and web framework expertise
@@ -110,7 +316,8 @@ var result = await pythonAgent.RunAsync("Create a Flask API with JWT authenticat
 ### MediaAgent (Base)
 
 **Agent Type**: `media`  
-**File**: `DraCode.Agent/Agents/MediaAgent.cs`  
+**File**: `DraCode.Agent/Agents/MediaAgent.cs` (root)  
+**Namespace**: `DraCode.Agent.Agents`  
 **Derives From**: `Agent`
 
 **Specialization**: General digital media handling
@@ -150,7 +357,8 @@ var result = await mediaAgent.RunAsync("Optimize media assets for web delivery")
 ### ImageAgent
 
 **Agent Type**: `image`  
-**File**: `DraCode.Agent/Agents/ImageAgent.cs`  
+**File**: `DraCode.Agent/Agents/Media/ImageAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Media`  
 **Derives From**: `MediaAgent`
 
 **Specialization**: Image handling (raster and vector)
@@ -191,7 +399,8 @@ var result = await imageAgent.RunAsync("Create responsive images with multiple s
 ### SvgAgent
 
 **Agent Type**: `svg`  
-**File**: `DraCode.Agent/Agents/SvgAgent.cs`  
+**File**: `DraCode.Agent/Agents/Media/SvgAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Media`  
 **Derives From**: `ImageAgent`
 
 **Specialization**: SVG (Scalable Vector Graphics)
@@ -236,7 +445,8 @@ var result = await svgAgent.RunAsync("Create a responsive logo with animated loa
 ### BitmapAgent
 
 **Agent Type**: `bitmap`  
-**File**: `DraCode.Agent/Agents/BitmapAgent.cs`  
+**File**: `DraCode.Agent/Agents/Media/BitmapAgent.cs`  
+**Namespace**: `DraCode.Agent.Agents.Media`  
 **Derives From**: `ImageAgent`
 
 **Specialization**: Bitmap/raster images
@@ -282,32 +492,38 @@ var result = await bitmapAgent.RunAsync("Optimize all photos for web with retina
 
 ## Agent Type Summary
 
-### All 17 Available Agent Types
+### All 23 Available Agent Types
 
-**Coding (11 types)**:
-1. `coding` - General purpose
-2. `csharp` - C# / .NET
-3. `cpp` - C++
-4. `assembler` - Assembly
-5. `javascript` / `typescript` - JS/TS
-6. `css` - CSS styling
-7. `html` - HTML markup
-8. `react` - React framework
-9. `angular` - Angular framework
-10. `php` - PHP (NEW)
-11. `python` - Python (NEW)
+**Base Classes (in root)**:
+- `Agent` - Abstract base for all agents
+- `OrchestratorAgent` - Abstract base for orchestrators (with helper methods)
+- `CodingAgent` - Base for coding agents  
+- `MediaAgent` - Base for media agents
+- `DiagrammingAgent` - Standalone visualization agent
 
-**Media (4 types)**:
-12. `media` - General media (NEW)
-13. `image` - Images (NEW)
-14. `svg` - SVG graphics (NEW)
-15. `bitmap` - Raster images (NEW)
+**Coding Agents** (in `Agents/Coding/`):
+- `documentation` / `docs` - Technical documentation
+- `debug` / `debugging` - Debugging assistance
+- `refactor` / `refactoring` - Code refactoring
+- `test` / `testing` - Test generation
 
-**Visualization (1 type)**:
-16. `diagramming` - Diagrams
+**Specialized Coding Agents** (in `Agents/Coding/Specialized/`):
+- `coding` - General purpose
+- `csharp` - C# / .NET
+- `cpp` - C++
+- `assembler` - Assembly
+- `javascript` / `typescript` - JS/TS
+- `css` - CSS styling
+- `html` - HTML markup
+- `react` - React framework
+- `angular` - Angular framework
+- `php` - PHP
+- `python` - Python
 
-**Special (1 type)**:
-17. `wyrm` - Task delegation and agent selection (KoboldLair internal)
+**Media Agents** (in `Agents/Media/`):
+- `image` - Images
+- `svg` - SVG graphics
+- `bitmap` - Raster images
 
 ---
 
@@ -375,6 +591,12 @@ await phpKobold.StartWorkingAsync();
 - Styling: `css`
 - Markup: `html`
 
+**For Documentation & Quality**:
+- Writing docs: `documentation`
+- Debugging: `debug`
+- Code improvement: `refactor`
+- Test creation: `test`
+
 **For Media Tasks**:
 - Logos/icons: `svg`
 - Photos: `bitmap`
@@ -414,7 +636,7 @@ All new agents are available through `AgentFactory.Create()`:
 AgentFactory.Create(provider, options, config, agentType)
 ```
 
-Where `agentType` can be any of the 17 types listed above.
+Where `agentType` can be any of the 21 types listed above.
 
 ### KoboldLair
 
@@ -522,6 +744,12 @@ For more information, see:
 
 ---
 
-**Version**: 1.0  
-**Date**: 2026-01-26  
+**Version**: 2.1  
+**Date**: 2026-02-06  
 **Status**: ✅ Production Ready
+
+**Changes in v2.1**:
+- ✅ Added OrchestratorAgent base class with helper methods
+- ✅ Reorganized agent folder structure (Coding/, Coding/Specialized/, Media/)
+- ✅ Updated namespaces for better organization
+- ✅ Improved maintainability and scalability

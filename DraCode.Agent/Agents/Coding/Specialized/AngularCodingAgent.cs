@@ -1,6 +1,6 @@
 using DraCode.Agent.LLMs.Providers;
 
-namespace DraCode.Agent.Agents
+namespace DraCode.Agent.Agents.Coding.Specialized
 {
     public class AngularCodingAgent : CodingAgent
     {
