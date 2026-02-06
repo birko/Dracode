@@ -48,10 +48,11 @@ namespace DraCode.KoboldLair.Services
                         var json = File.ReadAllText(_projectsFilePath);
                         _projects = JsonSerializer.Deserialize<List<Project>>(json) ?? new List<Project>();
 
-                        // Resolve all relative paths to absolute paths
+                        // Resolve all relative paths to absolute paths and ensure timestamps are set
                         foreach (var project in _projects)
                         {
                             ResolveProjectPaths(project);
+                            EnsureTimestamps(project);
                         }
 
                         _logger?.LogInformation("Loaded {Count} project(s) from storage", _projects.Count);
@@ -109,6 +110,32 @@ namespace DraCode.KoboldLair.Services
                 {
                     _projects = new List<Project>();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Ensures that project timestamps are set. If any required timestamps are null,
+        /// sets them to a reasonable default value.
+        /// </summary>
+        private void EnsureTimestamps(Project project)
+        {
+            // If both CreatedAt and UpdatedAt are null, set them to the current time
+            // This handles legacy projects that didn't have timestamps
+            if (!project.Timestamps.CreatedAt.HasValue && !project.Timestamps.UpdatedAt.HasValue)
+            {
+                var now = DateTime.UtcNow;
+                project.Timestamps.CreatedAt = now;
+                project.Timestamps.UpdatedAt = now;
+            }
+            // If only CreatedAt is null, set it to UpdatedAt
+            else if (!project.Timestamps.CreatedAt.HasValue && project.Timestamps.UpdatedAt.HasValue)
+            {
+                project.Timestamps.CreatedAt = project.Timestamps.UpdatedAt.Value;
+            }
+            // If only UpdatedAt is null, set it to CreatedAt
+            else if (project.Timestamps.CreatedAt.HasValue && !project.Timestamps.UpdatedAt.HasValue)
+            {
+                project.Timestamps.UpdatedAt = project.Timestamps.CreatedAt.Value;
             }
         }
 

@@ -9,8 +9,8 @@ namespace DraCode.KoboldLair.Models.Projects
         public string Name { get; set; } = "";
         public string Status { get; set; } = "";
         public int FeatureCount { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public bool HasGitRepository { get; set; }
     }
 }
