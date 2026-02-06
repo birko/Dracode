@@ -119,6 +119,10 @@ export class ApiClient {
         return this.sendCommand('get_project_providers', { projectId });
     }
 
+    async getProjectAgents(projectId) {
+        return this.sendCommand('get_project_agents', { projectId });
+    }
+
     async updateProjectProviders(projectId, agentType, providerName, modelOverride) {
         return this.sendCommand('update_project_providers', {
             projectId,

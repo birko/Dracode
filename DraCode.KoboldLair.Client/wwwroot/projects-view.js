@@ -4,11 +4,29 @@ export class ProjectsView {
     constructor(api, onRefresh) {
         this.api = api;
         this.onRefresh = onRefresh;
+        this.agentStats = new Map(); // Cache agent statistics
     }
 
     async render() {
         try {
             const projects = await this.api.getProjects();
+
+            // Fetch agent statistics for all projects in parallel
+            const statsPromises = projects.map(p => 
+                this.api.getProjectAgents(p.id)
+                    .then(stats => ({ id: p.id, stats }))
+                    .catch(err => {
+                        console.warn(`Failed to fetch agent stats for ${p.name}:`, err);
+                        return { id: p.id, stats: null };
+                    })
+            );
+            
+            const statsResults = await Promise.all(statsPromises);
+            statsResults.forEach(result => {
+                if (result.stats) {
+                    this.agentStats.set(result.id, result.stats.agents);
+                }
+            });
 
             return `
                 <div class="card">
@@ -41,6 +59,8 @@ export class ProjectsView {
 
     renderProject(project) {
         const isFailed = project.status === 'Failed';
+        const agentStats = this.agentStats.get(project.id);
+        
         return `
             <div class="list-item">
                 <div class="list-item-main">
@@ -54,6 +74,13 @@ export class ProjectsView {
                         ${project.errorMessage ? `
                             <div class="list-item-subtitle" style="color: var(--accent-error)">
                                 ⚠️ Error: ${project.errorMessage}
+                            </div>
+                        ` : ''}
+                        ${agentStats ? `
+                            <div class="list-item-subtitle agent-stats">
+                                🐲 Wyverns: ${agentStats.wyverns} • 
+                                🐉 Drakes: ${agentStats.drakes} • 
+                                👺 Kobolds: ${agentStats.kobolds}
                             </div>
                         ` : ''}
                         ${project.specificationPath ? `

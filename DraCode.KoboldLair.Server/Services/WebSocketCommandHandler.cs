@@ -78,6 +78,7 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     "get_hierarchy" => await GetHierarchyAsync(),
                     "get_projects" => await GetProjectsAsync(),
+                    "get_project_agents" => await GetProjectAgentsAsync(message.Data),
                     "get_stats" => await GetStatsAsync(),
                     "get_providers" => await GetProvidersAsync(),
                     "configure_provider" => await ConfigureProviderAsync(message.Data),
@@ -177,6 +178,45 @@ namespace DraCode.KoboldLair.Server.Services
         {
             var projects = _projectService.GetAllProjects();
             return projects;
+        }
+
+        private async Task<object> GetProjectAgentsAsync(JsonElement? data)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+
+            var projectId = data.Value.GetProperty("projectId").GetString();
+            var project = _projectService.GetProject(projectId!);
+            if (project == null)
+            {
+                throw new InvalidOperationException($"Project not found: {projectId}");
+            }
+
+            // Get Wyvern info
+            var wyvern = _wyvernFactory.GetWyvern(project.Name);
+            var wyvernCount = wyvern != null ? 1 : 0;
+
+            // Get Drake info for this project
+            var drake = _drakeFactory.GetDrake(project.Name);
+            var drakeCount = drake != null ? 1 : 0;
+            var kobolds = 0;
+
+            if (drake != null)
+            {
+                var stats = drake.GetStatistics();
+                kobolds = stats.WorkingKobolds;
+            }
+
+            return new
+            {
+                projectId,
+                projectName = project.Name,
+                agents = new
+                {
+                    wyverns = wyvernCount,
+                    drakes = drakeCount,
+                    kobolds = kobolds
+                }
+            };
         }
 
         private async Task<object> GetStatsAsync()

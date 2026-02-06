@@ -378,6 +378,12 @@ body {
     color: var(--text-secondary);
 }
 
+.list-item-subtitle.agent-stats {
+    color: var(--accent-primary);
+    font-weight: 500;
+    margin-top: var(--spacing-sm);
+}
+
 .list-item-actions {
     display: flex;
     gap: var(--spacing-sm);
