@@ -30,6 +30,11 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Configuration for Kobold implementation planning
         /// </summary>
         public PlanningConfiguration Planning { get; set; } = new();
+
+        /// <summary>
+        /// Configuration for agent iteration limits
+        /// </summary>
+        public IterationLimits Iterations { get; set; } = new();
     }
 
     /// <summary>
@@ -89,5 +94,43 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Whether to resume from saved plans on restart (default: true)
         /// </summary>
         public bool ResumeFromPlan { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Configuration for agent execution iteration limits.
+    /// Controls how many iterations each agent type can perform per work session.
+    /// </summary>
+    public class IterationLimits
+    {
+        /// <summary>
+        /// Maximum iterations for Kobold task execution (default: 100)
+        /// Increased from 30 to allow more complex tasks to complete
+        /// </summary>
+        public int MaxKoboldIterations { get; set; } = 100;
+
+        /// <summary>
+        /// Maximum iterations for Dragon initial requirements gathering (default: 15)
+        /// </summary>
+        public int MaxDragonInitialIterations { get; set; } = 15;
+
+        /// <summary>
+        /// Maximum iterations for Dragon continuation messages (default: 25)
+        /// </summary>
+        public int MaxDragonContinueIterations { get; set; } = 25;
+
+        /// <summary>
+        /// Maximum iterations for Wyrm task delegation (default: 8)
+        /// </summary>
+        public int MaxWyrmIterations { get; set; } = 8;
+
+        /// <summary>
+        /// Maximum iterations for Wyvern analysis (default: 1)
+        /// </summary>
+        public int MaxWyvernIterations { get; set; } = 1;
+
+        /// <summary>
+        /// Maximum iterations for sub-agents (Sage, Seeker, Sentinel, Warden) (default: 15)
+        /// </summary>
+        public int MaxSubAgentIterations { get; set; } = 15;
     }
 }

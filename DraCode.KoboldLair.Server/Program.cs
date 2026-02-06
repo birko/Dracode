@@ -141,11 +141,14 @@ builder.Services.AddHostedService<DrakeExecutionService>(sp =>
     var logger = sp.GetRequiredService<ILogger<DrakeExecutionService>>();
     var projectService = sp.GetRequiredService<ProjectService>();
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var maxIterations = config.Iterations?.MaxKoboldIterations ?? 100;
     return new DrakeExecutionService(
         logger,
         projectService,
         drakeFactory,
-        executionIntervalSeconds: 30);
+        executionIntervalSeconds: 30,
+        maxKoboldIterations: maxIterations);
 });
 
 // Register Wyvern processing background service (checks every 60 seconds)

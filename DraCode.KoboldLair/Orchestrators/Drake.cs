@@ -475,6 +475,12 @@ namespace DraCode.KoboldLair.Orchestrators
                 {
                     messageCallback?.Invoke("error", $"✗ Kobold {kobold.Id.ToString()[..8]} failed: {kobold.ErrorMessage}");
                 }
+                else if (kobold.Status == KoboldStatus.Working && kobold.ImplementationPlan != null)
+                {
+                    var completedCount = kobold.ImplementationPlan.CompletedStepsCount;
+                    var totalCount = kobold.ImplementationPlan.Steps.Count;
+                    messageCallback?.Invoke("warning", $"⚠ Kobold {kobold.Id.ToString()[..8]} reached iteration limit - work incomplete ({completedCount}/{totalCount} steps done)");
+                }
             }
             catch (Exception ex)
             {

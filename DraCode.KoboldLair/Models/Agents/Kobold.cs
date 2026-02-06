@@ -316,9 +316,26 @@ You are working on a task that is part of a larger project. Below is the project
                 // Update plan status on completion
                 await UpdatePlanStatusAsync(planService, success: true);
 
-                // Task completed successfully - transition to Done
-                Status = KoboldStatus.Done;
-                CompletedAt = DateTime.UtcNow;
+                // Check if we have a plan and if all steps are complete
+                bool allStepsComplete = ImplementationPlan == null || 
+                    ImplementationPlan.Steps.All(s =>
+                        s.Status == StepStatus.Completed ||
+                        s.Status == StepStatus.Skipped ||
+                        s.Status == StepStatus.Failed);
+
+                if (allStepsComplete)
+                {
+                    // Task completed successfully - transition to Done
+                    Status = KoboldStatus.Done;
+                    CompletedAt = DateTime.UtcNow;
+                    _logger?.LogInformation("Kobold {KoboldId} marked as Done - all plan steps complete", Id.ToString()[..8]);
+                }
+                else
+                {
+                    // Plan has unfinished steps - keep in Working state for resumption
+                    // CompletedAt remains null to indicate work is not finished
+                    _logger?.LogWarning("Kobold {KoboldId} finished session but plan incomplete - keeping in Working state", Id.ToString()[..8]);
+                }
 
                 return messages;
             }

@@ -18,6 +18,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProjectService _projectService;
         private readonly DrakeFactory _drakeFactory;
         private readonly TimeSpan _executionInterval;
+        private readonly int _maxKoboldIterations;
         private bool _isRunning;
         private readonly object _lock = new object();
 
@@ -32,16 +33,19 @@ namespace DraCode.KoboldLair.Server.Services
         /// <param name="projectService">Project service for accessing projects</param>
         /// <param name="drakeFactory">Factory for creating Drakes</param>
         /// <param name="executionIntervalSeconds">Interval in seconds between execution cycles (default: 30)</param>
+        /// <param name="maxKoboldIterations">Maximum iterations for Kobold execution (default: 100)</param>
         public DrakeExecutionService(
             ILogger<DrakeExecutionService> logger,
             ProjectService projectService,
             DrakeFactory drakeFactory,
-            int executionIntervalSeconds = 30)
+            int executionIntervalSeconds = 30,
+            int maxKoboldIterations = 100)
         {
             _logger = logger;
             _projectService = projectService;
             _drakeFactory = drakeFactory;
             _executionInterval = TimeSpan.FromSeconds(executionIntervalSeconds);
+            _maxKoboldIterations = maxKoboldIterations;
             _isRunning = false;
             _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
         }
@@ -329,7 +333,7 @@ namespace DraCode.KoboldLair.Server.Services
                     var result = await drake.ExecuteTaskAsync(
                         task,
                         agentType,
-                        maxIterations: 30,
+                        maxIterations: _maxKoboldIterations,
                         messageCallback: (level, msg) => _logger.LogInformation("[{Level}] {Message}", level, msg)
                     );
 
