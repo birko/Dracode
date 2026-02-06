@@ -177,5 +177,81 @@ namespace DraCode.Agent.LLMs.Providers
 
             return llmResponse;
         }
+
+        public override async Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            if (!IsConfigured())
+            {
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                        new InvalidOperationException($"{ProviderName} provider is not configured")),
+                    Error = "Not configured"
+                };
+            }
+
+            try
+            {
+                var payload = BuildStreamingPayload(messages, tools, systemPrompt);
+                var json = JsonSerializer.Serialize(payload);
+                var url = $"{BaseUrl}/v1/chat/completions";
+
+                var response = await SendStreamingWithRetryAsync(
+                    HttpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, url);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    ProviderName);
+
+                if (response == null)
+                {
+                    return new LlmStreamingResponse
+                    {
+                        GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                            new HttpRequestException($"Failed to connect to {ProviderName} API after retries")),
+                        Error = "Connection failed"
+                    };
+                }
+
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = async () =>
+                    {
+                        var stream = await response.Content.ReadAsStreamAsync();
+                        var sseStream = ParseSseStream(stream);
+                        return ParseOpenAiStreamChunks(sseStream);
+                    },
+                    IsComplete = false
+                };
+            }
+            catch (Exception ex)
+            {
+                SendMessage("error", $"Error calling {ProviderName} streaming API: {ex.Message}");
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(ex),
+                    Error = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Build streaming payload. Override to customize.
+        /// </summary>
+        protected virtual object BuildStreamingPayload(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            return new
+            {
+                model = Model,
+                messages = BuildOpenAiStyleMessages(messages, systemPrompt),
+                stream = true,
+                tools = BuildOpenAiStyleTools(tools),
+                temperature = Temperature,
+                max_tokens = MaxTokens
+            };
+        }
     }
 }

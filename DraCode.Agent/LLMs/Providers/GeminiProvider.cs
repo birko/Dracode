@@ -290,5 +290,105 @@ namespace DraCode.Agent.LLMs.Providers
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }
+
+        public override async Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            if (!IsConfigured())
+            {
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                        new InvalidOperationException("Gemini provider is not configured")),
+                    Error = "Not configured"
+                };
+            }
+
+            try
+            {
+                var payload = BuildRequestPayload(messages, tools, systemPrompt);
+                var json = JsonSerializer.Serialize(payload);
+                var url = $"{_baseUrl}{_model}:streamGenerateContent?alt=sse&key={_apiKey}";
+
+                var response = await SendStreamingWithRetryAsync(
+                    _httpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, url);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    Name);
+
+                if (response == null)
+                {
+                    return new LlmStreamingResponse
+                    {
+                        GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                            new HttpRequestException("Failed to connect to Gemini API after retries")),
+                        Error = "Connection failed"
+                    };
+                }
+
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = async () =>
+                    {
+                        var stream = await response.Content.ReadAsStreamAsync();
+                        return ParseGeminiStreamChunks(ParseSseStream(stream));
+                    },
+                    IsComplete = false
+                };
+            }
+            catch (Exception ex)
+            {
+                SendMessage("error", $"Error calling Gemini streaming API: {ex.Message}");
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(ex),
+                    Error = ex.Message
+                };
+            }
+        }
+
+        private static async IAsyncEnumerable<string> ParseGeminiStreamChunks(IAsyncEnumerable<string> sseChunks)
+        {
+            await foreach (var chunk in sseChunks)
+            {
+                if (string.IsNullOrWhiteSpace(chunk))
+                    continue;
+
+                JsonElement json;
+                try
+                {
+                    json = JsonSerializer.Deserialize<JsonElement>(chunk);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (!json.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+                    continue;
+
+                var candidate = candidates[0];
+                if (!candidate.TryGetProperty("content", out var content))
+                    continue;
+
+                if (!content.TryGetProperty("parts", out var parts))
+                    continue;
+
+                foreach (var part in parts.EnumerateArray())
+                {
+                    if (part.TryGetProperty("text", out var text))
+                    {
+                        var textValue = text.GetString();
+                        if (!string.IsNullOrEmpty(textValue))
+                        {
+                            yield return textValue;
+                        }
+                    }
+                }
+            }
+        }
     }
 }

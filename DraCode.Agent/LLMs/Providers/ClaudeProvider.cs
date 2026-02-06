@@ -164,5 +164,142 @@ namespace DraCode.Agent.LLMs.Providers
                 return new LlmResponse { StopReason = "error", Content = [] };
             }
         }
+
+        public override async Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            if (!IsConfigured())
+            {
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                        new InvalidOperationException("Claude provider is not configured")),
+                    Error = "Not configured"
+                };
+            }
+
+            try
+            {
+                var payload = new
+                {
+                    model = _model,
+                    max_tokens = 8192,
+                    system = systemPrompt,
+                    messages = BuildClaudeMessages(messages),
+                    tools = tools.Select(t => new { name = t.Name, description = t.Description, input_schema = t.InputSchema }).ToList(),
+                    stream = true
+                };
+                var json = JsonSerializer.Serialize(payload);
+
+                var response = await SendStreamingWithRetryAsync(
+                    _httpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    Name);
+
+                if (response == null)
+                {
+                    return new LlmStreamingResponse
+                    {
+                        GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                            new HttpRequestException("Failed to connect to Claude API after retries")),
+                        Error = "Connection failed"
+                    };
+                }
+
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = async () =>
+                    {
+                        var stream = await response.Content.ReadAsStreamAsync();
+                        return ParseClaudeStreamChunks(ParseSseStream(stream));
+                    },
+                    IsComplete = false
+                };
+            }
+            catch (Exception ex)
+            {
+                SendMessage("error", $"Error calling Claude streaming API: {ex.Message}");
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(ex),
+                    Error = ex.Message
+                };
+            }
+        }
+
+        private static List<object> BuildClaudeMessages(IEnumerable<Message> messages)
+        {
+            var result = new List<object>();
+            foreach (var m in messages)
+            {
+                object content = m.Content ?? "";
+                
+                if (m.Content is IEnumerable<ContentBlock> blocks)
+                {
+                    var contentList = new List<Dictionary<string, object?>>();
+                    foreach (var b in blocks)
+                    {
+                        var dict = new Dictionary<string, object?> { { "type", b.Type } };
+                        
+                        if (b.Type == "text")
+                        {
+                            dict["text"] = b.Text;
+                        }
+                        else if (b.Type == "tool_use")
+                        {
+                            dict["id"] = b.Id;
+                            dict["name"] = b.Name;
+                            dict["input"] = b.Input;
+                        }
+                        
+                        contentList.Add(dict);
+                    }
+                    content = contentList;
+                }
+                
+                result.Add(new { role = m.Role, content });
+            }
+            return result;
+        }
+
+        private static async IAsyncEnumerable<string> ParseClaudeStreamChunks(IAsyncEnumerable<string> sseChunks)
+        {
+            await foreach (var chunk in sseChunks)
+            {
+                if (string.IsNullOrWhiteSpace(chunk))
+                    continue;
+
+                JsonElement json;
+                try
+                {
+                    json = JsonSerializer.Deserialize<JsonElement>(chunk);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                var eventType = json.TryGetProperty("type", out var type) ? type.GetString() : null;
+
+                if (eventType == "content_block_delta")
+                {
+                    if (json.TryGetProperty("delta", out var delta) &&
+                        delta.TryGetProperty("type", out var deltaType) &&
+                        deltaType.GetString() == "text_delta" &&
+                        delta.TryGetProperty("text", out var text))
+                    {
+                        var textValue = text.GetString();
+                        if (!string.IsNullOrEmpty(textValue))
+                        {
+                            yield return textValue;
+                        }
+                    }
+                }
+            }
+        }
     }
 }

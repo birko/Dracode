@@ -125,5 +125,72 @@ namespace DraCode.Agent.LLMs.Providers
 
             return llmResponse;
         }
+
+        public override async Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            if (!IsConfigured())
+            {
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                        new InvalidOperationException("OpenAI provider is not configured")),
+                    Error = "Not configured"
+                };
+            }
+
+            try
+            {
+                var payload = new
+                {
+                    model = _model,
+                    messages = BuildOpenAiStyleMessages(messages, systemPrompt),
+                    tools = BuildOpenAiStyleTools(tools),
+                    max_tokens = 16384,
+                    stream = true
+                };
+                var json = JsonSerializer.Serialize(payload);
+
+                // Use retry logic for initial connection
+                var response = await SendStreamingWithRetryAsync(
+                    _httpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    Name);
+
+                if (response == null)
+                {
+                    return new LlmStreamingResponse
+                    {
+                        GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                            new HttpRequestException("Failed to connect to OpenAI API after retries")),
+                        Error = "Connection failed"
+                    };
+                }
+
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = async () =>
+                    {
+                        var stream = await response.Content.ReadAsStreamAsync();
+                        var sseStream = ParseSseStream(stream);
+                        return ParseOpenAiStreamChunks(sseStream);
+                    },
+                    IsComplete = false
+                };
+            }
+            catch (Exception ex)
+            {
+                SendMessage("error", $"Error calling OpenAI streaming API: {ex.Message}");
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(ex),
+                    Error = ex.Message
+                };
+            }
+        }
     }
 }

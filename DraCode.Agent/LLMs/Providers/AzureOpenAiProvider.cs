@@ -70,6 +70,70 @@ namespace DraCode.Agent.LLMs.Providers
 
         protected override bool IsConfigured() => !string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(_deployment);
 
-        
+        public override async Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            if (!IsConfigured())
+            {
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                        new InvalidOperationException("Azure OpenAI provider is not configured")),
+                    Error = "Not configured"
+                };
+            }
+
+            try
+            {
+                var payload = new
+                {
+                    messages = BuildOpenAiStyleMessages(messages, systemPrompt),
+                    tools = BuildOpenAiStyleTools(tools),
+                    max_tokens = 16384,
+                    stream = true
+                };
+                var json = JsonSerializer.Serialize(payload);
+                var url = $"{_endpoint}/openai/deployments/{_deployment}/chat/completions?api-version=2024-02-15-preview";
+
+                var response = await SendStreamingWithRetryAsync(
+                    _httpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, url);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    Name);
+
+                if (response == null)
+                {
+                    return new LlmStreamingResponse
+                    {
+                        GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                            new HttpRequestException("Failed to connect to Azure OpenAI API after retries")),
+                        Error = "Connection failed"
+                    };
+                }
+
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = async () =>
+                    {
+                        var stream = await response.Content.ReadAsStreamAsync();
+                        var sseStream = ParseSseStream(stream);
+                        return ParseOpenAiStreamChunks(sseStream);
+                    },
+                    IsComplete = false
+                };
+            }
+            catch (Exception ex)
+            {
+                SendMessage("error", $"Error calling Azure OpenAI streaming API: {ex.Message}");
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(ex),
+                    Error = ex.Message
+                };
+            }
+        }
     }
 }

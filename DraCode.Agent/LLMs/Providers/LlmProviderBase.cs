@@ -59,6 +59,17 @@ namespace DraCode.Agent.LLMs.Providers
 
         public abstract Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt);
 
+        public virtual Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            // Default implementation: not supported
+            return Task.FromResult(new LlmStreamingResponse 
+            { 
+                GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                    new NotSupportedException($"Streaming is not supported by {Name} provider")),
+                Error = "Streaming not supported"
+            });
+        }
+
         protected void SendMessage(string type, string message)
         {
             MessageCallback?.Invoke(type, message);
@@ -383,5 +394,184 @@ namespace DraCode.Agent.LLMs.Providers
         }
 
         protected static LlmResponse NotConfigured() => new() { StopReason = "NotConfigured", Content = [] };
+
+        /// <summary>
+        /// Sends a streaming HTTP request with retry logic for initial connection failures.
+        /// Once streaming starts, no retries are performed mid-stream.
+        /// </summary>
+        /// <param name="httpClient">The HTTP client to use</param>
+        /// <param name="requestFactory">Factory function that creates the request (called on each retry)</param>
+        /// <param name="providerName">Name of the provider for logging</param>
+        /// <returns>The HTTP response for streaming, or null if connection failed</returns>
+        protected async Task<HttpResponseMessage?> SendStreamingWithRetryAsync(
+            HttpClient httpClient,
+            Func<HttpRequestMessage> requestFactory,
+            string providerName)
+        {
+            var policy = RetryPolicy;
+            var attempt = 0;
+            var delay = policy.InitialDelayMs;
+
+            while (attempt <= policy.MaxRetries)
+            {
+                try
+                {
+                    var request = requestFactory();
+                    var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+
+                    // Success - return stream immediately
+                    if (response.IsSuccessStatusCode)
+                    {
+                        return response;
+                    }
+
+                    // Read error response
+                    var responseBody = await response.Content.ReadAsStringAsync();
+
+                    // Check if we should retry based on status code
+                    if (!IsRetryableStatusCode(response.StatusCode))
+                    {
+                        SendMessage("error", $"{providerName} API Error: {response.StatusCode}");
+                        response.Dispose();
+                        return null;
+                    }
+
+                    // Retryable error - check if we have retries left
+                    if (attempt >= policy.MaxRetries)
+                    {
+                        SendMessage("error", $"{providerName} API Error after {attempt + 1} attempts: {response.StatusCode}");
+                        response.Dispose();
+                        return null;
+                    }
+
+                    // Handle rate limiting with Retry-After header
+                    var retryAfter = GetRetryAfterDelay(response);
+                    var actualDelay = retryAfter ?? delay;
+
+                    SendMessage("warning", $"{providerName}: {response.StatusCode}, retrying in {actualDelay}ms (attempt {attempt + 1}/{policy.MaxRetries + 1})");
+                    
+                    response.Dispose();
+                    await Task.Delay(actualDelay);
+
+                    delay = CalculateNextDelay(delay, policy);
+                    attempt++;
+                }
+                catch (HttpRequestException ex)
+                {
+                    if (attempt >= policy.MaxRetries)
+                    {
+                        SendMessage("error", $"{providerName}: Network error after {attempt + 1} attempts: {ex.Message}");
+                        return null;
+                    }
+
+                    SendMessage("warning", $"{providerName}: Network error, retrying in {delay}ms (attempt {attempt + 1}/{policy.MaxRetries + 1}): {ex.Message}");
+
+                    await Task.Delay(delay);
+                    delay = CalculateNextDelay(delay, policy);
+                    attempt++;
+                }
+                catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+                {
+                    if (attempt >= policy.MaxRetries)
+                    {
+                        SendMessage("error", $"{providerName}: Timeout after {attempt + 1} attempts");
+                        return null;
+                    }
+
+                    SendMessage("warning", $"{providerName}: Timeout, retrying in {delay}ms (attempt {attempt + 1}/{policy.MaxRetries + 1})");
+
+                    await Task.Delay(delay);
+                    delay = CalculateNextDelay(delay, policy);
+                    attempt++;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Parses SSE (Server-Sent Events) stream format
+        /// </summary>
+        protected static async IAsyncEnumerable<string> ParseSseStream(Stream stream)
+        {
+            using var reader = new StreamReader(stream);
+            var buffer = new System.Text.StringBuilder();
+
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                if (string.IsNullOrEmpty(line))
+                {
+                    // Empty line indicates end of event
+                    if (buffer.Length > 0)
+                    {
+                        var data = buffer.ToString();
+                        buffer.Clear();
+                        
+                        if (data == "[DONE]")
+                        {
+                            yield break;
+                        }
+                        
+                        yield return data;
+                    }
+                    continue;
+                }
+
+                if (line.StartsWith("data: "))
+                {
+                    var data = line.Substring(6);
+                    
+                    if (data == "[DONE]")
+                    {
+                        yield break;
+                    }
+                    
+                    buffer.AppendLine(data);
+                }
+            }
+
+            // Yield any remaining data
+            if (buffer.Length > 0)
+            {
+                yield return buffer.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Parses OpenAI-style streaming response chunks
+        /// </summary>
+        protected static async IAsyncEnumerable<string> ParseOpenAiStreamChunks(IAsyncEnumerable<string> sseChunks)
+        {
+            await foreach (var chunk in sseChunks)
+            {
+                if (string.IsNullOrWhiteSpace(chunk))
+                    continue;
+
+                JsonElement json;
+                try
+                {
+                    json = JsonSerializer.Deserialize<JsonElement>(chunk);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (!json.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
+                    continue;
+
+                var delta = choices[0].GetProperty("delta");
+                
+                if (delta.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
+                {
+                    var text = content.GetString();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        yield return text;
+                    }
+                }
+            }
+        }
     }
 }

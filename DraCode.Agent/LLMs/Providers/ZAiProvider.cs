@@ -251,5 +251,75 @@ namespace DraCode.Agent.LLMs.Providers
             public const string Glm4Air = "glm-4-air";
             public const string Glm4Flash = "glm-4-flash";
         }
+
+        public override async Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            if (!IsConfigured())
+            {
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                        new InvalidOperationException("Z.AI provider is not configured")),
+                    Error = "Not configured"
+                };
+            }
+
+            try
+            {
+                var payload = new Dictionary<string, object>
+                {
+                    ["model"] = _model,
+                    ["messages"] = BuildOpenAiStyleMessages(messages, systemPrompt),
+                    ["stream"] = true
+                };
+
+                if (tools != null && tools.Count > 0)
+                {
+                    payload["tools"] = BuildOpenAiStyleTools(tools);
+                }
+
+                var json = JsonSerializer.Serialize(payload);
+
+                var response = await SendStreamingWithRetryAsync(
+                    _httpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        return request;
+                    },
+                    Name);
+
+                if (response == null)
+                {
+                    return new LlmStreamingResponse
+                    {
+                        GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                            new HttpRequestException("Failed to connect to Z.AI API after retries")),
+                        Error = "Connection failed"
+                    };
+                }
+
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = async () =>
+                    {
+                        var stream = await response.Content.ReadAsStreamAsync();
+                        var sseStream = ParseSseStream(stream);
+                        return ParseOpenAiStreamChunks(sseStream);
+                    },
+                    IsComplete = false
+                };
+            }
+            catch (Exception ex)
+            {
+                SendMessage("error", $"Error calling Z.AI streaming API: {ex.Message}");
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(ex),
+                    Error = ex.Message
+                };
+            }
+        }
     }
 }

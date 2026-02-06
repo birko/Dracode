@@ -124,5 +124,82 @@ namespace DraCode.Agent.LLMs.Providers
             // This is a synchronous check, actual authentication happens in SendMessageAsync
             return !string.IsNullOrWhiteSpace(_model);
         }
+
+        public override async Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools, string systemPrompt)
+        {
+            if (!IsConfigured())
+            {
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                        new InvalidOperationException("GitHub Copilot provider is not configured")),
+                    Error = "Not configured"
+                };
+            }
+
+            if (!await EnsureAuthenticatedAsync())
+            {
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                        new InvalidOperationException("Failed to authenticate with GitHub Copilot")),
+                    Error = "Authentication failed"
+                };
+            }
+
+            try
+            {
+                var payload = new
+                {
+                    model = _model,
+                    messages = BuildOpenAiStyleMessages(messages, systemPrompt),
+                    tools = BuildOpenAiStyleTools(tools),
+                    max_tokens = 4096,
+                    stream = true
+                };
+                var json = JsonSerializer.Serialize(payload);
+
+                var response = await SendStreamingWithRetryAsync(
+                    _httpClient,
+                    () =>
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _currentToken!.AccessToken);
+                        return request;
+                    },
+                    Name);
+
+                if (response == null)
+                {
+                    return new LlmStreamingResponse
+                    {
+                        GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(
+                            new HttpRequestException("Failed to connect to GitHub Copilot API after retries")),
+                        Error = "Connection failed"
+                    };
+                }
+
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = async () =>
+                    {
+                        var stream = await response.Content.ReadAsStreamAsync();
+                        var sseStream = ParseSseStream(stream);
+                        return ParseOpenAiStreamChunks(sseStream);
+                    },
+                    IsComplete = false
+                };
+            }
+            catch (Exception ex)
+            {
+                SendMessage("error", $"Error calling GitHub Copilot streaming API: {ex.Message}");
+                return new LlmStreamingResponse
+                {
+                    GetStreamAsync = () => Task.FromException<IAsyncEnumerable<string>>(ex),
+                    Error = ex.Message
+                };
+            }
+        }
     }
 }
