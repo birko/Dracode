@@ -267,32 +267,41 @@ namespace DraCode.KoboldLair.Server.Services
 
             var stats = drake.GetStatistics();
 
-            _logger.LogDebug("Drake stats - Tasks: {Total} (Unassigned: {Unassigned}, Working: {Working}, Done: {Done}, Failed: {Failed}, Blocked: {Blocked})",
-                stats.TotalTasks, stats.UnassignedTasks, stats.WorkingTasks, stats.DoneTasks, stats.FailedTasks, stats.BlockedTasks);
+            _logger.LogDebug(
+                "Drake stats for project {ProjectName}\n" +
+                "  Tasks: {Total} (Unassigned: {Unassigned}, Working: {Working}, Done: {Done}, Failed: {Failed}, Blocked: {Blocked})",
+                project.Name, stats.TotalTasks, stats.UnassignedTasks, stats.WorkingTasks, stats.DoneTasks, stats.FailedTasks, stats.BlockedTasks);
 
             // **CRITICAL: Stop processing if any tasks have failed**
             if (stats.FailedTasks > 0)
             {
                 _logger.LogWarning(
-                    "⛔ Project {ProjectId} has {FailedCount} failed task(s). Halting execution until errors are resolved.",
-                    project.Id, stats.FailedTasks);
+                    "⛔ Project {ProjectName} has {FailedCount} failed task(s). Halting execution until errors are resolved.\n" +
+                    "  Project ID: {ProjectId}",
+                    project.Name, stats.FailedTasks, project.Id);
                 
                 // Log details about failed tasks
                 var failedTasks = drake.GetAllTasks().Where(t => t.Status == TaskStatus.Failed).ToList();
                 foreach (var task in failedTasks)
                 {
+                    var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
                     _logger.LogError(
-                        "❌ Failed task [{TaskId}]: {Task}",
+                        "❌ Failed task in project {ProjectName}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {Task}\n" +
+                        "  Error: {Error}",
+                        project.Name,
                         task.Id[..Math.Min(8, task.Id.Length)], 
-                        task.Task);
+                        taskPreview,
+                        task.ErrorMessage ?? "No error message");
                 }
 
                 // Log blocked tasks
                 if (stats.BlockedTasks > 0)
                 {
                     _logger.LogWarning(
-                        "🟠 {BlockedCount} task(s) are blocked by failed dependencies",
-                        stats.BlockedTasks);
+                        "🟠 Project {ProjectName}: {BlockedCount} task(s) blocked by failed dependencies",
+                        project.Name, stats.BlockedTasks);
                 }
                 
                 return; // Stop processing this Drake until failed tasks are resolved
@@ -314,7 +323,7 @@ namespace DraCode.KoboldLair.Server.Services
                 return;
             }
 
-            _logger.LogInformation("Found {Count} ready task(s) to execute", tasksToExecute.Count);
+            _logger.LogInformation("Found {Count} ready task(s) to execute in project {ProjectName}", tasksToExecute.Count, project.Name);
 
             // Execute all ready tasks in parallel (Kobold limits are enforced by the factory)
             var taskExecutions = tasksToExecute.Select(async item =>
@@ -326,8 +335,17 @@ namespace DraCode.KoboldLair.Server.Services
 
                 try
                 {
-                    _logger.LogInformation("🚀 Starting task {TaskId} with agent {AgentType}",
-                        task.Id[..Math.Min(8, task.Id.Length)], agentType);
+                    var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
+                    _logger.LogInformation(
+                        "🚀 Starting task execution\n" +
+                        "  Project: {ProjectName}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Agent: {AgentType}\n" +
+                        "  Task: {TaskDescription}",
+                        project.Name,
+                        task.Id[..Math.Min(8, task.Id.Length)],
+                        agentType,
+                        taskPreview);
 
                     // Execute the task (this summons a Kobold and runs it)
                     var result = await drake.ExecuteTaskAsync(
@@ -339,12 +357,23 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (result == null)
                     {
-                        _logger.LogDebug("Task {TaskId} deferred - Kobold limit reached", task.Id[..Math.Min(8, task.Id.Length)]);
+                        _logger.LogDebug(
+                            "Task {TaskId} deferred - Kobold limit reached for project {ProjectName}", 
+                            task.Id[..Math.Min(8, task.Id.Length)],
+                            project.Name);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "❌ Failed to execute task {TaskId}", task.Id);
+                    var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
+                    _logger.LogError(ex, 
+                        "❌ Failed to execute task\n" +
+                        "  Project: {ProjectName}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {TaskDescription}",
+                        project.Name,
+                        task.Id,
+                        taskPreview);
                 }
             });
 
@@ -387,12 +416,18 @@ namespace DraCode.KoboldLair.Server.Services
                 if (removed)
                 {
                     var remainingCount = _drakeFactory.GetActiveDrakeCountForProject(project.Id);
-                    _logger.LogInformation("🗑️ Removed completed Drake {DrakeName} (project now has {Count} active Drake(s))", 
-                        drakeName, remainingCount);
+                    _logger.LogInformation(
+                        "🗑️ Removed completed Drake\n" +
+                        "  Project: {ProjectName}\n" +
+                        "  Drake: {DrakeName}\n" +
+                        "  Remaining Drakes: {Count}", 
+                        project.Name, drakeName, remainingCount);
                 }
                 else
                 {
-                    _logger.LogWarning("Failed to remove Drake {DrakeName}", drakeName);
+                    _logger.LogWarning(
+                        "Failed to remove Drake {DrakeName} for project {ProjectName}", 
+                        drakeName, project.Name);
                 }
             }
 
@@ -404,12 +439,17 @@ namespace DraCode.KoboldLair.Server.Services
             if (totalTasks > 0 && doneTasks == totalTasks)
             {
                 _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Completed);
-                _logger.LogInformation("✅ Project {ProjectName} completed! All {Count} tasks done.",
-                    project.Name, totalTasks);
+                _logger.LogInformation(
+                    "✅ Project completed!\n" +
+                    "  Project: {ProjectName}\n" +
+                    "  Project ID: {ProjectId}\n" +
+                    "  Total Tasks: {Count}",
+                    project.Name, project.Id, totalTasks);
             }
             else
             {
-                _logger.LogDebug("Project {ProjectName} progress: {Done}/{Total} tasks done",
+                _logger.LogDebug(
+                    "Project {ProjectName} progress: {Done}/{Total} tasks done",
                     project.Name, doneTasks, totalTasks);
             }
         }

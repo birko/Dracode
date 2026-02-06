@@ -178,7 +178,15 @@ You are working on a task that is part of a larger project. Below is the project
                     Status = KoboldStatus.Failed;
                     CompletedAt = DateTime.UtcNow;
                     
-                    _logger?.LogWarning("Kobold {KoboldId} failed with errors in message history", Id);
+                    var taskPreview = TaskDescription?.Length > 60 
+                        ? TaskDescription.Substring(0, 60) + "..." 
+                        : TaskDescription ?? "unknown";
+                    _logger?.LogWarning(
+                        "Kobold {KoboldId} failed with errors\n" +
+                        "  Project: {ProjectId}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {TaskDescription}",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
                     return messages;
                 }
 
@@ -195,7 +203,15 @@ You are working on a task that is part of a larger project. Below is the project
                 Status = KoboldStatus.Failed;
                 CompletedAt = DateTime.UtcNow;
                 
-                _logger?.LogError(ex, "Kobold {KoboldId} failed with exception", Id);
+                var taskPreview = TaskDescription?.Length > 60 
+                    ? TaskDescription.Substring(0, 60) + "..." 
+                    : TaskDescription ?? "unknown";
+                _logger?.LogError(ex, 
+                    "Kobold {KoboldId} failed with exception\n" +
+                    "  Project: {ProjectId}\n" +
+                    "  Task ID: {TaskId}\n" +
+                    "  Task: {TaskDescription}",
+                    Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
                 throw; // Re-throw so caller knows it failed
             }
         }
@@ -309,7 +325,15 @@ You are working on a task that is part of a larger project. Below is the project
                     // Update plan status on failure
                     await UpdatePlanStatusAsync(planService, success: false, ErrorMessage);
                     
-                    _logger?.LogWarning("Kobold {KoboldId} failed with errors in message history", Id);
+                    var taskPreview = TaskDescription?.Length > 60 
+                        ? TaskDescription.Substring(0, 60) + "..." 
+                        : TaskDescription ?? "unknown";
+                    _logger?.LogWarning(
+                        "Kobold {KoboldId} failed with errors\n" +
+                        "  Project: {ProjectId}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {TaskDescription}",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
                     return messages;
                 }
 
@@ -328,13 +352,33 @@ You are working on a task that is part of a larger project. Below is the project
                     // Task completed successfully - transition to Done
                     Status = KoboldStatus.Done;
                     CompletedAt = DateTime.UtcNow;
-                    _logger?.LogInformation("Kobold {KoboldId} marked as Done - all plan steps complete", Id.ToString()[..8]);
+                    var taskPreview = TaskDescription?.Length > 60 
+                        ? TaskDescription.Substring(0, 60) + "..." 
+                        : TaskDescription ?? "unknown";
+                    _logger?.LogInformation(
+                        "✓ Kobold {KoboldId} completed successfully\n" +
+                        "  Project: {ProjectId}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {TaskDescription}\n" +
+                        "  Agent Type: {AgentType}",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", 
+                        taskPreview, AgentType);
                 }
                 else
                 {
                     // Plan has unfinished steps - keep in Working state for resumption
                     // CompletedAt remains null to indicate work is not finished
-                    _logger?.LogWarning("Kobold {KoboldId} finished session but plan incomplete - keeping in Working state", Id.ToString()[..8]);
+                    var taskPreview = TaskDescription?.Length > 60 
+                        ? TaskDescription.Substring(0, 60) + "..." 
+                        : TaskDescription ?? "unknown";
+                    _logger?.LogWarning(
+                        "⚠ Kobold {KoboldId} incomplete - keeping in Working state\n" +
+                        "  Project: {ProjectId}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {TaskDescription}\n" +
+                        "  Plan Progress: {Completed}/{Total} steps",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown",
+                        taskPreview, ImplementationPlan?.CompletedStepsCount ?? 0, ImplementationPlan?.Steps.Count ?? 0);
                 }
 
                 return messages;
@@ -349,7 +393,15 @@ You are working on a task that is part of a larger project. Below is the project
                 Status = KoboldStatus.Failed;
                 CompletedAt = DateTime.UtcNow;
                 
-                _logger?.LogError(ex, "Kobold {KoboldId} failed with exception", Id);
+                var taskPreview = TaskDescription?.Length > 60 
+                    ? TaskDescription.Substring(0, 60) + "..." 
+                    : TaskDescription ?? "unknown";
+                _logger?.LogError(ex, 
+                    "Kobold {KoboldId} failed with exception\n" +
+                    "  Project: {ProjectId}\n" +
+                    "  Task ID: {TaskId}\n" +
+                    "  Task: {TaskDescription}",
+                    Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
                 throw;
             }
             finally

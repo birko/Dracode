@@ -149,6 +149,8 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task MonitorSingleDrakeAsync(Drake drake, CancellationToken cancellationToken)
         {
+            var projectInfo = drake.ProjectId ?? "unknown project";
+            
             // Monitor tasks to sync status (async to avoid blocking on git operations)
             await drake.MonitorTasksAsync();
 
@@ -156,7 +158,10 @@ namespace DraCode.KoboldLair.Server.Services
             var stats = drake.GetStatistics();
 
             _logger.LogDebug(
-                "📊 Drake Stats - Kobolds: {TotalKobolds} (Working: {Working}, Done: {Done}) | Tasks: {TotalTasks} (Working: {WorkingTasks}, Done: {DoneTasks})",
+                "📊 Drake monitoring stats for project {ProjectId}\n" +
+                "  Kobolds: {TotalKobolds} (Working: {Working}, Done: {Done})\n" +
+                "  Tasks: {TotalTasks} (Working: {WorkingTasks}, Done: {DoneTasks})",
+                projectInfo,
                 stats.TotalKobolds,
                 stats.WorkingKobolds,
                 stats.DoneKobolds,
@@ -168,7 +173,8 @@ namespace DraCode.KoboldLair.Server.Services
             // Check for stuck Kobolds (working longer than timeout threshold)
             if (stats.WorkingKobolds > 0)
             {
-                _logger.LogDebug("⚡ {Count} Kobold(s) currently working", stats.WorkingKobolds);
+                _logger.LogDebug("⚡ Project {ProjectId}: {Count} Kobold(s) currently working", 
+                    projectInfo, stats.WorkingKobolds);
 
                 // Detect and handle stuck Kobolds (async to avoid blocking on git operations)
                 var stuckKobolds = await drake.HandleStuckKoboldsAsync(_stuckKoboldTimeout);
@@ -176,7 +182,8 @@ namespace DraCode.KoboldLair.Server.Services
                 if (stuckKobolds.Count > 0)
                 {
                     _logger.LogWarning(
-                        "🚨 Handled {Count} stuck Kobold(s) (timeout: {Timeout} minutes)",
+                        "🚨 Project {ProjectId}: Handled {Count} stuck Kobold(s) (timeout: {Timeout} minutes)",
+                        projectInfo,
                         stuckKobolds.Count,
                         _stuckKoboldTimeout.TotalMinutes);
 
@@ -197,7 +204,9 @@ namespace DraCode.KoboldLair.Server.Services
                 var unsummoned = drake.UnsummonCompletedKobolds();
                 if (unsummoned > 0)
                 {
-                    _logger.LogInformation("🗑️ Unsummoned {Count} completed Kobold(s)", unsummoned);
+                    _logger.LogInformation(
+                        "🗑️ Project {ProjectId}: Unsummoned {Count} completed Kobold(s)", 
+                        projectInfo, unsummoned);
                 }
             }
 

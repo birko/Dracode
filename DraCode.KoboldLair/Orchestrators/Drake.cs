@@ -324,6 +324,19 @@ namespace DraCode.KoboldLair.Orchestrators
 
             _taskTracker.UpdateTask(task, taskStatus);
 
+            // Log status transition if changed
+            if (previousStatus != taskStatus)
+            {
+                var projectInfo = _projectId ?? "unknown project";
+                var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
+                _logger?.LogInformation(
+                    "Task status updated: {OldStatus} → {NewStatus}\n" +
+                    "  Project: {ProjectId}\n" +
+                    "  Task ID: {TaskId}\n" +
+                    "  Task: {TaskDescription}",
+                    previousStatus, taskStatus, projectInfo, task.Id[..Math.Min(8, task.Id.Length)], taskPreview);
+            }
+
             // Use immediate save for task completion to prevent race condition with ReloadTasksFromFileAsync
             // (debounced save could be overwritten by reload before it executes)
             if (taskStatus == TaskStatus.Done)
@@ -380,8 +393,14 @@ namespace DraCode.KoboldLair.Orchestrators
 
                 if (committed)
                 {
-                    _logger?.LogInformation("Committed task completion to {Branch}: {Task}",
-                        currentBranch ?? "current branch", shortTaskDesc);
+                    var projectInfo = _projectId ?? "unknown project";
+                    _logger?.LogInformation(
+                        "✓ Git commit successful\n" +
+                        "  Project: {ProjectId}\n" +
+                        "  Branch: {Branch}\n" +
+                        "  Task: {Task}\n" +
+                        "  Agent: {AgentType}",
+                        projectInfo, currentBranch ?? "current branch", shortTaskDesc, kobold.AgentType);
                 }
             }
             catch (Exception ex)
@@ -454,7 +473,15 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
 
                 // Start work (Kobold automatically manages its state transitions)
-                messageCallback?.Invoke("info", $"⚡ Kobold {kobold.Id.ToString()[..8]} started working on: {kobold.TaskDescription}");
+                var projectInfo = kobold.ProjectId ?? _projectId ?? "unknown";
+                var taskPreview = kobold.TaskDescription?.Length > 80 
+                    ? kobold.TaskDescription.Substring(0, 80) + "..." 
+                    : kobold.TaskDescription ?? "unknown task";
+                messageCallback?.Invoke("info", 
+                    $"⚡ Kobold {kobold.Id.ToString()[..8]} started working\n" +
+                    $"  Project: {projectInfo}\n" +
+                    $"  Task ID: {task.Id.ToString()[..8]}\n" +
+                    $"  Task: {taskPreview}");
 
                 // Use plan-aware execution if we have a plan, otherwise use standard execution
                 if (kobold.ImplementationPlan != null)
@@ -469,17 +496,29 @@ namespace DraCode.KoboldLair.Orchestrators
                 // Check Kobold's final state
                 if (kobold.IsSuccess)
                 {
-                    messageCallback?.Invoke("success", $"✓ Kobold {kobold.Id.ToString()[..8]} completed task successfully");
+                    messageCallback?.Invoke("success", 
+                        $"✓ Kobold {kobold.Id.ToString()[..8]} completed task successfully\n" +
+                        $"  Project: {projectInfo}\n" +
+                        $"  Task ID: {task.Id.ToString()[..8]}\n" +
+                        $"  Task: {taskPreview}");
                 }
                 else if (kobold.HasError)
                 {
-                    messageCallback?.Invoke("error", $"✗ Kobold {kobold.Id.ToString()[..8]} failed: {kobold.ErrorMessage}");
+                    messageCallback?.Invoke("error", 
+                        $"✗ Kobold {kobold.Id.ToString()[..8]} failed: {kobold.ErrorMessage}\n" +
+                        $"  Project: {projectInfo}\n" +
+                        $"  Task ID: {task.Id.ToString()[..8]}\n" +
+                        $"  Task: {taskPreview}");
                 }
                 else if (kobold.Status == KoboldStatus.Working && kobold.ImplementationPlan != null)
                 {
                     var completedCount = kobold.ImplementationPlan.CompletedStepsCount;
                     var totalCount = kobold.ImplementationPlan.Steps.Count;
-                    messageCallback?.Invoke("warning", $"⚠ Kobold {kobold.Id.ToString()[..8]} reached iteration limit - work incomplete ({completedCount}/{totalCount} steps done)");
+                    messageCallback?.Invoke("warning", 
+                        $"⚠ Kobold {kobold.Id.ToString()[..8]} reached iteration limit - work incomplete ({completedCount}/{totalCount} steps done)\n" +
+                        $"  Project: {projectInfo}\n" +
+                        $"  Task ID: {task.Id.ToString()[..8]}\n" +
+                        $"  Task: {taskPreview}");
                 }
             }
             catch (Exception ex)
@@ -595,11 +634,23 @@ namespace DraCode.KoboldLair.Orchestrators
 
             foreach (var (kobold, workingDuration) in stuckKobolds)
             {
+                var taskPreview = kobold.TaskDescription?.Length > 60 
+                    ? kobold.TaskDescription.Substring(0, 60) + "..." 
+                    : kobold.TaskDescription ?? "unknown";
+                var projectInfo = kobold.ProjectId ?? _projectId ?? "unknown";
+                
                 _logger?.LogWarning(
-                    "⚠️ Kobold {KoboldId} stuck - working for {Duration:F1} minutes on task {TaskId}",
+                    "⚠️ Stuck Kobold detected\n" +
+                    "  Project: {ProjectId}\n" +
+                    "  Kobold ID: {KoboldId}\n" +
+                    "  Task ID: {TaskId}\n" +
+                    "  Duration: {Duration:F1} minutes\n" +
+                    "  Task: {TaskDescription}",
+                    projectInfo,
                     kobold.Id.ToString()[..8],
+                    kobold.TaskId?.ToString()[..8] ?? "unknown",
                     workingDuration.TotalMinutes,
-                    kobold.TaskId?.ToString()[..8] ?? "unknown");
+                    taskPreview);
 
                 // Mark the Kobold as stuck (transitions to Done with error)
                 kobold.MarkAsStuck(workingDuration, timeout);
