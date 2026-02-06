@@ -16,6 +16,12 @@ namespace DraCode.Agent
         public int MaxIterations { get; set; } = 10;
 
         /// <summary>
+        /// Maximum iterations allowed per plan step. Prevents one step from consuming entire budget.
+        /// Default: 10. Used in conjunction with dynamic per-step budgeting.
+        /// </summary>
+        public int MaxIterationsPerStep { get; set; } = 10;
+
+        /// <summary>
         /// Enable verbose logging output. Default: true
         /// </summary>
         public bool Verbose { get; set; } = true;
@@ -60,6 +66,7 @@ namespace DraCode.Agent
             {
                 Interactive = Interactive,
                 MaxIterations = MaxIterations,
+                MaxIterationsPerStep = MaxIterationsPerStep,
                 Verbose = Verbose,
                 WorkingDirectory = WorkingDirectory,
                 PromptTimeout = PromptTimeout,
@@ -78,6 +85,7 @@ namespace DraCode.Agent
 
             Interactive = other.Interactive;
             MaxIterations = other.MaxIterations;
+            MaxIterationsPerStep = other.MaxIterationsPerStep;
             Verbose = other.Verbose;
             if (!string.IsNullOrEmpty(other.WorkingDirectory))
                 WorkingDirectory = other.WorkingDirectory;
@@ -101,6 +109,9 @@ namespace DraCode.Agent
 
             if (config.TryGetValue("maxIterations", out var maxIterations))
                 options.MaxIterations = int.Parse(maxIterations);
+
+            if (config.TryGetValue("maxIterationsPerStep", out var maxIterationsPerStep))
+                options.MaxIterationsPerStep = int.Parse(maxIterationsPerStep);
 
             if (config.TryGetValue("verbose", out var verbose))
                 options.Verbose = bool.Parse(verbose);
@@ -129,6 +140,7 @@ namespace DraCode.Agent
             {
                 ["interactive"] = Interactive.ToString(),
                 ["maxIterations"] = MaxIterations.ToString(),
+                ["maxIterationsPerStep"] = MaxIterationsPerStep.ToString(),
                 ["verbose"] = Verbose.ToString(),
                 ["workingDirectory"] = WorkingDirectory,
                 ["promptTimeout"] = PromptTimeout.ToString(),

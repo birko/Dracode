@@ -312,8 +312,25 @@ You are working on a task that is part of a larger project. Below is the project
                     }
                 }
 
+                // Calculate step-aware max iterations if we have a plan
+                int effectiveMaxIterations = maxIterations;
+                if (ImplementationPlan != null && ImplementationPlan.Steps.Count > 0)
+                {
+                    var totalSteps = ImplementationPlan.Steps.Count;
+                    var maxPerStep = Agent.Options.MaxIterationsPerStep;
+                    
+                    // Dynamic budget: give each step a fair share plus buffer
+                    // Formula: min(MaxIterations / totalSteps + 2, MaxIterationsPerStep)
+                    var perStepBudget = Math.Min(maxIterations / totalSteps + 2, maxPerStep);
+                    effectiveMaxIterations = perStepBudget * totalSteps;
+                    
+                    _logger?.LogDebug(
+                        "Kobold {KoboldId} using step-aware iteration budget: {PerStepBudget} per step × {TotalSteps} steps = {TotalBudget} iterations",
+                        Id.ToString()[..8], perStepBudget, totalSteps, effectiveMaxIterations);
+                }
+
                 // Execute the task through the underlying agent
-                var messages = await Agent.RunAsync(fullTaskPrompt, maxIterations);
+                var messages = await Agent.RunAsync(fullTaskPrompt, effectiveMaxIterations);
 
                 // Check if execution encountered errors
                 if (HasErrorInMessages(messages))
@@ -339,6 +356,12 @@ You are working on a task that is part of a larger project. Below is the project
 
                 // Update plan status on completion
                 await UpdatePlanStatusAsync(planService, success: true);
+
+                // Perform file validation on incomplete steps (advisory logging only)
+                if (ImplementationPlan != null)
+                {
+                    await ValidateAndLogStepCompletionAsync(ImplementationPlan);
+                }
 
                 // Check if we have a plan and if all steps are complete
                 bool allStepsComplete = ImplementationPlan == null || 
@@ -447,6 +470,11 @@ You are working on a task that is part of a larger project. Below is the project
                 sb.AppendLine();
                 sb.AppendLine("**CRITICAL**: After completing each step, you MUST call the `update_plan_step` tool to mark it as completed.");
                 sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
+                sb.AppendLine();
+                sb.AppendLine("**REFLECTION REMINDER**: Every few iterations, pause and reflect:");
+                sb.AppendLine("1. Did I create/modify the files specified in the current step?");
+                sb.AppendLine("2. Is the step truly complete? If yes, call `update_plan_step` immediately.");
+                sb.AppendLine("3. If incomplete, what specific work remains? Focus on that.");
                 sb.AppendLine();
 
                 // Show plan summary
@@ -649,6 +677,74 @@ You are working on a task that is part of a larger project. Below is the project
         /// Gets whether this Kobold was marked as stuck (timed out)
         /// </summary>
         public bool IsStuck { get; private set; }
+
+        /// <summary>
+        /// Validates whether a step's file expectations were met.
+        /// Checks if files marked for creation exist and files marked for modification were touched.
+        /// </summary>
+        /// <param name="step">The step to validate</param>
+        /// <returns>True if validation passed, false otherwise</returns>
+        private async Task<(bool success, List<string> issues)> ValidateStepCompletionAsync(ImplementationStep step)
+        {
+            var issues = new List<string>();
+
+            // Check files to create
+            foreach (var filePath in step.FilesToCreate)
+            {
+                var fullPath = Path.IsPathRooted(filePath) 
+                    ? filePath 
+                    : Path.Combine(Agent.Options.WorkingDirectory, filePath);
+
+                if (!File.Exists(fullPath))
+                {
+                    issues.Add($"Expected file not created: {filePath}");
+                }
+            }
+
+            // Check files to modify
+            foreach (var filePath in step.FilesToModify)
+            {
+                var fullPath = Path.IsPathRooted(filePath) 
+                    ? filePath 
+                    : Path.Combine(Agent.Options.WorkingDirectory, filePath);
+
+                if (!File.Exists(fullPath))
+                {
+                    issues.Add($"Expected file not found: {filePath}");
+                }
+                else if (step.StartedAt.HasValue)
+                {
+                    // Check if file was modified after step started
+                    var lastWrite = File.GetLastWriteTimeUtc(fullPath);
+                    if (lastWrite < step.StartedAt.Value)
+                    {
+                        issues.Add($"File not modified since step started: {filePath}");
+                    }
+                }
+            }
+
+            return (issues.Count == 0, issues);
+        }
+
+        /// <summary>
+        /// Validates and logs file completion for steps in the plan.
+        /// This is advisory only - doesn't change step status.
+        /// </summary>
+        private async Task ValidateAndLogStepCompletionAsync(KoboldImplementationPlan plan)
+        {
+            foreach (var step in plan.Steps.Where(s => s.Status == StepStatus.Completed))
+            {
+                var (success, issues) = await ValidateStepCompletionAsync(step);
+                
+                if (!success && issues.Count > 0)
+                {
+                    var issuesSummary = string.Join("; ", issues.Take(3));
+                    _logger?.LogWarning(
+                        "⚠ Step {StepIndex} marked complete but validation found issues: {Issues}",
+                        step.Index, issuesSummary);
+                }
+            }
+        }
 
         /// <summary>
         /// Marks this Kobold as stuck due to exceeding the timeout threshold.
