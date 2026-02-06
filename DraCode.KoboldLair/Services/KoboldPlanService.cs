@@ -17,6 +17,7 @@ namespace DraCode.KoboldLair.Services
         private readonly ProjectRepository? _projectRepository;
         private readonly ILogger<KoboldPlanService>? _logger;
         private readonly JsonSerializerOptions _jsonOptions;
+        private readonly SemaphoreSlim _indexLock = new SemaphoreSlim(1, 1);
 
         private const string IndexFileName = "plan-index.json";
         private const int MaxFilenameDescriptionLength = 40;
@@ -182,38 +183,54 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Loads the plan index for a project
+        /// Loads the plan index for a project with file locking to prevent concurrent access issues
         /// </summary>
         private async Task<Dictionary<string, string>> LoadPlanIndexAsync(string projectId)
         {
-            var indexPath = GetPlanIndexPath(projectId);
-
-            if (!File.Exists(indexPath))
-            {
-                return new Dictionary<string, string>();
-            }
-
+            await _indexLock.WaitAsync();
             try
             {
-                var json = await File.ReadAllTextAsync(indexPath);
-                return JsonSerializer.Deserialize<Dictionary<string, string>>(json, _jsonOptions)
-                    ?? new Dictionary<string, string>();
+                var indexPath = GetPlanIndexPath(projectId);
+
+                if (!File.Exists(indexPath))
+                {
+                    return new Dictionary<string, string>();
+                }
+
+                try
+                {
+                    var json = await File.ReadAllTextAsync(indexPath);
+                    return JsonSerializer.Deserialize<Dictionary<string, string>>(json, _jsonOptions)
+                        ?? new Dictionary<string, string>();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to load plan index from {Path}", indexPath);
+                    return new Dictionary<string, string>();
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                _logger?.LogWarning(ex, "Failed to load plan index from {Path}", indexPath);
-                return new Dictionary<string, string>();
+                _indexLock.Release();
             }
         }
 
         /// <summary>
-        /// Saves the plan index for a project
+        /// Saves the plan index for a project with file locking to prevent concurrent access issues
         /// </summary>
         private async Task SavePlanIndexAsync(string projectId, Dictionary<string, string> index)
         {
-            var indexPath = GetPlanIndexPath(projectId);
-            var json = JsonSerializer.Serialize(index, _jsonOptions);
-            await File.WriteAllTextAsync(indexPath, json);
+            await _indexLock.WaitAsync();
+            try
+            {
+                var indexPath = GetPlanIndexPath(projectId);
+                var json = JsonSerializer.Serialize(index, _jsonOptions);
+                await File.WriteAllTextAsync(indexPath, json);
+            }
+            finally
+            {
+                _indexLock.Release();
+            }
         }
 
         /// <summary>
