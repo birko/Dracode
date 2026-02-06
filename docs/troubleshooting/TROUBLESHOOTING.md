@@ -63,6 +63,22 @@ Before diving into specific issues:
 
 ## Provider Issues
 
+### Network Errors Marking Tasks as Complete
+
+**Symptoms:**
+- Kobold tasks marked as "Done" despite network errors
+- LLM provider logs show "Network error after X attempts"
+- Task appears successful but no work was completed
+
+**Cause:**
+- Fixed in version 2.5.1
+- Network errors after retry exhaustion were not properly detected
+
+**Solution:**
+- Update to version 2.5.1 or later
+- Network errors now properly fail tasks with error status
+- Applies to all LLM providers (OpenAI, Claude, Gemini, Z.AI, etc.)
+
 ### Provider List Not Showing
 
 **Debug Steps:**

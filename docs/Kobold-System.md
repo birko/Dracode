@@ -38,12 +38,25 @@ public class Kobold
 
 ```
 Unassigned → Assigned → Working → Done
+                              ↘
+                               Failed
 ```
 
 1. **Unassigned**: Kobold created but not assigned to a task
 2. **Assigned**: Task assigned but work not started
 3. **Working**: Actively processing the task
-4. **Done**: Task completed
+4. **Done**: Task completed successfully
+5. **Failed**: Task failed due to errors (network errors, provider issues, etc.)
+
+### Error Handling
+
+**Network and Provider Errors** (v2.5.1+):
+- When LLM providers encounter errors (network failures, timeouts, configuration issues), tasks are properly marked as **Failed**
+- Error detection checks the last assistant message for error patterns:
+  - "Error occurred during LLM request" - Network/API errors
+  - "Provider not properly configured" - Configuration errors
+- Prior to v2.5.1, network errors could incorrectly mark tasks as "Done"
+- All error types now properly set `ErrorMessage` and transition to `Failed` status
 
 ### Methods
 

@@ -1,7 +1,7 @@
 # DraCode Technical Specification Document
 
-**Version:** 2.4.1
-**Last Updated:** February 4, 2026
+**Version:** 2.5.1
+**Last Updated:** February 6, 2026
 **Document Type:** Comprehensive Technical Specification
 
 ---
@@ -997,23 +997,43 @@ LOCATION: RunCommand.Execute()
 ```
 
 #### 11.2.5 LLM Provider Errors
-```
-ERROR: API rate limit
-HANDLING: Exception thrown, iteration stops
-LOCATION: Provider.SendMessageAsync()
 
-ERROR: Invalid API key
-HANDLING: HTTP error, exception thrown
+**Since v2.5.1, all providers use retry logic with proper error propagation:**
+
+```
+ERROR: Network failures (timeouts, connection errors)
+HANDLING: Retry with exponential backoff (default: 3 retries)
+          After exhaustion, error properly propagates to task status
+          Tasks marked as "Failed" with error message
+LOCATION: LlmProviderBase.SendWithRetryAsync()
+
+ERROR: API rate limit (429)
+HANDLING: Retry with exponential backoff, respects Retry-After header
+          Falls back to configured backoff if no header
+LOCATION: LlmProviderBase.SendWithRetryAsync()
+
+ERROR: Server errors (5xx)
+HANDLING: Retry with exponential backoff (retryable status codes)
+LOCATION: LlmProviderBase.SendWithRetryAsync()
+
+ERROR: Invalid API key (401, 403)
+HANDLING: Immediate failure, no retry (non-retryable status code)
 LOCATION: Provider.SendMessageAsync()
 
 ERROR: Invalid response format
-HANDLING: JsonException during parsing
+HANDLING: JsonException during parsing, returns error response
 LOCATION: Provider.ParseResponse()
 
 ERROR: Provider not configured
-HANDLING: Return NotConfigured response
+HANDLING: Return NotConfigured stop reason with error message
+          Properly detected and marks task as Failed (v2.5.1+)
 LOCATION: Provider.IsConfigured()
 ```
+
+**Error Propagation (v2.5.1+):**
+- When `StopReason = "error"` or `"NotConfigured"`, error text is injected into message content
+- `Kobold.HasErrorInMessages()` detects these patterns and marks tasks as Failed
+- Prior to v2.5.1, empty content errors were missed and tasks incorrectly marked as Done
 
 ### 11.3 Edge Cases
 

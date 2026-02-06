@@ -373,3 +373,15 @@ curl http://localhost:5000/  # Health check
 2. **API key not found**: Set environment variable for provider type (e.g., `ANTHROPIC_API_KEY`)
 3. **WebSocket auth failed**: Verify token in query string matches server config
 4. **Kobold limit reached**: Check `agents.kobold.maxParallel` in `projects.json`
+5. **Network errors marking tasks as complete**: Fixed in v2.5.1 - update to latest version
+
+## Error Handling
+
+### LLM Provider Errors
+- **Network Errors**: Retry logic with exponential backoff (default: 3 retries)
+  - After retries exhausted, error is properly propagated to task status
+  - Tasks marked as "Failed" instead of "Done" (fixed in v2.5.1)
+- **Rate Limiting (429)**: Respects `Retry-After` header
+- **Server Errors (5xx)**: Automatic retry with backoff
+- **Configuration Errors**: Immediate failure with clear error message
+- All providers use `SendWithRetryAsync` in `LlmProviderBase`

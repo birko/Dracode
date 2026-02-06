@@ -181,18 +181,48 @@ This file tracks planned enhancements and their implementation status.
 
 ---
 
-## Phase F - Fixes for later
+## Phase F - Performance Optimizations
 
-### Lower Priority
+### Medium Priority
 
-- [ ] **UpdatePlanStepTool**
-  -  Add a save queue similar to Drake's debouncing mechanism - accumulates saves and flushes after a delay. More complex buthighest performance.
+- [ ] **Debounced Plan Step Writes** - `UpdatePlanStepTool.cs`
+  - Apply Drake's debouncing pattern to Kobold plan updates
+  - Add Channel-based write queue with configurable delay (2-3 seconds)
+  - Coalesce rapid plan step updates from parallel Kobolds
+  - Expected impact: Reduce filesystem writes during active Kobold execution
+  - Similar to Drake optimization that achieved 50x I/O reduction
+  - Effort: Medium (~2-3 days)
 
 ---
 
 ## Future / Exploratory (Q3 2026+)
 
 ### Under Consideration
+
+- [ ] **KoboldLair CLI Client** - Standalone CLI tool (similar to GitHub Copilot CLI or Claude Code)
+  - **Console UI Features**:
+    - ASCII art logo displayed on startup
+    - Persistent top header with real-time stats (using Spectre.Console layouts)
+    - Stats dashboard: Active Kobolds, Tasks (Pending/Working/Done), Token usage, Current mode
+    - Color-coded status indicators and progress bars
+    - Clean, modern TUI with keyboard shortcuts
+  - Interactive mode selection on startup (no parameters prompts for mode choice)
+  - Two primary modes:
+    - **Dragon Mode**: Interactive requirements gathering chat
+    - **Wyvern Mode**: Simplified analysis workflow for direct user control
+  - Wyvern Mode behavior:
+    - Takes user request as input
+    - Analyzes and creates task breakdown
+    - Stores all files in `.koboldlair/` folder in current working directory
+    - Skips Drake supervision layer (user responsible for task monitoring)
+    - User manually invokes Kobolds per task
+  - Example usage:
+    - `koboldlair` (prompts for mode selection)
+    - `koboldlair chat` (direct to Dragon mode)
+    - `koboldlair analyze "request"` (direct to Wyvern analysis)
+    - `koboldlair run-task <task-id>` (manually execute Kobold)
+  - Benefits: Lightweight, local-first, direct control over agent execution
+  - Effort: High (~3-4 weeks)
 
 - [ ] **VS Code Extension** - Developer experience
 - [ ] **Python SDK** - Broader integration options

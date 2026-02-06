@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.5.1] - 2026-02-06
+
+### 🐛 Fixed - Network Error Handling
+
+**Fixed critical bug where network errors incorrectly marked tasks as completed:**
+- **Problem**: When LLM providers encountered network errors (including Z.AI), tasks were marked as "Done" instead of "Failed"
+  - Network errors threw exceptions after retry exhaustion
+  - Providers returned `StopReason = "error"` with empty content
+  - Kobold's error detection only checked message text, missing empty-content errors
+- **Solution**: Modified `Agent.cs` to inject error messages into conversation when stop reason indicates error
+  - `"error"` stop reason → adds "Error: An error occurred during LLM request."
+  - `"NotConfigured"` stop reason → adds "Error: Provider not properly configured."
+- **Impact**: 
+  - Network errors now properly fail Kobold tasks
+  - Applies to all LLM providers (OpenAI, Claude, Gemini, Z.AI, etc.)
+  - Works for all agent types (Dragon, Wyrm, Drake, Kobold)
+
+---
+
 ## [2.5.0] - 2026-02-06
 
 ### ✨ Added - Agent Architecture Improvements
