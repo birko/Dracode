@@ -70,6 +70,7 @@ builder.Services.AddSingleton<ProjectService>(sp =>
 builder.Services.AddSingleton<KoboldFactory>(sp =>
 {
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 
     // Use ProjectConfigurationService for max parallel kobolds
     Func<string?, int> getMaxParallel = (projectId) =>
@@ -77,7 +78,7 @@ builder.Services.AddSingleton<KoboldFactory>(sp =>
         return projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty);
     };
 
-    return new KoboldFactory(projectConfigService, getMaxParallel);
+    return new KoboldFactory(projectConfigService, loggerFactory, getMaxParallel);
 });
 builder.Services.AddSingleton<WyrmFactory>(sp =>
 {

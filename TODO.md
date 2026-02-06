@@ -61,10 +61,18 @@ This file tracks planned enhancements and their implementation status.
   - Respects `Retry-After` header when present
   - Updated all 10 providers: OpenAI, Claude, Gemini, Azure OpenAI, GitHub Copilot, Ollama, Z.AI, and OpenAI-compatible base (LlamaCpp, vLLM, SGLang)
 
-- [ ] **Proper Logging System** - Solution-wide
-  - Integrate Serilog or similar
-  - Add structured logging to key components
-  - Effort: Low (~1 day)
+- [x] **Proper Logging System** - Solution-wide *(Completed 2026-02-06)*
+  - [x] Replace Console.WriteLine in `Kobold.cs`, `UpdatePlanStepTool.cs` (✓ Done)
+  - [x] Add logging configuration to appsettings.json (per-namespace levels) (✓ Done)
+  - [x] Inject ILogger into Kobold via KoboldFactory (✓ Done)
+  - [x] Add structured logging with datetime timestamps via OpenTelemetry (✓ Done)
+  - [x] Updated DI registration in Program.cs (✓ Done)
+  - [x] Build verification passed (✓ Done)
+  - [x] Application runs successfully with Aspire dashboard (✓ Done)
+  - Note: DraCode CLI uses Spectre.Console for UI rendering (not logging)
+  - Note: Existing services already use ILogger extensively (20+ files)
+  - Note: LLM providers use SendMessage callback for user-facing messages
+  - Effort: 1 day (Completed)
 
 ---
 

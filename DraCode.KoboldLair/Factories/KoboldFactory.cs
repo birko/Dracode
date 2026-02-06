@@ -2,6 +2,7 @@ using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Services;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using KoboldModel = DraCode.KoboldLair.Models.Agents.Kobold;
 
@@ -18,6 +19,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly Dictionary<string, string>? _defaultConfig;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly Func<string?, int> _getProjectMaxParallelKobolds;
+        private readonly ILoggerFactory _loggerFactory;
 
         /// <summary>
         /// Gets the total number of Kobolds managed by this factory
@@ -29,12 +31,14 @@ namespace DraCode.KoboldLair.Factories
         /// </summary>
         public KoboldFactory(
             ProjectConfigurationService projectConfigService,
+            ILoggerFactory loggerFactory,
             Func<string?, int>? getProjectMaxParallelKobolds = null,
             AgentOptions? defaultOptions = null,
             Dictionary<string, string>? defaultConfig = null)
         {
             _kobolds = new ConcurrentDictionary<Guid, KoboldModel>();
             _projectConfigService = projectConfigService;
+            _loggerFactory = loggerFactory;
             _getProjectMaxParallelKobolds = getProjectMaxParallelKobolds ?? ((projectId) => projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty));
             _defaultOptions = defaultOptions;
             _defaultConfig = defaultConfig;
@@ -61,8 +65,12 @@ namespace DraCode.KoboldLair.Factories
                 agentType
             );
 
-            var kobold = new KoboldModel(agent, agentType);
+            var logger = _loggerFactory.CreateLogger<KoboldModel>();
+            var kobold = new KoboldModel(agent, agentType, logger);
             _kobolds.TryAdd(kobold.Id, kobold);
+            
+            logger.LogInformation("Created Kobold {KoboldId} with agent type {AgentType} using provider {Provider} at {Timestamp:o}", 
+                kobold.Id.ToString()[..8], agentType, provider, DateTime.UtcNow);
 
             return kobold;
         }

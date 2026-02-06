@@ -2,6 +2,7 @@ using System.Text.Json;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Services;
+using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -15,6 +16,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         private static readonly object _lock = new();
         private static KoboldImplementationPlan? _currentPlan;
         private static KoboldPlanService? _planService;
+        private static ILogger? _logger;
 
         public override string Name => "update_plan_step";
 
@@ -139,14 +141,20 @@ Returns: Confirmation of the update with current plan progress.";
                         case StepStatus.Completed:
                             step.Complete(output);
                             _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) completed");
+                            _logger?.LogInformation("Plan step {StepIndex}/{TotalSteps} completed: {StepTitle} at {Timestamp:o}", 
+                                stepIndex, _currentPlan.Steps.Count, step.Title, DateTime.UtcNow);
                             break;
                         case StepStatus.Failed:
                             step.Fail(output);
                             _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) failed: {output ?? "No reason provided"}");
+                            _logger?.LogError("Plan step {StepIndex}/{TotalSteps} failed: {StepTitle} - {Reason} at {Timestamp:o}", 
+                                stepIndex, _currentPlan.Steps.Count, step.Title, output ?? "No reason provided", DateTime.UtcNow);
                             break;
                         case StepStatus.Skipped:
                             step.Skip(output);
                             _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) skipped: {output ?? "No reason provided"}");
+                            _logger?.LogInformation("Plan step {StepIndex}/{TotalSteps} skipped: {StepTitle} - {Reason} at {Timestamp:o}", 
+                                stepIndex, _currentPlan.Steps.Count, step.Title, output ?? "No reason provided", DateTime.UtcNow);
                             break;
                     }
 
@@ -155,23 +163,22 @@ Returns: Confirmation of the update with current plan progress.";
                         (newStatus == StepStatus.Completed || newStatus == StepStatus.Skipped))
                     {
                         _currentPlan.AdvanceToNextStep();
+                        _logger?.LogDebug("Plan advanced to step {CurrentStep}/{TotalSteps} at {Timestamp:o}", 
+                            _currentPlan.CurrentStepIndex + 1, _currentPlan.Steps.Count, DateTime.UtcNow);
                     }
 
-                    // Save the plan asynchronously (fire and forget, but log errors)
+                    // Save the plan synchronously to avoid race conditions with Kobold's own saves
                     if (_planService != null && !string.IsNullOrEmpty(_currentPlan.ProjectId))
                     {
-                        Task.Run(async () =>
+                        try
                         {
-                            try
-                            {
-                                await _planService.SavePlanAsync(_currentPlan);
-                            }
-                            catch (Exception ex)
-                            {
-                                // Log but don't fail - the in-memory state is still updated
-                                Console.Error.WriteLine($"Warning: Failed to save plan update: {ex.Message}");
-                            }
-                        });
+                            _planService.SavePlanAsync(_currentPlan).GetAwaiter().GetResult();
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log but don't fail - the in-memory state is still updated
+                            _logger?.LogWarning(ex, "Failed to save plan update at {Timestamp:o}", DateTime.UtcNow);
+                        }
                     }
 
                     // Build response
@@ -216,12 +223,13 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){nextStepInfo}";
         /// Registers the current plan and service for use by this tool.
         /// Call this before the Kobold starts working with a plan.
         /// </summary>
-        public static void RegisterContext(KoboldImplementationPlan plan, KoboldPlanService? service)
+        public static void RegisterContext(KoboldImplementationPlan plan, KoboldPlanService? service, ILogger? logger = null)
         {
             lock (_lock)
             {
                 _currentPlan = plan;
                 _planService = service;
+                _logger = logger;
             }
         }
 
@@ -235,6 +243,7 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){nextStepInfo}";
             {
                 _currentPlan = null;
                 _planService = null;
+                _logger = null;
             }
         }
 

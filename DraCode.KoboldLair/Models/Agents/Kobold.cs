@@ -3,6 +3,7 @@ using DraCode.Agent.Agents;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Services;
+using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Models.Agents
 {
@@ -13,6 +14,7 @@ namespace DraCode.KoboldLair.Models.Agents
     /// </summary>
     public class Kobold
     {
+        private readonly ILogger<Kobold>? _logger;
         /// <summary>
         /// Unique identifier for this Kobold
         /// </summary>
@@ -86,13 +88,17 @@ namespace DraCode.KoboldLair.Models.Agents
         /// <summary>
         /// Creates a new Kobold with an agent instance
         /// </summary>
-        public Kobold(Agent.Agents.Agent agent, string agentType)
+        public Kobold(Agent.Agents.Agent agent, string agentType, ILogger<Kobold>? logger = null)
         {
             Id = Guid.NewGuid();
             Agent = agent;
             AgentType = agentType;
             Status = KoboldStatus.Unassigned;
             CreatedAt = DateTime.UtcNow;
+            _logger = logger;
+            
+            _logger?.LogInformation("Kobold {KoboldId} created with agent type {AgentType} at {CreatedAt:o}", 
+                Id.ToString()[..8], agentType, CreatedAt);
         }
 
         /// <summary>
@@ -254,7 +260,7 @@ You are working on a task that is part of a larger project. Below is the project
             if (ImplementationPlan != null)
             {
                 // Register the plan context for the tool
-                UpdatePlanStepTool.RegisterContext(ImplementationPlan, planService);
+                UpdatePlanStepTool.RegisterContext(ImplementationPlan, planService, _logger);
 
                 // Add the tool to the agent
                 Agent.AddTool(new UpdatePlanStepTool());
@@ -439,6 +445,15 @@ You are working on a task that is part of a larger project. Below is the project
 
             if (success)
             {
+                // Log current step statuses for debugging
+                var statusCounts = ImplementationPlan.Steps
+                    .GroupBy(s => s.Status)
+                    .ToDictionary(g => g.Key, g => g.Count());
+                
+                var statusSummary = string.Join(", ", statusCounts.Select(kvp => $"{kvp.Key}: {kvp.Value}"));
+                _logger?.LogDebug("Kobold {KoboldId} plan step status summary: {StatusSummary} at {Timestamp:o}", 
+                    Id.ToString()[..8], statusSummary, DateTime.UtcNow);
+
                 // Only mark the plan as completed if all steps are actually done
                 var allStepsFinished = ImplementationPlan.Steps.All(s =>
                     s.Status == StepStatus.Completed ||
@@ -447,12 +462,29 @@ You are working on a task that is part of a larger project. Below is the project
 
                 if (allStepsFinished)
                 {
+                    _logger?.LogInformation("Kobold {KoboldId} all steps finished - marking plan as completed at {Timestamp:o}", 
+                        Id.ToString()[..8], DateTime.UtcNow);
                     ImplementationPlan.MarkCompleted();
                 }
                 else
                 {
+                    // Get list of unfinished steps for detailed logging
+                    var pendingSteps = ImplementationPlan.Steps
+                        .Where(s => s.Status == StepStatus.Pending || s.Status == StepStatus.InProgress)
+                        .Select(s => $"Step {s.Index}: {s.Title}")
+                        .ToList();
+                    
+                    _logger?.LogWarning(
+                        "Kobold {KoboldId} plan has {PendingCount} unfinished steps, keeping in InProgress. " +
+                        "First steps: {FirstSteps} at {Timestamp:o}",
+                        Id.ToString()[..8], pendingSteps.Count, string.Join("; ", pendingSteps.Take(3)), DateTime.UtcNow);
+                    
                     // Agent finished but not all steps are done - keep plan in progress for resumption
-                    ImplementationPlan.AddLogEntry($"Kobold {Id.ToString()[..8]} finished work session, {ImplementationPlan.CompletedStepsCount}/{ImplementationPlan.Steps.Count} steps completed");
+                    ImplementationPlan.AddLogEntry(
+                        $"Kobold {Id.ToString()[..8]} finished work session, " +
+                        $"{ImplementationPlan.CompletedStepsCount}/{ImplementationPlan.Steps.Count} steps completed. " +
+                        $"Unfinished: {string.Join(", ", pendingSteps.Select(p => p.Split(':')[0]).Take(5))}"
+                    );
                 }
             }
             else
