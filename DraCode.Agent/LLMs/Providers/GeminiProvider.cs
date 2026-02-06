@@ -176,7 +176,11 @@ namespace DraCode.Agent.LLMs.Providers
             var payload = new
             {
                 contents = contents.ToArray(),
-                systemInstruction = new { parts = new[] { new { text = systemPrompt } } }
+                systemInstruction = new { parts = new[] { new { text = systemPrompt } } },
+                generationConfig = new
+                {
+                    maxOutputTokens = 8192  // Gemini 2.0 max output tokens
+                }
             };
 
             // Only add tools if there are any
@@ -186,6 +190,7 @@ namespace DraCode.Agent.LLMs.Providers
                 {
                     contents = payload.contents,
                     systemInstruction = payload.systemInstruction,
+                    generationConfig = payload.generationConfig,
                     tools = new[]
                     {
                         new

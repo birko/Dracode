@@ -21,9 +21,9 @@ namespace DraCode.Agent.LLMs.Providers
 
         /// <summary>
         /// Max tokens to request. Override in derived class if needed.
-        /// Default is 4096. Use -1 for unlimited (llama.cpp style).
+        /// Default is 8192. Use -1 for unlimited (llama.cpp style).
         /// </summary>
-        protected virtual int MaxTokens => 4096;
+        protected virtual int MaxTokens => 8192;
 
         /// <summary>
         /// Temperature for generation. Override in derived class if needed.

@@ -31,7 +31,8 @@ namespace DraCode.Agent.LLMs.Providers
                 var payload = new
                 {
                     messages = BuildOpenAiStyleMessages(messages, systemPrompt),
-                    tools = BuildOpenAiStyleTools(tools)
+                    tools = BuildOpenAiStyleTools(tools),
+                    max_tokens = 16384  // GPT-4 max output tokens
                 };
                 var json = JsonSerializer.Serialize(payload);
                 var url = $"{_endpoint}/openai/deployments/{_deployment}/chat/completions?api-version=2024-02-15-preview";

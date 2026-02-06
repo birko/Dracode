@@ -115,7 +115,7 @@ namespace DraCode.Agent.LLMs.Providers
                 ["model"] = _model,
                 ["messages"] = openAiMessages,
                 ["stream"] = false,
-                ["max_tokens"] = 4096,
+                ["max_tokens"] = 8192,  // GLM models max output tokens
                 ["temperature"] = 0.7
             };
 

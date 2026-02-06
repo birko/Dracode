@@ -48,7 +48,8 @@ namespace DraCode.Agent.LLMs.Providers
             {
                 model = _model,
                 messages = BuildOpenAiStyleMessages(messages, systemPrompt),
-                tools = BuildOpenAiStyleTools(tools)
+                tools = BuildOpenAiStyleTools(tools),
+                max_tokens = 16384  // GPT-4o max output tokens
             };
 
             var json = JsonSerializer.Serialize(payload);

@@ -33,7 +33,8 @@ namespace DraCode.Agent.LLMs.Providers
                     model = _model,
                     messages = BuildOpenAiStyleMessages(messages, systemPrompt),
                     stream = false,
-                    tools = BuildOpenAiStyleTools(tools)
+                    tools = BuildOpenAiStyleTools(tools),
+                    num_predict = -1  // Ollama's parameter name for max_tokens (-1 = unlimited)
                 };
                 var json = JsonSerializer.Serialize(payload);
                 var url = $"{_baseUrl}/api/chat";

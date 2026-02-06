@@ -101,7 +101,7 @@ namespace DraCode.Agent.LLMs.Providers
             return new
             {
                 model,
-                max_tokens = 4096,
+                max_tokens = 8192,  // Claude max output tokens
                 system = systemPrompt,
                 messages = claudeMessages,
                 tools = tools.Select(t => new { name = t.Name, description = t.Description, input_schema = t.InputSchema }).ToList()
