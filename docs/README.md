@@ -46,7 +46,7 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 | **Wyvern** | Project analysis & task organization | Automatic | [Wyvern-Project-Analyzer.md](Wyvern-Project-Analyzer.md) |
 | **Wyrm** | Task delegation & agent selection | Automatic | Part of KoboldLair orchestration |
 | **Drake** | Task supervision & Kobold management | Automatic | [Drake-Monitoring-System.md](Drake-Monitoring-System.md) |
-| **Kobold Planner** | Implementation planning before execution | Automatic | [Kobold-System.md](Kobold-System.md) |
+| **Kobold Planner** | Implementation planning before execution | Automatic | [Kobold-Planner-Agent.md](Kobold-Planner-Agent.md) |
 | **Kobold** | Code generation workers | Automatic | [Kobold-System.md](Kobold-System.md) |
 
 ### How It Works
@@ -87,6 +87,8 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
 - **[Changelog](CHANGELOG.md)** - Version history and release notes
 - **[Agent Options](AGENT_OPTIONS.md)** - Agent configuration options
 - **[New Agent Types](NEW_AGENT_TYPES.md)** - PHP, Python, SVG, Bitmap, and Media agents
+- **[Plan Status Tracking](Plan-Status-Tracking.md)** - Implementation plan status management
+- **[Background Services](Background-Services.md)** - Overview of all background services and their intervals
 
 ### Architecture
 - [Architecture Specification](architecture/ARCHITECTURE_SPECIFICATION.md) - System architecture and design

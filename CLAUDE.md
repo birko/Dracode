@@ -139,6 +139,8 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `manage_external_paths` - Add/remove allowed external paths
 - `select_agent` - Select agent type for tasks
 - `retry_analysis` - Retry failed Wyvern analysis (list/retry/status actions)
+- `agent_status` - View running agents (Drakes, Kobolds) per project
+- `retry_failed_task` - Retry failed tasks by resetting to Unassigned
 
 ### Kobold Planner Tool (1)
 

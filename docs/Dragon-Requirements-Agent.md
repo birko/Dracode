@@ -204,6 +204,99 @@ Each council member has specialized tools:
 | `agent_configuration` | Configure agent providers and models |
 | `select_agent` | Select agent type for tasks |
 | `retry_analysis` | Retry failed Wyvern analysis (list/retry/status) |
+| `agent_status` | View running agents (Drakes, Kobolds) per project |
+| `retry_failed_task` | Retry failed tasks by resetting to Unassigned |
+
+#### Tool Details
+
+##### agent_status
+
+**Purpose**: View running agents (Drakes, Kobolds) per project with real-time status information.
+
+**Actions**:
+- `list` - Show all projects with running agents
+- `project` - Show details for a specific project
+- `summary` - Global overview of all agent activity
+
+**Use Cases**:
+- Check which Kobolds are currently working
+- Identify stuck or long-running tasks
+- Monitor overall system activity
+- Debug execution issues
+
+**Example**:
+```json
+{
+  "action": "list"
+}
+```
+
+**Response**:
+```
+Projects with Running Agents:
+
+📦 my-web-app (Status: Active)
+  🦅 Drakes: 2
+  👹 Kobolds: 4 (3 working, 1 assigned)
+
+📦 api-service (Status: Active)
+  🦅 Drakes: 1
+  👹 Kobolds: 2 (2 working)
+
+Total: 2 projects, 3 Drakes, 6 Kobolds
+```
+
+##### retry_failed_task
+
+**Purpose**: Retry failed tasks by resetting their status to Unassigned so Drake can reassign them.
+
+**Actions**:
+- `list` - List all failed tasks across all projects
+- `retry` - Retry a specific task by task ID
+- `retry_all` - Retry all failed tasks for a specific project
+
+**Use Cases**:
+- Recover from transient network errors
+- Retry after fixing configuration issues
+- Resume work after provider API downtime
+- Clear failed state after manual intervention
+
+**Examples**:
+```json
+{
+  "action": "list"
+}
+```
+
+```json
+{
+  "action": "retry",
+  "task_id": "task-abc-123"
+}
+```
+
+```json
+{
+  "action": "retry_all",
+  "project_id": "proj-guid-here"
+}
+```
+
+**Response**:
+```
+Failed Tasks:
+
+📦 my-web-app
+  ❌ Create User API endpoint (Failed: Network error after 3 retries)
+  ❌ Add authentication middleware (Failed: Provider timeout)
+
+📦 api-service
+  ❌ Database migrations (Failed: Task execution timeout)
+
+Total: 3 failed tasks
+
+Use retry_failed_task with action 'retry' and the task_id to retry.
+```
 
 #### Two-Stage Specification Workflow
 
