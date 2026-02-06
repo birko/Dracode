@@ -376,7 +376,8 @@ namespace DraCode.KoboldLair.Server.Services
                 getFailedProjects: GetFailedProjects,
                 getRunningAgents: GetRunningAgents,
                 getRunningAgentsForProject: GetRunningAgentsForProject,
-                getGlobalKoboldStats: () => _koboldFactory?.GetStatistics() ?? new KoboldStatistics());
+                getGlobalKoboldStats: () => _koboldFactory?.GetStatistics() ?? new KoboldStatistics(),
+                retryFailedTaskTool: _drakeFactory != null ? new RetryFailedTaskTool(_drakeFactory, _projectService) : null);
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(

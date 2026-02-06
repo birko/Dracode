@@ -171,6 +171,17 @@ You are working on a task that is part of a larger project. Below is the project
                 // Execute the task through the underlying agent in non-interactive mode
                 var messages = await Agent.RunAsync(fullTaskPrompt, maxIterations);
 
+                // Check if execution encountered errors
+                if (HasErrorInMessages(messages))
+                {
+                    ErrorMessage = "Agent encountered errors during execution. Check logs for details.";
+                    Status = KoboldStatus.Failed;
+                    CompletedAt = DateTime.UtcNow;
+                    
+                    _logger?.LogWarning("Kobold {KoboldId} failed with errors in message history", Id);
+                    return messages;
+                }
+
                 // Task completed successfully - transition to Done
                 Status = KoboldStatus.Done;
                 CompletedAt = DateTime.UtcNow;
@@ -179,10 +190,12 @@ You are working on a task that is part of a larger project. Below is the project
             }
             catch (Exception ex)
             {
-                // Task failed - capture error and transition to Done
+                // Task failed - capture error and transition to Failed
                 ErrorMessage = ex.Message;
-                Status = KoboldStatus.Done;
+                Status = KoboldStatus.Failed;
                 CompletedAt = DateTime.UtcNow;
+                
+                _logger?.LogError(ex, "Kobold {KoboldId} failed with exception", Id);
                 throw; // Re-throw so caller knows it failed
             }
         }
@@ -286,6 +299,20 @@ You are working on a task that is part of a larger project. Below is the project
                 // Execute the task through the underlying agent
                 var messages = await Agent.RunAsync(fullTaskPrompt, maxIterations);
 
+                // Check if execution encountered errors
+                if (HasErrorInMessages(messages))
+                {
+                    ErrorMessage = "Agent encountered errors during execution. Check logs for details.";
+                    Status = KoboldStatus.Failed;
+                    CompletedAt = DateTime.UtcNow;
+                    
+                    // Update plan status on failure
+                    await UpdatePlanStatusAsync(planService, success: false, ErrorMessage);
+                    
+                    _logger?.LogWarning("Kobold {KoboldId} failed with errors in message history", Id);
+                    return messages;
+                }
+
                 // Update plan status on completion
                 await UpdatePlanStatusAsync(planService, success: true);
 
@@ -300,10 +327,12 @@ You are working on a task that is part of a larger project. Below is the project
                 // Update plan status on failure
                 await UpdatePlanStatusAsync(planService, success: false, ex.Message);
 
-                // Task failed - capture error and transition to Done
+                // Task failed - capture error and transition to Failed
                 ErrorMessage = ex.Message;
-                Status = KoboldStatus.Done;
+                Status = KoboldStatus.Failed;
                 CompletedAt = DateTime.UtcNow;
+                
+                _logger?.LogError(ex, "Kobold {KoboldId} failed with exception", Id);
                 throw;
             }
             finally
@@ -499,9 +528,42 @@ You are working on a task that is part of a larger project. Below is the project
         }
 
         /// <summary>
+        /// Checks if the agent's message history contains errors (stop reason "error" or "NotConfigured")
+        /// </summary>
+        private bool HasErrorInMessages(List<Message> messages)
+        {
+            // Check the last assistant message for error indicators
+            var lastAssistantMsg = messages.LastOrDefault(m => m.Role == "assistant");
+            if (lastAssistantMsg == null) return false;
+
+            // Check if the conversation ended with an error stop reason
+            // This is inferred from the agent stopping without completing the task
+            // Look for error messages in the message content
+            if (lastAssistantMsg.Content is IEnumerable<ContentBlock> blocks)
+            {
+                foreach (var block in blocks)
+                {
+                    if (block.Type == "text" && block.Text != null)
+                    {
+                        var text = block.Text.ToLowerInvariant();
+                        // Check for common error indicators
+                        if (text.Contains("error occurred during llm request") ||
+                            text.Contains("provider") && text.Contains("not properly configured") ||
+                            text.Contains("error:") && text.Contains("provider"))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Gets whether this Kobold has completed its work (successfully or with error)
         /// </summary>
-        public bool IsComplete => Status == KoboldStatus.Done;
+        public bool IsComplete => Status == KoboldStatus.Done || Status == KoboldStatus.Failed;
 
         /// <summary>
         /// Gets whether this Kobold completed successfully (no error)
@@ -509,9 +571,9 @@ You are working on a task that is part of a larger project. Below is the project
         public bool IsSuccess => Status == KoboldStatus.Done && string.IsNullOrEmpty(ErrorMessage);
 
         /// <summary>
-        /// Gets whether this Kobold failed (has error)
+        /// Gets whether this Kobold failed (has error or Failed status)
         /// </summary>
-        public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+        public bool HasError => Status == KoboldStatus.Failed || !string.IsNullOrEmpty(ErrorMessage);
 
         /// <summary>
         /// Gets whether this Kobold was marked as stuck (timed out)
@@ -520,7 +582,7 @@ You are working on a task that is part of a larger project. Below is the project
 
         /// <summary>
         /// Marks this Kobold as stuck due to exceeding the timeout threshold.
-        /// Forces transition to Done status with an error message.
+        /// Forces transition to Failed status with an error message.
         /// </summary>
         /// <param name="workingDuration">How long the Kobold was working</param>
         /// <param name="timeout">The timeout threshold that was exceeded</param>
@@ -533,7 +595,7 @@ You are working on a task that is part of a larger project. Below is the project
 
             IsStuck = true;
             ErrorMessage = $"Kobold timed out after {workingDuration.TotalMinutes:F1} minutes (threshold: {timeout.TotalMinutes:F0} minutes)";
-            Status = KoboldStatus.Done;
+            Status = KoboldStatus.Failed;
             CompletedAt = DateTime.UtcNow;
         }
 

@@ -21,8 +21,18 @@ namespace DraCode.KoboldLair.Models.Tasks
         Working,
 
         /// <summary>
-        /// Task has been completed
+        /// Task has been completed successfully
         /// </summary>
-        Done
+        Done,
+
+        /// <summary>
+        /// Task encountered an error and cannot continue
+        /// </summary>
+        Failed,
+
+        /// <summary>
+        /// Task is blocked because one or more dependencies have failed
+        /// </summary>
+        BlockedByFailure
     }
 }

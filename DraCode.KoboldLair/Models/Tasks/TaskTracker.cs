@@ -147,10 +147,12 @@ namespace DraCode.KoboldLair.Models.Tasks
                         TaskStatus.NotInitialized => "🔵 notinitialized",
                         TaskStatus.Working => "🟡 working",
                         TaskStatus.Done => "🟢 done",
+                        TaskStatus.Failed => "🔴 failed",
+                        TaskStatus.BlockedByFailure => "🟠 blockedbyfailure",
                         _ => statusDisplay
                     };
 
-                    if (!string.IsNullOrEmpty(task.ErrorMessage))
+                    if (!string.IsNullOrEmpty(task.ErrorMessage) && task.Status != TaskStatus.Failed)
                     {
                         statusWithEmoji = "🔴 error";
                     }
@@ -168,6 +170,8 @@ namespace DraCode.KoboldLair.Models.Tasks
                 sb.AppendLine($"- **Not Initialized**: {_tasks.Count(t => t.Status == TaskStatus.NotInitialized)}");
                 sb.AppendLine($"- **Working**: {_tasks.Count(t => t.Status == TaskStatus.Working)}");
                 sb.AppendLine($"- **Done**: {_tasks.Count(t => t.Status == TaskStatus.Done)}");
+                sb.AppendLine($"- **Failed**: {_tasks.Count(t => t.Status == TaskStatus.Failed)}");
+                sb.AppendLine($"- **Blocked by Failure**: {_tasks.Count(t => t.Status == TaskStatus.BlockedByFailure)}");
                 
                 var errorCount = _tasks.Count(t => !string.IsNullOrEmpty(t.ErrorMessage));
                 if (errorCount > 0)

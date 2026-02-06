@@ -312,6 +312,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 KoboldStatus.Assigned => TaskStatus.NotInitialized,
                 KoboldStatus.Working => TaskStatus.Working,
                 KoboldStatus.Done => TaskStatus.Done,
+                KoboldStatus.Failed => TaskStatus.Failed,
                 _ => task.Status // Keep current if unknown
             };
 
@@ -554,12 +555,14 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Unsummons all completed Kobolds
+        /// Unsummons all completed Kobolds (Done or Failed)
         /// </summary>
         /// <returns>Number of Kobolds unsummoned</returns>
         public int UnsummonCompletedKobolds()
         {
-            var completedKobolds = _koboldFactory.GetKoboldsByStatus(KoboldStatus.Done);
+            var completedKobolds = _koboldFactory.GetKoboldsByStatus(KoboldStatus.Done)
+                .Concat(_koboldFactory.GetKoboldsByStatus(KoboldStatus.Failed))
+                .ToList();
             int count = 0;
 
             foreach (var kobold in completedKobolds)
@@ -648,10 +651,13 @@ namespace DraCode.KoboldLair.Orchestrators
                 AssignedKobolds = koboldStats.Assigned,
                 WorkingKobolds = koboldStats.Working,
                 DoneKobolds = koboldStats.Done,
+                FailedKobolds = koboldStats.Failed,
                 TotalTasks = allTasks.Count,
                 UnassignedTasks = allTasks.Count(t => t.Status == TaskStatus.Unassigned),
                 WorkingTasks = allTasks.Count(t => t.Status == TaskStatus.Working),
                 DoneTasks = allTasks.Count(t => t.Status == TaskStatus.Done),
+                FailedTasks = allTasks.Count(t => t.Status == TaskStatus.Failed),
+                BlockedTasks = allTasks.Count(t => t.Status == TaskStatus.BlockedByFailure),
                 ActiveAssignments = _taskToKoboldMap.Count
             };
         }
@@ -666,6 +672,17 @@ namespace DraCode.KoboldLair.Orchestrators
                 return _koboldFactory.GetKobold(koboldId);
             }
             return null;
+        }
+
+        /// <summary>
+        /// Updates a task's status. Public wrapper for external task management.
+        /// </summary>
+        /// <param name="task">Task to update</param>
+        /// <param name="newStatus">New status for the task</param>
+        public void UpdateTask(TaskRecord task, TaskStatus newStatus)
+        {
+            _taskTracker.UpdateTask(task, newStatus);
+            SaveTasksToFile();
         }
 
         /// <summary>
@@ -868,6 +885,10 @@ namespace DraCode.KoboldLair.Orchestrators
         /// Returns tasks with their recommended agent type parsed from the task description.
         /// </summary>
         /// <returns>List of (TaskRecord, AgentType) tuples for tasks ready to execute</returns>
+        /// <summary>
+        /// Gets unassigned tasks that are ready to execute (dependencies met).
+        /// Also detects and marks tasks blocked by failed dependencies.
+        /// </summary>
         public List<(TaskRecord Task, string AgentType)> GetUnassignedTasks()
         {
             var result = new List<(TaskRecord, string)>();
@@ -878,12 +899,17 @@ namespace DraCode.KoboldLair.Orchestrators
             var projectDoneTasks = LoadDoneTasksFromProject();
             doneTasks.UnionWith(projectDoneTasks);
 
-            foreach (var task in allTasks.Where(t => t.Status == TaskStatus.Unassigned))
+            // Load failed tasks from ALL task files to detect blocked dependencies
+            var failedTasks = LoadFailedTasksFromProject();
+            failedTasks.UnionWith(allTasks.Where(t => t.Status == TaskStatus.Failed).Select(t => t.Task));
+
+            foreach (var task in allTasks.Where(t => t.Status == TaskStatus.Unassigned || t.Status == TaskStatus.BlockedByFailure))
             {
                 // Check if dependencies are met (parse from task description)
                 // Format: [task-id] Task name (depends on: dep1, dep2)
                 var dependenciesMet = true;
                 var unmeetDependencies = new List<string>();
+                var failedDependencies = new List<string>();
                 var dependsOnMatch = System.Text.RegularExpressions.Regex.Match(
                     task.Task, @"\(depends on:\s*([^)]+)\)");
 
@@ -896,16 +922,57 @@ namespace DraCode.KoboldLair.Orchestrators
 
                     foreach (var dep in dependencies)
                     {
-                        // Check if any done task contains this dependency ID
+                        // Check if dependency is done
                         var depMet = doneTasks.Any(doneTask =>
                             doneTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
 
-                        if (!depMet)
+                        if (depMet)
                         {
-                            dependenciesMet = false;
+                            continue;
+                        }
+
+                        // Check if dependency has failed
+                        var depFailed = failedTasks.Any(failedTask =>
+                            failedTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
+
+                        if (depFailed)
+                        {
+                            failedDependencies.Add(dep);
+                        }
+                        else
+                        {
                             unmeetDependencies.Add(dep);
                         }
+
+                        dependenciesMet = false;
                     }
+                }
+
+                // Mark as blocked if any dependencies have failed
+                if (failedDependencies.Count > 0)
+                {
+                    if (task.Status != TaskStatus.BlockedByFailure)
+                    {
+                        _logger?.LogWarning(
+                            "🟠 Task {TaskId} blocked by failed dependencies: {FailedDeps}",
+                            task.Id.ToString()[..Math.Min(8, task.Id.Length)],
+                            string.Join(", ", failedDependencies)
+                        );
+                        _taskTracker.UpdateTask(task, TaskStatus.BlockedByFailure);
+                        SaveTasksToFile();
+                    }
+                    continue;
+                }
+
+                // If previously blocked but dependencies are now resolved, unblock it
+                if (task.Status == TaskStatus.BlockedByFailure && dependenciesMet)
+                {
+                    _logger?.LogInformation(
+                        "✅ Task {TaskId} unblocked - failed dependencies have been resolved",
+                        task.Id.ToString()[..Math.Min(8, task.Id.Length)]
+                    );
+                    _taskTracker.UpdateTask(task, TaskStatus.Unassigned);
+                    SaveTasksToFile();
                 }
 
                 if (!dependenciesMet)
@@ -982,6 +1049,61 @@ namespace DraCode.KoboldLair.Orchestrators
             }
 
             return doneTasks;
+        }
+
+        /// <summary>
+        /// Loads failed tasks from all task files in the project directory.
+        /// This enables detection of cross-area blocked dependencies.
+        /// </summary>
+        private HashSet<string> LoadFailedTasksFromProject()
+        {
+            var failedTasks = new HashSet<string>();
+
+            // Get project directory from task file path: ./projects/my-project/tasks/backend-tasks.md -> ./projects/my-project
+            var taskFolder = Path.GetDirectoryName(_outputMarkdownPath);
+            var projectDir = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
+            if (string.IsNullOrEmpty(projectDir) || !Directory.Exists(projectDir))
+            {
+                return failedTasks;
+            }
+
+            // Find all *-tasks.md files in the project task directory
+            var taskDir = Path.Combine(projectDir, "tasks");
+            if (!Directory.Exists(taskDir))
+            {
+                return failedTasks;
+            }
+
+            var taskFiles = Directory.GetFiles(taskDir, "*-tasks.md");
+
+            foreach (var taskFile in taskFiles)
+            {
+                // Skip the current task file (already loaded)
+                if (Path.GetFullPath(taskFile) == Path.GetFullPath(_outputMarkdownPath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var tracker = new TaskTracker();
+                    tracker.LoadFromFile(taskFile);
+                    var tasks = tracker.GetAllTasks()
+                        .Where(t => t.Status == TaskStatus.Failed)
+                        .Select(t => t.Task);
+
+                    foreach (var task in tasks)
+                    {
+                        failedTasks.Add(task);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to load failed tasks from {TaskFile} for dependency checking", taskFile);
+                }
+            }
+
+            return failedTasks;
         }
 
         /// <summary>

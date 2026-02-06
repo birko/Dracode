@@ -26,6 +26,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<List<RunningAgentInfo>>? _getRunningAgents;
         private readonly Func<string, RunningAgentInfo?>? _getRunningAgentsForProject;
         private readonly Func<KoboldStatistics>? _getGlobalKoboldStats;
+        private readonly RetryFailedTaskTool? _retryFailedTaskTool;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -44,7 +45,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<List<(string Id, string Name, string Status, string? ErrorMessage)>>? getFailedProjects = null,
             Func<List<RunningAgentInfo>>? getRunningAgents = null,
             Func<string, RunningAgentInfo?>? getRunningAgentsForProject = null,
-            Func<KoboldStatistics>? getGlobalKoboldStats = null)
+            Func<KoboldStatistics>? getGlobalKoboldStats = null,
+            RetryFailedTaskTool? retryFailedTaskTool = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -60,6 +62,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _getRunningAgents = getRunningAgents;
             _getRunningAgentsForProject = getRunningAgentsForProject;
             _getGlobalKoboldStats = getGlobalKoboldStats;
+            _retryFailedTaskTool = retryFailedTaskTool;
             RebuildTools();
         }
 
@@ -72,6 +75,13 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 new RetryAnalysisTool(_getProjectStatus, _retryAnalysis, _getFailedProjects),
                 new AgentStatusTool(_getRunningAgents, _getRunningAgentsForProject, _getGlobalKoboldStats)
             };
+            
+            // Add retry failed task tool if available
+            if (_retryFailedTaskTool != null)
+            {
+                tools.Add(_retryFailedTaskTool);
+            }
+            
             return tools;
         }
 
@@ -88,12 +98,14 @@ Your role is to manage the workforce - the background agents that process projec
 4. **Set parallel limits** - control how many agents run concurrently
 5. **Manage external path access** - grant/revoke file access outside workspace
 6. **Retry failed analysis** - view and retry projects with failed Wyvern analysis
+7. **Retry failed tasks** - view and retry individual failed tasks from Kobolds
 
 ## Tools Available:
 - **agent_status**: View running agents per project (actions: list, project, summary)
 - **manage_agents**: View and manage agent configurations (actions: status, get, enable, disable, set_limit)
 - **manage_external_paths**: Control which external paths agents can access (actions: list, add, remove)
 - **retry_analysis**: View failed projects and retry Wyvern analysis (actions: list, retry, status)
+- **retry_failed_task**: View and retry failed Kobold tasks (actions: list, retry, retry_all)
 
 ## Agent Types You Oversee:
 - **Wyvern**: Analyzes specifications, creates task breakdowns (first step after approval)
@@ -138,6 +150,13 @@ Your role is to manage the workforce - the background agents that process projec
 - Use action:'status' with project name to see a specific project's status and full error message
 - Use action:'retry' with project name to reset the project and trigger reanalysis
 - After retry, the project goes back to 'New' status and Wyvern will pick it up within 60 seconds
+
+### Retrying Failed Tasks:
+- Use retry_failed_task with action:'list' to see all failed tasks across all projects
+- Failed tasks block project execution until resolved
+- Use action:'retry' with task_id to retry a specific failed task
+- Use action:'retry_all' with project_id to retry all failed tasks in a project
+- After retry, tasks are reset to 'Unassigned' and Drake will pick them up on next cycle
 
 ## Processing Pipeline:
 When all agents are enabled, the flow is:

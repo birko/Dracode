@@ -21,8 +21,13 @@ namespace DraCode.KoboldLair.Models.Agents
         Working,
 
         /// <summary>
-        /// Kobold has completed the assigned task
+        /// Kobold has completed the assigned task successfully
         /// </summary>
-        Done
+        Done,
+
+        /// <summary>
+        /// Kobold encountered an error and cannot continue
+        /// </summary>
+        Failed
     }
 }

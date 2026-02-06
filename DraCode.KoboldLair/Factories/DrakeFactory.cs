@@ -225,6 +225,22 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
+        /// Gets all Drakes associated with a specific project
+        /// </summary>
+        /// <param name="projectId">Project identifier</param>
+        /// <returns>List of Drake instances with their names</returns>
+        public List<(Drake Drake, string Name)> GetDrakesForProject(string projectId)
+        {
+            lock (_lock)
+            {
+                return _drakeProjectIds
+                    .Where(kvp => kvp.Value == projectId)
+                    .Select(kvp => (_drakes[kvp.Key], kvp.Key))
+                    .ToList();
+            }
+        }
+
+        /// <summary>
         /// Removes a Drake
         /// </summary>
         public bool RemoveDrake(string drakeName)

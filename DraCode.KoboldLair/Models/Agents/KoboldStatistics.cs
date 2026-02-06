@@ -10,11 +10,12 @@ namespace DraCode.KoboldLair.Models.Agents
         public int Assigned { get; init; }
         public int Working { get; init; }
         public int Done { get; init; }
+        public int Failed { get; init; }
         public Dictionary<string, int> ByAgentType { get; init; } = new();
 
         public override string ToString()
         {
-            return $"Total: {Total}, Unassigned: {Unassigned}, Assigned: {Assigned}, Working: {Working}, Done: {Done}";
+            return $"Total: {Total}, Unassigned: {Unassigned}, Assigned: {Assigned}, Working: {Working}, Done: {Done}, Failed: {Failed}";
         }
     }
 }

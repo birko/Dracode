@@ -263,8 +263,36 @@ namespace DraCode.KoboldLair.Server.Services
 
             var stats = drake.GetStatistics();
 
-            _logger.LogDebug("Drake stats - Tasks: {Total} (Unassigned: {Unassigned}, Working: {Working}, Done: {Done})",
-                stats.TotalTasks, stats.UnassignedTasks, stats.WorkingTasks, stats.DoneTasks);
+            _logger.LogDebug("Drake stats - Tasks: {Total} (Unassigned: {Unassigned}, Working: {Working}, Done: {Done}, Failed: {Failed}, Blocked: {Blocked})",
+                stats.TotalTasks, stats.UnassignedTasks, stats.WorkingTasks, stats.DoneTasks, stats.FailedTasks, stats.BlockedTasks);
+
+            // **CRITICAL: Stop processing if any tasks have failed**
+            if (stats.FailedTasks > 0)
+            {
+                _logger.LogWarning(
+                    "⛔ Project {ProjectId} has {FailedCount} failed task(s). Halting execution until errors are resolved.",
+                    project.Id, stats.FailedTasks);
+                
+                // Log details about failed tasks
+                var failedTasks = drake.GetAllTasks().Where(t => t.Status == TaskStatus.Failed).ToList();
+                foreach (var task in failedTasks)
+                {
+                    _logger.LogError(
+                        "❌ Failed task [{TaskId}]: {Task}",
+                        task.Id[..Math.Min(8, task.Id.Length)], 
+                        task.Task);
+                }
+
+                // Log blocked tasks
+                if (stats.BlockedTasks > 0)
+                {
+                    _logger.LogWarning(
+                        "🟠 {BlockedCount} task(s) are blocked by failed dependencies",
+                        stats.BlockedTasks);
+                }
+                
+                return; // Stop processing this Drake until failed tasks are resolved
+            }
 
             // Skip if no unassigned tasks
             if (stats.UnassignedTasks == 0)

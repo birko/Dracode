@@ -218,6 +218,7 @@ namespace DraCode.KoboldLair.Factories
                 Assigned = allKobolds.Count(k => k.Status == KoboldStatus.Assigned),
                 Working = allKobolds.Count(k => k.Status == KoboldStatus.Working),
                 Done = allKobolds.Count(k => k.Status == KoboldStatus.Done),
+                Failed = allKobolds.Count(k => k.Status == KoboldStatus.Failed),
                 ByAgentType = allKobolds
                     .GroupBy(k => k.AgentType)
                     .ToDictionary(g => g.Key, g => g.Count())
