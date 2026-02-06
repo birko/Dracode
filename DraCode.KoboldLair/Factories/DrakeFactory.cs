@@ -135,10 +135,13 @@ namespace DraCode.KoboldLair.Factories
                 var (plannerProvider, plannerConfig, plannerOptions) =
                     _providerConfigService.GetProviderSettingsForAgent("kobold");
 
-                // Set working directory to project workspace if available
-                if (!string.IsNullOrEmpty(projectId))
+                // Set working directory to project workspace folder
+                // Derive from task file path: ./projects/my-project/tasks/backend-tasks.md -> ./projects/my-project/workspace
+                var taskFolder = Path.GetDirectoryName(taskFilePath);
+                var projectFolder = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
+                if (!string.IsNullOrEmpty(projectFolder))
                 {
-                    var workspacePath = Path.Combine(_projectsPath, projectId, "workspace");
+                    var workspacePath = Path.Combine(projectFolder, "workspace");
                     plannerOptions.WorkingDirectory = workspacePath;
                 }
 

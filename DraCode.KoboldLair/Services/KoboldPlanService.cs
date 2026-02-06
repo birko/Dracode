@@ -36,28 +36,40 @@ namespace DraCode.KoboldLair.Services
 
         /// <summary>
         /// Gets the project output path by resolving project ID through the repository.
-        /// Falls back to using projectId directly if repository is not available.
+        /// Throws an exception if the repository is not available or the project cannot be found.
         /// Ensures the returned path is absolute by combining relative paths with _projectsPath.
         /// </summary>
         private string GetProjectOutputPath(string projectId)
         {
-            if (_projectRepository != null)
+            if (_projectRepository == null)
             {
-                var project = _projectRepository.GetById(projectId);
-                if (project != null && !string.IsNullOrEmpty(project.Paths.Output))
-                {
-                    var outputPath = project.Paths.Output;
-                    // Handle relative paths by combining with projectsPath
-                    if (!Path.IsPathRooted(outputPath))
-                    {
-                        outputPath = Path.Combine(_projectsPath, outputPath);
-                    }
-                    return Path.GetFullPath(outputPath);
-                }
+                throw new InvalidOperationException(
+                    $"Cannot resolve project output path for project '{projectId}': ProjectRepository is not configured. " +
+                    "KoboldPlanService requires a ProjectRepository to function correctly.");
             }
 
-            // Fallback to using projectId as path segment (legacy behavior)
-            return Path.GetFullPath(Path.Combine(_projectsPath, projectId));
+            var project = _projectRepository.GetById(projectId);
+            if (project == null)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot resolve project output path: Project '{projectId}' not found in repository. " +
+                    "Ensure the project is registered before creating plans.");
+            }
+
+            if (string.IsNullOrEmpty(project.Paths.Output))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot resolve project output path: Project '{projectId}' (Name: '{project.Name}') has no output path configured. " +
+                    "Ensure the project is properly initialized.");
+            }
+
+            var outputPath = project.Paths.Output;
+            // Handle relative paths by combining with projectsPath
+            if (!Path.IsPathRooted(outputPath))
+            {
+                outputPath = Path.Combine(_projectsPath, outputPath);
+            }
+            return Path.GetFullPath(outputPath);
         }
 
         /// <summary>

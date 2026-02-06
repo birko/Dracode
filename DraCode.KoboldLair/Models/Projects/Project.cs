@@ -30,11 +30,6 @@ namespace DraCode.KoboldLair.Models.Projects
         public ProjectPaths Paths { get; set; } = new();
 
         /// <summary>
-        /// Specification object (when loaded)
-        /// </summary>
-        public Specification? Specification { get; set; }
-
-        /// <summary>
         /// Timestamps tracking project lifecycle
         /// </summary>
         public ProjectTimestamps Timestamps { get; set; } = new();

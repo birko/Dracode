@@ -239,7 +239,6 @@ namespace DraCode.KoboldLair.Services
                     Analysis = MakeRelativePath(project.Paths.Analysis),
                     TaskFiles = project.Paths.TaskFiles.ToDictionary(kv => kv.Key, kv => MakeRelativePath(kv.Value))
                 },
-                Specification = project.Specification,
                 Timestamps = new ProjectTimestamps
                 {
                     CreatedAt = project.Timestamps.CreatedAt,

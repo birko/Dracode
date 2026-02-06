@@ -758,12 +758,36 @@ namespace DraCode.KoboldLair.Server.Services
                 Id = p.Id,
                 Name = p.Name,
                 Status = p.Status.ToString(),
-                FeatureCount = p.Specification?.Features.Count ?? 0,
+                FeatureCount = GetFeatureCountForProject(p),
                 CreatedAt = p.Timestamps.CreatedAt,
                 UpdatedAt = p.Timestamps.UpdatedAt,
                 HasGitRepository = !string.IsNullOrEmpty(p.Paths.Output) &&
                     _gitService.IsRepositoryAsync(p.Paths.Output).GetAwaiter().GetResult()
             }).ToList();
+        }
+
+        /// <summary>
+        /// Gets the feature count for a project by loading from specification.features.json
+        /// </summary>
+        private int GetFeatureCountForProject(Project project)
+        {
+            if (string.IsNullOrEmpty(project.Paths.Output))
+                return 0;
+
+            try
+            {
+                var featuresPath = Path.Combine(project.Paths.Output, "specification.features.json");
+                if (!File.Exists(featuresPath))
+                    return 0;
+
+                var json = File.ReadAllText(featuresPath);
+                var features = System.Text.Json.JsonSerializer.Deserialize<List<object>>(json);
+                return features?.Count ?? 0;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         /// <summary>
