@@ -39,20 +39,40 @@ namespace DraCode.KoboldLair.Agents
 3. Create tasks with: clear name, description, agentType (csharp/react/etc), complexity (low/medium/high)
 4. Set dependencies: foundation tasks first, use dependencyLevel (0=no deps, 1=depends on 0, etc)
 
+## REQUIRED Tasks:
+- ALWAYS include a README.md task (highest priority) with instructions on how to run/use the result
+- ALWAYS organize files into proper folder structures:
+  * Web projects: js/, css/, html/, assets/, docs/
+  * Backend projects: src/, tests/, docs/, config/
+  * Libraries: src/, tests/, examples/, docs/
+  * Adapt folder structure to project type and conventions
+
 ## Output Format (valid JSON only, no markdown):
 {
   ""projectName"": ""Name"",
   ""areas"": [{
-    ""name"": ""Backend"",
+    ""name"": ""Documentation"",
     ""tasks"": [{
-      ""id"": ""backend-1"",
-      ""name"": ""Create database schema"",
-      ""description"": ""Design PostgreSQL schema for users, tasks"",
-      ""agentType"": ""csharp"",
-      ""complexity"": ""medium"",
+      ""id"": ""docs-1"",
+      ""name"": ""Create README.md"",
+      ""description"": ""Create comprehensive README with setup instructions, usage guide, dependencies, and running instructions"",
+      ""agentType"": ""documentation"",
+      ""complexity"": ""low"",
       ""dependencies"": [],
       ""dependencyLevel"": 0,
       ""priority"": ""critical""
+    }]
+  }, {
+    ""name"": ""Backend"",
+    ""tasks"": [{
+      ""id"": ""backend-1"",
+      ""name"": ""Setup project structure"",
+      ""description"": ""Organize code into folders: src/, tests/, docs/, config/"",
+      ""agentType"": ""csharp"",
+      ""complexity"": ""low"",
+      ""dependencies"": [],
+      ""dependencyLevel"": 0,
+      ""priority"": ""high""
     }]
   }],
   ""totalTasks"": 15,

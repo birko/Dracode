@@ -33,6 +33,10 @@ Categorizes into work areas:
   • Testing
   • Documentation
     ↓
+Ensures required tasks:
+  • README.md with run/usage instructions (always included)
+  • Proper folder structure (js/, css/, docs/, etc.)
+    ↓
 Identifies dependencies
     ↓
 Orders tasks by dependency level
@@ -111,6 +115,8 @@ Specialized agent that analyzes specifications and produces structured JSON outp
 - Categories work into logical areas
 - Identifies task dependencies
 - Orders by dependency level
+- **Always includes README.md task** with run/usage instructions
+- **Always organizes files** into proper folder structures
 - Outputs structured JSON
 
 **Output Format:**
@@ -119,16 +125,41 @@ Specialized agent that analyzes specifications and produces structured JSON outp
   "projectName": "Web App",
   "areas": [
     {
+      "name": "Documentation",
+      "tasks": [
+        {
+          "id": "docs-1",
+          "name": "Create README.md",
+          "description": "Create comprehensive README with setup instructions, usage guide, dependencies, and running instructions",
+          "agentType": "documentation",
+          "complexity": "low",
+          "dependencies": [],
+          "dependencyLevel": 0,
+          "priority": "critical"
+        }
+      ]
+    },
+    {
       "name": "Backend",
       "tasks": [
         {
           "id": "backend-1",
+          "name": "Setup project structure",
+          "description": "Organize code into folders: src/, tests/, docs/, config/",
+          "agentType": "csharp",
+          "complexity": "low",
+          "dependencies": [],
+          "dependencyLevel": 0,
+          "priority": "high"
+        },
+        {
+          "id": "backend-2",
           "name": "Create database schema",
           "description": "Design PostgreSQL schema...",
           "agentType": "csharp",
           "complexity": "medium",
-          "dependencies": [],
-          "dependencyLevel": 0,
+          "dependencies": ["backend-1"],
+          "dependencyLevel": 1,
           "priority": "critical"
         }
       ]
