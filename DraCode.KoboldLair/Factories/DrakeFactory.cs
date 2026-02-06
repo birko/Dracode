@@ -23,6 +23,8 @@ namespace DraCode.KoboldLair.Factories
         private readonly string _projectsPath;
         private readonly bool _planningEnabled;
         private readonly bool _useEnhancedExecution;
+        private readonly bool _allowPlanModifications;
+        private readonly bool _autoApproveModifications;
         private readonly Dictionary<string, Drake> _drakes;
         private readonly Dictionary<string, string?> _drakeProjectIds; // Maps drake name to project ID
         private readonly object _lock = new object();
@@ -38,6 +40,8 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="projectsPath">Path to projects directory for plan storage</param>
         /// <param name="planningEnabled">Whether to enable implementation planning (default: true)</param>
         /// <param name="useEnhancedExecution">Whether to use Phase 2 enhanced execution with auto-detection (default: true)</param>
+        /// <param name="allowPlanModifications">Whether to allow agent-suggested plan modifications (default: false)</param>
+        /// <param name="autoApproveModifications">Whether to auto-approve plan modifications (default: false)</param>
         /// <param name="projectRepository">Optional project repository for resolving project paths</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
@@ -48,6 +52,8 @@ namespace DraCode.KoboldLair.Factories
             string projectsPath = "./projects",
             bool planningEnabled = true,
             bool useEnhancedExecution = true,
+            bool allowPlanModifications = false,
+            bool autoApproveModifications = false,
             ProjectRepository? projectRepository = null)
         {
             _koboldFactory = koboldFactory;
@@ -59,6 +65,8 @@ namespace DraCode.KoboldLair.Factories
             _projectsPath = projectsPath;
             _planningEnabled = planningEnabled;
             _useEnhancedExecution = useEnhancedExecution;
+            _allowPlanModifications = allowPlanModifications;
+            _autoApproveModifications = autoApproveModifications;
             _drakes = new Dictionary<string, Drake>();
             _drakeProjectIds = new Dictionary<string, string?>();
         }
@@ -170,7 +178,9 @@ namespace DraCode.KoboldLair.Factories
                 planService,
                 plannerAgent,
                 _planningEnabled,
-                _useEnhancedExecution
+                _useEnhancedExecution,
+                _allowPlanModifications,
+                _autoApproveModifications
             );
 
             // Lock only for dictionary insertion, with race condition check

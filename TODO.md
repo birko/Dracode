@@ -247,44 +247,58 @@ This file tracks planned enhancements and their implementation status.
   - Enables better debugging and telemetry
   - Effort: Low (~2 hours)
 
-#### Phase 3: Optimization (2 days)
-- [ ] **Progressive Detail Reveal** - `Kobold.cs:BuildFullPromptWithPlan()`
+#### Phase 3: Optimization (2 days) ✅ COMPLETED
+- [x] **Progressive Detail Reveal** - `Kobold.cs` *(Completed 2026-02-06)*
+  - Modified `BuildFullPromptWithPlan()` to show different detail levels
   - Current step: Full details (title, description, files)
   - Next 1-2 steps: Medium details (title + description only)
   - Remaining steps: Summary only (titles with status icons)
   - Reduces token usage for large plans (10+ steps)
+  - Configuration options: `UseProgressiveDetailReveal`, `MediumDetailStepCount`
   - Effort: Medium (~4 hours)
 
-- [ ] **Step-Level Telemetry** - New telemetry service
-  - Track metrics per step: iterations used, time taken, token count
-  - Aggregate stats: average iterations/step, common failure points
-  - Expose via Aspire dashboard or dedicated endpoint
-  - Helps identify which steps are problematic
+- [x] **Step-Level Telemetry** - `KoboldImplementationPlan.cs`, `Kobold.cs` *(Completed 2026-02-06)*
+  - Created `StepExecutionMetrics` model for tracking
+  - Track: iterations used, time taken, estimated tokens, success/failure
+  - Added metrics collection to `RunWithStepDetectionAsync()`
+  - Store metrics in `ImplementationStep.Metrics`
+  - Created `PlanExecutionMetrics` for aggregated stats
+  - Added `GetAggregatedMetrics()` method to plan
+  - Effort: Medium (~4 hours)
+
+- [x] **Step Completion Validation Framework** - New validation framework *(Completed 2026-02-06)*
+  - Created `IStepValidator` interface for pluggable validators
+  - Implemented `FileCreationValidator` (checks files created)
+  - Implemented `FileModificationValidator` (checks files modified)
+  - Created `StepValidationService` to manage validators
+  - Updated `Kobold.cs` to use validation service
+  - Validators are extensible for future types (compilation, tests, etc.)
   - Effort: Medium (~1 day)
 
-- [ ] **Step Completion Validation Framework** - New validation service
-  - Pluggable validators for different step types
-  - File creation/modification validator (current need)
-  - Future: code compilation validator, test execution validator
-  - Configuration: enable/disable validators per project
-  - Effort: Medium (~1 day)
+#### Phase 4: Advanced Features
+- [x] **Agent-Suggested Plan Modifications** *(Completed 2026-02-06)*
+  - Created `ModifyPlanTool` with support for 4 operations:
+    * skip: Skip a step with reason
+    * combine: Merge two consecutive steps
+    * reorder: Move step to different position
+    * add: Insert new step at position
+  - Integrated into Kobold execution when `AllowPlanModifications` is enabled
+  - Auto-approval configurable via `AutoApproveModifications`
+  - All modifications logged and persisted in plan
+  - Configuration added to `appsettings.json`
+  - Effort: Medium (~3 days)
 
-#### Phase 4: Advanced Features (Future)
-- [ ] **Agent-Suggested Plan Modifications**
-  - Allow agent to call `modify_plan` tool to suggest changes
-  - Examples: skip redundant steps, combine related steps, reorder for efficiency
-  - Requires user or Drake approval for modifications
-  - Enables intelligent adaptation while maintaining oversight
-  - Effort: High (~1 week)
-
-- [ ] **Parallel Step Execution**
+#### Future Phases: Parallel Execution (Deferred)
+- [ ] **Parallel Step Execution** (Phase 4+)
+  - `StepDependencyAnalyzer` created but not integrated
   - Identify steps without dependencies (file-based analysis)
   - Execute independent steps in parallel with separate Kobold instances
-  - Requires: dependency graph analysis, coordination layer
+  - Requires: coordination layer in Drake or new orchestrator
   - Potential speedup: 2-3x for large plans
   - Effort: High (~2 weeks)
 
-- [ ] **Intelligent Step Reordering**
+- [ ] **Intelligent Step Reordering** (Phase 4+)
+  - Use `StepDependencyAnalyzer.SuggestOptimalOrder()`
   - Analyze plan dependencies automatically
   - Suggest optimal execution order to planner
   - Consider: compile-time deps, runtime deps, file system deps

@@ -445,13 +445,18 @@ You are working on a task that is part of a larger project. Below is the project
         /// <summary>
         /// Starts working on the assigned task with plan awareness and Phase 2 enhancements.
         /// Includes automatic step completion detection and fallback auto-advancement.
+        /// Phase 4: Supports plan modifications if enabled.
         /// </summary>
         /// <param name="planService">Service for plan persistence (can be null to skip plan updates)</param>
         /// <param name="maxIterations">Maximum iterations for agent execution</param>
+        /// <param name="allowPlanModifications">Whether to allow agent to suggest plan modifications</param>
+        /// <param name="autoApproveModifications">Whether to auto-approve modifications</param>
         /// <returns>Messages from agent execution</returns>
         public async Task<List<Message>> StartWorkingWithPlanEnhancedAsync(
             KoboldPlanService? planService,
-            int maxIterations = 30)
+            int maxIterations = 30,
+            bool allowPlanModifications = false,
+            bool autoApproveModifications = false)
         {
             if (Status != KoboldStatus.Assigned)
             {
@@ -477,6 +482,13 @@ You are working on a task that is part of a larger project. Below is the project
 
             // Add the tool to the agent
             Agent.AddTool(new UpdatePlanStepTool());
+
+            // Phase 4: Add modify_plan tool if enabled
+            if (allowPlanModifications)
+            {
+                ModifyPlanTool.RegisterContext(ImplementationPlan, planService, allowPlanModifications, autoApproveModifications, _logger);
+                Agent.AddTool(new ModifyPlanTool());
+            }
 
             try
             {
@@ -599,6 +611,13 @@ You are working on a task that is part of a larger project. Below is the project
                 // Clean up: remove tool and clear context
                 Agent.RemoveTool("update_plan_step");
                 UpdatePlanStepTool.ClearContext();
+                
+                // Phase 4: Clean up modify_plan tool if it was added
+                if (allowPlanModifications)
+                {
+                    Agent.RemoveTool("modify_plan");
+                    ModifyPlanTool.ClearContext();
+                }
             }
         }
 

@@ -96,7 +96,9 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var projectsPath = config.ProjectsPath ?? "./projects";
     var planningEnabled = config.Planning?.Enabled ?? true;
     var useEnhancedExecution = config.Planning?.UseEnhancedExecution ?? true;
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, projectRepository);
+    var allowPlanModifications = config.Planning?.AllowPlanModifications ?? false;
+    var autoApproveModifications = config.Planning?.AutoApproveModifications ?? false;
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, allowPlanModifications, autoApproveModifications, projectRepository);
 });
 
 // Register services

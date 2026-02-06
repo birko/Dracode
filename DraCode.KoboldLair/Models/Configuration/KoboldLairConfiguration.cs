@@ -114,6 +114,33 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Steps beyond this get summary only (title + status). (default: 2)
         /// </summary>
         public int MediumDetailStepCount { get; set; } = 2;
+
+        /// <summary>
+        /// Phase 4: Execution mode for Kobold task execution.
+        /// multi-step: Execute all steps in sequence (default)
+        /// single-step: Execute one step at a time with confirmation
+        /// parallel: Execute independent steps in parallel (experimental)
+        /// </summary>
+        public string ExecutionMode { get; set; } = "multi-step";
+
+        /// <summary>
+        /// Phase 4: Whether to allow agents to suggest plan modifications during execution.
+        /// (default: false for safety)
+        /// </summary>
+        public bool AllowPlanModifications { get; set; } = false;
+
+        /// <summary>
+        /// Phase 4: Whether to automatically approve agent-suggested plan modifications.
+        /// If false, modifications require manual approval. Only applies if AllowPlanModifications is true.
+        /// (default: false for safety)
+        /// </summary>
+        public bool AutoApproveModifications { get; set; } = false;
+
+        /// <summary>
+        /// Phase 4: Maximum number of steps to execute in parallel when ExecutionMode is "parallel".
+        /// Limited by project's MaxParallelKobolds. (default: 3)
+        /// </summary>
+        public int MaxParallelSteps { get; set; } = 3;
     }
 
     /// <summary>

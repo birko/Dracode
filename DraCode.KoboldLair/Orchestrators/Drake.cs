@@ -32,6 +32,8 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly KoboldPlannerAgent? _plannerAgent;
         private readonly bool _planningEnabled;
         private readonly bool _useEnhancedExecution;
+        private readonly bool _allowPlanModifications;
+        private readonly bool _autoApproveModifications;
         private Wyvern? _wyvern;
 
         // Debounced file write support
@@ -63,6 +65,8 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="plannerAgent">Optional planner agent for creating implementation plans</param>
         /// <param name="planningEnabled">Whether to enable implementation planning (default: true if planService and plannerAgent are provided)</param>
         /// <param name="useEnhancedExecution">Whether to use Phase 2 enhanced execution with auto-detection (default: true)</param>
+        /// <param name="allowPlanModifications">Whether to allow agent-suggested plan modifications (default: false)</param>
+        /// <param name="autoApproveModifications">Whether to auto-approve plan modifications (default: false)</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -79,7 +83,9 @@ namespace DraCode.KoboldLair.Orchestrators
             KoboldPlanService? planService = null,
             KoboldPlannerAgent? plannerAgent = null,
             bool? planningEnabled = null,
-            bool useEnhancedExecution = true)
+            bool useEnhancedExecution = true,
+            bool allowPlanModifications = false,
+            bool autoApproveModifications = false)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -97,6 +103,8 @@ namespace DraCode.KoboldLair.Orchestrators
             _plannerAgent = plannerAgent;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
+            _allowPlanModifications = allowPlanModifications;
+            _autoApproveModifications = autoApproveModifications;
             _taskToKoboldMap = new Dictionary<string, Guid>();
 
             // Initialize debounced save channel (bounded to 1 to coalesce writes)
@@ -493,7 +501,11 @@ namespace DraCode.KoboldLair.Orchestrators
                     // Use enhanced execution if enabled (Phase 2 auto-detection)
                     if (_useEnhancedExecution)
                     {
-                        messages = await kobold.StartWorkingWithPlanEnhancedAsync(_planService, maxIterations);
+                        messages = await kobold.StartWorkingWithPlanEnhancedAsync(
+                            _planService, 
+                            maxIterations,
+                            _allowPlanModifications,
+                            _autoApproveModifications);
                     }
                     else
                     {
