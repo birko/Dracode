@@ -548,6 +548,7 @@ You are working on a task that is part of a larger project. Below is the project
                         var text = block.Text.ToLowerInvariant();
                         // Check for common error indicators
                         if (text.Contains("error occurred during llm request") ||
+                            text.Contains("error:") && text.Contains("llm request") ||
                             text.Contains("provider") && text.Contains("not properly configured") ||
                             text.Contains("error:") && text.Contains("provider"))
                         {

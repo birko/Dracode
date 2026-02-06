@@ -255,15 +255,52 @@ namespace DraCode.Agent.Agents
 
                     case "error":
                         // Error occurred - stop immediately
-                        if (_options.Verbose)
+                        SendMessage("error", "Error occurred during LLM request. Stopping.");
+                        
+                        // Add error message to content so it can be detected by error handlers
+                        if (response.Content == null || response.Content.Count == 0 || !response.Content.Any(b => b.Type == "text"))
                         {
-                            SendMessage("error", "Error occurred during LLM request. Stopping.");
+                            if (response.Content == null)
+                            {
+                                response.Content = new List<ContentBlock>();
+                            }
+                            response.Content.Add(new ContentBlock 
+                            { 
+                                Type = "text", 
+                                Text = "Error: An error occurred during LLM request."
+                            });
+                            // Update the assistant message with the error text
+                            conversation[^1] = new Message
+                            {
+                                Role = "assistant",
+                                Content = response.Content
+                            };
                         }
                         return conversation;
 
                     case "NotConfigured":
                         // Provider not configured - stop immediately
                         SendMessage("error", $"Provider '{_llmProvider.Name}' is not properly configured.");
+                        
+                        // Add error message to content so it can be detected by error handlers
+                        if (response.Content == null || response.Content.Count == 0 || !response.Content.Any(b => b.Type == "text"))
+                        {
+                            if (response.Content == null)
+                            {
+                                response.Content = new List<ContentBlock>();
+                            }
+                            response.Content.Add(new ContentBlock 
+                            { 
+                                Type = "text", 
+                                Text = $"Error: Provider '{_llmProvider.Name}' is not properly configured."
+                            });
+                            // Update the assistant message with the error text
+                            conversation[^1] = new Message
+                            {
+                                Role = "assistant",
+                                Content = response.Content
+                            };
+                        }
                         return conversation;
 
                     default:
