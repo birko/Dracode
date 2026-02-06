@@ -51,12 +51,18 @@ Unassigned → Assigned → Working → Done
 ### Error Handling
 
 **Network and Provider Errors** (v2.5.1+):
-- When LLM providers encounter errors (network failures, timeouts, configuration issues), tasks are properly marked as **Failed**
+- When LLM providers encounter errors (network failures, timeouts, configuration issues), tasks are now **properly marked as Failed**
+- **Fix in v2.5.1**: Previously, network errors after retry exhaustion could incorrectly mark tasks as "Done"
+  - Issue: Providers returned `StopReason = "error"` with empty content, which bypassed error detection
+  - Solution: `Agent.cs` now injects error messages into conversation when stop reason indicates error:
+    - `"error"` stop reason → "Error: An error occurred during LLM request."
+    - `"NotConfigured"` stop reason → "Error: Provider not properly configured."
 - Error detection checks the last assistant message for error patterns:
   - "Error occurred during LLM request" - Network/API errors
   - "Provider not properly configured" - Configuration errors
-- Prior to v2.5.1, network errors could incorrectly mark tasks as "Done"
-- All error types now properly set `ErrorMessage` and transition to `Failed` status
+- All error types properly set `ErrorMessage` and transition to `Failed` status
+- Applies to all 10 LLM providers (OpenAI, Claude, Gemini, Z.AI, etc.)
+- Applies to all agent types (Dragon, Wyvern, Drake, Kobold)
 
 ### Methods
 

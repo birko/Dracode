@@ -79,13 +79,17 @@
 ### 3.1 Core Features
 
 #### 3.1.1 Multi-Provider LLM Support
-Supports 6 LLM providers with unified interface:
+Supports 10 LLM providers with unified interface:
 - **OpenAI** (GPT-4, GPT-4o, GPT-3.5-turbo)
 - **Claude** (Anthropic - Claude 3.5 Sonnet, Haiku)
 - **Gemini** (Google - Gemini 2.0 Flash)
 - **Azure OpenAI** (Enterprise deployment)
 - **Ollama** (Local models - Llama, Mistral, etc.)
 - **GitHub Copilot** (with OAuth device flow)
+- **Z.AI** (Zhipu GLM models - glm-4.5, glm-4.6, glm-4.7)
+- **vLLM** (Local inference via OpenAI-compatible API)
+- **SGLang** (Local inference via OpenAI-compatible API)
+- **LlamaCpp** (GGUF models via OpenAI-compatible API)
 
 #### 3.1.2 Multi-Task Execution System
 - **Sequential Execution:** Execute multiple tasks in order

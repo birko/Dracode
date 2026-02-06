@@ -28,13 +28,13 @@ Agent (abstract base)
 ```
 
 **New in v2.1**:
-- ✅ **OrchestratorAgent base class** with reusable helper methods:
+- ✅ **OrchestratorAgent base class** (v2.5.0) with reusable helper methods:
   - `GetOrchestratorGuidance()` - Common orchestration best practices
   - `GetDepthGuidance()` - Model-specific reasoning instructions  
   - `ExtractTextFromContent()` - Robust content parsing
   - `ExtractJson()` - JSON extraction from markdown
-- ✅ **Organized folder structure** - Agents organized by hierarchy and domain
-- ✅ **Clear namespaces** - `DraCode.Agent.Agents.Coding`, `DraCode.Agent.Agents.Coding.Specialized`, `DraCode.Agent.Agents.Media`
+- ✅ **Organized folder structure** (v2.5.0) - Agents organized by hierarchy and domain
+- ✅ **Clear namespaces** (v2.5.0) - `DraCode.Agent.Agents.Coding`, `DraCode.Agent.Agents.Coding.Specialized`, `DraCode.Agent.Agents.Media`
 
 All agents follow the same patterns with deep domain expertise, best practices, and framework knowledge built into their system prompts.
 

@@ -1,7 +1,7 @@
 # DraCode Architecture Specification
 
-**Version:** 2.4.1
-**Last Updated:** February 4, 2026
+**Version:** 2.5.1
+**Last Updated:** February 6, 2026
 **Status:** Current Implementation
 
 ---

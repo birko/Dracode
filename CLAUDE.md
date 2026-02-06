@@ -47,10 +47,10 @@ cd DraCode.Web && npm run build
 ```
 Dragon (Interactive)     ← User's only touchpoint - requirements gathering
     ↓ Creates specification
-Wyrm (Automatic)         ← Analyzes specs, creates task breakdown (WyvernProcessingService, 60s)
+Wyvern (Automatic)       ← Analyzes specs, creates task breakdown (WyvernProcessingService, 60s)
     ↓ Creates task files + analysis.json
 Drake (Automatic)        ← Supervises task execution (DrakeExecutionService, 30s)
-    ↓ Creates Drakes, summons Kobolds
+    ↓ Creates Drakes, summons Kobolds (uses Wyrm for agent selection)
 Kobold Planner (Automatic) ← Creates implementation plans with atomic steps
     ↓ Plans ready for execution
 Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel limits)
@@ -58,7 +58,8 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 
 - **Dragon**: Interactive chat for requirements → creates project folder and `specification.md`
   - Dragon Council: SageAgent (specs/features), SeekerAgent (import), SentinelAgent (git), WardenAgent (config/retry)
-- **Wyrm**: Reads specs, breaks into tasks → creates `{area}-tasks.md` files, persists `analysis.json`
+- **Wyvern**: Reads specs, breaks into tasks → creates `{area}-tasks.md` files, persists `analysis.json`
+- **Wyrm**: Task delegation and agent selection → recommends appropriate agent types for tasks
 - **Drake**: Monitors tasks, summons Kobolds → updates task status
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts

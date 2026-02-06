@@ -4,7 +4,7 @@
 
 Dragon is a specialized AI agent designed for interactive requirements gathering. It conducts conversations with users to understand project goals, technical requirements, and specifications, then produces comprehensive documentation that triggers the KoboldLair automated workflow (Wyvern → Drake → Kobold).
 
-**Dragon is the ONLY interactive interface in KoboldLair.** All other agents (Wyvern, Drake, Kobold) work automatically in the background.
+**Dragon is the ONLY interactive interface in KoboldLair.** All other agents (Wyvern, Drake, Kobold Planner, Kobold) work automatically in the background.
 
 ## Architecture
 
@@ -37,9 +37,11 @@ WyvernProcessingService (every 60s) detects "New" specs
     ↓
 Assigns Wyvern → Analyzes → Creates tasks
     ↓
-DrakeMonitoringService assigns Kobolds
+DrakeExecutionService (every 30s) detects analyzed projects
     ↓
-Kobolds generate code
+Creates Drakes → Summons Kobold Planners → Creates implementation plans
+    ↓
+Kobolds execute plans step-by-step → generate code
 ```
 
 ### Project Status Flow

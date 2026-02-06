@@ -21,7 +21,7 @@ The AppHost organizes DraCode services into two logical groups:
 - **dracode-koboldlair-server**: Autonomous multi-agent coding orchestration system backend
 - **dracode-koboldlair-client**: Web UI for monitoring and interaction
 
-**Purpose**: Fully autonomous coding system where Dragon creates requirements, Wyrm analyzes projects, Wyvern assigns specialized agents (Drake supervisors), and Kobolds execute coding tasks.
+**Purpose**: Fully autonomous coding system where Dragon creates requirements, Wyvern analyzes projects and creates task breakdowns, Wyrm handles agent selection, Drake supervisors manage execution, and Kobolds execute coding tasks.
 
 **When to use**:
 - Automated project analysis and development
