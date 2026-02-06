@@ -217,13 +217,18 @@ namespace DraCode.KoboldLair.Server.Services
                     // Create all agents for this session
                     CreateSessionAgents(session);
 
-                    // Set message callbacks for all agents to forward thinking updates
+                    // Set message callbacks for all agents to forward thinking updates and streaming
                     Action<string, string> messageCallback = (type, content) =>
                     {
                         _logger.LogInformation("[Dragon Council] [{Type}] {Content}", type, content);
                         if (type == "tool_call" || type == "tool_result" || type == "info")
                         {
                             _ = SendThinkingUpdateAsync(webSocket, currentSessionId, type, content);
+                        }
+                        else if (type == "assistant_stream")
+                        {
+                            // Forward streaming chunks to client in real-time
+                            _ = SendStreamingChunkAsync(webSocket, currentSessionId, content);
                         }
                     };
 
@@ -307,6 +312,10 @@ namespace DraCode.KoboldLair.Server.Services
         {
             var (providerName, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
             var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(providerName, config);
+
+            // Enable streaming for Dragon (better UX for interactive chat)
+            options.EnableStreaming = true;
+            options.StreamingFallbackToSync = true;
 
             // Shared specification dictionary for Sage
             var specifications = new Dictionary<string, Specification>();
@@ -646,6 +655,21 @@ namespace DraCode.KoboldLair.Server.Services
             catch { }
         }
 
+        private async Task SendStreamingChunkAsync(WebSocket webSocket, string sessionId, string chunk)
+        {
+            try
+            {
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "dragon_stream",
+                    sessionId,
+                    chunk,
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            catch { }
+        }
+
         private async Task SendMessageAsync(WebSocket webSocket, object data)
         {
             var json = JsonSerializer.Serialize(data, s_writeOptions);
@@ -698,11 +722,13 @@ namespace DraCode.KoboldLair.Server.Services
                 CreateSessionAgents(session);
                 session.MessageHistory.Clear();
 
-                // Set message callbacks for all agents to forward thinking updates
+                // Set message callbacks for all agents to forward thinking updates and streaming
                 Action<string, string> messageCallback = (type, content) =>
                 {
                     if (type == "tool_call" || type == "tool_result" || type == "info")
                         _ = SendThinkingUpdateAsync(webSocket, sessionId, type, content);
+                    else if (type == "assistant_stream")
+                        _ = SendStreamingChunkAsync(webSocket, sessionId, content);
                 };
 
                 session.Dragon!.SetMessageCallback(messageCallback);
