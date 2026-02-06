@@ -103,11 +103,14 @@ This file tracks planned enhancements and their implementation status.
 
 ### Medium Priority
 
-- [ ] **Streaming Response Support**
-  - Add `IAsyncEnumerable<string>` to providers
-  - Implement SSE endpoint in WebSocket server
-  - Update web client for streaming
-  - Effort: High (~2 weeks)
+- [x] **Streaming Response Support** *(Completed 2026-02-06)*
+  - Added `IAsyncEnumerable<string>` and `SendMessageStreamingAsync` to all providers
+  - Implemented streaming support in all 10 LLM providers (OpenAI, Claude, Gemini, Azure, GitHub Copilot, Ollama, Z.AI, LlamaCpp, vLLM, SGLang)
+  - Added streaming execution mode to Agent base class with automatic fallback
+  - Implemented WebSocket streaming handlers in DragonService
+  - Updated Dragon web client with real-time streaming display and animated cursor
+  - Dragon chat now uses streaming by default for better UX
+  - Effort: 2 weeks (Completed)
 
 - [ ] **Encrypted Token Storage**
   - Windows DPAPI, macOS Keychain, Linux secret managers

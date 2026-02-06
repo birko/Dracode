@@ -107,11 +107,22 @@ class DragonSession {
             this.view.showNotification(`Failed to restore conversation: ${data.error}`, 'error');
             return;
         } else if (data.type === 'dragon_message') {
-            // Hide thinking indicator and re-enable input when response arrives
+            // Check if this is a completion of a streaming response
+            if (data.isStreamed) {
+                // Finalize the streaming message (already displayed)
+                this.view.finalizeStreamingMessage();
+            } else {
+                // Regular non-streaming message - add normally
+                this.addMessage('assistant', data.message, data.messageId);
+            }
+            
+            // Hide thinking indicator and re-enable input
             this.isProcessing = false;
             this.view.hideThinkingIndicator();
             this.view.setInputEnabled(true);
-            this.addMessage('assistant', data.message, data.messageId);
+        } else if (data.type === 'dragon_stream') {
+            // Handle streaming chunk - append to current streaming message
+            this.view.appendStreamingChunk(data.chunk);
         } else if (data.type === 'dragon_reloaded') {
             // Hide thinking indicator and clear session on reload
             this.isProcessing = false;
@@ -769,6 +780,77 @@ export class DragonView {
 
         messagesContainer.appendChild(messageEl);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    /**
+     * Append a streaming chunk to the current assistant message.
+     * Creates a new message element if one doesn't exist for streaming.
+     */
+    appendStreamingChunk(chunk) {
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (!messagesContainer) return;
+
+        // Clear empty state if present
+        const emptyState = messagesContainer.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.remove();
+        }
+
+        // Look for an existing streaming message (marked with data-streaming attribute)
+        let streamingMessage = messagesContainer.querySelector('.chat-message[data-streaming="true"]');
+        
+        if (!streamingMessage) {
+            // Create new streaming message element
+            streamingMessage = document.createElement('div');
+            streamingMessage.className = 'chat-message assistant';
+            streamingMessage.setAttribute('data-streaming', 'true');
+            streamingMessage.innerHTML = `
+                <div class="chat-message-icon">🐉</div>
+                <div class="chat-message-content">
+                    <div class="chat-message-role">assistant</div>
+                    <div class="chat-message-text"></div>
+                    <div class="streaming-cursor">▊</div>
+                </div>
+            `;
+            messagesContainer.appendChild(streamingMessage);
+        }
+
+        // Append chunk to the message text
+        const textElement = streamingMessage.querySelector('.chat-message-text');
+        if (textElement) {
+            textElement.textContent += chunk;
+        }
+
+        // Auto-scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    /**
+     * Finalize the streaming message (remove cursor, save to history)
+     */
+    finalizeStreamingMessage() {
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (!messagesContainer) return;
+
+        const streamingMessage = messagesContainer.querySelector('.chat-message[data-streaming="true"]');
+        if (streamingMessage) {
+            // Remove streaming indicator
+            streamingMessage.removeAttribute('data-streaming');
+            const cursor = streamingMessage.querySelector('.streaming-cursor');
+            if (cursor) {
+                cursor.remove();
+            }
+
+            // Get the final text and save to session
+            const textElement = streamingMessage.querySelector('.chat-message-text');
+            if (textElement && this.activeSessionId !== null) {
+                const session = this.sessions.get(this.activeSessionId);
+                if (session) {
+                    const finalText = textElement.textContent;
+                    session.addMessage('assistant', finalText);
+                }
+            }
+        }
     }
 
     appendErrorToUI(errorData) {

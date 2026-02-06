@@ -230,6 +230,11 @@ namespace DraCode.KoboldLair.Server.Services
                             // Forward streaming chunks to client in real-time
                             _ = SendStreamingChunkAsync(webSocket, currentSessionId, content);
                         }
+                        else if (type == "assistant_final")
+                        {
+                            // Stream completed - send final message
+                            _ = SendStreamCompleteAsync(webSocket, session, content);
+                        }
                     };
 
                     session.Dragon!.SetMessageCallback(messageCallback);
@@ -670,6 +675,22 @@ namespace DraCode.KoboldLair.Server.Services
             catch { }
         }
 
+        private async Task SendStreamCompleteAsync(WebSocket webSocket, DragonSession session, string finalMessage)
+        {
+            try
+            {
+                await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                {
+                    type = "dragon_message",
+                    sessionId = session.SessionId,
+                    message = finalMessage,
+                    timestamp = DateTime.UtcNow,
+                    isStreamed = true  // Flag to indicate this was a streamed response
+                });
+            }
+            catch { }
+        }
+
         private async Task SendMessageAsync(WebSocket webSocket, object data)
         {
             var json = JsonSerializer.Serialize(data, s_writeOptions);
@@ -729,6 +750,8 @@ namespace DraCode.KoboldLair.Server.Services
                         _ = SendThinkingUpdateAsync(webSocket, sessionId, type, content);
                     else if (type == "assistant_stream")
                         _ = SendStreamingChunkAsync(webSocket, sessionId, content);
+                    else if (type == "assistant_final")
+                        _ = SendStreamCompleteAsync(webSocket, session, content);
                 };
 
                 session.Dragon!.SetMessageCallback(messageCallback);

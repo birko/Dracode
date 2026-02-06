@@ -104,16 +104,18 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 ### LLM Providers (10)
 
 Located in `DraCode.Agent/LLMs/Providers/`:
-- `OpenAiProvider` - OpenAI GPT models
-- `ClaudeProvider` - Anthropic Claude models
-- `GeminiProvider` - Google Gemini models
-- `AzureOpenAiProvider` - Azure OpenAI Service
-- `OllamaProvider` - Local Ollama server
-- `LlamaCppProvider` - Local llama.cpp server (extends OpenAiCompatibleProviderBase)
-- `GithubCopilotProvider` - GitHub Copilot API
-- `ZAiProvider` - Z.AI (Zhipu) GLM models (glm-4.5, glm-4.6, glm-4.7)
-- `VllmProvider` - vLLM local inference (extends OpenAiCompatibleProviderBase)
-- `SglangProvider` - SGLang inference (extends OpenAiCompatibleProviderBase)
+- `OpenAiProvider` - OpenAI GPT models ✨ **Streaming**
+- `ClaudeProvider` - Anthropic Claude models ✨ **Streaming**
+- `GeminiProvider` - Google Gemini models ✨ **Streaming**
+- `AzureOpenAiProvider` - Azure OpenAI Service ✨ **Streaming**
+- `OllamaProvider` - Local Ollama server ✨ **Streaming**
+- `LlamaCppProvider` - Local llama.cpp server (extends OpenAiCompatibleProviderBase) ✨ **Streaming**
+- `GithubCopilotProvider` - GitHub Copilot API ✨ **Streaming**
+- `ZAiProvider` - Z.AI (Zhipu) GLM models (glm-4.5, glm-4.6, glm-4.7) ✨ **Streaming**
+- `VllmProvider` - vLLM local inference (extends OpenAiCompatibleProviderBase) ✨ **Streaming**
+- `SglangProvider` - SGLang inference (extends OpenAiCompatibleProviderBase) ✨ **Streaming**
+
+**All providers support streaming responses** for real-time token-by-token display.
 
 ### Built-in Tools (7)
 
@@ -156,6 +158,28 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - **LLM Retry Logic**: All providers use exponential backoff with `SendWithRetryAsync`
   - Handles 429 (rate limiting), 5xx errors, timeouts, network failures
   - Respects `Retry-After` header; configurable via `RetryPolicy`
+- **Streaming Support**: All 10 providers support real-time token streaming (added 2026-02-06)
+  - Enabled by default for Dragon interactive chat
+  - Automatic fallback to synchronous mode on streaming failures
+  - WebSocket message type: `dragon_stream` with real-time chunk delivery
+  - Client displays streaming text with animated cursor
+
+### Streaming Configuration
+
+Streaming can be configured per-agent via `AgentOptions`:
+
+```csharp
+var options = new AgentOptions 
+{
+    EnableStreaming = true,              // Enable streaming mode (default: false)
+    StreamingFallbackToSync = true       // Auto-fallback on failure (default: true)
+};
+```
+
+Dragon agent uses streaming by default for better UX. Streaming provides:
+- **Lower perceived latency** - First tokens appear immediately
+- **Better user experience** - Progressive text display feels more responsive
+- **Seamless fallback** - Automatically uses non-streaming if provider doesn't support it
 
 ### Environment Variables
 
