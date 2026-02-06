@@ -44,9 +44,9 @@ namespace DraCode.KoboldLair.Services
             if (_projectRepository != null)
             {
                 var project = _projectRepository.GetById(projectId);
-                if (project != null && !string.IsNullOrEmpty(project.OutputPath))
+                if (project != null && !string.IsNullOrEmpty(project.Paths.Output))
                 {
-                    var outputPath = project.OutputPath;
+                    var outputPath = project.Paths.Output;
                     // Handle relative paths by combining with projectsPath
                     if (!Path.IsPathRooted(outputPath))
                     {
@@ -221,14 +221,6 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Gets the legacy JSON file path for a plan (using taskId directly)
-        /// </summary>
-        private string GetLegacyPlanJsonPath(string projectId, string taskId)
-        {
-            return Path.Combine(GetPlansDirectory(projectId), $"{taskId}-plan.json");
-        }
-
-        /// <summary>
         /// Saves a plan to disk (both JSON and Markdown)
         /// </summary>
         public async Task SavePlanAsync(KoboldImplementationPlan plan)
@@ -273,27 +265,16 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         public async Task<KoboldImplementationPlan?> LoadPlanAsync(string projectId, string taskId)
         {
-            // First check the index for human-readable filename
+            // Check the index for human-readable filename
             var index = await LoadPlanIndexAsync(projectId);
-            string? jsonPath = null;
-
-            if (index.TryGetValue(taskId, out var planFilename))
+            
+            if (!index.TryGetValue(taskId, out var planFilename))
             {
-                jsonPath = GetPlanJsonPath(projectId, planFilename);
+                return null;
             }
 
-            // Fallback to legacy path if not found in index or file doesn't exist
-            if (jsonPath == null || !File.Exists(jsonPath))
-            {
-                var legacyPath = GetLegacyPlanJsonPath(projectId, taskId);
-                if (File.Exists(legacyPath))
-                {
-                    jsonPath = legacyPath;
-                    _logger?.LogDebug("Using legacy plan path for task {TaskId}", taskId[..Math.Min(8, taskId.Length)]);
-                }
-            }
-
-            if (jsonPath == null || !File.Exists(jsonPath))
+            var jsonPath = GetPlanJsonPath(projectId, planFilename);
+            if (!File.Exists(jsonPath))
             {
                 return null;
             }
@@ -323,20 +304,14 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         public async Task<bool> PlanExistsAsync(string projectId, string taskId)
         {
-            // Check index first
             var index = await LoadPlanIndexAsync(projectId);
             if (index.TryGetValue(taskId, out var planFilename))
             {
                 var jsonPath = GetPlanJsonPath(projectId, planFilename);
-                if (File.Exists(jsonPath))
-                {
-                    return true;
-                }
+                return File.Exists(jsonPath);
             }
-
-            // Fallback to legacy path
-            var legacyPath = GetLegacyPlanJsonPath(projectId, taskId);
-            return File.Exists(legacyPath);
+            
+            return false;
         }
 
         /// <summary>
@@ -359,13 +334,6 @@ namespace DraCode.KoboldLair.Services
                 index.Remove(taskId);
                 await SavePlanIndexAsync(projectId, index);
             }
-
-            // Also clean up legacy files if they exist
-            var legacyJsonPath = GetLegacyPlanJsonPath(projectId, taskId);
-            var legacyMdPath = Path.Combine(GetPlansDirectory(projectId), $"{taskId}-plan.md");
-
-            if (File.Exists(legacyJsonPath)) File.Delete(legacyJsonPath);
-            if (File.Exists(legacyMdPath)) File.Delete(legacyMdPath);
 
             _logger?.LogDebug("Deleted plan for task {TaskId} in project {ProjectId}",
                 taskId[..Math.Min(8, taskId.Length)], projectId);

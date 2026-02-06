@@ -185,7 +185,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             var drakes = new List<(Drake Drake, string Name)>();
 
-            if (project.TaskFiles == null || project.TaskFiles.Count == 0)
+            if (project.Paths.TaskFiles == null || project.Paths.TaskFiles.Count == 0)
             {
                 _logger.LogWarning("Project {ProjectName} has no task files", project.Name);
                 return drakes;
@@ -194,7 +194,7 @@ namespace DraCode.KoboldLair.Server.Services
             var currentDrakeCount = _drakeFactory.GetActiveDrakeCountForProject(project.Id);
             _logger.LogDebug("Project {ProjectName} currently has {Count} active Drake(s)", project.Name, currentDrakeCount);
 
-            foreach (var (areaName, taskFilePath) in project.TaskFiles)
+            foreach (var (areaName, taskFilePath) in project.Paths.TaskFiles)
             {
                 // Paths are pre-resolved by ProjectRepository, normalize for safety
                 var normalizedPath = Path.GetFullPath(taskFilePath);
@@ -236,7 +236,7 @@ namespace DraCode.KoboldLair.Server.Services
                     var drake = _drakeFactory.CreateDrake(
                         taskFilePath: normalizedPath,
                         drakeName: drakeName,
-                        specificationPath: project.SpecificationPath,
+                        specificationPath: project.Paths.Specification,
                         projectId: project.Id
                     );
 
@@ -445,12 +445,12 @@ namespace DraCode.KoboldLair.Server.Services
             var totalTasks = 0;
             var doneTasks = 0;
 
-            if (project.TaskFiles == null || project.TaskFiles.Count == 0)
+            if (project.Paths.TaskFiles == null || project.Paths.TaskFiles.Count == 0)
             {
                 return (0, 0);
             }
 
-            foreach (var (areaName, taskFilePath) in project.TaskFiles)
+            foreach (var (areaName, taskFilePath) in project.Paths.TaskFiles)
             {
                 var normalizedPath = Path.GetFullPath(taskFilePath);
 

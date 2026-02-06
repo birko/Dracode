@@ -198,7 +198,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
 
 ```
 {ProjectsPath}/                       # Configurable, defaults to ./projects
-    projects.json                     # Project registry
+    projects.json                     # UNIFIED project registry (includes config + metadata)
     {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
         specification.md              # Project specification
         specification.features.json   # Feature list
@@ -207,26 +207,45 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
         tasks/                        # Task files subdirectory
             {area}-tasks.md           # Task files (e.g., backend-tasks.md)
         workspace/                    # Generated code output
-project-configs.json                  # Per-project agent configuration (sectioned format)
 provider-config.json                  # Provider configuration
 user-settings.json                    # User runtime settings (agent providers)
 ```
 
-### Project Configuration (project-configs.json)
+### Project Data Structure (projects.json)
 
-Sectioned configuration format for per-project agent settings:
+Unified format combining project metadata and agent configuration:
 
 ```json
-{
-  "projects": [{
-    "project": {
-      "id": "uuid-here",
-      "name": "my-project"
+[
+  {
+    "id": "uuid-here",
+    "name": "my-project",
+    "status": "Analyzed",
+    "paths": {
+      "specification": "./my-project/specification.md",
+      "output": "./my-project/workspace",
+      "analysis": "./my-project/analysis.json",
+      "taskFiles": {
+        "backend": "./my-project/tasks/backend-tasks.md"
+      }
+    },
+    "timestamps": {
+      "createdAt": "2026-02-04T00:00:00Z",
+      "updatedAt": "2026-02-04T07:00:00Z",
+      "analyzedAt": "2026-02-04T06:00:00Z",
+      "lastProcessedAt": "2026-02-04T06:00:00Z"
+    },
+    "tracking": {
+      "pendingAreas": [],
+      "errorMessage": null,
+      "lastProcessedContentHash": "abc123",
+      "specificationId": "spec-uuid",
+      "wyvernId": "wyvern-uuid"
     },
     "agents": {
-      "wyrm": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
-      "wyvern": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
-      "drake": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 1, "timeout": 0 },
+      "wyrm": { "enabled": true, "provider": null, "model": null, "maxParallel": 1, "timeout": 0 },
+      "wyvern": { "enabled": true, "provider": null, "model": null, "maxParallel": 1, "timeout": 0 },
+      "drake": { "enabled": true, "provider": null, "model": null, "maxParallel": 1, "timeout": 0 },
       "koboldPlanner": { "enabled": true, "provider": null, "model": null, "maxParallel": 1, "timeout": 0 },
       "kobold": { "enabled": true, "provider": "zai", "model": null, "maxParallel": 4, "timeout": 1800 }
     },
@@ -234,13 +253,11 @@ Sectioned configuration format for per-project agent settings:
       "allowedExternalPaths": [],
       "sandboxMode": "workspace"
     },
-    "metadata": {
-      "lastUpdated": "2026-02-04T07:01:50Z",
-      "createdAt": "2026-02-04T06:00:00Z"
-    }
-  }]
-}
+    "metadata": {}
+  }
+]
 ```
+
 
 **Agent Config Fields:**
 - `enabled` - Whether this agent is active for the project
@@ -318,7 +335,7 @@ Per-project access control for directories outside workspace:
 1. `appsettings.json` - Base config with all providers disabled
 2. `appsettings.{Environment}.json` - Enables environment-specific providers
 3. Environment variables - API keys and secrets
-4. `project-configs.json` - Per-project resource limits
+4. `projects.json` - Per-project configuration (agent settings, security, metadata)
 
 ### JSON Serialization
 - Incoming: `PropertyNameCaseInsensitive = true` (accepts camelCase from JS)
@@ -355,4 +372,4 @@ curl http://localhost:5000/  # Health check
 1. **Provider not loading**: Check `ASPNETCORE_ENVIRONMENT` matches your config file
 2. **API key not found**: Set environment variable for provider type (e.g., `ANTHROPIC_API_KEY`)
 3. **WebSocket auth failed**: Verify token in query string matches server config
-4. **Kobold limit reached**: Check `maxParallelKobolds` in `project-configs.json`
+4. **Kobold limit reached**: Check `agents.kobold.maxParallel` in `projects.json`

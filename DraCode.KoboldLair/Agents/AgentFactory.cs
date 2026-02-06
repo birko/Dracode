@@ -54,25 +54,6 @@ namespace DraCode.KoboldLair.Agents
         }
 
         /// <summary>
-        /// Legacy overload for backward compatibility
-        /// </summary>
-        [Obsolete("Use Create method with AgentOptions instead")]
-        public static Agent.Agents.Agent Create(
-            string provider,
-            string workingDirectory,
-            bool verbose = true,
-            Dictionary<string, string>? config = null,
-            string agentType = "coding")
-        {
-            var options = new AgentOptions
-            {
-                WorkingDirectory = workingDirectory,
-                Verbose = verbose
-            };
-            return Create(provider, options, config, agentType);
-        }
-
-        /// <summary>
         /// Creates an LLM provider instance. Delegates to DraCode.Agent.AgentFactory.CreateLlmProvider.
         /// </summary>
         public static ILlmProvider CreateLlmProvider(string provider, Dictionary<string, string> config)

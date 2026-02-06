@@ -38,7 +38,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProjectService _projectService;
         private readonly DragonService _dragonService;
         private readonly ProviderConfigurationService _providerConfigService;
-        private readonly ProjectConfigurationService _projectConfigService;
+        private readonly ProjectRepository _projectRepository;
         private readonly DrakeFactory _drakeFactory;
         private readonly WyvernFactory _wyvernFactory;
 
@@ -47,7 +47,7 @@ namespace DraCode.KoboldLair.Server.Services
             ProjectService projectService,
             DragonService dragonService,
             ProviderConfigurationService providerConfigService,
-            ProjectConfigurationService projectConfigService,
+            ProjectRepository projectRepository,
             DrakeFactory drakeFactory,
             WyvernFactory wyvernFactory)
         {
@@ -55,7 +55,7 @@ namespace DraCode.KoboldLair.Server.Services
             _projectService = projectService;
             _dragonService = dragonService;
             _providerConfigService = providerConfigService;
-            _projectConfigService = projectConfigService;
+            _projectRepository = projectRepository;
             _drakeFactory = drakeFactory;
             _wyvernFactory = wyvernFactory;
         }
@@ -132,13 +132,13 @@ namespace DraCode.KoboldLair.Server.Services
                     p.Id,
                     p.Name,
                     p.Status,
-                    p.WyvernId,
-                    p.CreatedAt,
-                    p.AnalyzedAt,
-                    p.OutputPath,
-                    p.SpecificationPath,
-                    p.TaskFiles,
-                    p.ErrorMessage
+                    WyvernId = p.Tracking.WyvernId,
+                    CreatedAt = p.Timestamps.CreatedAt,
+                    AnalyzedAt = p.Timestamps.AnalyzedAt,
+                    OutputPath = p.Paths.Output,
+                    SpecificationPath = p.Paths.Specification,
+                    TaskFiles = p.Paths.TaskFiles,
+                    ErrorMessage = p.Tracking.ErrorMessage
                 }),
                 hierarchy = new
                 {
@@ -149,7 +149,7 @@ namespace DraCode.KoboldLair.Server.Services
                         status = dragonStats.ActiveSessions > 0 ? "active" : "idle",
                         activeSessions = dragonStats.ActiveSessions
                     },
-                    projects = projects.Where(p => p.WyvernId != null).Select(p =>
+                    projects = projects.Where(p => p.Tracking.WyvernId != null).Select(p =>
                     {
                         var wyvern = _wyvernFactory.GetWyvern(p.Name);
                         return new
@@ -160,7 +160,7 @@ namespace DraCode.KoboldLair.Server.Services
                             status = p.Status.ToString().ToLower(),
                             wyvern = wyvern != null ? new
                             {
-                                id = p.WyvernId,
+                                id = p.Tracking.WyvernId,
                                 name = $"wyvern ({p.Name})",
                                 icon = "🐲",
                                 status = p.Status == ProjectStatus.Analyzed ? "active" : "working",
@@ -289,7 +289,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 projectId,
                 projectName = project.Name,
-                maxParallelKobolds = project.MaxParallelKobolds
+                maxParallelKobolds = project.Agents.Kobold.MaxParallel
             };
         }
 
@@ -300,7 +300,7 @@ namespace DraCode.KoboldLair.Server.Services
             var projectId = data.Value.GetProperty("projectId").GetString();
             var maxParallelKobolds = data.Value.GetProperty("maxParallelKobolds").GetInt32();
 
-            _projectService.SetMaxParallelKobolds(projectId!, maxParallelKobolds);
+            await _projectService.SetMaxParallelKoboldsAsync(projectId!, maxParallelKobolds);
             return new { success = true, message = "Project configuration updated" };
         }
 
@@ -323,16 +323,16 @@ namespace DraCode.KoboldLair.Server.Services
                 projectName = project.Name,
                 providers = new
                 {
-                    WyvernProvider = config.Agents.Wyvern.Provider,
-                    WyvernModel = config.Agents.Wyvern.Model,
-                    WyvernEnabled = config.Agents.Wyvern.Enabled,
-                    drakeProvider = config.Agents.Drake.Provider,
-                    drakeModel = config.Agents.Drake.Model,
-                    drakeEnabled = config.Agents.Drake.Enabled,
-                    koboldProvider = config.Agents.Kobold.Provider,
-                    koboldModel = config.Agents.Kobold.Model,
-                    koboldEnabled = config.Agents.Kobold.Enabled,
-                    lastUpdated = config.Metadata.LastUpdated
+                    WyvernProvider = project.Agents.Wyvern.Provider,
+                    WyvernModel = project.Agents.Wyvern.Model,
+                    WyvernEnabled = project.Agents.Wyvern.Enabled,
+                    drakeProvider = project.Agents.Drake.Provider,
+                    drakeModel = project.Agents.Drake.Model,
+                    drakeEnabled = project.Agents.Drake.Enabled,
+                    koboldProvider = project.Agents.Kobold.Provider,
+                    koboldModel = project.Agents.Kobold.Model,
+                    koboldEnabled = project.Agents.Kobold.Enabled,
+                    lastUpdated = project.Timestamps.UpdatedAt
                 },
                 availableProviders = _providerConfigService.GetAvailableProviders().Select(p => new
                 {
@@ -354,7 +354,7 @@ namespace DraCode.KoboldLair.Server.Services
             var providerName = data.Value.GetProperty("providerName").GetString();
             var modelOverride = data.Value.TryGetProperty("modelOverride", out var model) ? model.GetString() : null;
 
-            _projectService.SetProjectProviders(projectId!, agentType!, providerName!, modelOverride);
+            await _projectService.SetProjectProvidersAsync(projectId!, agentType!, providerName!, modelOverride);
             return new { success = true, message = "Provider settings updated for project" };
         }
 
@@ -366,7 +366,7 @@ namespace DraCode.KoboldLair.Server.Services
             var agentType = data.Value.GetProperty("agentType").GetString();
             var enabled = data.Value.GetProperty("enabled").GetBoolean();
 
-            _projectService.SetAgentEnabled(projectId!, agentType!, enabled);
+            await _projectService.SetAgentEnabledAsync(projectId!, agentType!, enabled);
             var status = enabled ? "enabled" : "disabled";
             return new { success = true, message = $"{agentType} {status} for project", enabled };
         }
@@ -384,7 +384,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         private async Task<object> GetAllProjectConfigsAsync()
         {
-            var configs = _projectConfigService.GetAllProjectConfigs();
+            var projects = _projectRepository.GetAll();
             var limits = _providerConfigService.GetDefaultLimits();
 
             return new
@@ -396,7 +396,13 @@ namespace DraCode.KoboldLair.Server.Services
                     maxParallelWyrms = limits.MaxParallelWyrms,
                     maxParallelWyverns = limits.MaxParallelWyverns
                 },
-                projects = configs
+                projects = projects.Select(p => new
+                {
+                    project = new { p.Id, p.Name },
+                    agents = p.Agents,
+                    security = p.Security,
+                    metadata = new { lastUpdated = p.Timestamps.UpdatedAt, createdAt = p.Timestamps.CreatedAt }
+                })
             };
         }
 
@@ -405,13 +411,19 @@ namespace DraCode.KoboldLair.Server.Services
             if (data == null) throw new ArgumentNullException(nameof(data));
 
             var projectId = data.Value.GetProperty("projectId").GetString();
-            var config = _projectConfigService.GetProjectConfig(projectId!);
-            if (config == null)
+            var project = _projectRepository.GetById(projectId!);
+            if (project == null)
             {
-                throw new InvalidOperationException($"Configuration not found for project: {projectId}");
+                throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            return config;
+            return new
+            {
+                project = new { project.Id, project.Name },
+                agents = project.Agents,
+                security = project.Security,
+                metadata = new { lastUpdated = project.Timestamps.UpdatedAt, createdAt = project.Timestamps.CreatedAt }
+            };
         }
 
         private async Task<object> UpdateProjectConfigFullAsync(JsonElement? data)
@@ -419,14 +431,41 @@ namespace DraCode.KoboldLair.Server.Services
             if (data == null) throw new ArgumentNullException(nameof(data));
 
             var projectId = data.Value.GetProperty("projectId").GetString();
-            var config = JsonSerializer.Deserialize<ProjectConfig>(data.Value.GetRawText(), s_readOptions);
-            if (config != null)
+            var project = _projectRepository.GetById(projectId!);
+            if (project == null)
             {
-                config.Project.Id = projectId!;
-                _projectConfigService.UpdateProjectConfig(config);
+                throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            return new { success = true, message = "Project configuration updated", config };
+            // Update agent configurations if provided
+            if (data.Value.TryGetProperty("agents", out var agentsElement))
+            {
+                var agents = JsonSerializer.Deserialize<AgentsConfig>(agentsElement.GetRawText(), s_readOptions);
+                if (agents != null)
+                {
+                    project.Agents = agents;
+                }
+            }
+
+            // Update security settings if provided
+            if (data.Value.TryGetProperty("security", out var securityElement))
+            {
+                var security = JsonSerializer.Deserialize<SecurityConfig>(securityElement.GetRawText(), s_readOptions);
+                if (security != null)
+                {
+                    project.Security = security;
+                }
+            }
+
+            await _projectRepository.UpdateAsync(project);
+
+            return new { success = true, message = "Project configuration updated", config = new
+            {
+                project = new { project.Id, project.Name },
+                agents = project.Agents,
+                security = project.Security,
+                metadata = new { lastUpdated = project.Timestamps.UpdatedAt, createdAt = project.Timestamps.CreatedAt }
+            }};
         }
 
         private async Task<object> DeleteProjectConfigAsync(JsonElement? data)
@@ -434,13 +473,28 @@ namespace DraCode.KoboldLair.Server.Services
             if (data == null) throw new ArgumentNullException(nameof(data));
 
             var projectId = data.Value.GetProperty("projectId").GetString();
-            var deleted = _projectConfigService.DeleteProjectConfig(projectId!);
-            if (!deleted)
+            
+            // Note: We don't delete the project, just reset its configuration to defaults
+            var project = _projectRepository.GetById(projectId!);
+            if (project == null)
             {
-                throw new InvalidOperationException($"Configuration not found for project: {projectId}");
+                throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            return new { success = true, message = "Project configuration deleted" };
+            // Reset to default configuration
+            project.Agents = new AgentsConfig
+            {
+                Wyrm = new AgentConfig { Enabled = true, MaxParallel = 1 },
+                Wyvern = new AgentConfig { Enabled = true, MaxParallel = 1 },
+                Drake = new AgentConfig { Enabled = true, MaxParallel = 1 },
+                KoboldPlanner = new AgentConfig { Enabled = true, MaxParallel = 1 },
+                Kobold = new AgentConfig { Enabled = true, MaxParallel = 4 }
+            };
+            project.Security = new SecurityConfig();
+
+            await _projectRepository.UpdateAsync(project);
+
+            return new { success = true, message = "Project configuration reset to defaults" };
         }
 
         private async Task<object> GetAgentConfigAsync(JsonElement? data)
@@ -449,23 +503,21 @@ namespace DraCode.KoboldLair.Server.Services
 
             var projectId = data.Value.GetProperty("projectId").GetString();
             var agentType = data.Value.GetProperty("agentType").GetString();
-            var config = _projectConfigService.GetProjectConfig(projectId!);
-            if (config == null)
+            
+            var agentConfig = _projectRepository.GetAgentConfig(projectId!, agentType!);
+            if (agentConfig == null)
             {
-                throw new InvalidOperationException($"Configuration not found for project: {projectId}");
+                throw new InvalidOperationException($"Configuration not found for agent {agentType} in project: {projectId}");
             }
 
-            var agentCfg = config.GetAgentConfig(agentType!);
-            var agentConfig = new
+            return new
             {
-                provider = agentCfg.Provider,
-                model = agentCfg.Model,
-                enabled = agentCfg.Enabled,
-                maxParallel = agentCfg.MaxParallel,
-                timeout = agentCfg.Timeout
+                provider = agentConfig.Provider,
+                model = agentConfig.Model,
+                enabled = agentConfig.Enabled,
+                maxParallel = agentConfig.MaxParallel,
+                timeout = agentConfig.Timeout
             };
-
-            return agentConfig;
         }
 
         private async Task<object> UpdateAgentConfigAsync(JsonElement? data)
@@ -480,12 +532,12 @@ namespace DraCode.KoboldLair.Server.Services
 
             if (provider != null)
             {
-                _projectConfigService.SetProjectProvider(projectId!, agentType!, provider, model);
+                await _projectRepository.SetProjectProviderAsync(projectId!, agentType!, provider, model);
             }
 
             if (enabled.HasValue)
             {
-                _projectConfigService.SetAgentEnabled(projectId!, agentType!, enabled.Value);
+                await _projectRepository.SetAgentEnabledAsync(projectId!, agentType!, enabled.Value);
             }
 
             return new { success = true, message = $"{agentType} configuration updated" };

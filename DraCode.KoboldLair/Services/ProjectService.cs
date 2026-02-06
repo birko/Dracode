@@ -14,7 +14,6 @@ namespace DraCode.KoboldLair.Services
     {
         private readonly ProjectRepository _repository;
         private readonly WyvernFactory _wyvernFactory;
-        private readonly ProjectConfigurationService _projectConfigService;
         private readonly ILogger<ProjectService> _logger;
         private readonly GitService _gitService;
         private readonly string _projectsPath;
@@ -22,14 +21,12 @@ namespace DraCode.KoboldLair.Services
         public ProjectService(
             ProjectRepository repository,
             WyvernFactory wyvernFactory,
-            ProjectConfigurationService projectConfigService,
             ILogger<ProjectService> logger,
             GitService gitService,
             string projectsPath = "./projects")
         {
             _repository = repository;
             _wyvernFactory = wyvernFactory;
-            _projectConfigService = projectConfigService;
             _logger = logger;
             _gitService = gitService;
             _projectsPath = projectsPath;
@@ -51,13 +48,13 @@ namespace DraCode.KoboldLair.Services
         public async Task<bool> IsGitEnabledAsync(string projectId)
         {
             var project = _repository.GetById(projectId);
-            if (project == null || string.IsNullOrEmpty(project.OutputPath))
+            if (project == null || string.IsNullOrEmpty(project.Paths.Output))
                 return false;
 
             if (!await _gitService.IsGitInstalledAsync())
                 return false;
 
-            return await _gitService.IsRepositoryAsync(project.OutputPath);
+            return await _gitService.IsRepositoryAsync(project.Paths.Output);
         }
 
         /// <summary>
@@ -164,8 +161,11 @@ namespace DraCode.KoboldLair.Services
             var project = new Project
             {
                 Name = projectName,
-                SpecificationPath = specificationPath,
-                OutputPath = projectFolder, // Task files and analysis go here
+                Paths = new ProjectPaths
+                {
+                    Specification = specificationPath,
+                    Output = projectFolder
+                },
                 Status = ProjectStatus.Prototype
             };
 
@@ -200,12 +200,12 @@ namespace DraCode.KoboldLair.Services
             try
             {
                 // Get project-specific provider/model settings for Wyvern
-                var wyvernProvider = _projectConfigService.GetProjectProvider(projectId, "wyvern");
-                var wyvernModel = _projectConfigService.GetProjectModel(projectId, "wyvern");
+                var wyvernProvider = _repository.GetProjectProvider(projectId, "wyvern");
+                var wyvernModel = _repository.GetProjectModel(projectId, "wyvern");
 
                 // Get project-specific provider/model settings for Wyrm
-                var wyrmProvider = _projectConfigService.GetProjectProvider(projectId, "wyrm");
-                var wyrmModel = _projectConfigService.GetProjectModel(projectId, "wyrm");
+                var wyrmProvider = _repository.GetProjectProvider(projectId, "wyrm");
+                var wyrmModel = _repository.GetProjectModel(projectId, "wyrm");
 
                 _logger.LogDebug("Creating Wyvern for project {ProjectName} with Wyvern provider={WyvernProvider}, Wyrm provider={WyrmProvider}",
                     project.Name, wyvernProvider ?? "default", wyrmProvider ?? "default");
@@ -213,8 +213,8 @@ namespace DraCode.KoboldLair.Services
                 // Create wyvern for this project with project-specific settings
                 var wyvern = _wyvernFactory.CreateWyvern(
                     project.Name,
-                    project.SpecificationPath,
-                    project.OutputPath,
+                    project.Paths.Specification,
+                    project.Paths.Output,
                     wyvernProvider,
                     wyvernModel,
                     wyrmProvider,
@@ -222,7 +222,7 @@ namespace DraCode.KoboldLair.Services
                 );
 
                 // Update project
-                project.WyvernId = wyvern.ProjectName; // Using project name as wyvern ID
+                project.Tracking.WyvernId = wyvern.ProjectName; // Using project name as wyvern ID
                 project.Status = ProjectStatus.WyvernAssigned;
                 _repository.Update(project);
 
@@ -234,7 +234,7 @@ namespace DraCode.KoboldLair.Services
             {
                 _logger.LogError(ex, "Failed to assign Wyvern to project: {ProjectId}", projectId);
                 project.Status = ProjectStatus.Failed;
-                project.ErrorMessage = $"Wyvern assignment failed: {ex.Message}";
+                project.Tracking.ErrorMessage = $"Wyvern assignment failed: {ex.Message}";
                 _repository.Update(project);
                 throw;
             }
@@ -264,11 +264,11 @@ namespace DraCode.KoboldLair.Services
             try
             {
                 // Check if Wyrm is enabled for this project
-                var wyrmEnabled = _projectConfigService.IsAgentEnabled(projectId, "wyrm");
+                var wyrmEnabled = _repository.IsAgentEnabled(projectId, "wyrm");
 
                 // Determine if we're reprocessing pending areas or doing full analysis
-                var isReprocessing = project.PendingAreas.Count > 0;
-                var areasToProcess = isReprocessing ? project.PendingAreas : null;
+                var isReprocessing = project.Tracking.PendingAreas.Count > 0;
+                var areasToProcess = isReprocessing ? project.Tracking.PendingAreas : null;
 
                 WyvernAnalysis analysis;
 
@@ -280,15 +280,15 @@ namespace DraCode.KoboldLair.Services
                     analysis = await wyvern.AnalyzeProjectAsync();
 
                     // Save analysis report (simplified name - project folder provides context)
-                    var analysisReportPath = Path.Combine(project.OutputPath, "analysis.md");
+                    var analysisReportPath = Path.Combine(project.Paths.Output, "analysis.md");
                     var report = wyvern.GenerateReport();
                     await File.WriteAllTextAsync(analysisReportPath, report);
-                    project.AnalysisOutputPath = analysisReportPath;
+                    project.Paths.Analysis = analysisReportPath;
                 }
                 else
                 {
                     _logger.LogInformation("🔄 Reprocessing {Count} pending area(s) for project: {ProjectName}",
-                        project.PendingAreas.Count, project.Name);
+                        project.Tracking.PendingAreas.Count, project.Name);
 
                     // For reprocessing, we need the existing analysis
                     analysis = wyvern.Analysis ?? await wyvern.AnalyzeProjectAsync();
@@ -297,11 +297,11 @@ namespace DraCode.KoboldLair.Services
                 // Create tasks (process only pending areas if reprocessing)
                 var (taskFiles, failedAreas) = await wyvern.CreateTasksAsync(
                     areasToProcess,
-                    isReprocessing ? project.TaskFiles : null
+                    isReprocessing ? project.Paths.TaskFiles : null
                 );
 
                 // Compute content hash for change detection
-                var specContent = await File.ReadAllTextAsync(project.SpecificationPath);
+                var specContent = await File.ReadAllTextAsync(project.Paths.Specification);
                 var contentHash = ComputeContentHash(specContent);
 
                 // Get all areas from analysis
@@ -316,10 +316,10 @@ namespace DraCode.KoboldLair.Services
                     .ToList();
 
                 // Update project fields
-                project.LastProcessedAt = DateTime.UtcNow;
-                project.LastProcessedContentHash = contentHash;
-                project.TaskFiles = taskFiles;
-                project.PendingAreas = pendingAreas;
+                project.Timestamps.LastProcessedAt = DateTime.UtcNow;
+                project.Tracking.LastProcessedContentHash = contentHash;
+                project.Paths.TaskFiles = taskFiles;
+                project.Tracking.PendingAreas = pendingAreas;
 
                 // Determine final status:
                 // - Set to Analyzed only if Wyrm is enabled AND all areas have tasks
@@ -329,7 +329,7 @@ namespace DraCode.KoboldLair.Services
                 if (wyrmEnabled && allAreasComplete)
                 {
                     project.Status = ProjectStatus.Analyzed;
-                    project.AnalyzedAt = DateTime.UtcNow;
+                    project.Timestamps.AnalyzedAt = DateTime.UtcNow;
                     _logger.LogInformation("✅ Wyvern analysis completed for project: {ProjectName}. Tasks: {TaskCount}, Areas: {AreaCount}",
                         project.Name, analysis.TotalTasks, allAreas.Count);
                 }
@@ -358,7 +358,7 @@ namespace DraCode.KoboldLair.Services
             {
                 _logger.LogError(ex, "Wyvern analysis failed for project: {ProjectId}", projectId);
                 project.Status = ProjectStatus.Failed;
-                project.ErrorMessage = $"Analysis failed: {ex.Message}";
+                project.Tracking.ErrorMessage = $"Analysis failed: {ex.Message}";
                 _repository.Update(project);
                 throw;
             }
@@ -378,7 +378,7 @@ namespace DraCode.KoboldLair.Services
             project.Status = status;
             if (errorMessage != null)
             {
-                project.ErrorMessage = errorMessage;
+                project.Tracking.ErrorMessage = errorMessage;
             }
 
             _repository.Update(project);
@@ -408,17 +408,17 @@ namespace DraCode.KoboldLair.Services
             }
 
             // Clear Wyvern assignment so it gets recreated
-            if (project.WyvernId != null)
+            if (project.Tracking.WyvernId != null)
             {
                 _wyvernFactory.RemoveWyvern(project.Name);
-                project.WyvernId = null;
+                project.Tracking.WyvernId = null;
             }
 
             // Reset project state
             project.Status = ProjectStatus.New;
-            project.ErrorMessage = null;
-            project.PendingAreas.Clear();
-            project.UpdatedAt = DateTime.UtcNow;
+            project.Tracking.ErrorMessage = null;
+            project.Tracking.PendingAreas.Clear();
+            project.Timestamps.UpdatedAt = DateTime.UtcNow;
 
             _repository.Update(project);
             _logger.LogInformation("🔄 Retry initiated for project '{ProjectName}' - reset to New status", project.Name);
@@ -445,7 +445,7 @@ namespace DraCode.KoboldLair.Services
                 project.Status == ProjectStatus.Completed)
             {
                 project.Status = ProjectStatus.SpecificationModified;
-                project.UpdatedAt = DateTime.UtcNow;
+                project.Timestamps.UpdatedAt = DateTime.UtcNow;
                 _repository.Update(project);
                 _logger.LogInformation("📝 Specification modified for project: {ProjectName} - will be reprocessed", project.Name);
             }
@@ -546,8 +546,11 @@ namespace DraCode.KoboldLair.Services
             var project = new Project
             {
                 Name = projectName,
-                SpecificationPath = "", // Will be set when Dragon creates the specification
-                OutputPath = projectFolder, // Task files and analysis go here
+                Paths = new ProjectPaths
+                {
+                    Specification = "", // Will be set when Dragon creates the specification
+                    Output = projectFolder
+                },
                 Status = ProjectStatus.Prototype,
                 Metadata = new Dictionary<string, string>
                 {
@@ -580,8 +583,8 @@ namespace DraCode.KoboldLair.Services
                 return false;
             }
 
-            project.SpecificationPath = specificationPath;
-            project.UpdatedAt = DateTime.UtcNow;
+            project.Paths.Specification = specificationPath;
+            project.Timestamps.UpdatedAt = DateTime.UtcNow;
             _repository.Update(project);
 
             _logger.LogInformation("Updated specification path for project '{ProjectName}': {Path}",
@@ -613,9 +616,9 @@ namespace DraCode.KoboldLair.Services
             }
 
             // If specification path is empty, try to find it in the project folder
-            if (string.IsNullOrEmpty(project.SpecificationPath))
+            if (string.IsNullOrEmpty(project.Paths.Specification))
             {
-                var specPath = Path.Combine(project.OutputPath, "specification.md");
+                var specPath = Path.Combine(project.Paths.Output, "specification.md");
                 if (File.Exists(specPath))
                 {
                     // Make relative path
@@ -624,7 +627,7 @@ namespace DraCode.KoboldLair.Services
                     {
                         relativePath = "./" + relativePath;
                     }
-                    project.SpecificationPath = relativePath;
+                    project.Paths.Specification = relativePath;
                     _logger.LogInformation("Auto-detected specification path for project '{ProjectName}': {Path}",
                         project.Name, relativePath);
                 }
@@ -637,7 +640,7 @@ namespace DraCode.KoboldLair.Services
             }
 
             project.Status = ProjectStatus.New;
-            project.UpdatedAt = DateTime.UtcNow;
+            project.Timestamps.UpdatedAt = DateTime.UtcNow;
             _repository.Update(project);
 
             // Create initial git commit with the specification
@@ -665,7 +668,7 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         private async Task CreateInitialGitCommitAsync(Project project)
         {
-            if (string.IsNullOrEmpty(project.OutputPath))
+            if (string.IsNullOrEmpty(project.Paths.Output))
                 return;
 
             try
@@ -673,15 +676,15 @@ namespace DraCode.KoboldLair.Services
                 if (!await _gitService.IsGitInstalledAsync())
                     return;
 
-                if (!await _gitService.IsRepositoryAsync(project.OutputPath))
+                if (!await _gitService.IsRepositoryAsync(project.Paths.Output))
                     return;
 
                 // Stage all files
-                await _gitService.StageAllAsync(project.OutputPath);
+                await _gitService.StageAllAsync(project.Paths.Output);
 
                 // Create initial commit
                 var committed = await _gitService.CommitChangesAsync(
-                    project.OutputPath,
+                    project.Paths.Output,
                     $"Initial commit: {project.Name} specification\n\nProject approved and ready for development.",
                     "Dragon");
 
@@ -720,7 +723,7 @@ namespace DraCode.KoboldLair.Services
         /// <summary>
         /// Sets provider configuration for a project
         /// </summary>
-        public void SetProjectProviders(string projectId, string agentType, string? provider, string? model = null)
+        public async Task SetProjectProvidersAsync(string projectId, string agentType, string? provider, string? model = null)
         {
             var project = _repository.GetById(projectId);
             if (project == null)
@@ -728,48 +731,46 @@ namespace DraCode.KoboldLair.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            _projectConfigService.SetProjectProvider(projectId, agentType, provider, model);
+            await _repository.SetProjectProviderAsync(projectId, agentType, provider, model);
             _logger.LogInformation("Updated {AgentType} provider to {Provider} for project: {ProjectName}",
                 agentType, provider, project.Name);
         }
 
         /// <summary>
-        /// Gets provider configuration for a project
+        /// Gets provider configuration for a project (returns the project itself with agent configs)
         /// </summary>
-        public ProjectConfig GetProjectConfig(string projectId)
+        public Project? GetProjectConfig(string projectId)
         {
-            var project = _repository.GetById(projectId);
-            if (project == null)
-            {
-                throw new InvalidOperationException($"Project not found: {projectId}");
-            }
-
-            return _projectConfigService.GetOrCreateProjectConfig(projectId, project.Name);
+            return _repository.GetById(projectId);
         }
 
         /// <summary>
-        /// Initializes configuration for all projects that don't have it
+        /// Initializes configuration for all projects that don't have agent configs set
         /// </summary>
-        public void InitializeProjectConfigurations(ProviderConfigurationService globalConfig)
+        public async Task InitializeProjectConfigurationsAsync(ProviderConfigurationService globalConfig)
         {
             var projects = _repository.GetAll();
             foreach (var project in projects)
             {
-                var config = _projectConfigService.GetProjectConfig(project.Id);
-                if (config == null)
+                // Check if project already has agent configuration
+                bool needsInit = project.Agents.Wyvern.Provider == null &&
+                                 !project.Agents.Wyrm.Enabled &&
+                                 !project.Agents.Wyvern.Enabled &&
+                                 !project.Agents.Drake.Enabled;
+
+                if (needsInit)
                 {
-                    // Create default configuration
-                    var newConfig = _projectConfigService.GetOrCreateProjectConfig(project.Id, project.Name);
+                    // Initialize with global defaults
+                    project.Agents.Wyvern.Provider = globalConfig.GetProviderForAgent("wyvern");
+                    project.Agents.Wyvern.Enabled = true;
+                    project.Agents.Drake.Provider = globalConfig.GetProviderForAgent("wyvern");
+                    project.Agents.Drake.Enabled = true;
+                    project.Agents.Kobold.Provider = globalConfig.GetProviderForAgent("kobold");
+                    project.Agents.Kobold.Enabled = true;
+                    project.Agents.Wyrm.Enabled = true;
+                    project.Agents.KoboldPlanner.Enabled = true;
 
-                    // Initialize with global defaults if not set
-                    if (string.IsNullOrEmpty(newConfig.Agents.Wyvern.Provider))
-                    {
-                        newConfig.Agents.Wyvern.Provider = globalConfig.GetProviderForAgent("wyvern");
-                        newConfig.Agents.Drake.Provider = globalConfig.GetProviderForAgent("wyvern");
-                        newConfig.Agents.Kobold.Provider = globalConfig.GetProviderForAgent("kobold");
-                        _projectConfigService.UpdateProjectConfig(newConfig);
-                    }
-
+                    await _repository.UpdateAsync(project);
                     _logger.LogInformation("Initialized configuration for project: {ProjectName}", project.Name);
                 }
             }
@@ -778,7 +779,7 @@ namespace DraCode.KoboldLair.Services
         /// <summary>
         /// Toggles whether an agent type is enabled for a project
         /// </summary>
-        public void SetAgentEnabled(string projectId, string agentType, bool enabled)
+        public async Task SetAgentEnabledAsync(string projectId, string agentType, bool enabled)
         {
             var project = _repository.GetById(projectId);
             if (project == null)
@@ -786,7 +787,7 @@ namespace DraCode.KoboldLair.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            _projectConfigService.SetAgentEnabled(projectId, agentType, enabled);
+            await _repository.SetAgentEnabledAsync(projectId, agentType, enabled);
             _logger.LogInformation("{AgentType} {Status} for project: {ProjectName}",
                 agentType, enabled ? "enabled" : "disabled", project.Name);
         }
@@ -802,13 +803,13 @@ namespace DraCode.KoboldLair.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            return _projectConfigService.IsAgentEnabled(projectId, agentType);
+            return _repository.IsAgentEnabled(projectId, agentType);
         }
 
         /// <summary>
         /// Sets the maximum parallel kobolds limit for a project
         /// </summary>
-        public void SetMaxParallelKobolds(string projectId, int maxParallel)
+        public async Task SetMaxParallelKoboldsAsync(string projectId, int maxParallel)
         {
             var project = _repository.GetById(projectId);
             if (project == null)
@@ -821,7 +822,7 @@ namespace DraCode.KoboldLair.Services
                 throw new ArgumentException("MaxParallelKobolds must be at least 1");
             }
 
-            _projectConfigService.SetMaxParallelKobolds(projectId, maxParallel);
+            await _repository.SetAgentLimitAsync(projectId, "kobold", maxParallel);
             _logger.LogInformation("Updated MaxParallelKobolds to {Max} for project: {ProjectName}",
                 maxParallel, project.Name);
         }
@@ -837,7 +838,7 @@ namespace DraCode.KoboldLair.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            return _projectConfigService.GetMaxParallelKobolds(projectId);
+            return _repository.GetMaxParallel(projectId, "kobold", defaultValue: 1);
         }
     }
 }

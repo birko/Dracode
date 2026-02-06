@@ -58,12 +58,11 @@ builder.Services.AddSingleton<ProjectService>(sp =>
 {
     var repository = sp.GetRequiredService<ProjectRepository>();
     var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
-    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
     var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var projectsPath = config.ProjectsPath ?? "./projects";
-    return new ProjectService(repository, wyvernFactory, projectConfigService, logger, gitService, projectsPath);
+    return new ProjectService(repository, wyvernFactory, logger, gitService, projectsPath);
 });
 
 // Register factories as singletons
@@ -183,7 +182,7 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation("Projects loaded: {Count}", projectService.GetAllProjects().Count);
         logger.LogInformation("Initializing configurations for existing projects...");
     }
-    projectService.InitializeProjectConfigurations(providerConfigService);
+    await projectService.InitializeProjectConfigurationsAsync(providerConfigService);
     if (logger?.IsEnabled(LogLevel.Information) ?? false)
     {
         logger.LogInformation("Configuration initialization complete");

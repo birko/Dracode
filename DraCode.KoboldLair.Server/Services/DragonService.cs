@@ -759,10 +759,10 @@ namespace DraCode.KoboldLair.Server.Services
                 Name = p.Name,
                 Status = p.Status.ToString(),
                 FeatureCount = p.Specification?.Features.Count ?? 0,
-                CreatedAt = p.CreatedAt,
-                UpdatedAt = p.UpdatedAt,
-                HasGitRepository = !string.IsNullOrEmpty(p.OutputPath) &&
-                    _gitService.IsRepositoryAsync(p.OutputPath).GetAwaiter().GetResult()
+                CreatedAt = p.Timestamps.CreatedAt,
+                UpdatedAt = p.Timestamps.UpdatedAt,
+                HasGitRepository = !string.IsNullOrEmpty(p.Paths.Output) &&
+                    _gitService.IsRepositoryAsync(p.Paths.Output).GetAwaiter().GetResult()
             }).ToList();
         }
 
@@ -781,7 +781,7 @@ namespace DraCode.KoboldLair.Server.Services
                 return (false, null, null);
             }
 
-            return (true, project.ErrorMessage, project.Status.ToString());
+            return (true, project.Tracking.ErrorMessage, project.Status.ToString());
         }
 
         /// <summary>
@@ -791,7 +791,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             return _projectService.GetAllProjects()
                 .Where(p => p.Status == ProjectStatus.Failed)
-                .Select(p => (p.Id, p.Name, p.Status.ToString(), p.ErrorMessage))
+                .Select(p => (p.Id, p.Name, p.Status.ToString(), p.Tracking.ErrorMessage))
                 .ToList();
         }
 

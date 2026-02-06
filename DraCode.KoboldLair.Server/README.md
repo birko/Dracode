@@ -110,62 +110,49 @@ Control how many kobolds can run in parallel per project to manage resource cons
 - Predictable API usage and costs
 - Graceful handling of resource constraints
 
-**Configuration File:** `project-configs.json`
+**Configuration:** Projects are configured in `projects.json` with nested `agents` section:
 
 ```json
-{
-  "defaultMaxParallelKobolds": 1,
-  "projects": [
-    {
-      "projectId": "my-project",
-      "projectName": "My Project",
-      "maxParallelKobolds": 2
-    },
-    {
-      "projectId": "high-priority",
-      "projectName": "High Priority Project",
-      "maxParallelKobolds": 4
+[
+  {
+    "id": "my-project",
+    "name": "My Project",
+    "agents": {
+      "kobold": {
+        "enabled": true,
+        "provider": null,
+        "model": null,
+        "maxParallel": 2,
+        "timeout": 1800
+      }
     }
-  ]
-}
+  },
+  {
+    "id": "high-priority",
+    "name": "High Priority Project",
+    "agents": {
+      "kobold": {
+        "enabled": true,
+        "maxParallel": 4,
+        "timeout": 1800
+      }
+    }
+  }
+]
 ```
 
-**Configuration Options:**
-- `defaultMaxParallelKobolds` - Default limit for projects without specific configuration (default: 1)
-- `projectId` - Unique identifier for the project (matches task's ProjectId)
-- `projectName` - Optional display name for the project
-- `maxParallelKobolds` - Maximum kobolds that can run concurrently for this project
+**Agent Configuration Fields:**
+- `enabled` - Whether this agent type is active (default: true)
+- `provider` - LLM provider override (null = use global default)
+- `model` - Model override (null = use provider default)
+- `maxParallel` - Maximum concurrent instances of this agent type
+- `timeout` - Timeout in seconds (0 = no timeout)
 
 **How It Works:**
 1. When Drake receives a task to execute, it checks the project's current active kobolds
 2. If under limit: Kobold is summoned and task executes
 3. If at limit: Kobold creation skipped, task remains in queue
 4. Drake's monitoring service (runs every 60s) retries task assignment
-
-**Examples:**
-
-```json
-// Conservative setup - all projects limited to 1 kobold
-{
-  "defaultMaxParallelKobolds": 1,
-  "projects": []
-}
-
-// Priority-based allocation
-{
-  "defaultMaxParallelKobolds": 1,
-  "projects": [
-    {
-      "projectId": "production-app",
-      "maxParallelKobolds": 5
-    },
-    {
-      "projectId": "dev-project",
-      "maxParallelKobolds": 2
-    }
-  ]
-}
-```
 
 **Monitoring:**
 - Check `/api/stats` endpoint for active kobold count
@@ -177,13 +164,6 @@ Control how many kobolds can run in parallel per project to manage resource cons
 2. Monitor CPU/memory consumption and API rate limits
 3. Adjust limits based on project priority and complexity
 4. Regularly review and tune as system grows
-
-**Specify Config Path in appsettings.json:**
-```json
-{
-  "ProjectConfigurationsPath": "project-configs.json"
-}
-```
 
 ### Implementation Planning Configuration
 
@@ -364,14 +344,13 @@ DraCode.KoboldLair.Server/
 │   ├── DragonService.cs            # Dragon WebSocket handler
 │   ├── WyrmService.cs              # Wyrm WebSocket handler
 │   ├── WyvernProcessingService.cs  # Wyvern background processing (60s)
-│   ├── DrakeExecutionService.cs    # Drake task execution service (30s) - NEW
+│   ├── DrakeExecutionService.cs    # Drake task execution service (30s)
 │   ├── DrakeMonitoringService.cs   # Drake background monitoring (60s)
 │   ├── WebSocketAuthenticationService.cs  # Token/IP authentication
 │   └── WebSocketCommandHandler.cs  # WebSocket command routing
 ├── Program.cs                      # ASP.NET Core startup & DI
 ├── appsettings.json                # Base configuration
-├── appsettings.local.example.json  # Example local configuration
-└── project-configs.json            # Per-project resource limits
+└── appsettings.local.example.json  # Example local configuration
 
 Note: Agents, Factories, Orchestrators, and core Models are in DraCode.KoboldLair (the library).
 ```

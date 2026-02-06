@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Models.Configuration;
 
 namespace DraCode.KoboldLair.Services
 {
@@ -117,33 +118,33 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         private void ResolveProjectPaths(Project project)
         {
-            // Resolve SpecificationPath
-            if (!string.IsNullOrEmpty(project.SpecificationPath))
+            // Resolve Paths.Specification
+            if (!string.IsNullOrEmpty(project.Paths.Specification))
             {
-                project.SpecificationPath = ResolvePath(project.SpecificationPath);
+                project.Paths.Specification = ResolvePath(project.Paths.Specification);
             }
 
-            // Resolve OutputPath
-            if (!string.IsNullOrEmpty(project.OutputPath))
+            // Resolve Paths.Output
+            if (!string.IsNullOrEmpty(project.Paths.Output))
             {
-                project.OutputPath = ResolvePath(project.OutputPath);
+                project.Paths.Output = ResolvePath(project.Paths.Output);
             }
 
-            // Resolve AnalysisOutputPath
-            if (!string.IsNullOrEmpty(project.AnalysisOutputPath))
+            // Resolve Paths.Analysis
+            if (!string.IsNullOrEmpty(project.Paths.Analysis))
             {
-                project.AnalysisOutputPath = ResolvePath(project.AnalysisOutputPath);
+                project.Paths.Analysis = ResolvePath(project.Paths.Analysis);
             }
 
-            // Resolve TaskFiles paths
-            if (project.TaskFiles.Count > 0)
+            // Resolve Paths.TaskFiles
+            if (project.Paths.TaskFiles.Count > 0)
             {
                 var resolvedTaskFiles = new Dictionary<string, string>();
-                foreach (var (area, path) in project.TaskFiles)
+                foreach (var (area, path) in project.Paths.TaskFiles)
                 {
                     resolvedTaskFiles[area] = ResolvePath(path);
                 }
-                project.TaskFiles = resolvedTaskFiles;
+                project.Paths.TaskFiles = resolvedTaskFiles;
             }
         }
 
@@ -230,23 +231,33 @@ namespace DraCode.KoboldLair.Services
             {
                 Id = project.Id,
                 Name = project.Name,
-                SpecificationPath = MakeRelativePath(project.SpecificationPath),
-                SpecificationId = project.SpecificationId,
-                Specification = project.Specification,
-                OutputPath = MakeRelativePath(project.OutputPath),
-                WyvernId = project.WyvernId,
                 Status = project.Status,
-                CreatedAt = project.CreatedAt,
-                UpdatedAt = project.UpdatedAt,
-                AnalyzedAt = project.AnalyzedAt,
-                LastProcessedAt = project.LastProcessedAt,
-                LastProcessedContentHash = project.LastProcessedContentHash,
-                AnalysisOutputPath = MakeRelativePath(project.AnalysisOutputPath),
-                TaskFiles = project.TaskFiles.ToDictionary(kv => kv.Key, kv => MakeRelativePath(kv.Value)),
-                PendingAreas = new List<string>(project.PendingAreas),
-                ErrorMessage = project.ErrorMessage,
-                Metadata = new Dictionary<string, string>(project.Metadata),
-                MaxParallelKobolds = project.MaxParallelKobolds
+                Paths = new ProjectPaths
+                {
+                    Specification = MakeRelativePath(project.Paths.Specification),
+                    Output = MakeRelativePath(project.Paths.Output),
+                    Analysis = MakeRelativePath(project.Paths.Analysis),
+                    TaskFiles = project.Paths.TaskFiles.ToDictionary(kv => kv.Key, kv => MakeRelativePath(kv.Value))
+                },
+                Specification = project.Specification,
+                Timestamps = new ProjectTimestamps
+                {
+                    CreatedAt = project.Timestamps.CreatedAt,
+                    UpdatedAt = project.Timestamps.UpdatedAt,
+                    AnalyzedAt = project.Timestamps.AnalyzedAt,
+                    LastProcessedAt = project.Timestamps.LastProcessedAt
+                },
+                Tracking = new ProjectTracking
+                {
+                    PendingAreas = new List<string>(project.Tracking.PendingAreas),
+                    ErrorMessage = project.Tracking.ErrorMessage,
+                    LastProcessedContentHash = project.Tracking.LastProcessedContentHash,
+                    SpecificationId = project.Tracking.SpecificationId,
+                    WyvernId = project.Tracking.WyvernId
+                },
+                Agents = project.Agents,
+                Security = project.Security,
+                Metadata = new Dictionary<string, string>(project.Metadata)
             };
         }
 
@@ -287,8 +298,8 @@ namespace DraCode.KoboldLair.Services
         {
             lock (_lock)
             {
-                project.CreatedAt = DateTime.UtcNow;
-                project.UpdatedAt = DateTime.UtcNow;
+                project.Timestamps.CreatedAt = DateTime.UtcNow;
+                project.Timestamps.UpdatedAt = DateTime.UtcNow;
                 _projects.Add(project);
                 SaveProjects();
                 _logger?.LogInformation("Added project: {ProjectId} - {ProjectName}", project.Id, project.Name);
@@ -302,8 +313,8 @@ namespace DraCode.KoboldLair.Services
         {
             lock (_lock)
             {
-                project.CreatedAt = DateTime.UtcNow;
-                project.UpdatedAt = DateTime.UtcNow;
+                project.Timestamps.CreatedAt = DateTime.UtcNow;
+                project.Timestamps.UpdatedAt = DateTime.UtcNow;
                 _projects.Add(project);
             }
             await SaveProjectsAsync();
@@ -320,7 +331,7 @@ namespace DraCode.KoboldLair.Services
                 var index = _projects.FindIndex(p => p.Id == project.Id);
                 if (index >= 0)
                 {
-                    project.UpdatedAt = DateTime.UtcNow;
+                    project.Timestamps.UpdatedAt = DateTime.UtcNow;
                     _projects[index] = project;
                     SaveProjects();
                     _logger?.LogInformation("Updated project: {ProjectId} - {ProjectName}", project.Id, project.Name);
@@ -342,7 +353,7 @@ namespace DraCode.KoboldLair.Services
                 var index = _projects.FindIndex(p => p.Id == project.Id);
                 if (index >= 0)
                 {
-                    project.UpdatedAt = DateTime.UtcNow;
+                    project.Timestamps.UpdatedAt = DateTime.UtcNow;
                     _projects[index] = project;
                 }
                 else
@@ -409,7 +420,7 @@ namespace DraCode.KoboldLair.Services
                 // Resolve the input path for comparison
                 var normalizedPath = ResolvePath(specPath);
                 return _projects.FirstOrDefault(p =>
-                    string.Equals(p.SpecificationPath, normalizedPath, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(p.Paths.Specification, normalizedPath, StringComparison.OrdinalIgnoreCase));
             }
         }
 
@@ -494,6 +505,254 @@ namespace DraCode.KoboldLair.Services
             {
                 return _projects.Count;
             }
+        }
+
+        // ===== Agent Configuration Methods (consolidated from ProjectConfigurationService) =====
+
+        /// <summary>
+        /// Gets the agent configuration for a specific agent type in a project
+        /// </summary>
+        public AgentConfig? GetAgentConfig(string projectId, string agentType)
+        {
+            var project = GetById(projectId);
+            if (project == null) return null;
+
+            return agentType.ToLowerInvariant() switch
+            {
+                "wyrm" => project.Agents.Wyrm,
+                "wyvern" => project.Agents.Wyvern,
+                "drake" => project.Agents.Drake,
+                "kobold-planner" or "koboldplanner" or "planner" => project.Agents.KoboldPlanner,
+                "kobold" => project.Agents.Kobold,
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Gets the maximum parallel agents for a specific type in a project
+        /// </summary>
+        public int GetMaxParallel(string projectId, string agentType, int defaultValue = 1)
+        {
+            var agentConfig = GetAgentConfig(projectId, agentType);
+            return agentConfig?.MaxParallel ?? defaultValue;
+        }
+
+        /// <summary>
+        /// Sets the maximum parallel limit for a specific agent type in a project
+        /// </summary>
+        public async Task SetAgentLimitAsync(string projectId, string agentType, int maxParallel)
+        {
+            if (maxParallel < 1)
+                throw new ArgumentException("Max parallel must be at least 1", nameof(maxParallel));
+
+            var project = GetById(projectId);
+            if (project == null)
+                throw new InvalidOperationException($"Project not found: {projectId}");
+
+            var agentConfig = GetAgentConfigInternal(project, agentType);
+            agentConfig.MaxParallel = maxParallel;
+
+            await UpdateAsync(project);
+        }
+
+        /// <summary>
+        /// Sets the timeout for a specific agent type in a project
+        /// </summary>
+        public async Task SetAgentTimeoutAsync(string projectId, string agentType, int timeoutSeconds)
+        {
+            if (timeoutSeconds < 0)
+                throw new ArgumentException("Timeout must be non-negative", nameof(timeoutSeconds));
+
+            var project = GetById(projectId);
+            if (project == null)
+                throw new InvalidOperationException($"Project not found: {projectId}");
+
+            var agentConfig = GetAgentConfigInternal(project, agentType);
+            agentConfig.Timeout = timeoutSeconds;
+
+            await UpdateAsync(project);
+        }
+
+        /// <summary>
+        /// Gets the timeout for a specific agent type in a project
+        /// </summary>
+        public int GetAgentTimeout(string projectId, string agentType)
+        {
+            var agentConfig = GetAgentConfig(projectId, agentType);
+            return agentConfig?.Timeout ?? 0;
+        }
+
+        /// <summary>
+        /// Sets whether an agent is enabled for a project
+        /// </summary>
+        public async Task SetAgentEnabledAsync(string projectId, string agentType, bool enabled)
+        {
+            var project = GetById(projectId);
+            if (project == null)
+                throw new InvalidOperationException($"Project not found: {projectId}");
+
+            var agentConfig = GetAgentConfigInternal(project, agentType);
+            agentConfig.Enabled = enabled;
+
+            await UpdateAsync(project);
+        }
+
+        /// <summary>
+        /// Checks if an agent is enabled for a project
+        /// </summary>
+        public bool IsAgentEnabled(string projectId, string agentType)
+        {
+            var agentConfig = GetAgentConfig(projectId, agentType);
+            return agentConfig?.Enabled ?? false;
+        }
+
+        /// <summary>
+        /// Sets provider override for a project agent
+        /// </summary>
+        public async Task SetProjectProviderAsync(string projectId, string agentType, string? provider, string? model = null)
+        {
+            var project = GetById(projectId);
+            if (project == null)
+                throw new InvalidOperationException($"Project not found: {projectId}");
+
+            var agentConfig = GetAgentConfigInternal(project, agentType);
+            agentConfig.Provider = provider;
+            agentConfig.Model = model;
+
+            await UpdateAsync(project);
+        }
+
+        /// <summary>
+        /// Gets provider override for a specific agent type in a project
+        /// </summary>
+        public string? GetProjectProvider(string projectId, string agentType)
+        {
+            var agentConfig = GetAgentConfig(projectId, agentType);
+            return agentConfig?.Provider;
+        }
+
+        /// <summary>
+        /// Gets model override for a specific agent type in a project
+        /// </summary>
+        public string? GetProjectModel(string projectId, string agentType)
+        {
+            var agentConfig = GetAgentConfig(projectId, agentType);
+            return agentConfig?.Model;
+        }
+
+        /// <summary>
+        /// Adds an allowed external path for a project
+        /// </summary>
+        public async Task AddAllowedExternalPathAsync(string projectId, string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentException("Path cannot be empty", nameof(path));
+
+            var normalizedPath = Path.GetFullPath(path);
+            var project = GetById(projectId);
+            if (project == null)
+                throw new InvalidOperationException($"Project not found: {projectId}");
+
+            lock (_lock)
+            {
+                if (!project.Security.AllowedExternalPaths.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
+                {
+                    project.Security.AllowedExternalPaths.Add(normalizedPath);
+                    _logger?.LogInformation("Added allowed external path for {Project}: {Path}", projectId, normalizedPath);
+                }
+            }
+            await UpdateAsync(project);
+        }
+
+        /// <summary>
+        /// Removes an allowed external path from a project
+        /// </summary>
+        public async Task<bool> RemoveAllowedExternalPathAsync(string projectId, string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return false;
+
+            var normalizedPath = Path.GetFullPath(path);
+            var project = GetById(projectId);
+            if (project == null)
+                return false;
+
+            bool removed = false;
+            lock (_lock)
+            {
+                var existingPath = project.Security.AllowedExternalPaths
+                    .FirstOrDefault(p => p.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+                if (existingPath != null)
+                {
+                    project.Security.AllowedExternalPaths.Remove(existingPath);
+                    _logger?.LogInformation("Removed allowed external path for {Project}: {Path}", projectId, normalizedPath);
+                    removed = true;
+                }
+            }
+
+            if (removed)
+            {
+                await UpdateAsync(project);
+            }
+            return removed;
+        }
+
+        /// <summary>
+        /// Gets the allowed external paths for a project
+        /// </summary>
+        public IReadOnlyList<string> GetAllowedExternalPaths(string projectId)
+        {
+            var project = GetById(projectId);
+            if (project == null)
+                return Array.Empty<string>();
+
+            lock (_lock)
+            {
+                return project.Security.AllowedExternalPaths.ToList().AsReadOnly();
+            }
+        }
+
+        /// <summary>
+        /// Sets the sandbox mode for a project
+        /// </summary>
+        public async Task SetSandboxModeAsync(string projectId, string mode)
+        {
+            var validModes = new[] { "workspace", "relaxed", "strict" };
+            if (!validModes.Contains(mode.ToLowerInvariant()))
+                throw new ArgumentException($"Invalid sandbox mode: {mode}. Valid modes: {string.Join(", ", validModes)}");
+
+            var project = GetById(projectId);
+            if (project == null)
+                throw new InvalidOperationException($"Project not found: {projectId}");
+
+            project.Security.SandboxMode = mode.ToLowerInvariant();
+            await UpdateAsync(project);
+        }
+
+        /// <summary>
+        /// Gets the sandbox mode for a project
+        /// </summary>
+        public string GetSandboxMode(string projectId)
+        {
+            var project = GetById(projectId);
+            return project?.Security.SandboxMode ?? "workspace";
+        }
+
+        /// <summary>
+        /// Internal helper to get agent config with proper type checking
+        /// </summary>
+        private AgentConfig GetAgentConfigInternal(Project project, string agentType)
+        {
+            return agentType.ToLowerInvariant() switch
+            {
+                "wyrm" => project.Agents.Wyrm,
+                "wyvern" => project.Agents.Wyvern,
+                "drake" => project.Agents.Drake,
+                "kobold-planner" or "koboldplanner" or "planner" => project.Agents.KoboldPlanner,
+                "kobold" => project.Agents.Kobold,
+                _ => throw new ArgumentException($"Unknown agent type: {agentType}")
+            };
         }
     }
 }
