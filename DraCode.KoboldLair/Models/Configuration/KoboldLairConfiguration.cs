@@ -94,6 +94,13 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Whether to resume from saved plans on restart (default: true)
         /// </summary>
         public bool ResumeFromPlan { get; set; } = true;
+
+        /// <summary>
+        /// Whether to use enhanced execution with automatic step completion detection and auto-advancement (Phase 2).
+        /// When enabled, Kobolds automatically detect completed steps even if agent doesn't explicitly mark them.
+        /// (default: true)
+        /// </summary>
+        public bool UseEnhancedExecution { get; set; } = true;
     }
 
     /// <summary>

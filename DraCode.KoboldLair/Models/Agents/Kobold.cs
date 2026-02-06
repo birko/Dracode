@@ -439,6 +439,388 @@ You are working on a task that is part of a larger project. Below is the project
         }
 
         /// <summary>
+        /// Starts working on the assigned task with plan awareness and Phase 2 enhancements.
+        /// Includes automatic step completion detection and fallback auto-advancement.
+        /// </summary>
+        /// <param name="planService">Service for plan persistence (can be null to skip plan updates)</param>
+        /// <param name="maxIterations">Maximum iterations for agent execution</param>
+        /// <returns>Messages from agent execution</returns>
+        public async Task<List<Message>> StartWorkingWithPlanEnhancedAsync(
+            KoboldPlanService? planService,
+            int maxIterations = 30)
+        {
+            if (Status != KoboldStatus.Assigned)
+            {
+                throw new InvalidOperationException($"Cannot start working - Kobold {Id} is not assigned (current status: {Status})");
+            }
+
+            if (string.IsNullOrEmpty(TaskDescription))
+            {
+                throw new InvalidOperationException($"Cannot start working - Kobold {Id} has no task description");
+            }
+
+            // If no plan, fall back to standard execution
+            if (ImplementationPlan == null)
+            {
+                return await StartWorkingWithPlanAsync(planService, maxIterations);
+            }
+
+            Status = KoboldStatus.Working;
+            StartedAt = DateTime.UtcNow;
+
+            // Register the plan context for the tool
+            UpdatePlanStepTool.RegisterContext(ImplementationPlan, planService, _logger);
+
+            // Add the tool to the agent
+            Agent.AddTool(new UpdatePlanStepTool());
+
+            try
+            {
+                // Build the full task prompt with plan context
+                var fullTaskPrompt = BuildFullPromptWithPlan();
+
+                // Update plan status
+                ImplementationPlan.Status = PlanStatus.InProgress;
+                ImplementationPlan.AddLogEntry($"Kobold {Id.ToString()[..8]} started working (enhanced mode)");
+                if (planService != null && !string.IsNullOrEmpty(ProjectId))
+                {
+                    await planService.SavePlanAsync(ImplementationPlan);
+                }
+
+                // Calculate step-aware max iterations
+                var totalSteps = ImplementationPlan.Steps.Count;
+                var maxPerStep = Agent.Options.MaxIterationsPerStep;
+                var perStepBudget = Math.Min(maxIterations / totalSteps + 2, maxPerStep);
+                var effectiveMaxIterations = perStepBudget * totalSteps;
+
+                _logger?.LogDebug(
+                    "Kobold {KoboldId} using enhanced execution with step-aware budget: {PerStepBudget} per step × {TotalSteps} steps = {TotalBudget} iterations",
+                    Id.ToString()[..8], perStepBudget, totalSteps, effectiveMaxIterations);
+
+                // Execute with custom loop for step completion detection
+                var messages = await RunWithStepDetectionAsync(fullTaskPrompt, effectiveMaxIterations, planService);
+
+                // Check if execution encountered errors
+                if (HasErrorInMessages(messages))
+                {
+                    ErrorMessage = "Agent encountered errors during execution. Check logs for details.";
+                    Status = KoboldStatus.Failed;
+                    CompletedAt = DateTime.UtcNow;
+
+                    // Update plan status on failure
+                    await UpdatePlanStatusAsync(planService, success: false, ErrorMessage);
+
+                    var taskPreview = TaskDescription?.Length > 60
+                        ? TaskDescription.Substring(0, 60) + "..."
+                        : TaskDescription ?? "unknown";
+                    _logger?.LogWarning(
+                        "Kobold {KoboldId} failed with errors\n" +
+                        "  Project: {ProjectId}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {TaskDescription}",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
+                    return messages;
+                }
+
+                // Update plan status on completion
+                await UpdatePlanStatusAsync(planService, success: true);
+
+                // Perform file validation on incomplete steps (advisory logging only)
+                await ValidateAndLogStepCompletionAsync(ImplementationPlan);
+
+                // Check if we have a plan and if all steps are complete
+                bool allStepsComplete = ImplementationPlan.Steps.All(s =>
+                    s.Status == StepStatus.Completed ||
+                    s.Status == StepStatus.Skipped ||
+                    s.Status == StepStatus.Failed);
+
+                if (allStepsComplete)
+                {
+                    // Task completed successfully - transition to Done
+                    Status = KoboldStatus.Done;
+                    CompletedAt = DateTime.UtcNow;
+                    var taskPreview = TaskDescription?.Length > 60
+                        ? TaskDescription.Substring(0, 60) + "..."
+                        : TaskDescription ?? "unknown";
+                    _logger?.LogInformation(
+                        "✓ Kobold {KoboldId} completed successfully\n" +
+                        "  Project: {ProjectId}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {TaskDescription}\n" +
+                        "  Agent Type: {AgentType}",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown",
+                        taskPreview, AgentType);
+                }
+                else
+                {
+                    // Plan has unfinished steps - keep in Working state for resumption
+                    var taskPreview = TaskDescription?.Length > 60
+                        ? TaskDescription.Substring(0, 60) + "..."
+                        : TaskDescription ?? "unknown";
+                    _logger?.LogWarning(
+                        "⚠ Kobold {KoboldId} incomplete - keeping in Working state\n" +
+                        "  Project: {ProjectId}\n" +
+                        "  Task ID: {TaskId}\n" +
+                        "  Task: {TaskDescription}\n" +
+                        "  Plan Progress: {Completed}/{Total} steps",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown",
+                        taskPreview, ImplementationPlan.CompletedStepsCount, ImplementationPlan.Steps.Count);
+                }
+
+                return messages;
+            }
+            catch (Exception ex)
+            {
+                // Update plan status on failure
+                await UpdatePlanStatusAsync(planService, success: false, ex.Message);
+
+                // Task failed - capture error and transition to Failed
+                ErrorMessage = ex.Message;
+                Status = KoboldStatus.Failed;
+                CompletedAt = DateTime.UtcNow;
+
+                var taskPreview = TaskDescription?.Length > 60
+                    ? TaskDescription.Substring(0, 60) + "..."
+                    : TaskDescription ?? "unknown";
+                _logger?.LogError(ex,
+                    "Kobold {KoboldId} failed with exception\n" +
+                    "  Project: {ProjectId}\n" +
+                    "  Task ID: {TaskId}\n" +
+                    "  Task: {TaskDescription}",
+                    Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
+                throw;
+            }
+            finally
+            {
+                // Clean up: remove tool and clear context
+                Agent.RemoveTool("update_plan_step");
+                UpdatePlanStepTool.ClearContext();
+            }
+        }
+
+        /// <summary>
+        /// Custom execution loop that detects step completion and auto-advances when appropriate.
+        /// This is the core of Phase 2 robustness enhancements.
+        /// </summary>
+        private async Task<List<Message>> RunWithStepDetectionAsync(
+            string initialPrompt,
+            int maxIterations,
+            KoboldPlanService? planService)
+        {
+            if (ImplementationPlan == null)
+            {
+                throw new InvalidOperationException("RunWithStepDetectionAsync requires a plan");
+            }
+
+            var conversation = new List<Message>
+            {
+                new() { Role = "user", Content = initialPrompt }
+            };
+
+            var currentStepIndex = ImplementationPlan.CurrentStepIndex;
+            var stepIterationCount = 0;
+
+            // Enhanced logging: Step start
+            if (currentStepIndex < ImplementationPlan.Steps.Count)
+            {
+                var step = ImplementationPlan.Steps[currentStepIndex];
+                step.Start();
+                
+                _logger?.LogInformation(
+                    "🔷 Kobold {KoboldId} starting step {StepIndex}/{TotalSteps}: {StepTitle}\n" +
+                    "  Files to create: {FilesToCreate}\n" +
+                    "  Files to modify: {FilesToModify}",
+                    Id.ToString()[..8], step.Index, ImplementationPlan.Steps.Count, step.Title,
+                    step.FilesToCreate.Count > 0 ? string.Join(", ", step.FilesToCreate) : "none",
+                    step.FilesToModify.Count > 0 ? string.Join(", ", step.FilesToModify) : "none");
+            }
+
+            for (int iteration = 1; iteration <= maxIterations; iteration++)
+            {
+                stepIterationCount++;
+
+                if (Agent.Options.Verbose)
+                {
+                    Agent.Provider.MessageCallback?.Invoke("info", $"ITERATION {iteration} (Step {currentStepIndex + 1}, iter {stepIterationCount})");
+                }
+
+                var systemPrompt = (string?)Agent.GetType().GetProperty("SystemPrompt", 
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(Agent) ?? "";
+                
+                var response = await Agent.Provider.SendMessageAsync(conversation, Agent.Tools.ToList(), systemPrompt);
+
+                if (Agent.Options.Verbose)
+                {
+                    Agent.Provider.MessageCallback?.Invoke("info", $"Stop reason: {response.StopReason}");
+                }
+
+                // Add assistant response to conversation
+                conversation.Add(new Message
+                {
+                    Role = "assistant",
+                    Content = response.Content
+                });
+
+                // Handle different stop reasons
+                switch (response.StopReason)
+                {
+                    case "tool_use":
+                        var toolResults = new List<object>();
+                        var calledUpdatePlanStep = false;
+
+                        foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "tool_use"))
+                        {
+                            var toolCallMsg = $"Tool: {block.Name}\nInput: {System.Text.Json.JsonSerializer.Serialize(block.Input)}";
+                            Agent.Provider.MessageCallback?.Invoke("tool_call", toolCallMsg);
+
+                            var tool = Agent.Tools.FirstOrDefault(t => t.Name == block.Name);
+                            var result = tool != null
+                                ? tool.Execute(Agent.Options.WorkingDirectory, block.Input ?? new Dictionary<string, object>())
+                                : $"Error: Unknown tool '{block.Name}'";
+
+                            var preview = result.Length > 500 ? string.Concat(result.AsSpan(0, 500), "...") : result;
+                            Agent.Provider.MessageCallback?.Invoke("tool_result", $"Result from {block.Name}:\n{preview}");
+
+                            // Check if agent called update_plan_step
+                            if (block.Name == "update_plan_step")
+                            {
+                                calledUpdatePlanStep = true;
+                                
+                                // Enhanced logging: Step completion
+                                var newStepIndex = ImplementationPlan.CurrentStepIndex;
+                                if (newStepIndex != currentStepIndex && currentStepIndex < ImplementationPlan.Steps.Count)
+                                {
+                                    var completedStep = ImplementationPlan.Steps[currentStepIndex];
+                                    _logger?.LogInformation(
+                                        "✅ Step {StepIndex} completed: {StepTitle} ({IterationCount} iterations, status: {Status})",
+                                        completedStep.Index, completedStep.Title, stepIterationCount, completedStep.Status);
+                                    
+                                    // Reset counter and start next step
+                                    stepIterationCount = 0;
+                                    currentStepIndex = newStepIndex;
+                                    
+                                    if (currentStepIndex < ImplementationPlan.Steps.Count)
+                                    {
+                                        var nextStep = ImplementationPlan.Steps[currentStepIndex];
+                                        nextStep.Start();
+                                        
+                                        _logger?.LogInformation(
+                                            "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}\n" +
+                                            "  Files to create: {FilesToCreate}\n" +
+                                            "  Files to modify: {FilesToModify}",
+                                            nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title,
+                                            nextStep.FilesToCreate.Count > 0 ? string.Join(", ", nextStep.FilesToCreate) : "none",
+                                            nextStep.FilesToModify.Count > 0 ? string.Join(", ", nextStep.FilesToModify) : "none");
+                                    }
+                                }
+                            }
+
+                            toolResults.Add(new
+                            {
+                                type = "tool_result",
+                                tool_use_id = block.Id,
+                                content = result
+                            });
+                        }
+
+                        conversation.Add(new Message
+                        {
+                            Role = "user",
+                            Content = toolResults
+                        });
+
+                        // Phase 2: Automatic step completion detection
+                        if (!calledUpdatePlanStep && currentStepIndex < ImplementationPlan.Steps.Count)
+                        {
+                            var currentStep = ImplementationPlan.Steps[currentStepIndex];
+                            
+                            // Only check if step is still pending/in-progress
+                            if (currentStep.Status == StepStatus.Pending || currentStep.Status == StepStatus.InProgress)
+                            {
+                                var (isComplete, issues) = await ValidateStepCompletionAsync(currentStep);
+                                
+                                if (isComplete)
+                                {
+                                    // Phase 2: Fallback auto-advancement
+                                    _logger?.LogWarning(
+                                        "⚠️ AUTO-ADVANCE: Step {StepIndex} validated as complete but agent didn't mark it. Auto-advancing.\n" +
+                                        "  Step: {StepTitle}\n" +
+                                        "  Iterations on this step: {IterationCount}",
+                                        currentStep.Index, currentStep.Title, stepIterationCount);
+                                    
+                                    currentStep.Complete($"Auto-completed by validation (agent didn't mark explicitly)");
+                                    ImplementationPlan.CurrentStepIndex++;
+                                    ImplementationPlan.AddLogEntry($"Auto-advanced from step {currentStep.Index} after validation passed");
+                                    
+                                    if (planService != null && !string.IsNullOrEmpty(ProjectId))
+                                    {
+                                        await planService.SavePlanAsync(ImplementationPlan);
+                                    }
+                                    
+                                    // Enhanced logging: Step auto-completion
+                                    _logger?.LogInformation(
+                                        "✅ Step {StepIndex} auto-completed: {StepTitle} ({IterationCount} iterations)",
+                                        currentStep.Index, currentStep.Title, stepIterationCount);
+                                    
+                                    // Reset and start next step
+                                    stepIterationCount = 0;
+                                    currentStepIndex = ImplementationPlan.CurrentStepIndex;
+                                    
+                                    if (currentStepIndex < ImplementationPlan.Steps.Count)
+                                    {
+                                        var nextStep = ImplementationPlan.Steps[currentStepIndex];
+                                        nextStep.Start();
+                                        
+                                        _logger?.LogInformation(
+                                            "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}",
+                                            nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title);
+                                    }
+                                }
+                            }
+                        }
+
+                        // If we hit max iterations, stop
+                        if (iteration >= maxIterations)
+                        {
+                            Agent.Provider.MessageCallback?.Invoke("warning", $"Maximum iterations ({maxIterations}) reached. Task may be incomplete.");
+                            return conversation;
+                        }
+                        break;
+
+                    case "end_turn":
+                        // Agent finished - send response
+                        foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "text"))
+                        {
+                            Agent.Provider.MessageCallback?.Invoke("assistant_final", block.Text ?? "");
+                        }
+                        return conversation;
+
+                    case "error":
+                    case "NotConfigured":
+                        // Error occurred - stop immediately
+                        Agent.Provider.MessageCallback?.Invoke("error", "Error occurred during LLM request. Stopping.");
+                        return conversation;
+
+                    default:
+                        // Unexpected stop reason - stop to be safe
+                        if (Agent.Options.Verbose)
+                        {
+                            Agent.Provider.MessageCallback?.Invoke("warning", $"Unexpected stop reason: {response.StopReason ?? "unknown"}. Stopping.");
+                        }
+                        return conversation;
+                }
+            }
+
+            // If we exit the loop naturally, we hit max iterations
+            if (Agent.Options.Verbose)
+            {
+                Agent.Provider.MessageCallback?.Invoke("warning", $"Maximum iterations ({maxIterations}) reached.");
+            }
+
+            return conversation;
+        }
+
+        /// <summary>
         /// Builds the full task prompt including plan context if available
         /// </summary>
         private string BuildFullPromptWithPlan()

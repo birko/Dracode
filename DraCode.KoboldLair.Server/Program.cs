@@ -95,7 +95,8 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var projectsPath = config.ProjectsPath ?? "./projects";
     var planningEnabled = config.Planning?.Enabled ?? true;
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService, projectsPath, planningEnabled, projectRepository);
+    var useEnhancedExecution = config.Planning?.UseEnhancedExecution ?? true;
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, projectRepository);
 });
 
 // Register services

@@ -195,6 +195,130 @@ This file tracks planned enhancements and their implementation status.
 
 ---
 
+## Phase G - Kobold Execution Strategy Enhancements
+
+### High Priority - Enhanced Multi-Step Execution
+
+**Context:** Analysis completed 2026-02-06 comparing single-step vs multi-step execution strategies.  
+**Decision:** Keep current multi-step approach (all steps visible) with enhanced guardrails.  
+**Reference:** `session-state/kobold-execution-analysis.md`
+
+#### Phase 1: Quick Wins (2-3 hours) ✅ COMPLETED
+- [x] **Automatic File Validation** - `Kobold.cs` *(Completed 2026-02-06)*
+  - Added `ValidateStepCompletionAsync()` method to check if expected files exist
+  - Verifies `FilesToCreate` items were created
+  - Verifies `FilesToModify` items were modified (timestamp check)
+  - Added `ValidateAndLogStepCompletionAsync()` for advisory logging
+  - Effort: Low (~1 hour)
+
+- [x] **Step-Aware Iteration Budget** - `Kobold.cs`, `AgentOptions.cs` *(Completed 2026-02-06)*
+  - Added `MaxIterationsPerStep` configuration option (default: 10)
+  - Calculates dynamic per-step budget based on total steps
+  - Formula: `Math.Min(MaxIterations / totalSteps + 2, MaxIterationsPerStep)`
+  - Prevents one step from consuming entire iteration budget
+  - Integrated into `StartWorkingWithPlanAsync` execution loop
+  - Effort: Low (~1 hour)
+
+- [x] **Step Reflection Prompts** - `Kobold.cs` *(Completed 2026-02-06)*
+  - Added reflection reminder to plan prompt in `BuildFullPromptWithPlan()`
+  - Guidance: "Did I create/modify files? Is step complete? Call update_plan_step"
+  - Appears in initial prompt for all plan-based execution
+  - Effort: Low (~1 hour)
+
+#### Phase 2: Robustness (1 day) ✅ COMPLETED
+- [x] **Automatic Step Completion Detection** - `Kobold.cs` *(Completed 2026-02-06)*
+  - Added `RunWithStepDetectionAsync()` custom execution loop
+  - Checks `ValidateStepCompletionAsync()` after each iteration if agent didn't call `update_plan_step`
+  - Tracks current step index and monitors step transitions
+  - Serves as safety net for forgetful agents
+  - Effort: Medium (~4 hours)
+
+- [x] **Fallback Auto-Advancement** - `Kobold.cs` *(Completed 2026-02-06)*
+  - Auto-advances if validation passes but step not marked
+  - Logs warning when auto-advancement occurs (agent reliability metric)
+  - Updates `CurrentStepIndex` and saves plan
+  - Maintains resumability even without agent cooperation
+  - Effort: Medium (~2 hours)
+
+- [x] **Enhanced Step Boundary Logging** - `Kobold.cs` *(Completed 2026-02-06)*
+  - Added structured logs at step start with file lists
+  - Added structured logs at step completion with iteration counts
+  - Includes: step index, title, status, files touched, iterations used
+  - Enables better debugging and telemetry
+  - Effort: Low (~2 hours)
+
+#### Phase 3: Optimization (2 days)
+- [ ] **Progressive Detail Reveal** - `Kobold.cs:BuildFullPromptWithPlan()`
+  - Current step: Full details (title, description, files)
+  - Next 1-2 steps: Medium details (title + description only)
+  - Remaining steps: Summary only (titles with status icons)
+  - Reduces token usage for large plans (10+ steps)
+  - Effort: Medium (~4 hours)
+
+- [ ] **Step-Level Telemetry** - New telemetry service
+  - Track metrics per step: iterations used, time taken, token count
+  - Aggregate stats: average iterations/step, common failure points
+  - Expose via Aspire dashboard or dedicated endpoint
+  - Helps identify which steps are problematic
+  - Effort: Medium (~1 day)
+
+- [ ] **Step Completion Validation Framework** - New validation service
+  - Pluggable validators for different step types
+  - File creation/modification validator (current need)
+  - Future: code compilation validator, test execution validator
+  - Configuration: enable/disable validators per project
+  - Effort: Medium (~1 day)
+
+#### Phase 4: Advanced Features (Future)
+- [ ] **Agent-Suggested Plan Modifications**
+  - Allow agent to call `modify_plan` tool to suggest changes
+  - Examples: skip redundant steps, combine related steps, reorder for efficiency
+  - Requires user or Drake approval for modifications
+  - Enables intelligent adaptation while maintaining oversight
+  - Effort: High (~1 week)
+
+- [ ] **Parallel Step Execution**
+  - Identify steps without dependencies (file-based analysis)
+  - Execute independent steps in parallel with separate Kobold instances
+  - Requires: dependency graph analysis, coordination layer
+  - Potential speedup: 2-3x for large plans
+  - Effort: High (~2 weeks)
+
+- [ ] **Intelligent Step Reordering**
+  - Analyze plan dependencies automatically
+  - Suggest optimal execution order to planner
+  - Consider: compile-time deps, runtime deps, file system deps
+  - Improves plan quality without manual intervention
+  - Effort: High (~2 weeks)
+
+#### Configuration Options
+- [ ] **Execution Mode Selection** - `appsettings.json`
+  ```json
+  {
+    "KoboldLair": {
+      "Planning": {
+        "ExecutionMode": "multi-step",  // or "single-step" for edge cases
+        "AutoValidate": true,
+        "ProgressiveDetailReveal": true,
+        "MaxIterationsPerStep": 10
+      }
+    }
+  }
+  ```
+  - Allows switching to single-step mode for high-risk operations
+  - Useful for: database migrations, production deployments, debugging
+  - Effort: Low (~2 hours)
+
+#### Success Metrics
+After implementation, track:
+- **Step Completion Accuracy**: % of steps correctly marked complete (target: 95%+)
+- **Auto-Advancement Rate**: How often auto-detection saves the day (baseline metric)
+- **Average Iterations Per Step**: Ensure balanced budget usage (target: even distribution)
+- **Task Success Rate**: Overall improvement in task completion (target: +10%)
+- **Token Efficiency**: Average tokens per task vs. baseline (target: -15% with progressive reveal)
+
+---
+
 ## Future / Exploratory (Q3 2026+)
 
 ### Under Consideration

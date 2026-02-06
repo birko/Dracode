@@ -22,6 +22,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ILoggerFactory? _loggerFactory;
         private readonly string _projectsPath;
         private readonly bool _planningEnabled;
+        private readonly bool _useEnhancedExecution;
         private readonly Dictionary<string, Drake> _drakes;
         private readonly Dictionary<string, string?> _drakeProjectIds; // Maps drake name to project ID
         private readonly object _lock = new object();
@@ -36,6 +37,7 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         /// <param name="projectsPath">Path to projects directory for plan storage</param>
         /// <param name="planningEnabled">Whether to enable implementation planning (default: true)</param>
+        /// <param name="useEnhancedExecution">Whether to use Phase 2 enhanced execution with auto-detection (default: true)</param>
         /// <param name="projectRepository">Optional project repository for resolving project paths</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
@@ -45,6 +47,7 @@ namespace DraCode.KoboldLair.Factories
             GitService? gitService = null,
             string projectsPath = "./projects",
             bool planningEnabled = true,
+            bool useEnhancedExecution = true,
             ProjectRepository? projectRepository = null)
         {
             _koboldFactory = koboldFactory;
@@ -55,6 +58,7 @@ namespace DraCode.KoboldLair.Factories
             _gitService = gitService;
             _projectsPath = projectsPath;
             _planningEnabled = planningEnabled;
+            _useEnhancedExecution = useEnhancedExecution;
             _drakes = new Dictionary<string, Drake>();
             _drakeProjectIds = new Dictionary<string, string?>();
         }
@@ -165,7 +169,8 @@ namespace DraCode.KoboldLair.Factories
                 _gitService,
                 planService,
                 plannerAgent,
-                _planningEnabled
+                _planningEnabled,
+                _useEnhancedExecution
             );
 
             // Lock only for dictionary insertion, with race condition check

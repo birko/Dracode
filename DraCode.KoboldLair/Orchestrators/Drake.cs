@@ -31,6 +31,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly KoboldPlanService? _planService;
         private readonly KoboldPlannerAgent? _plannerAgent;
         private readonly bool _planningEnabled;
+        private readonly bool _useEnhancedExecution;
         private Wyvern? _wyvern;
 
         // Debounced file write support
@@ -61,6 +62,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="planService">Optional plan service for implementation plan persistence</param>
         /// <param name="plannerAgent">Optional planner agent for creating implementation plans</param>
         /// <param name="planningEnabled">Whether to enable implementation planning (default: true if planService and plannerAgent are provided)</param>
+        /// <param name="useEnhancedExecution">Whether to use Phase 2 enhanced execution with auto-detection (default: true)</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -76,7 +78,8 @@ namespace DraCode.KoboldLair.Orchestrators
             GitService? gitService = null,
             KoboldPlanService? planService = null,
             KoboldPlannerAgent? plannerAgent = null,
-            bool? planningEnabled = null)
+            bool? planningEnabled = null,
+            bool useEnhancedExecution = true)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -93,6 +96,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _planService = planService;
             _plannerAgent = plannerAgent;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
+            _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _taskToKoboldMap = new Dictionary<string, Guid>();
 
             // Initialize debounced save channel (bounded to 1 to coalesce writes)
@@ -483,10 +487,18 @@ namespace DraCode.KoboldLair.Orchestrators
                     $"  Task ID: {task.Id.ToString()[..8]}\n" +
                     $"  Task: {taskPreview}");
 
-                // Use plan-aware execution if we have a plan, otherwise use standard execution
+                // Use plan-aware execution if we have a plan
                 if (kobold.ImplementationPlan != null)
                 {
-                    messages = await kobold.StartWorkingWithPlanAsync(_planService, maxIterations);
+                    // Use enhanced execution if enabled (Phase 2 auto-detection)
+                    if (_useEnhancedExecution)
+                    {
+                        messages = await kobold.StartWorkingWithPlanEnhancedAsync(_planService, maxIterations);
+                    }
+                    else
+                    {
+                        messages = await kobold.StartWorkingWithPlanAsync(_planService, maxIterations);
+                    }
                 }
                 else
                 {
