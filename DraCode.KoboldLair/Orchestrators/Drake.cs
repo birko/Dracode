@@ -213,6 +213,73 @@ namespace DraCode.KoboldLair.Orchestrators
                 try
                 {
                     specificationContext = File.ReadAllText(_specificationPath);
+                    
+                    // Append project structure information if available
+                    if (_wyvern?.Analysis?.Structure != null)
+                    {
+                        var structure = _wyvern.Analysis.Structure;
+                        var structureInfo = new System.Text.StringBuilder();
+                        
+                        structureInfo.AppendLine();
+                        structureInfo.AppendLine("---");
+                        structureInfo.AppendLine();
+                        structureInfo.AppendLine("## Project Structure Context");
+                        structureInfo.AppendLine();
+                        
+                        if (!string.IsNullOrEmpty(structure.ArchitectureNotes))
+                        {
+                            structureInfo.AppendLine("### Architecture Notes");
+                            structureInfo.AppendLine(structure.ArchitectureNotes);
+                            structureInfo.AppendLine();
+                        }
+                        
+                        if (structure.DirectoryPurposes.Any())
+                        {
+                            structureInfo.AppendLine("### Directory Organization");
+                            foreach (var kvp in structure.DirectoryPurposes)
+                            {
+                                structureInfo.AppendLine($"- `{kvp.Key}`: {kvp.Value}");
+                            }
+                            structureInfo.AppendLine();
+                        }
+                        
+                        if (structure.FileLocationGuidelines.Any())
+                        {
+                            structureInfo.AppendLine("### File Location Guidelines");
+                            foreach (var kvp in structure.FileLocationGuidelines)
+                            {
+                                structureInfo.AppendLine($"- {kvp.Key} files → `{kvp.Value}`");
+                            }
+                            structureInfo.AppendLine();
+                        }
+                        
+                        if (structure.NamingConventions.Any())
+                        {
+                            structureInfo.AppendLine("### Naming Conventions");
+                            foreach (var kvp in structure.NamingConventions)
+                            {
+                                structureInfo.AppendLine($"- {kvp.Key}: {kvp.Value}");
+                            }
+                            structureInfo.AppendLine();
+                        }
+                        
+                        if (structure.ExistingFiles.Any())
+                        {
+                            structureInfo.AppendLine($"### Existing Files ({structure.ExistingFiles.Count} files)");
+                            structureInfo.AppendLine("```");
+                            foreach (var file in structure.ExistingFiles.Take(50))
+                            {
+                                structureInfo.AppendLine(file);
+                            }
+                            if (structure.ExistingFiles.Count > 50)
+                            {
+                                structureInfo.AppendLine($"... and {structure.ExistingFiles.Count - 50} more files");
+                            }
+                            structureInfo.AppendLine("```");
+                        }
+                        
+                        specificationContext += structureInfo.ToString();
+                    }
                 }
                 catch (Exception ex)
                 {

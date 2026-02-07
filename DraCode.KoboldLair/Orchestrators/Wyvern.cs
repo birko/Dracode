@@ -369,6 +369,103 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Scans the workspace directory to build a project structure map.
+        /// Excludes common build/cache directories.
+        /// </summary>
+        private ProjectStructure ScanWorkspaceStructure()
+        {
+            var structure = new ProjectStructure();
+            var excludedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".git", "node_modules", "bin", "obj", ".vs", ".vscode", 
+                "dist", "build", "target", "__pycache__", ".next", ".nuxt"
+            };
+
+            try
+            {
+                if (Directory.Exists(_outputPath))
+                {
+                    var files = Directory.GetFiles(_outputPath, "*.*", SearchOption.AllDirectories)
+                        .Select(f => Path.GetRelativePath(_outputPath, f))
+                        .Where(f => !excludedDirs.Any(d => f.Split(Path.DirectorySeparatorChar).Contains(d)))
+                        .OrderBy(f => f)
+                        .ToList();
+
+                    structure.ExistingFiles = files;
+                }
+            }
+            catch
+            {
+                // If scanning fails, continue with empty structure
+            }
+
+            return structure;
+        }
+
+        /// <summary>
+        /// Analyzes project structure using LLM to extract conventions and guidelines.
+        /// </summary>
+        private async Task<ProjectStructure> AnalyzeProjectStructureAsync(ProjectStructure scannedStructure, string specificationContent)
+        {
+            if (!scannedStructure.ExistingFiles.Any())
+            {
+                // No files yet - return basic structure
+                return scannedStructure;
+            }
+
+            var structurePrompt = $@"Analyze this project's file structure and provide organization guidelines.
+
+EXISTING FILES:
+{string.Join("\n", scannedStructure.ExistingFiles.Take(100))}
+
+SPECIFICATION:
+{specificationContent}
+
+Respond with ONLY valid JSON (no markdown, no explanations):
+{{
+  ""namingConventions"": {{
+    ""csharp-classes"": ""PascalCase"",
+    ""js-modules"": ""camelCase"",
+    ""config-files"": ""kebab-case""
+  }},
+  ""directoryPurposes"": {{
+    ""src/"": ""Main source code"",
+    ""tests/"": ""Unit and integration tests""
+  }},
+  ""fileLocationGuidelines"": {{
+    ""controller"": ""src/controllers/"",
+    ""model"": ""src/models/""
+  }},
+  ""architectureNotes"": ""Brief notes about project architecture and organization""
+}}";
+
+            try
+            {
+                var jsonContent = await _analyzerAgent.AnalyzeSpecificationAsync(structurePrompt);
+
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                };
+
+                var analyzedStructure = JsonSerializer.Deserialize<ProjectStructure>(jsonContent, options);
+                if (analyzedStructure != null)
+                {
+                    // Merge with scanned files
+                    analyzedStructure.ExistingFiles = scannedStructure.ExistingFiles;
+                    return analyzedStructure;
+                }
+            }
+            catch
+            {
+                // If LLM analysis fails, return scanned structure
+            }
+
+            return scannedStructure;
+        }
+
+        /// <summary>
         /// Analyzes the specification and creates organized task structure
         /// Includes new features in the analysis context
         /// </summary>
@@ -417,6 +514,10 @@ namespace DraCode.KoboldLair.Orchestrators
 
                 _analysis.AnalyzedAt = DateTime.UtcNow;
                 _analysis.SpecificationPath = _specificationPath;
+
+                // Scan and analyze project structure
+                var scannedStructure = ScanWorkspaceStructure();
+                _analysis.Structure = await AnalyzeProjectStructureAsync(scannedStructure, specContent);
 
                 // Link features to analysis
                 if (_specification != null)

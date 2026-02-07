@@ -11,5 +11,6 @@ namespace DraCode.KoboldLair.Models.Agents
         public DateTime AnalyzedAt { get; set; }
         public string SpecificationPath { get; set; } = "";
         public List<string> ProcessedFeatures { get; set; } = new();
+        public ProjectStructure? Structure { get; set; }
     }
 }
