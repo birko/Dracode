@@ -42,6 +42,7 @@ namespace DraCode.KoboldLair.Agents
 ## REQUIRED Tasks:
 - ALWAYS include a README.md task (highest priority) with instructions on how to run/use the result
 - ALWAYS organize files into proper folder structures:
+  * Entry point files (index.html, main.py, app.js, Program.cs, etc.) should be in the root folder
   * Web projects: js/, css/, html/, assets/, docs/
   * Backend projects: src/, tests/, docs/, config/
   * Libraries: src/, tests/, examples/, docs/
