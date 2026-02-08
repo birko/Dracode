@@ -134,10 +134,13 @@ namespace DraCode.Agent.Agents
         protected static string GetFileOperationGuidelines()
         {
             return @"- Always explore the workspace first with list_files before making assumptions
+- CRITICAL: Before creating a file with write_file, check if it already exists using list_files or read_file
+- If a file exists, use edit_file or append_to_file instead of write_file to preserve existing content
+- The scanned structure from analysis may be incomplete - always verify file existence before writing
 - Read existing files before modifying them with read_file
 - Use search_code to find specific content before editing/appending (helps locate exact text and line numbers)
 - Use edit_file for surgical changes to existing files (preserves other content)
-- Use write_file only for creating new files or completely replacing file content
+- Use write_file only for creating NEW files or when you explicitly want to replace entire file content
 - Use append_to_file to add content to the end of a file
 - When editing or appending, use search_code first to verify file content and locate insertion points
 - When making multiple changes to the same file, use edit_file for each change or read the file first, make all changes, then write once";

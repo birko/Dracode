@@ -122,7 +122,7 @@ Located in `DraCode.Agent/LLMs/Providers/`:
 Located in `DraCode.Agent/Tools/`:
 - `list_files` - Directory listing
 - `read_file` - File reading
-- `write_file` - File writing
+- `write_file` - File writing (checks for existing files by default to prevent overwrites)
 - `search_code` - Code search with regex
 - `run_command` - Shell command execution
 - `ask_user` - User interaction
