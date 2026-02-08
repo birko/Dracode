@@ -1,6 +1,7 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Agents;
+using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Services;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -20,6 +21,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly Func<string?, int> _getProjectMaxParallelKobolds;
         private readonly ILoggerFactory _loggerFactory;
+        private readonly KoboldLairConfiguration _koboldLairConfig;
 
         /// <summary>
         /// Gets the total number of Kobolds managed by this factory
@@ -32,6 +34,7 @@ namespace DraCode.KoboldLair.Factories
         public KoboldFactory(
             ProjectConfigurationService projectConfigService,
             ILoggerFactory loggerFactory,
+            KoboldLairConfiguration koboldLairConfig,
             Func<string?, int>? getProjectMaxParallelKobolds = null,
             AgentOptions? defaultOptions = null,
             Dictionary<string, string>? defaultConfig = null)
@@ -39,6 +42,7 @@ namespace DraCode.KoboldLair.Factories
             _kobolds = new ConcurrentDictionary<Guid, KoboldModel>();
             _projectConfigService = projectConfigService;
             _loggerFactory = loggerFactory;
+            _koboldLairConfig = koboldLairConfig;
             _getProjectMaxParallelKobolds = getProjectMaxParallelKobolds ?? ((projectId) => projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty));
             _defaultOptions = defaultOptions;
             _defaultConfig = defaultConfig;
@@ -60,6 +64,7 @@ namespace DraCode.KoboldLair.Factories
         {
             var agent = KoboldLairAgentFactory.Create(
                 provider,
+                _koboldLairConfig,
                 options ?? _defaultOptions,
                 config ?? _defaultConfig,
                 agentType

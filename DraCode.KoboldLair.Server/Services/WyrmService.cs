@@ -1,5 +1,6 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Server.Models.WebSocket;
 using DraCode.KoboldLair.Orchestrators;
@@ -24,16 +25,19 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly TaskTracker _taskTracker;
         private readonly ILogger<WyrmService> _logger;
         private readonly ProviderConfigurationService _providerConfigService;
+        private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly WebSocketCommandHandler? _commandHandler;
 
         public WyrmService(
             ILogger<WyrmService> logger,
             ProviderConfigurationService providerConfigService,
+            KoboldLairConfiguration koboldLairConfig,
             WebSocketCommandHandler? commandHandler = null)
         {
             _logger = logger;
             _taskTracker = new TaskTracker();
             _providerConfigService = providerConfigService;
+            _koboldLairConfig = koboldLairConfig;
             _commandHandler = commandHandler;
         }
 
@@ -185,6 +189,7 @@ namespace DraCode.KoboldLair.Server.Services
                 // Get recommendation first
                 var result = await WyrmRunner.GetRecommendationAsync(
                     provider,
+                    _koboldLairConfig,
                     taskRecord.Task,
                     options,
                     config,

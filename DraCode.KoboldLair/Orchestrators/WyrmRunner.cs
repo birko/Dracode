@@ -1,6 +1,7 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.Tools;
+using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Tasks;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
@@ -17,6 +18,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// Tracks task status and saves results to a markdown file.
         /// </summary>
         /// <param name="provider">LLM provider to use</param>
+        /// <param name="koboldLairConfig">KoboldLair configuration</param>
         /// <param name="task">The full task prompt for the agent</param>
         /// <param name="options">Agent options</param>
         /// <param name="config">Provider configuration</param>
@@ -27,6 +29,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="taskDisplayName">Short display name for task tracking (uses task if null)</param>
         public static async Task<(string selectedAgentType, List<Message> WyrmConversation, List<Message>? delegatedConversation, TaskTracker tracker)> RunAsync(
             string provider,
+            KoboldLairConfiguration koboldLairConfig,
             string task,
             AgentOptions? options = null,
             Dictionary<string, string>? config = null,
@@ -54,7 +57,7 @@ namespace DraCode.KoboldLair.Orchestrators
             try
             {
                 // Create and run Wyrm using KoboldLairAgentFactory
-                var wyrm = KoboldLairAgentFactory.Create(provider, options, config, "wyrm");
+                var wyrm = KoboldLairAgentFactory.Create(provider, koboldLairConfig, options, config, "wyrm");
                 if (messageCallback != null)
                 {
                     wyrm.SetMessageCallback(messageCallback);
@@ -100,7 +103,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
 
                 // Create and run the selected specialized agent using KoboldLairAgentFactory
-                var specializedAgent = KoboldLairAgentFactory.Create(provider, options, config, selectedAgentType);
+                var specializedAgent = KoboldLairAgentFactory.Create(provider, koboldLairConfig, options, config, selectedAgentType);
                 if (messageCallback != null)
                 {
                     specializedAgent.SetMessageCallback(messageCallback);
@@ -137,6 +140,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         public static async Task<(List<(string task, string agentType, List<Message>? conversation)> results, TaskTracker tracker)> RunMultipleAsync(
             string provider,
+            KoboldLairConfiguration koboldLairConfig,
             IEnumerable<string> tasks,
             AgentOptions? options = null,
             Dictionary<string, string>? config = null,
@@ -151,6 +155,7 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 var (agentType, _, conversation, _) = await RunAsync(
                     provider,
+                    koboldLairConfig,
                     task,
                     options,
                     config,
@@ -172,6 +177,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         public static async Task<(string? selectedAgentType, string? reasoning)> GetRecommendationAsync(
             string provider,
+            KoboldLairConfiguration koboldLairConfig,
             string task,
             AgentOptions? options = null,
             Dictionary<string, string>? config = null,
@@ -181,7 +187,7 @@ namespace DraCode.KoboldLair.Orchestrators
             
             SelectAgentTool.ClearSelection();
 
-            var wyrm = KoboldLairAgentFactory.Create(provider, options, config, "wyrm");
+            var wyrm = KoboldLairAgentFactory.Create(provider, koboldLairConfig, options, config, "wyrm");
             if (messageCallback != null)
             {
                 wyrm.SetMessageCallback(messageCallback);

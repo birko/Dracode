@@ -1,5 +1,6 @@
 using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
 
@@ -17,12 +18,14 @@ namespace DraCode.KoboldLair.Factories
 
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
+        private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly GitService? _gitService;
         private readonly AgentOptions _defaultOptions;
 
         public WyvernFactory(
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
+            KoboldLairConfiguration koboldLairConfig,
             AgentOptions? defaultOptions = null,
             GitService? gitService = null)
         {
@@ -30,6 +33,7 @@ namespace DraCode.KoboldLair.Factories
             _wyvernProjectIds = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
+            _koboldLairConfig = koboldLairConfig;
             _gitService = gitService;
             _defaultOptions = defaultOptions ?? new AgentOptions { WorkingDirectory = "./workspace", Verbose = false };
         }
@@ -99,7 +103,7 @@ namespace DraCode.KoboldLair.Factories
                     }
                 }
 
-                var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, wyvernOptions, wyvernConfig, "wyvern");
+                var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, _koboldLairConfig, wyvernOptions, wyvernConfig, "wyvern");
 
                 var wyvern = new Wyvern(
                     projectName,

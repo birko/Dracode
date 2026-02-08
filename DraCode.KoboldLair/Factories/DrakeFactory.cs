@@ -1,6 +1,7 @@
 using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
@@ -20,6 +21,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProjectRepository? _projectRepository;
         private readonly GitService? _gitService;
         private readonly ILoggerFactory? _loggerFactory;
+        private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly string _projectsPath;
         private readonly bool _planningEnabled;
         private readonly bool _useEnhancedExecution;
@@ -35,6 +37,7 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="koboldFactory">Kobold factory for creating workers</param>
         /// <param name="providerConfigService">Provider configuration service</param>
         /// <param name="projectConfigService">Project configuration service for parallel limits</param>
+        /// <param name="koboldLairConfig">KoboldLair configuration</param>
         /// <param name="loggerFactory">Optional logger factory for Drake logging</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         /// <param name="projectsPath">Path to projects directory for plan storage</param>
@@ -47,6 +50,7 @@ namespace DraCode.KoboldLair.Factories
             KoboldFactory koboldFactory,
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
+            KoboldLairConfiguration koboldLairConfig,
             ILoggerFactory? loggerFactory = null,
             GitService? gitService = null,
             string projectsPath = "./projects",
@@ -59,6 +63,7 @@ namespace DraCode.KoboldLair.Factories
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
+            _koboldLairConfig = koboldLairConfig;
             _projectRepository = projectRepository;
             _loggerFactory = loggerFactory;
             _gitService = gitService;
@@ -157,8 +162,12 @@ namespace DraCode.KoboldLair.Factories
                     plannerOptions.WorkingDirectory = workspacePath;
                 }
 
-                var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(plannerProvider, plannerConfig);
-                plannerAgent = new KoboldPlannerAgent(llmProvider, plannerOptions);
+                plannerAgent = (KoboldPlannerAgent)KoboldLairAgentFactory.Create(
+                    plannerProvider,
+                    _koboldLairConfig,
+                    plannerOptions,
+                    plannerConfig,
+                    "kobold-planner");
             }
 
             // Create the Drake with all dependencies including plan service

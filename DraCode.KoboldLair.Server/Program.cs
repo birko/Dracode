@@ -46,10 +46,12 @@ builder.Services.AddSingleton<WyvernFactory>(sp =>
 {
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var gitService = sp.GetRequiredService<GitService>();
     return new WyvernFactory(
         providerConfigService,
         projectConfigService,
+        config,
         gitService: gitService
     );
 });
@@ -70,6 +72,7 @@ builder.Services.AddSingleton<KoboldFactory>(sp =>
 {
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
 
     // Use ProjectConfigurationService for max parallel kobolds
     Func<string?, int> getMaxParallel = (projectId) =>
@@ -77,7 +80,7 @@ builder.Services.AddSingleton<KoboldFactory>(sp =>
         return projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty);
     };
 
-    return new KoboldFactory(projectConfigService, loggerFactory, getMaxParallel);
+    return new KoboldFactory(projectConfigService, loggerFactory, config, getMaxParallel);
 });
 builder.Services.AddSingleton<WyrmFactory>(sp =>
 {
@@ -99,6 +102,7 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var allowPlanModifications = config.Planning?.AllowPlanModifications ?? false;
     var autoApproveModifications = config.Planning?.AutoApproveModifications ?? false;
     return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, allowPlanModifications, autoApproveModifications, projectRepository);
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, allowPlanModifications, autoApproveModifications, projectRepository);
 });
 
 // Register services
@@ -107,8 +111,9 @@ builder.Services.AddSingleton<WyrmService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<WyrmService>>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var commandHandler = sp.GetRequiredService<WebSocketCommandHandler>();
-    return new WyrmService(logger, providerConfigService, commandHandler);
+    return new WyrmService(logger, providerConfigService, config, commandHandler);
 });
 builder.Services.AddSingleton<DragonService>(sp =>
 {
