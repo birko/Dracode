@@ -335,6 +335,19 @@ namespace DraCode.KoboldLair.Orchestrators
 
             // Assign the task with description, project, specification context, and structure
             kobold.AssignTask(Guid.Parse(task.Id), task.Task, projectId, specificationContext, projectStructure);
+            
+            // Add dependency context if task has dependencies
+            var dependencyContext = BuildDependencyContext(task.Task);
+            if (!string.IsNullOrEmpty(dependencyContext))
+            {
+                // Append dependency information to specification context
+                var currentContext = kobold.SpecificationContext ?? string.Empty;
+                kobold.UpdateSpecificationContext(currentContext + dependencyContext);
+                
+                _logger?.LogDebug(
+                    "Added dependency context to Kobold {KoboldId} for task {TaskId}",
+                    kobold.Id.ToString()[..8], task.Id.ToString()[..8]);
+            }
 
             // Track the mapping
             _taskToKoboldMap[task.Id] = kobold.Id;
@@ -628,6 +641,18 @@ namespace DraCode.KoboldLair.Orchestrators
                         "  Task: {Task}\n" +
                         "  Agent: {AgentType}",
                         projectInfo, currentBranch ?? "current branch", shortTaskDesc, kobold.AgentType);
+                    
+                    // Track commit SHA and output files for dependency context
+                    var commitSha = await _gitService.GetLastCommitShaAsync(projectFolder);
+                    if (!string.IsNullOrEmpty(commitSha))
+                    {
+                        task.CommitSha = commitSha;
+                        task.OutputFiles = await _gitService.GetFilesFromCommitAsync(projectFolder, commitSha);
+                        
+                        _logger?.LogDebug(
+                            "Tracked {FileCount} output files for task {TaskId} (commit: {CommitSha})",
+                            task.OutputFiles.Count, task.Id.ToString()[..8], commitSha[..8]);
+                    }
                 }
             }
             catch (Exception ex)
@@ -1471,6 +1496,95 @@ namespace DraCode.KoboldLair.Orchestrators
         public List<TaskRecord> GetAllTasks()
         {
             return _taskTracker.GetAllTasks();
+        }
+
+        /// <summary>
+        /// Builds dependency context information from completed dependency tasks.
+        /// Includes task descriptions and files created by each dependency.
+        /// </summary>
+        /// <param name="taskDescription">Task description containing dependency references</param>
+        /// <returns>Formatted context string describing completed dependencies and their outputs</returns>
+        private string BuildDependencyContext(string taskDescription)
+        {
+            var sb = new System.Text.StringBuilder();
+            
+            // Parse dependencies from task description: (depends on: dep1, dep2)
+            var dependsOnMatch = System.Text.RegularExpressions.Regex.Match(
+                taskDescription, @"\(depends on:\s*([^)]+)\)");
+
+            if (!dependsOnMatch.Success)
+            {
+                return string.Empty;
+            }
+
+            var dependencyIds = dependsOnMatch.Groups[1].Value
+                .Split(',')
+                .Select(d => d.Trim())
+                .Where(d => !string.IsNullOrEmpty(d))
+                .ToList();
+
+            if (dependencyIds.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("---");
+            sb.AppendLine();
+            sb.AppendLine("## Completed Dependencies");
+            sb.AppendLine();
+            sb.AppendLine("The following tasks were completed before this one. Reuse their outputs instead of recreating:");
+            sb.AppendLine();
+
+            // Get all tasks to look up dependencies
+            var allTasks = _taskTracker.GetAllTasks();
+
+            foreach (var depId in dependencyIds)
+            {
+                // Find the dependency task by looking for [dep-id] in task description
+                var depTask = allTasks.FirstOrDefault(t =>
+                    t.Task.Contains($"[{depId}]", StringComparison.OrdinalIgnoreCase) &&
+                    t.Status == TaskStatus.Done);
+
+                if (depTask != null)
+                {
+                    // Extract clean task description (remove [id] prefix and dependency info)
+                    var cleanTask = System.Text.RegularExpressions.Regex.Replace(
+                        depTask.Task, @"^\[id:[a-f0-9-]+\]\s*", "");
+                    cleanTask = System.Text.RegularExpressions.Regex.Replace(
+                        cleanTask, @"\s*\(depends on:[^)]+\)\s*", "");
+
+                    sb.AppendLine($"### [{depId}] {cleanTask}");
+                    sb.AppendLine($"- **Agent**: {depTask.AssignedAgent}");
+                    
+                    if (!string.IsNullOrEmpty(depTask.CommitSha))
+                    {
+                        sb.AppendLine($"- **Commit**: {depTask.CommitSha[..Math.Min(8, depTask.CommitSha.Length)]}");
+                    }
+
+                    // List output files if available
+                    if (depTask.OutputFiles.Any())
+                    {
+                        sb.AppendLine("- **Files created/modified**:");
+                        foreach (var file in depTask.OutputFiles.Take(20)) // Limit to avoid overwhelming context
+                        {
+                            sb.AppendLine($"  - `{file}`");
+                        }
+                        if (depTask.OutputFiles.Count > 20)
+                        {
+                            sb.AppendLine($"  - *(and {depTask.OutputFiles.Count - 20} more files)*");
+                        }
+                    }
+                    else
+                    {
+                        sb.AppendLine("- *(No output files tracked)*");
+                    }
+                    
+                    sb.AppendLine();
+                }
+            }
+
+            return sb.ToString();
         }
     }
 }

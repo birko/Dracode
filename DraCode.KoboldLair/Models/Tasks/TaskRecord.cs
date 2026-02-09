@@ -13,5 +13,15 @@ namespace DraCode.KoboldLair.Models.Tasks
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
         public string? ErrorMessage { get; set; }
+        
+        /// <summary>
+        /// Git commit SHA created when task was completed (for tracking output files)
+        /// </summary>
+        public string? CommitSha { get; set; }
+        
+        /// <summary>
+        /// List of files created or modified by this task (extracted from git commit)
+        /// </summary>
+        public List<string> OutputFiles { get; set; } = new();
     }
 }

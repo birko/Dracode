@@ -203,6 +203,43 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Gets the SHA of the last commit on the current branch
+        /// </summary>
+        public async Task<string?> GetLastCommitShaAsync(string projectFolder)
+        {
+            var result = await RunGitCommandAsync(projectFolder, "rev-parse", "HEAD");
+            return result.Success ? result.Output.Trim() : null;
+        }
+
+        /// <summary>
+        /// Gets the list of files that were added or modified in a specific commit
+        /// </summary>
+        public async Task<List<string>> GetFilesFromCommitAsync(string projectFolder, string commitSha)
+        {
+            var files = new List<string>();
+            
+            if (!await IsRepositoryAsync(projectFolder))
+                return files;
+
+            // Use diff-tree to get files from commit
+            // --no-commit-id: suppress commit ID output
+            // --name-only: show only file names
+            // -r: recurse into subdirectories
+            var result = await RunGitCommandAsync(projectFolder, "diff-tree", "--no-commit-id", "--name-only", "-r", commitSha);
+            
+            if (result.Success && !string.IsNullOrWhiteSpace(result.Output))
+            {
+                files = result.Output
+                    .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(f => f.Trim())
+                    .Where(f => !string.IsNullOrEmpty(f))
+                    .ToList();
+            }
+
+            return files;
+        }
+
+        /// <summary>
         /// Gets all branches that are not merged into main
         /// </summary>
         public async Task<List<GitBranch>> GetUnmergedBranchesAsync(string projectFolder)
