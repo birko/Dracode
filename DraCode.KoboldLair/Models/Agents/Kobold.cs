@@ -54,6 +54,11 @@ namespace DraCode.KoboldLair.Models.Agents
         public string? SpecificationContext { get; private set; }
 
         /// <summary>
+        /// Project structure guidelines (naming conventions, directory organization, etc.)
+        /// </summary>
+        public ProjectStructure? ProjectStructure { get; private set; }
+
+        /// <summary>
         /// Current status of this Kobold
         /// </summary>
         public KoboldStatus Status { get; private set; }
@@ -112,7 +117,7 @@ namespace DraCode.KoboldLair.Models.Agents
         /// <param name="taskDescription">Description of the task to execute</param>
         /// <param name="projectId">Project identifier this task belongs to</param>
         /// <param name="specificationContext">Optional specification context for the task</param>
-        public void AssignTask(Guid taskId, string taskDescription, string? projectId = null, string? specificationContext = null)
+        public void AssignTask(Guid taskId, string taskDescription, string? projectId = null, string? specificationContext = null, ProjectStructure? projectStructure = null)
         {
             if (Status != KoboldStatus.Unassigned)
             {
@@ -123,8 +128,24 @@ namespace DraCode.KoboldLair.Models.Agents
             TaskDescription = taskDescription;
             ProjectId = projectId;
             SpecificationContext = specificationContext;
+            ProjectStructure = projectStructure;
             Status = KoboldStatus.Assigned;
             AssignedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Updates the specification context for this Kobold.
+        /// Can be called after plan creation to provide more focused context.
+        /// </summary>
+        /// <param name="specificationContext">New specification context</param>
+        public void UpdateSpecificationContext(string? specificationContext)
+        {
+            if (Status == KoboldStatus.Working)
+            {
+                throw new InvalidOperationException($"Cannot update specification context while Kobold {Id} is working");
+            }
+
+            SpecificationContext = specificationContext;
         }
 
         /// <summary>
@@ -252,7 +273,7 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             // Create new plan using the planner agent
-            var plan = await planner.CreatePlanAsync(TaskDescription, SpecificationContext);
+            var plan = await planner.CreatePlanAsync(TaskDescription, SpecificationContext, ProjectStructure);
             plan.TaskId = taskIdStr;
             plan.ProjectId = ProjectId;
 

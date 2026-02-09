@@ -34,6 +34,8 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly bool _useEnhancedExecution;
         private readonly bool _allowPlanModifications;
         private readonly bool _autoApproveModifications;
+        private readonly bool _filterFilesByPlan;
+        private readonly PlanFileFilterService _fileFilterService;
         private Wyvern? _wyvern;
 
         // Debounced file write support
@@ -67,6 +69,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="useEnhancedExecution">Whether to use Phase 2 enhanced execution with auto-detection (default: true)</param>
         /// <param name="allowPlanModifications">Whether to allow agent-suggested plan modifications (default: false)</param>
         /// <param name="autoApproveModifications">Whether to auto-approve plan modifications (default: false)</param>
+        /// <param name="filterFilesByPlan">Whether to filter file structure by plan requirements (default: true)</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -85,7 +88,8 @@ namespace DraCode.KoboldLair.Orchestrators
             bool? planningEnabled = null,
             bool useEnhancedExecution = true,
             bool allowPlanModifications = false,
-            bool autoApproveModifications = false)
+            bool autoApproveModifications = false,
+            bool filterFilesByPlan = true)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -105,6 +109,8 @@ namespace DraCode.KoboldLair.Orchestrators
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
             _autoApproveModifications = autoApproveModifications;
+            _filterFilesByPlan = filterFilesByPlan && _planningEnabled; // Only filter if planning is enabled
+            _fileFilterService = new PlanFileFilterService(null); // Logger is optional for filter service
             _taskToKoboldMap = new Dictionary<string, Guid>();
 
             // Initialize debounced save channel (bounded to 1 to coalesce writes)
@@ -287,8 +293,11 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
             }
 
-            // Assign the task with description, project, and specification context
-            kobold.AssignTask(Guid.Parse(task.Id), task.Task, projectId, specificationContext);
+            // Extract project structure from Wyvern analysis if available
+            var projectStructure = _wyvern?.Analysis?.Structure;
+
+            // Assign the task with description, project, specification context, and structure
+            kobold.AssignTask(Guid.Parse(task.Id), task.Task, projectId, specificationContext, projectStructure);
 
             // Track the mapping
             _taskToKoboldMap[task.Id] = kobold.Id;
@@ -298,6 +307,113 @@ namespace DraCode.KoboldLair.Orchestrators
             SaveTasksToFile();
 
             return kobold;
+        }
+
+        /// <summary>
+        /// Updates the kobold's specification context with plan-aware file filtering.
+        /// Should be called after the implementation plan is created.
+        /// </summary>
+        /// <param name="kobold">Kobold to update</param>
+        public void UpdateKoboldSpecificationWithPlan(Kobold kobold)
+        {
+            if (!_filterFilesByPlan || kobold.ImplementationPlan == null || _wyvern?.Analysis?.Structure == null)
+            {
+                return; // Nothing to do
+            }
+
+            var structure = _wyvern.Analysis.Structure;
+            if (!structure.ExistingFiles.Any())
+            {
+                return; // No files to filter
+            }
+
+            // Load original specification if available
+            string? baseSpecification = null;
+            if (!string.IsNullOrEmpty(_specificationPath) && File.Exists(_specificationPath))
+            {
+                try
+                {
+                    baseSpecification = File.ReadAllText(_specificationPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Could not reload specification from {Path}", _specificationPath);
+                    return; // Can't update without base spec
+                }
+            }
+
+            // Filter files based on plan
+            var filteredFiles = _fileFilterService.FilterRelevantFiles(structure.ExistingFiles, kobold.ImplementationPlan);
+            
+            _logger?.LogDebug(
+                "Updated file list for kobold {KoboldId} with plan: {OriginalCount} → {FilteredCount} files",
+                kobold.Id.ToString()[..8], structure.ExistingFiles.Count, filteredFiles.Count);
+
+            // Rebuild structure info with filtered files
+            var structureInfo = new System.Text.StringBuilder();
+            
+            structureInfo.AppendLine();
+            structureInfo.AppendLine("---");
+            structureInfo.AppendLine();
+            structureInfo.AppendLine("## Project Structure Context");
+            structureInfo.AppendLine();
+            
+            if (!string.IsNullOrEmpty(structure.ArchitectureNotes))
+            {
+                structureInfo.AppendLine("### Architecture Notes");
+                structureInfo.AppendLine(structure.ArchitectureNotes);
+                structureInfo.AppendLine();
+            }
+            
+            if (structure.DirectoryPurposes.Any())
+            {
+                structureInfo.AppendLine("### Directory Organization");
+                foreach (var kvp in structure.DirectoryPurposes)
+                {
+                    structureInfo.AppendLine($"- `{kvp.Key}`: {kvp.Value}");
+                }
+                structureInfo.AppendLine();
+            }
+            
+            if (structure.FileLocationGuidelines.Any())
+            {
+                structureInfo.AppendLine("### File Location Guidelines");
+                foreach (var kvp in structure.FileLocationGuidelines)
+                {
+                    structureInfo.AppendLine($"- {kvp.Key} files → `{kvp.Value}`");
+                }
+                structureInfo.AppendLine();
+            }
+            
+            if (structure.NamingConventions.Any())
+            {
+                structureInfo.AppendLine("### Naming Conventions");
+                foreach (var kvp in structure.NamingConventions)
+                {
+                    structureInfo.AppendLine($"- {kvp.Key}: {kvp.Value}");
+                }
+                structureInfo.AppendLine();
+            }
+            
+            if (filteredFiles.Any())
+            {
+                structureInfo.AppendLine($"### Relevant Files ({filteredFiles.Count} of {structure.ExistingFiles.Count} total)");
+                structureInfo.AppendLine("*(Filtered to show only files relevant to your implementation plan)*");
+                structureInfo.AppendLine("```");
+                foreach (var file in filteredFiles.Take(50))
+                {
+                    structureInfo.AppendLine(file);
+                }
+                if (filteredFiles.Count > 50)
+                {
+                    structureInfo.AppendLine($"... and {filteredFiles.Count - 50} more files");
+                }
+                structureInfo.AppendLine("```");
+            }
+            
+            // Update kobold's specification context
+            var updatedContext = (baseSpecification ?? "") + structureInfo.ToString();
+            kobold.UpdateSpecificationContext(updatedContext);
         }
 
         /// <summary>
@@ -542,6 +658,9 @@ namespace DraCode.KoboldLair.Orchestrators
                             ? $"📋 Resuming from step {plan.CurrentStepIndex + 1}/{plan.Steps.Count}"
                             : $"📋 Plan ready with {plan.Steps.Count} steps";
                         messageCallback?.Invoke("info", planMsg);
+
+                        // Update kobold specification context with plan-filtered files
+                        UpdateKoboldSpecificationWithPlan(kobold);
                     }
                     catch (Exception ex)
                     {

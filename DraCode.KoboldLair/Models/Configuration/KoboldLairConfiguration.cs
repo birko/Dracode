@@ -141,6 +141,13 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Limited by project's MaxParallelKobolds. (default: 3)
         /// </summary>
         public int MaxParallelSteps { get; set; } = 3;
+
+        /// <summary>
+        /// Whether to filter file structure by plan requirements to reduce context size.
+        /// When enabled, only files mentioned in the plan (plus related files) are included.
+        /// (default: true)
+        /// </summary>
+        public bool FilterFilesByPlan { get; set; } = true;
     }
 
     /// <summary>

@@ -27,6 +27,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly bool _useEnhancedExecution;
         private readonly bool _allowPlanModifications;
         private readonly bool _autoApproveModifications;
+        private readonly bool _filterFilesByPlan;
         private readonly Dictionary<string, Drake> _drakes;
         private readonly Dictionary<string, string?> _drakeProjectIds; // Maps drake name to project ID
         private readonly object _lock = new object();
@@ -45,6 +46,7 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="useEnhancedExecution">Whether to use Phase 2 enhanced execution with auto-detection (default: true)</param>
         /// <param name="allowPlanModifications">Whether to allow agent-suggested plan modifications (default: false)</param>
         /// <param name="autoApproveModifications">Whether to auto-approve plan modifications (default: false)</param>
+        /// <param name="filterFilesByPlan">Whether to filter file structure by plan requirements (default: true)</param>
         /// <param name="projectRepository">Optional project repository for resolving project paths</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
@@ -58,6 +60,7 @@ namespace DraCode.KoboldLair.Factories
             bool useEnhancedExecution = true,
             bool allowPlanModifications = false,
             bool autoApproveModifications = false,
+            bool filterFilesByPlan = true,
             ProjectRepository? projectRepository = null)
         {
             _koboldFactory = koboldFactory;
@@ -72,6 +75,7 @@ namespace DraCode.KoboldLair.Factories
             _useEnhancedExecution = useEnhancedExecution;
             _allowPlanModifications = allowPlanModifications;
             _autoApproveModifications = autoApproveModifications;
+            _filterFilesByPlan = filterFilesByPlan;
             _drakes = new Dictionary<string, Drake>();
             _drakeProjectIds = new Dictionary<string, string?>();
         }
@@ -189,7 +193,8 @@ namespace DraCode.KoboldLair.Factories
                 _planningEnabled,
                 _useEnhancedExecution,
                 _allowPlanModifications,
-                _autoApproveModifications
+                _autoApproveModifications,
+                _filterFilesByPlan
             );
 
             // Lock only for dictionary insertion, with race condition check

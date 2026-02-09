@@ -101,8 +101,8 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var useEnhancedExecution = config.Planning?.UseEnhancedExecution ?? true;
     var allowPlanModifications = config.Planning?.AllowPlanModifications ?? false;
     var autoApproveModifications = config.Planning?.AutoApproveModifications ?? false;
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, allowPlanModifications, autoApproveModifications, projectRepository);
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, allowPlanModifications, autoApproveModifications, projectRepository);
+    var filterFilesByPlan = config.Planning?.FilterFilesByPlan ?? true;
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, allowPlanModifications, autoApproveModifications, filterFilesByPlan, projectRepository);
 });
 
 // Register services

@@ -404,12 +404,29 @@ namespace DraCode.KoboldLair.Orchestrators
 
         /// <summary>
         /// Analyzes project structure using LLM to extract conventions and guidelines.
+        /// If no existing files, uses the structure proposed by Wyvern analysis.
         /// </summary>
-        private async Task<ProjectStructure> AnalyzeProjectStructureAsync(ProjectStructure scannedStructure, string specificationContent)
+        private async Task<ProjectStructure> AnalyzeProjectStructureAsync(ProjectStructure scannedStructure, string specificationContent, ProjectStructure? proposedStructure = null)
         {
+            // If we have a proposed structure from Wyvern analysis, use it as the base
+            if (proposedStructure != null)
+            {
+                // For new projects with no files, use the proposed structure directly
+                if (!scannedStructure.ExistingFiles.Any())
+                {
+                    return proposedStructure;
+                }
+
+                // For existing projects, merge proposed with scanned
+                // Scanned files take precedence, but we keep proposed guidelines
+                proposedStructure.ExistingFiles = scannedStructure.ExistingFiles;
+                return proposedStructure;
+            }
+
+            // Fallback: No proposed structure, scan existing files if available
             if (!scannedStructure.ExistingFiles.Any())
             {
-                // No files yet - return basic structure
+                // No files yet and no proposed structure - return basic structure
                 return scannedStructure;
             }
 
@@ -515,9 +532,12 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 _analysis.AnalyzedAt = DateTime.UtcNow;
                 _analysis.SpecificationPath = _specificationPath;
 
+                // Extract proposed structure from analysis if available
+                var proposedStructure = _analysis.Structure;
+
                 // Scan and analyze project structure
                 var scannedStructure = ScanWorkspaceStructure();
-                _analysis.Structure = await AnalyzeProjectStructureAsync(scannedStructure, specContent);
+                _analysis.Structure = await AnalyzeProjectStructureAsync(scannedStructure, specContent, proposedStructure);
 
                 // Link features to analysis
                 if (_specification != null)
