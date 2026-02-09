@@ -17,6 +17,7 @@ namespace DraCode.KoboldLair.Models.Agents
     {
         private readonly ILogger<Kobold>? _logger;
         private readonly StepValidationService _validationService;
+        private SharedPlanningContextService? _sharedPlanningContext;
 
         /// <summary>
         /// Unique identifier for this Kobold
@@ -108,6 +109,14 @@ namespace DraCode.KoboldLair.Models.Agents
             
             _logger?.LogInformation("Kobold {KoboldId} created with agent type {AgentType} at {CreatedAt:o}", 
                 Id.ToString()[..8], agentType, CreatedAt);
+        }
+
+        /// <summary>
+        /// Sets the shared planning context service for workspace awareness
+        /// </summary>
+        public void SetSharedPlanningContext(SharedPlanningContextService? sharedPlanningContext)
+        {
+            _sharedPlanningContext = sharedPlanningContext;
         }
 
         /// <summary>
@@ -247,10 +256,12 @@ You are working on a task that is part of a larger project. Below is the project
         /// </summary>
         /// <param name="planService">Service for plan persistence</param>
         /// <param name="planner">Planner agent for creating new plans</param>
+        /// <param name="sharedPlanningContext">Optional shared planning context for workspace awareness</param>
         /// <returns>The loaded or created implementation plan</returns>
         public async Task<KoboldImplementationPlan> EnsurePlanAsync(
             KoboldPlanService planService,
-            KoboldPlannerAgent planner)
+            KoboldPlannerAgent planner,
+            SharedPlanningContextService? sharedPlanningContext = null)
         {
             if (string.IsNullOrEmpty(ProjectId) || !TaskId.HasValue)
             {
@@ -272,8 +283,52 @@ You are working on a task that is part of a larger project. Below is the project
                 return existing;
             }
 
-            // Create new plan using the planner agent
-            var plan = await planner.CreatePlanAsync(TaskDescription, SpecificationContext, ProjectStructure);
+            // Gather workspace state for planning
+            List<string>? workspaceFiles = null;
+            HashSet<string>? filesInUse = null;
+            Dictionary<string, string>? fileMetadata = null;
+
+            try
+            {
+                // Get list of existing files in workspace
+                var workspacePath = Agent.Options.WorkingDirectory;
+                if (Directory.Exists(workspacePath))
+                {
+                    workspaceFiles = Directory.GetFiles(workspacePath, "*.*", SearchOption.AllDirectories)
+                        .Select(f => Path.GetRelativePath(workspacePath, f).Replace('\\', '/'))
+                        .Where(f => !f.StartsWith(".git/") && !f.StartsWith("bin/") && !f.StartsWith("obj/") && !f.StartsWith("node_modules/"))
+                        .ToList();
+                }
+
+                // Get files currently being worked on by other agents
+                if (sharedPlanningContext != null && !string.IsNullOrEmpty(ProjectId))
+                {
+                    filesInUse = await sharedPlanningContext.GetFilesInUseAsync(ProjectId);
+                    
+                    // Get file metadata with purposes
+                    var metadataDict = await sharedPlanningContext.GetFileMetadataAsync(ProjectId);
+                    fileMetadata = metadataDict.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => string.IsNullOrWhiteSpace(kvp.Value.Purpose) 
+                            ? $"{kvp.Value.Category} file" 
+                            : kvp.Value.Purpose
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to gather workspace state for planning, proceeding without it");
+            }
+
+            // Create new plan using the planner agent with workspace awareness
+            var plan = await planner.CreatePlanAsync(
+                TaskDescription, 
+                SpecificationContext, 
+                ProjectStructure, 
+                workspaceFiles, 
+                filesInUse,
+                fileMetadata);
+            
             plan.TaskId = taskIdStr;
             plan.ProjectId = ProjectId;
 
@@ -324,7 +379,7 @@ You are working on a task that is part of a larger project. Below is the project
             try
             {
                 // Build the full task prompt with plan context if available
-                var fullTaskPrompt = BuildFullPromptWithPlan();
+                var fullTaskPrompt = await BuildFullPromptWithPlanAsync(sharedPlanningContext: _sharedPlanningContext);
 
                 // Update plan status
                 if (ImplementationPlan != null)
@@ -514,7 +569,7 @@ You are working on a task that is part of a larger project. Below is the project
             try
             {
                 // Build the full task prompt with plan context
-                var fullTaskPrompt = BuildFullPromptWithPlan();
+                var fullTaskPrompt = await BuildFullPromptWithPlanAsync(sharedPlanningContext: _sharedPlanningContext);
 
                 // Update plan status
                 ImplementationPlan.Status = PlanStatus.InProgress;
@@ -879,7 +934,11 @@ You are working on a task that is part of a larger project. Below is the project
         /// </summary>
         /// <param name="useProgressiveReveal">Whether to use progressive detail reveal (default: true)</param>
         /// <param name="mediumDetailCount">Number of upcoming steps to show medium details for (default: 2)</param>
-        private string BuildFullPromptWithPlan(bool useProgressiveReveal = true, int mediumDetailCount = 2)
+        /// <param name="sharedPlanningContext">Optional shared planning context for workspace awareness</param>
+        private async Task<string> BuildFullPromptWithPlanAsync(
+            bool useProgressiveReveal = true, 
+            int mediumDetailCount = 2,
+            SharedPlanningContextService? sharedPlanningContext = null)
         {
             var sb = new System.Text.StringBuilder();
 
@@ -887,6 +946,9 @@ You are working on a task that is part of a larger project. Below is the project
             sb.AppendLine();
             sb.AppendLine("You are working on a task that is part of a larger project.");
             sb.AppendLine();
+
+            // Add workspace state section - CRITICAL for execution context
+            await AppendWorkspaceStateAsync(sb, sharedPlanningContext);
 
             // Add specification context if available
             if (!string.IsNullOrEmpty(SpecificationContext))
@@ -1065,6 +1127,136 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Appends workspace state information to the prompt
+        /// </summary>
+        private async Task AppendWorkspaceStateAsync(System.Text.StringBuilder sb, SharedPlanningContextService? sharedPlanningContext)
+        {
+            sb.AppendLine("## Workspace State");
+            sb.AppendLine();
+
+            try
+            {
+                var workspacePath = Agent.Options.WorkingDirectory;
+                if (!Directory.Exists(workspacePath))
+                {
+                    sb.AppendLine("Workspace directory does not exist yet. You will be creating it.");
+                    sb.AppendLine();
+                    sb.AppendLine("---");
+                    sb.AppendLine();
+                    return;
+                }
+
+                // Get existing files
+                var files = Directory.GetFiles(workspacePath, "*.*", SearchOption.AllDirectories)
+                    .Select(f => Path.GetRelativePath(workspacePath, f).Replace('\\', '/'))
+                    .Where(f => !f.StartsWith(".git/") && 
+                               !f.StartsWith("bin/") && 
+                               !f.StartsWith("obj/") && 
+                               !f.StartsWith("node_modules/") &&
+                               !f.StartsWith(".vs/"))
+                    .ToList();
+
+                if (!files.Any())
+                {
+                    sb.AppendLine("The workspace is currently empty.");
+                    sb.AppendLine();
+                }
+                else
+                {
+                    // Get files in use by other agents
+                    HashSet<string>? filesInUse = null;
+                    Dictionary<string, FileMetadata>? fileMetadata = null;
+                    
+                    if (sharedPlanningContext != null && !string.IsNullOrEmpty(ProjectId))
+                    {
+                        filesInUse = await sharedPlanningContext.GetFilesInUseAsync(ProjectId);
+                        fileMetadata = await sharedPlanningContext.GetFileMetadataAsync(ProjectId);
+                    }
+
+                    sb.AppendLine("**Existing files in workspace:**");
+                    sb.AppendLine();
+
+                    // Categorize by type
+                    var filesByCategory = files
+                        .GroupBy(f => GetFileCategoryForDisplay(f))
+                        .OrderBy(g => g.Key);
+
+                    foreach (var category in filesByCategory)
+                    {
+                        sb.AppendLine($"**{category.Key}:**");
+                        foreach (var file in category.OrderBy(f => f))
+                        {
+                            var inUseMarker = filesInUse != null && filesInUse.Contains(file) ? " 🔒 (being modified by another agent)" : "";
+                            
+                            // Add file purpose if available
+                            var purpose = "";
+                            if (fileMetadata != null && fileMetadata.TryGetValue(file, out var meta))
+                            {
+                                if (!string.IsNullOrWhiteSpace(meta.Purpose))
+                                {
+                                    var purposeText = meta.Purpose.Length > 100 
+                                        ? meta.Purpose.Substring(0, 100) + "..." 
+                                        : meta.Purpose;
+                                    purpose = $"\n  Purpose: {purposeText}";
+                                }
+                            }
+                            
+                            sb.AppendLine($"- {file}{inUseMarker}{purpose}");
+                        }
+                        sb.AppendLine();
+                    }
+
+                    sb.AppendLine("**IMPORTANT**: ");
+                    sb.AppendLine("- Files listed above ALREADY EXIST - use `edit_file` or check with `read_file` first");
+                    sb.AppendLine("- Files marked 🔒 are currently being worked on - avoid modifying them to prevent conflicts");
+                    sb.AppendLine("- Check the plan's `filesToCreate` vs `filesToModify` to know which operation to use");
+                    sb.AppendLine("- Consider each file's purpose when deciding how to modify it");
+                    sb.AppendLine("- Before using `write_file`, verify the file doesn't exist above");
+                    sb.AppendLine();
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"⚠️ Could not read workspace state: {ex.Message}");
+                sb.AppendLine("Proceed with caution - use list_files tool to check before creating files.");
+                sb.AppendLine();
+                _logger?.LogWarning(ex, "Failed to build workspace state for Kobold {KoboldId}", Id.ToString()[..8]);
+            }
+
+            sb.AppendLine("---");
+            sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Categorizes a file by its type for display in prompts
+        /// </summary>
+        private string GetFileCategoryForDisplay(string filePath)
+        {
+            var ext = Path.GetExtension(filePath).ToLowerInvariant();
+            return ext switch
+            {
+                ".cs" => "C# Source Files",
+                ".csproj" => "Project Files",
+                ".sln" or ".slnx" => "Solution Files",
+                ".json" => "Configuration Files",
+                ".js" or ".ts" => "JavaScript/TypeScript",
+                ".jsx" or ".tsx" => "React Components",
+                ".css" or ".scss" or ".sass" => "Stylesheets",
+                ".html" or ".htm" => "HTML Files",
+                ".md" => "Documentation",
+                ".xml" => "XML Files",
+                ".yml" or ".yaml" => "YAML Configuration",
+                ".txt" => "Text Files",
+                ".py" => "Python Files",
+                ".java" => "Java Files",
+                ".cpp" or ".hpp" or ".h" or ".c" => "C/C++ Files",
+                ".go" => "Go Files",
+                ".rs" => "Rust Files",
+                _ => "Other Files"
+            };
         }
 
         /// <summary>

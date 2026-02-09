@@ -220,6 +220,104 @@ public class SharedPlanningContextService
         return filesInUse;
     }
 
+    /// <summary>
+    /// Gets file metadata with purposes for workspace context
+    /// </summary>
+    public async Task<Dictionary<string, FileMetadata>> GetFileMetadataAsync(string projectId)
+    {
+        var projectContext = await GetProjectContextAsync(projectId);
+        return projectContext.FileRegistry.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+    }
+
+    /// <summary>
+    /// Updates file metadata when a file is created or modified
+    /// </summary>
+    public async Task UpdateFileMetadataAsync(
+        string projectId,
+        string filePath,
+        string purpose,
+        string taskId,
+        bool isCreation)
+    {
+        var projectContext = await GetProjectContextAsync(projectId);
+        
+        if (!projectContext.FileRegistry.TryGetValue(filePath, out var metadata))
+        {
+            metadata = new FileMetadata
+            {
+                FilePath = filePath,
+                Purpose = purpose,
+                Category = GetFileCategoryFromPath(filePath),
+                FirstCreated = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow
+            };
+            projectContext.FileRegistry[filePath] = metadata;
+        }
+        else
+        {
+            // Update existing metadata
+            if (!string.IsNullOrWhiteSpace(purpose))
+            {
+                metadata.Purpose = purpose;
+            }
+            metadata.LastModified = DateTime.UtcNow;
+        }
+
+        // Track which tasks touched this file
+        if (isCreation && !metadata.CreatedByTasks.Contains(taskId))
+        {
+            metadata.CreatedByTasks.Add(taskId);
+        }
+        else if (!isCreation && !metadata.ModifiedByTasks.Contains(taskId))
+        {
+            metadata.ModifiedByTasks.Add(taskId);
+        }
+
+        await PersistProjectContextAsync(projectId);
+    }
+
+    /// <summary>
+    /// Extracts or infers file purpose from plan steps
+    /// </summary>
+    public string InferFilePurpose(string filePath, KoboldImplementationPlan? plan)
+    {
+        if (plan == null) return "Unknown purpose";
+
+        // Look through steps to find descriptions mentioning this file
+        foreach (var step in plan.Steps)
+        {
+            if (step.FilesToCreate.Contains(filePath) || step.FilesToModify.Contains(filePath))
+            {
+                // Use step description as purpose
+                return step.Description.Length > 200 
+                    ? step.Description.Substring(0, 200) + "..."
+                    : step.Description;
+            }
+        }
+
+        // Fallback to file name analysis
+        var fileName = Path.GetFileNameWithoutExtension(filePath);
+        return $"{fileName} - {GetFileCategoryFromPath(filePath)}";
+    }
+
+    private string GetFileCategoryFromPath(string filePath)
+    {
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        return ext switch
+        {
+            ".cs" => "C# Source",
+            ".csproj" => "Project File",
+            ".sln" or ".slnx" => "Solution",
+            ".json" => "Configuration",
+            ".js" or ".ts" => "JavaScript/TypeScript",
+            ".jsx" or ".tsx" => "React Component",
+            ".css" or ".scss" or ".sass" => "Stylesheet",
+            ".html" or ".htm" => "HTML",
+            ".md" => "Documentation",
+            _ => "File"
+        };
+    }
+
     #endregion
 
     #region Learning & Insights
@@ -253,6 +351,35 @@ public class SharedPlanningContextService
 
         var projectContext = await GetProjectContextAsync(agentContext.ProjectId);
         projectContext.Insights.Add(insight);
+
+        // Update file metadata from completed plan
+        if (agentContext.Success && plan.Status == PlanStatus.Completed)
+        {
+            foreach (var step in plan.Steps.Where(s => s.Status == StepStatus.Completed))
+            {
+                // Record created files
+                foreach (var file in step.FilesToCreate)
+                {
+                    await UpdateFileMetadataAsync(
+                        agentContext.ProjectId,
+                        file,
+                        step.Description,
+                        agentContext.TaskId,
+                        isCreation: true);
+                }
+
+                // Record modified files
+                foreach (var file in step.FilesToModify)
+                {
+                    await UpdateFileMetadataAsync(
+                        agentContext.ProjectId,
+                        file,
+                        step.Description,
+                        agentContext.TaskId,
+                        isCreation: false);
+                }
+            }
+        }
 
         // Trim insights if too many
         if (projectContext.Insights.Count > MaxInsightsPerProject)
@@ -529,6 +656,23 @@ public class ProjectPlanningContext
     public int FailedTasksCount { get; set; }
     public ConcurrentDictionary<string, string> ActiveAgents { get; set; } = new();
     public List<PlanningInsight> Insights { get; set; } = new();
+    public ConcurrentDictionary<string, FileMetadata> FileRegistry { get; set; } = new();
+}
+
+/// <summary>
+/// Metadata about a file in the workspace
+/// </summary>
+public class FileMetadata
+{
+    public string FilePath { get; set; } = string.Empty;
+    public string Purpose { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public DateTime FirstCreated { get; set; }
+    public DateTime LastModified { get; set; }
+    public List<string> CreatedByTasks { get; set; } = new();
+    public List<string> ModifiedByTasks { get; set; } = new();
+    public string? LastKnownContent { get; set; }
+    public int LineCount { get; set; }
 }
 
 /// <summary>

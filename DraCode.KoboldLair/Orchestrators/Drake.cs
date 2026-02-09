@@ -257,6 +257,12 @@ namespace DraCode.KoboldLair.Orchestrators
                 _defaultConfig
             );
 
+            // Set shared planning context for workspace awareness
+            if (_sharedPlanningContext != null)
+            {
+                kobold.SetSharedPlanningContext(_sharedPlanningContext);
+            }
+
             // Register with shared planning context if available
             if (!string.IsNullOrEmpty(projectId) && _sharedPlanningContext != null)
             {
@@ -750,7 +756,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     try
                     {
                         messageCallback?.Invoke("info", $"📋 Creating implementation plan for task {task.Id.ToString()[..8]}...");
-                        var plan = await kobold.EnsurePlanAsync(_planService, _plannerAgent);
+                        var plan = await kobold.EnsurePlanAsync(_planService, _plannerAgent, _sharedPlanningContext);
                         var isResume = plan.CurrentStepIndex > 0;
                         var planMsg = isResume
                             ? $"📋 Resuming from step {plan.CurrentStepIndex + 1}/{plan.Steps.Count}"

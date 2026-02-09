@@ -87,19 +87,25 @@ After analyzing the task, use the create_implementation_plan tool to output your
         /// <param name="taskDescription">The task to plan</param>
         /// <param name="specificationContext">Optional project specification for context</param>
         /// <param name="projectStructure">Optional project structure with file organization guidelines</param>
+        /// <param name="workspaceFiles">List of files already in workspace</param>
+        /// <param name="filesInUse">Files currently being worked on by other agents</param>
+        /// <param name="fileMetadata">Metadata about files including their purposes</param>
         /// <param name="maxIterations">Maximum iterations for plan generation</param>
         /// <returns>The generated implementation plan</returns>
         public async Task<KoboldImplementationPlan> CreatePlanAsync(
             string taskDescription,
             string? specificationContext = null,
             ProjectStructure? projectStructure = null,
+            List<string>? workspaceFiles = null,
+            HashSet<string>? filesInUse = null,
+            Dictionary<string, string>? fileMetadata = null,
             int maxIterations = 5)
         {
             // Clear any previous plan
             CreateImplementationPlanTool.ClearLastPlan();
 
             // Build the prompt
-            var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure);
+            var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure, workspaceFiles, filesInUse, fileMetadata);
 
             // Run the agent to generate the plan
             await RunAsync(prompt, maxIterations);
@@ -136,10 +142,69 @@ After analyzing the task, use the create_implementation_plan tool to output your
             return plan;
         }
 
-        private string BuildPlanningPrompt(string taskDescription, string? specificationContext, ProjectStructure? projectStructure)
+        private string BuildPlanningPrompt(
+            string taskDescription, 
+            string? specificationContext, 
+            ProjectStructure? projectStructure,
+            List<string>? workspaceFiles,
+            HashSet<string>? filesInUse,
+            Dictionary<string, string>? fileMetadata)
         {
             var prompt = new System.Text.StringBuilder();
             prompt.AppendLine("Please create an implementation plan for the following task.");
+            prompt.AppendLine();
+
+            // Add workspace state - CRITICAL for correct planning
+            if (workspaceFiles != null && workspaceFiles.Any())
+            {
+                prompt.AppendLine("## Workspace State");
+                prompt.AppendLine();
+                prompt.AppendLine("The following files already exist in the workspace:");
+                prompt.AppendLine();
+
+                // Categorize files by extension for better readability
+                var filesByCategory = workspaceFiles
+                    .GroupBy(f => GetFileCategory(f))
+                    .OrderBy(g => g.Key);
+
+                foreach (var category in filesByCategory)
+                {
+                    prompt.AppendLine($"**{category.Key}:**");
+                    foreach (var file in category.OrderBy(f => f))
+                    {
+                        // Mark files currently in use
+                        var inUseMarker = filesInUse != null && filesInUse.Contains(file) ? " ⚠️ (in use)" : "";
+                        
+                        // Add file purpose if available
+                        var purpose = "";
+                        if (fileMetadata != null && fileMetadata.TryGetValue(file, out var filePurpose))
+                        {
+                            purpose = $" - {filePurpose}";
+                        }
+                        
+                        prompt.AppendLine($"- {file}{inUseMarker}{purpose}");
+                    }
+                    prompt.AppendLine();
+                }
+
+                prompt.AppendLine("**CRITICAL**: When creating your plan:");
+                prompt.AppendLine("- Files listed above already EXIST - mark them in `filesToModify`, NOT `filesToCreate`");
+                prompt.AppendLine("- Only put files that DON'T exist in `filesToCreate`");
+                prompt.AppendLine("- Files marked ⚠️ are being worked on by other agents - avoid if possible");
+                prompt.AppendLine("- Consider each file's purpose when deciding which to modify");
+                prompt.AppendLine();
+                prompt.AppendLine("---");
+                prompt.AppendLine();
+            }
+            else
+            {
+                prompt.AppendLine("## Workspace State");
+                prompt.AppendLine();
+                prompt.AppendLine("The workspace is currently empty. All files you specify will need to be created.");
+                prompt.AppendLine();
+                prompt.AppendLine("---");
+                prompt.AppendLine();
+            }
 
             // Add project structure guidance if available
             if (projectStructure != null)
@@ -214,6 +279,35 @@ After analyzing the task, use the create_implementation_plan tool to output your
             }
 
             return prompt.ToString();
+        }
+
+        /// <summary>
+        /// Categorizes a file by its type for better display
+        /// </summary>
+        private string GetFileCategory(string filePath)
+        {
+            var ext = Path.GetExtension(filePath).ToLowerInvariant();
+            return ext switch
+            {
+                ".cs" => "C# Source Files",
+                ".csproj" => "Project Files",
+                ".sln" or ".slnx" => "Solution Files",
+                ".json" => "Configuration Files",
+                ".js" or ".ts" => "JavaScript/TypeScript",
+                ".jsx" or ".tsx" => "React Components",
+                ".css" or ".scss" or ".sass" => "Stylesheets",
+                ".html" or ".htm" => "HTML Files",
+                ".md" => "Documentation",
+                ".xml" => "XML Files",
+                ".yml" or ".yaml" => "YAML Configuration",
+                ".txt" => "Text Files",
+                ".py" => "Python Files",
+                ".java" => "Java Files",
+                ".cpp" or ".hpp" or ".h" or ".c" => "C/C++ Files",
+                ".go" => "Go Files",
+                ".rs" => "Rust Files",
+                _ => "Other Files"
+            };
         }
     }
 }
