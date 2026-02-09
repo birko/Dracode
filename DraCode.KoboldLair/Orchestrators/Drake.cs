@@ -32,6 +32,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly KoboldPlanService? _planService;
         private readonly KoboldPlannerAgent? _plannerAgent;
         private readonly ProviderCircuitBreaker? _circuitBreaker;
+        private readonly SharedPlanningContextService? _sharedPlanningContext;
         private readonly bool _planningEnabled;
         private readonly bool _useEnhancedExecution;
         private readonly bool _allowPlanModifications;
@@ -74,6 +75,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="allowPlanModifications">Whether to allow agent-suggested plan modifications (default: false)</param>
         /// <param name="autoApproveModifications">Whether to auto-approve plan modifications (default: false)</param>
         /// <param name="filterFilesByPlan">Whether to filter file structure by plan requirements (default: true)</param>
+        /// <param name="sharedPlanningContext">Optional shared planning context service for cross-agent coordination</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -94,7 +96,8 @@ namespace DraCode.KoboldLair.Orchestrators
             bool useEnhancedExecution = true,
             bool allowPlanModifications = false,
             bool autoApproveModifications = false,
-            bool filterFilesByPlan = true)
+            bool filterFilesByPlan = true,
+            SharedPlanningContextService? sharedPlanningContext = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -111,6 +114,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _planService = planService;
             _plannerAgent = plannerAgent;
             _circuitBreaker = circuitBreaker;
+            _sharedPlanningContext = sharedPlanningContext;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
@@ -252,6 +256,12 @@ namespace DraCode.KoboldLair.Orchestrators
                 effectiveOptions,
                 _defaultConfig
             );
+
+            // Register with shared planning context if available
+            if (!string.IsNullOrEmpty(projectId) && _sharedPlanningContext != null)
+            {
+                _ = _sharedPlanningContext.RegisterAgentAsync(kobold.Id.ToString(), projectId, task.Id.ToString(), agentType);
+            }
 
             // Load specification context if available
             string? specificationContext = null;
@@ -570,6 +580,16 @@ namespace DraCode.KoboldLair.Orchestrators
 
             // Update task with WAL logging for crash safety
             await UpdateTaskWithWalAsync(task, taskStatus, task.AssignedAgent, kobold.HasError ? (kobold.ErrorMessage ?? "Unknown error") : null);
+
+            // Unregister agent from shared planning context when done or failed
+            if ((taskStatus == TaskStatus.Done || taskStatus == TaskStatus.Failed) && 
+                !string.IsNullOrEmpty(_projectId) && _sharedPlanningContext != null)
+            {
+                _ = _sharedPlanningContext.UnregisterAgentAsync(
+                    kobold.Id.ToString(), 
+                    taskStatus == TaskStatus.Done, 
+                    kobold.ErrorMessage);
+            }
 
             // Report failure to circuit breaker
             if (taskStatus == TaskStatus.Failed && !string.IsNullOrWhiteSpace(task.Provider))

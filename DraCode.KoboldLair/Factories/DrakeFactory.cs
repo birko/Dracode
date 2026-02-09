@@ -21,6 +21,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProjectRepository? _projectRepository;
         private readonly GitService? _gitService;
         private readonly ProviderCircuitBreaker? _circuitBreaker;
+        private readonly SharedPlanningContextService? _sharedPlanningContext;
         private readonly ILoggerFactory? _loggerFactory;
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly string _projectsPath;
@@ -44,6 +45,7 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         /// <param name="projectRepository">Optional project repository for resolving project paths</param>
         /// <param name="circuitBreaker">Optional circuit breaker for provider failure tracking</param>
+        /// <param name="sharedPlanningContext">Optional shared planning context service for cross-agent coordination</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
             ProviderConfigurationService providerConfigService,
@@ -52,7 +54,8 @@ namespace DraCode.KoboldLair.Factories
             ILoggerFactory? loggerFactory = null,
             GitService? gitService = null,
             ProjectRepository? projectRepository = null,
-            ProviderCircuitBreaker? circuitBreaker = null)
+            ProviderCircuitBreaker? circuitBreaker = null,
+            SharedPlanningContextService? sharedPlanningContext = null)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
@@ -62,6 +65,7 @@ namespace DraCode.KoboldLair.Factories
             _loggerFactory = loggerFactory;
             _gitService = gitService;
             _circuitBreaker = circuitBreaker;
+            _sharedPlanningContext = sharedPlanningContext;
             
             // Extract configuration values from koboldLairConfig
             _projectsPath = koboldLairConfig.ProjectsPath ?? "./projects";
@@ -190,7 +194,8 @@ namespace DraCode.KoboldLair.Factories
                 _useEnhancedExecution,
                 _allowPlanModifications,
                 _autoApproveModifications,
-                _filterFilesByPlan
+                _filterFilesByPlan,
+                _sharedPlanningContext
             );
 
             // Lock only for dictionary insertion, with race condition check

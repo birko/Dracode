@@ -44,6 +44,25 @@ builder.Services.AddSingleton<ProjectRepository>(sp =>
     return new ProjectRepository(config.ProjectsPath ?? "./projects", logger);
 });
 
+// Register plan service for implementation plan persistence
+builder.Services.AddSingleton<KoboldPlanService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<KoboldPlanService>>();
+    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    return new KoboldPlanService(config.ProjectsPath ?? "./projects", logger, projectRepository);
+});
+
+// Register shared planning context service for cross-agent coordination
+builder.Services.AddSingleton<SharedPlanningContextService>(sp =>
+{
+    var planService = sp.GetRequiredService<KoboldPlanService>();
+    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var logger = sp.GetRequiredService<ILogger<SharedPlanningContextService>>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    return new SharedPlanningContextService(config.ProjectsPath ?? "./projects", planService, projectRepository, logger);
+});
+
 builder.Services.AddSingleton<WyvernFactory>(sp =>
 {
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
@@ -93,8 +112,9 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
     var gitService = sp.GetRequiredService<GitService>();
     var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
+    var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository, circuitBreaker);
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext);
 });
 
 // Register services
@@ -215,6 +235,26 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation("Configuration initialization complete");
     }
 }
+
+// Register shutdown hook to persist shared planning contexts
+var appLifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+appLifetime.ApplicationStopping.Register(() =>
+{
+    using var scope = app.Services.CreateScope();
+    var sharedPlanningContext = scope.ServiceProvider.GetRequiredService<SharedPlanningContextService>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    try
+    {
+        logger.LogInformation("Persisting shared planning contexts on shutdown...");
+        sharedPlanningContext.PersistAllContextsAsync().GetAwaiter().GetResult();
+        logger.LogInformation("Shared planning contexts persisted successfully");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to persist shared planning contexts on shutdown");
+    }
+});
 
 app.MapDefaultEndpoints();
 

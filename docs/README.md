@@ -76,6 +76,11 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
         tasks/                        # Task files subdirectory
             {area}-tasks.md           # Task files (e.g., backend-tasks.md)
         workspace/                    # Generated code output
+        kobold-plans/                 # Implementation plans (NEW)
+            {plan-filename}-plan.json # Machine-readable plan
+            {plan-filename}-plan.md   # Human-readable plan
+            plan-index.json           # Plan lookup index
+        planning-context.json         # Shared planning context (NEW - 2026-02-09)
 ```
 
 ---
@@ -88,6 +93,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
 - **[Agent Options](AGENT_OPTIONS.md)** - Agent configuration options
 - **[New Agent Types](NEW_AGENT_TYPES.md)** - PHP, Python, SVG, Bitmap, and Media agents
 - **[Plan Status Tracking](Plan-Status-Tracking.md)** - Implementation plan status management
+- **[Shared Planning Context Service](SharedPlanningContextService.md)** - Cross-agent coordination and learning (NEW - 2026-02-09)
 - **[Background Services](Background-Services.md)** - Overview of all background services and their intervals
 
 ### Architecture

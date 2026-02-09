@@ -159,6 +159,25 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `create_implementation_plan` - Creates structured plans with atomic steps
 
+### Shared Planning Context Service (NEW - 2026-02-09)
+
+Located in `DraCode.KoboldLair/Services/`:
+- `SharedPlanningContextService` - Comprehensive cross-agent coordination and learning system
+  - **Multi-Agent Coordination**: Tracks active agents, detects file conflicts, finds related plans
+  - **Drake Supervisor Support**: Agent lifecycle management, activity monitoring, project statistics
+  - **Cross-Project Learning**: Records task metrics, analyzes patterns, provides insights
+  - **Thread-Safe Design**: Concurrent dictionaries, file locking, LRU cache (max 50 projects)
+  - **Persistence**: Auto-saves to `planning-context.json` per project on agent completion + shutdown
+  - **Key Methods**:
+    - `RegisterAgentAsync` / `UnregisterAgentAsync` - Lifecycle management
+    - `IsFileInUseAsync` / `GetFilesInUseAsync` - File conflict detection
+    - `GetRelatedPlansAsync` - Find plans touching similar files
+    - `GetSimilarTaskInsightsAsync` - Learn from past executions (duration, steps, iterations)
+    - `GetProjectStatisticsAsync` - Aggregate metrics (success rate, avg duration, active agents)
+    - `GetCrossProjectInsightsAsync` - Learn from other projects
+    - `GetBestPracticesAsync` - Extract patterns by agent type
+  - **Documentation**: `docs/SharedPlanningContextService.md`
+
 ## Key Technical Details
 
 - **.NET 10.0**, C# 14.0, nullable reference types enabled
@@ -251,6 +270,11 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
         tasks/                        # Task files subdirectory
             {area}-tasks.md           # Task files (e.g., backend-tasks.md)
         workspace/                    # Generated code output
+        kobold-plans/                 # Implementation plans (NEW)
+            {plan-filename}-plan.json # Machine-readable plan
+            {plan-filename}-plan.md   # Human-readable plan
+            plan-index.json           # Plan lookup index
+        planning-context.json         # Shared planning context (NEW - 2026-02-09)
 provider-config.json                  # Provider configuration
 user-settings.json                    # User runtime settings (agent providers)
 ```

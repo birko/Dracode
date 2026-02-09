@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### ✨ Added - Shared Planning Context Service
+
+**Implemented comprehensive cross-agent coordination and learning system (2026-02-09):**
+- **New SharedPlanningContextService**: Enables Kobolds and Drake supervisors to coordinate work and learn from past executions
+  - **Multi-Agent Coordination**:
+    - Tracks active agents per project in real-time
+    - Detects file conflicts (`IsFileInUseAsync`, `GetFilesInUseAsync`)
+    - Finds related plans working on similar code (`GetRelatedPlansAsync`)
+  - **Drake Supervisor Support**:
+    - Agent lifecycle management (`RegisterAgentAsync`, `UnregisterAgentAsync`)
+    - Activity heartbeat monitoring for stuck agent detection
+    - Project-wide statistics and metrics (`GetProjectStatisticsAsync`)
+  - **Cross-Project Learning**:
+    - Records task completion metrics (duration, steps, iterations, files touched)
+    - Analyzes patterns and best practices per agent type (`GetBestPracticesAsync`)
+    - Provides insights from similar tasks in other projects (`GetSimilarTaskInsightsAsync`, `GetCrossProjectInsightsAsync`)
+  - **Thread-Safe Design**:
+    - Concurrent dictionaries for in-memory caching
+    - File locking for persistence operations
+    - Max 50 projects cached with LRU eviction
+  - **Persistence**:
+    - Auto-saves to `planning-context.json` in each project's output folder
+    - Batch persist all contexts on application shutdown
+    - Automatic recovery on restart
+- **Integration Points**:
+  - Registered as singleton in DI container (`Program.cs`)
+  - Integrated with DrakeFactory and Drake constructor
+  - Agent registration on Kobold summon in `Drake.SummonKobold()`
+  - Agent unregistration on task completion/failure in `Drake.UpdateKoboldStatus()`
+  - Shutdown hook for context persistence in `Program.cs`
+- **Documentation**: New comprehensive guide at `docs/SharedPlanningContextService.md`
+- **Impact**: 
+  - Prevents parallel work conflicts through file usage tracking
+  - Enables intelligent task planning from historical insights
+  - Improves agent coordination across projects
+  - Builds knowledge base of successful execution patterns
+
+---
+
 ## [2.6.0] - 2026-02-09
 
 ### ✨ Added - Wyrm Pre-Analysis Workflow
