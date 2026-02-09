@@ -1,3 +1,7 @@
+using DraCode.Agent;
+using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Models.Configuration;
+using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
 using System.Collections.Concurrent;
 
@@ -10,6 +14,7 @@ namespace DraCode.KoboldLair.Factories
     public class WyrmFactory
     {
         private readonly ProjectConfigurationService _projectConfigService;
+        private readonly ProviderConfigurationService _providerConfigService;
         private readonly ConcurrentDictionary<Guid, string?> _activeWyrms; // Maps wyrm ID to project ID
         private readonly object _lock = new object();
 
@@ -17,9 +22,13 @@ namespace DraCode.KoboldLair.Factories
         /// Creates a new WyrmFactory
         /// </summary>
         /// <param name="projectConfigService">Project configuration service for parallel limits</param>
-        public WyrmFactory(ProjectConfigurationService projectConfigService)
+        /// <param name="providerConfigService">Provider configuration service</param>
+        public WyrmFactory(
+            ProjectConfigurationService projectConfigService,
+            ProviderConfigurationService providerConfigService)
         {
             _projectConfigService = projectConfigService;
+            _providerConfigService = providerConfigService;
             _activeWyrms = new ConcurrentDictionary<Guid, string?>();
         }
 
@@ -84,6 +93,48 @@ namespace DraCode.KoboldLair.Factories
         public void Clear()
         {
             _activeWyrms.Clear();
+        }
+
+        /// <summary>
+        /// Creates a new Wyrm agent for analyzing project specifications
+        /// </summary>
+        /// <param name="project">Project to analyze</param>
+        /// <param name="options">Optional agent options override</param>
+        /// <returns>Configured Wyrm agent</returns>
+        public DraCode.Agent.Agents.Agent CreateWyrm(Project project, AgentOptions? options = null)
+        {
+            // Get provider configuration for Wyrm
+            var (providerType, config, agentOptions) = _providerConfigService.GetProviderSettingsForAgent(
+                "wyrm",
+                project.Paths.Output
+            );
+
+            // Use provided options or default from service
+            var finalOptions = options ?? agentOptions;
+
+            // Get KoboldLair configuration
+            var koboldLairConfig = new KoboldLairConfiguration
+            {
+                DefaultProvider = providerType,
+                Providers = new List<ProviderConfig>
+                {
+                    new ProviderConfig
+                    {
+                        Name = providerType,
+                        Type = providerType,
+                        IsEnabled = true
+                    }
+                }
+            };
+
+            // Create Wyrm agent using KoboldLairAgentFactory for consistency
+            // Use "coding" agent type since we're doing specification analysis, not task delegation
+            var wyrm = KoboldLairAgentFactory.Create(providerType, koboldLairConfig, finalOptions, config, "coding");
+
+            // Register for tracking
+            RegisterWyrm(project.Id);
+
+            return wyrm;
         }
     }
 }

@@ -4,6 +4,58 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.6.0] - 2026-02-09
+
+### ✨ Added - Wyrm Pre-Analysis Workflow
+
+**Implemented two-phase analysis workflow with Wyrm providing initial recommendations:**
+- **New WyrmProcessingService**: Background service that runs Wyrm pre-analysis on approved specifications
+  - Monitors projects with status "New"
+  - Analyzes specifications for languages, tech stack, agent types, complexity
+  - Creates `wyrm-recommendation.json` with structured recommendations
+  - Transitions projects to "WyrmAssigned" status
+  - 60-second interval, max 5 concurrent projects
+- **Updated WyvernProcessingService**: Now processes "WyrmAssigned" projects instead of "New"
+  - Loads Wyrm recommendations (if available)
+  - Passes recommendations to Wyvern as analysis guidance
+  - Creates detailed task breakdown informed by pre-analysis
+- **New WyrmRecommendation Model**: Structured format for pre-analysis output
+  - Properties: languages, agent types per area, technical stack, suggested areas, complexity
+  - Saved as JSON for Wyvern consumption
+- **Updated Project Status Enum**:
+  - Added `WyrmAssigned` status (post-Wyrm, pre-Wyvern)
+  - Deprecated `WyvernAssigned` status (backward compatible)
+  - New workflow: New → WyrmAssigned → Analyzed → InProgress
+- **WyrmFactory Enhancement**: Added `CreateWyrm()` method for specification analysis
+  - Uses ProviderConfigurationService for provider settings
+  - Creates coding agent via KoboldLairAgentFactory
+  - Separate from WyrmAgent (task delegation orchestrator)
+- **Impact**:
+  - Provides initial guidance before detailed task breakdown
+  - Improves agent type selection accuracy
+  - Enables better complexity estimation upfront
+  - Separates concerns: Wyrm = recommendations, Wyvern = detailed tasks
+
+### 🔧 Fixed - Agent Creation Pattern Consistency
+
+**Audited and fixed all agent creation patterns in DraCode.KoboldLair:**
+- **WyrmFactory Fix**: Changed from `DraCode.Agent.Agents.AgentFactory.Create` to `KoboldLairAgentFactory.Create`
+  - Now consistent with DrakeFactory, WyvernFactory, KoboldFactory
+  - Ensures proper provider configuration and options
+- **Audit Results**: 
+  - 4 factories verified compliant: DrakeFactory, WyvernFactory, KoboldFactory, WyrmFactory
+  - Dragon Council sub-agents (Sage, Seeker, Sentinel, Warden) use `new` - justified by custom constructors
+- **Impact**: Consistent agent instantiation across all KoboldLair components
+
+### 📚 Documentation Updates
+
+- Updated `CLAUDE.md` with Wyrm pre-analysis workflow diagram
+- Updated `Background-Services.md` with WyrmProcessingService documentation
+- Updated `TODO.md` with completed Wyrm workflow and agent audit tasks
+- Added data storage documentation for `wyrm-recommendation.json`
+
+---
+
 ## [2.5.1] - 2026-02-06
 
 ### 🐛 Fixed - Network Error Handling

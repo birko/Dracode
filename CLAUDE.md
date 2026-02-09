@@ -47,10 +47,12 @@ cd DraCode.Web && npm run build
 ```
 Dragon (Interactive)     ← User's only touchpoint - requirements gathering
     ↓ Creates specification
+Wyrm (Automatic)         ← Pre-analyzes specs, creates recommendations (WyrmProcessingService, 60s)
+    ↓ Creates wyrm-recommendation.json
 Wyvern (Automatic)       ← Analyzes specs, creates task breakdown (WyvernProcessingService, 60s)
-    ↓ Creates task files + analysis.json
+    ↓ Creates task files + analysis.json (guided by Wyrm recommendations)
 Drake (Automatic)        ← Supervises task execution (DrakeExecutionService, 30s)
-    ↓ Creates Drakes, summons Kobolds (uses Wyrm for agent selection)
+    ↓ Creates Drakes, summons Kobolds
 Kobold Planner (Automatic) ← Creates implementation plans with atomic steps
     ↓ Plans ready for execution
 Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel limits)
@@ -58,13 +60,17 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 
 - **Dragon**: Interactive chat for requirements → creates project folder and `specification.md`
   - Dragon Council: SageAgent (specs/features), SeekerAgent (import), SentinelAgent (git), WardenAgent (config/retry)
-- **Wyvern**: Reads specs, breaks into tasks → creates `{area}-tasks.md` files, persists `analysis.json`
-- **Wyrm**: Task delegation and agent selection → recommends appropriate agent types for tasks
+- **Wyrm (Pre-Analysis)**: Reads specs, provides recommendations → creates `wyrm-recommendation.json` with languages, agent types, tech stack, complexity
+  - **WyrmProcessingService** (60s): Monitors New projects, runs Wyrm pre-analysis, transitions to WyrmAssigned
+- **Wyvern**: Reads specs + Wyrm recommendations, breaks into tasks → creates `{area}-tasks.md` files, persists `analysis.json`
+  - **WyvernProcessingService** (60s): Monitors WyrmAssigned projects, runs detailed analysis, transitions to Analyzed
 - **Drake**: Monitors tasks, summons Kobolds → updates task status
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
 - **Kobold Planner**: Creates structured implementation plans → enables resumability
 - **Kobold**: Executes plans step-by-step → outputs to `workspace/` subfolder
+
+**Note:** Wyrm also has a task delegation mode (WyrmAgent) used by Drake for selecting specialized agent types during execution.
 
 ### Agent Types (23 total)
 
@@ -229,6 +235,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
     {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
         specification.md              # Project specification
         specification.features.json   # Feature list
+        wyrm-recommendation.json      # Wyrm pre-analysis recommendations (NEW)
         analysis.md                   # Wyvern analysis report (human-readable)
         analysis.json                 # Wyvern analysis (machine-readable, persisted)
         tasks/                        # Task files subdirectory

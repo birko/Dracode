@@ -78,7 +78,8 @@ builder.Services.AddSingleton<KoboldFactory>(sp =>
 builder.Services.AddSingleton<WyrmFactory>(sp =>
 {
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
-    return new WyrmFactory(projectConfigService);
+    var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    return new WyrmFactory(projectConfigService, providerConfigService);
 });
 builder.Services.AddSingleton<DrakeFactory>(sp =>
 {
@@ -145,7 +146,16 @@ builder.Services.AddHostedService<DrakeExecutionService>(sp =>
         maxKoboldIterations: maxIterations);
 });
 
-// Register Wyvern processing background service (checks every 60 seconds)
+// Register Wyrm processing background service (New → WyrmAssigned, checks every 60 seconds)
+builder.Services.AddHostedService<WyrmProcessingService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<WyrmProcessingService>>();
+    var projectService = sp.GetRequiredService<ProjectService>();
+    var wyrmFactory = sp.GetRequiredService<WyrmFactory>();
+    return new WyrmProcessingService(logger, projectService, wyrmFactory, checkIntervalSeconds: 60);
+});
+
+// Register Wyvern processing background service (WyrmAssigned → Analyzed, checks every 60 seconds)
 builder.Services.AddHostedService<WyvernProcessingService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<WyvernProcessingService>>();

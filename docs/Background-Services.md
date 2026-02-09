@@ -2,7 +2,7 @@
 
 ## Introduction
 
-KoboldLair runs **4 background services** that continuously monitor and process work automatically. These services operate independently, running on fixed intervals to ensure projects progress from specification to completed code without manual intervention.
+KoboldLair runs **5 background services** that continuously monitor and process work automatically. These services operate independently, running on fixed intervals to ensure projects progress from specification to completed code without manual intervention.
 
 **Key Concept**: Once Dragon creates a specification and Sage approves it, these background services take over and run the entire workflow automatically.
 
@@ -12,32 +12,57 @@ KoboldLair runs **4 background services** that continuously monitor and process 
 
 | Service | Interval | Priority | Purpose |
 |---------|----------|----------|---------|
-| **WyvernProcessingService** | 60s | High | Analyzes new specifications, creates task files |
+| **WyrmProcessingService** | 60s | High | Pre-analyzes specifications, creates recommendations |
+| **WyvernProcessingService** | 60s | High | Analyzes specifications (guided by Wyrm), creates task files |
 | **DrakeExecutionService** | 30s | High | Creates Drakes, assigns Kobolds to tasks |
 | **DrakeMonitoringService** | 60s | Medium | Monitors Kobold progress, handles stuck workers |
-| **WyrmProcessingService** | N/A | Low | WebSocket handler for Wyrm (not a timed service) |
+| **WyrmService** | WebSocket | Low | WebSocket handler for real-time Wyrm task delegation |
 
 **Note**: WyrmService is a WebSocket handler, not a periodic background service. It's included here for completeness but operates on-demand rather than on an interval.
 
 ---
 
-## 1. WyvernProcessingService
+## Workflow: New → WyrmAssigned → Analyzed → InProgress
 
-**File**: `DraCode.KoboldLair.Server/Services/WyvernProcessingService.cs`  
+```
+1. Dragon creates specification (status: New)
+2. WyrmProcessingService picks up New projects
+   → Wyrm analyzes specification
+   → Creates wyrm-recommendation.json
+   → Status: WyrmAssigned
+3. WyvernProcessingService picks up WyrmAssigned projects
+   → Wyvern analyzes specification (guided by Wyrm recommendations)
+   → Creates task files
+   → Status: Analyzed
+4. DrakeExecutionService picks up Analyzed projects
+   → Drake creates Kobolds
+   → Status: InProgress
+```
+
+---
+
+## 1. WyrmProcessingService (NEW)
+
+**File**: `DraCode.KoboldLair.Server/Services/WyrmProcessingService.cs`  
 **Interval**: 60 seconds (configurable via constructor parameter)  
 **Priority**: High - First step in the automation chain
 
 ### Purpose
 
-Monitors for **new project specifications** (status = "New") and assigns Wyvern orchestrators to analyze them. This is the entry point for all automated project processing.
+Monitors for **approved project specifications** (status = "New") and runs Wyrm pre-analysis to provide recommendations for Wyvern. This provides initial guidance on languages, agent types, and technical stack before detailed task breakdown.
 
 ### What It Does
 
 1. **Scans projects** - Checks `projects.json` for projects with status "New"
-2. **Assigns Wyvern** - Creates a Wyvern orchestrator for each new project
-3. **Triggers analysis** - Wyvern analyzes specification and creates task files
-4. **Updates status** - Changes project status to "Analyzing" → "Active"
-5. **Persists analysis** - Saves analysis results to `analysis.json`
+2. **Creates Wyrm agent** - Uses WyrmFactory to create a coding agent
+3. **Runs pre-analysis** - Analyzes specification for languages, tech stack, complexity
+4. **Saves recommendations** - Creates `wyrm-recommendation.json` with:
+   - Recommended languages
+   - Recommended agent types per area
+   - Technical stack components
+   - Suggested task areas
+   - Estimated complexity
+5. **Updates status** - Changes project status to "WyrmAssigned"
 
 ### Workflow
 
@@ -45,11 +70,100 @@ Monitors for **new project specifications** (status = "New") and assigns Wyvern 
 Every 60 seconds:
     → Check for projects with status = "New"
     → For each new project:
+        ├─ Create Wyrm agent (via WyrmFactory)
+        ├─ Read specification.md
+        ├─ Run pre-analysis (languages, agents, stack, complexity)
+        ├─ Save wyrm-recommendation.json
+        └─ Update project status to "WyrmAssigned"
+```
+
+### Configuration
+
+```csharp
+public WyrmProcessingService(
+    ILogger<WyrmProcessingService> logger,
+    ProjectService projectService,
+    WyrmFactory wyrmFactory,
+    int checkIntervalSeconds = 60)  // Default: 60 seconds
+```
+
+### Concurrency Control
+
+- **Max concurrent projects**: 5 (prevents overwhelming LLM providers)
+- **Mutex protection**: Prevents overlapping runs with `_isRunning` flag
+- **Parallel processing**: Projects processed in parallel (up to limit)
+
+### Key Features
+
+- ✅ **Provider configuration** - Uses ProviderConfigurationService for Wyrm agent
+- ✅ **Parallel processing** - Processes up to 5 projects simultaneously
+- ✅ **Skip protection** - Skips cycle if previous run still active
+- ✅ **Graceful fallback** - Creates default recommendation if analysis fails
+
+### Logging
+
+```
+🐲 Wyrm Processing Service started. Interval: 60s
+🔍 Found 2 projects awaiting Wyrm pre-analysis
+✅ Wyrm pre-analysis completed for project: my-app. Complexity: Medium, Languages: C#, TypeScript
+❌ Failed to run Wyrm analysis for project: my-app
+```
+
+### Output Format (wyrm-recommendation.json)
+
+```json
+{
+  "projectId": "uuid",
+  "projectName": "my-app",
+  "createdAt": "2026-02-09T10:00:00Z",
+  "recommendedLanguages": ["csharp", "typescript"],
+  "recommendedAgentTypes": {
+    "backend": "csharp",
+    "frontend": "react",
+    "database": "documentation"
+  },
+  "technicalStack": ["ASP.NET Core", "React", "PostgreSQL"],
+  "suggestedAreas": ["backend", "frontend", "database"],
+  "complexity": "Medium",
+  "analysisSummary": "Full-stack web application with API backend",
+  "notes": "Consider using Entity Framework for data access"
+}
+```
+
+---
+
+## 2. WyvernProcessingService
+
+**File**: `DraCode.KoboldLair.Server/Services/WyvernProcessingService.cs`  
+**Interval**: 60 seconds (configurable via constructor parameter)  
+**Priority**: High - Detailed analysis phase
+
+### Purpose
+
+Monitors for **pre-analyzed projects** (status = "WyrmAssigned") and assigns Wyvern orchestrators to create detailed task breakdowns. Uses Wyrm recommendations as guidance for analysis.
+
+### What It Does
+
+1. **Scans projects** - Checks `projects.json` for projects with status "WyrmAssigned"
+2. **Loads recommendations** - Reads `wyrm-recommendation.json` (if exists)
+3. **Assigns Wyvern** - Creates a Wyvern orchestrator for each project
+4. **Triggers analysis** - Wyvern analyzes specification with Wyrm hints
+5. **Creates tasks** - Wyvern generates task files per area
+6. **Updates status** - Changes project status to "Analyzed"
+7. **Persists analysis** - Saves analysis results to `analysis.json`
+
+### Workflow
+
+```
+Every 60 seconds:
+    → Check for projects with status = "WyrmAssigned"
+    → For each pre-analyzed project:
+        ├─ Load wyrm-recommendation.json (optional)
         ├─ Create Wyvern instance
-        ├─ Wyvern analyzes specification
+        ├─ Wyvern analyzes specification (with Wyrm hints)
         ├─ Wyvern creates task files ({area}-tasks.md)
         ├─ Save analysis to analysis.json
-        └─ Update project status to "Active"
+        └─ Update project status to "Analyzed"
 ```
 
 ### Configuration
@@ -70,6 +184,7 @@ public WyvernProcessingService(
 ### Key Features
 
 - ✅ **Automatic recovery** - Loads existing analysis on startup
+- ✅ **Wyrm guidance** - Uses Wyrm recommendations to guide analysis
 - ✅ **Parallel processing** - Processes up to 5 projects simultaneously
 - ✅ **Skip protection** - Skips cycle if previous run still active
 - ✅ **Persistent state** - Analysis survives server restarts
@@ -79,19 +194,19 @@ public WyvernProcessingService(
 ```
 🐉 Wyvern Processing Service started. Interval: 60s
 ✨ Processing 3 projects...
+📖 Loaded Wyrm recommendations for project: my-app
 ✅ Project 'my-app' analyzed successfully
 ⚠️ Previous Wyvern processing job still running, skipping this cycle
 ```
 
 ### Triggers
 
-- **New specification approved** - Sage agent calls `approve_specification` tool
-- **Project reimported** - Seeker agent registers project with "New" status
-- **Manual status change** - Project status manually set to "New"
+- **Wyrm analysis complete** - WyrmProcessingService transitions project to "WyrmAssigned"
+- **Manual status change** - Project status manually set to "WyrmAssigned"
 
 ---
 
-## 2. DrakeExecutionService
+## 3. DrakeExecutionService
 
 **File**: `DraCode.KoboldLair.Server/Services/DrakeExecutionService.cs`  
 **Interval**: 30 seconds (configurable via constructor parameter)  

@@ -12,17 +12,17 @@ namespace DraCode.KoboldLair.Models.Projects
         Prototype,
 
         /// <summary>
-        /// Specification confirmed by user, ready for Wyvern assignment
+        /// Specification confirmed by user, ready for Wyrm assignment
         /// </summary>
         New,
 
         /// <summary>
-        /// Wyvern has been assigned to the project
+        /// Wyrm has been assigned to pre-analyze and recommend agent types
         /// </summary>
-        WyvernAssigned,
+        WyrmAssigned,
 
         /// <summary>
-        /// Wyvern has analyzed the specification
+        /// Wyvern has analyzed the specification based on Wyrm recommendations
         /// </summary>
         Analyzed,
 

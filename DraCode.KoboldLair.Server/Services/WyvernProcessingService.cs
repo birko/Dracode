@@ -99,50 +99,12 @@ namespace DraCode.KoboldLair.Server.Services
 
             _logger.LogInformation("📋 Found {Count} project(s)", allProjects.Count);
 
-            // Process projects that need Wyrm assignment (in parallel)
-            var projectsNeedingWyrm = _projectService.GetProjectsByStatus(ProjectStatus.New)
+            // Process projects that need analysis (WyrmAssigned status from WyrmProcessingService)
+            var projectsNeedingAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyrmAssigned)
                 .Where(p => _projectService.IsAgentEnabled(p.Id, "wyvern"))
                 .ToList();
 
-            var skippedWyrm = _projectService.GetProjectsByStatus(ProjectStatus.New)
-                .Except(projectsNeedingWyrm)
-                .ToList();
-            foreach (var project in skippedWyrm)
-            {
-                _logger.LogInformation("⏭️ Skipping project {ProjectName} - Wyvern disabled", project.Name);
-            }
-
-            if (projectsNeedingWyrm.Count > 0)
-            {
-                _logger.LogInformation("🐲 Assigning Wyvern to {Count} project(s) (max {Max} concurrent)", projectsNeedingWyrm.Count, MaxConcurrentProjects);
-                var wyrmTasks = projectsNeedingWyrm.Select(async project =>
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                        return;
-
-                    await _projectThrottle.WaitAsync(cancellationToken);
-                    try
-                    {
-                        await AssignWyvernToProjectAsync(project);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to assign Wyvern to project: {ProjectId}", project.Id);
-                    }
-                    finally
-                    {
-                        _projectThrottle.Release();
-                    }
-                });
-                await Task.WhenAll(wyrmTasks);
-            }
-
-            // Process projects that need analysis (in parallel)
-            var projectsNeedingAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyvernAssigned)
-                .Where(p => _projectService.IsAgentEnabled(p.Id, "wyvern"))
-                .ToList();
-
-            var skippedAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyvernAssigned)
+            var skippedAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyrmAssigned)
                 .Except(projectsNeedingAnalysis)
                 .ToList();
             foreach (var project in skippedAnalysis)
@@ -219,18 +181,6 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Assigns a Wyvern to a project
-        /// </summary>
-        private async Task AssignWyvernToProjectAsync(Project project)
-        {
-            _logger.LogInformation("🐲 Assigning Wyvern to project: {ProjectName}", project.Name);
-
-            var wyvern = await _projectService.AssignWyvernAsync(project.Id);
-
-            _logger.LogInformation("✅ Wyvern assigned to project: {ProjectName}", project.Name);
-        }
-
-        /// <summary>
         /// Runs Wyvern analysis on a project
         /// </summary>
         private async Task AnalyzeProjectAsync(Project project)
@@ -251,8 +201,9 @@ namespace DraCode.KoboldLair.Server.Services
         {
             _logger.LogInformation("🔄 Reanalyzing modified specification for project: {ProjectName}", project.Name);
 
-            // Transition to WyvernAssigned so normal analysis flow can pick it up
-            _projectService.UpdateProjectStatus(project.Id, ProjectStatus.WyvernAssigned);
+            // Transition back to WyrmAssigned so normal analysis flow can pick it up
+            // This allows Wyvern to re-analyze with potentially updated Wyrm recommendations
+            _projectService.UpdateProjectStatus(project.Id, ProjectStatus.WyrmAssigned);
 
             // Run analysis (which will create new tasks for changes)
             var analysis = await _projectService.AnalyzeProjectAsync(project.Id);

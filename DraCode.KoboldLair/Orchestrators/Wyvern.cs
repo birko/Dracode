@@ -492,10 +492,12 @@ Respond with ONLY valid JSON (no markdown, no explanations):
         }
 
         /// <summary>
-        /// Analyzes the specification and creates organized task structure
-        /// Includes new features in the analysis context
+        /// Analyzes the specification and creates organized task structure.
+        /// Includes new features and optional Wyrm recommendations in the analysis context.
         /// </summary>
-        public async Task<WyvernAnalysis> AnalyzeProjectAsync(Specification? specification = null)
+        /// <param name="specification">Optional specification to analyze</param>
+        /// <param name="wyrmRecommendation">Optional Wyrm pre-analysis recommendations to guide Wyvern</param>
+        public async Task<WyvernAnalysis> AnalyzeProjectAsync(Specification? specification = null, WyrmRecommendation? wyrmRecommendation = null)
         {
             if (specification != null)
             {
@@ -512,8 +514,9 @@ Respond with ONLY valid JSON (no markdown, no explanations):
             // Get new features to include in analysis
             var newFeatures = _specification?.Features.Where(f => f.Status == FeatureStatus.New).ToList() ?? new List<Feature>();
 
-            // Build enhanced prompt with features
+            // Build enhanced prompt with features and Wyrm recommendations
             var prompt = specContent;
+            
             if (newFeatures.Any())
             {
                 prompt += "\n\n## New Features to Implement:\n\n";
@@ -525,6 +528,47 @@ Respond with ONLY valid JSON (no markdown, no explanations):
 
                 // Mark features as assigned
                 await AssignFeaturesAsync(newFeatures);
+            }
+
+            // Add Wyrm recommendations as hints
+            if (wyrmRecommendation != null)
+            {
+                prompt += "\n\n## Wyrm Pre-Analysis Recommendations:\n\n";
+                prompt += $"**Analysis Summary:** {wyrmRecommendation.AnalysisSummary}\n\n";
+                
+                if (wyrmRecommendation.RecommendedLanguages.Any())
+                {
+                    prompt += $"**Recommended Languages:** {string.Join(", ", wyrmRecommendation.RecommendedLanguages)}\n\n";
+                }
+                
+                if (wyrmRecommendation.TechnicalStack.Any())
+                {
+                    prompt += $"**Technical Stack:** {string.Join(", ", wyrmRecommendation.TechnicalStack)}\n\n";
+                }
+                
+                if (wyrmRecommendation.RecommendedAgentTypes.Any())
+                {
+                    prompt += "**Recommended Agent Types:**\n";
+                    foreach (var kvp in wyrmRecommendation.RecommendedAgentTypes)
+                    {
+                        prompt += $"- {kvp.Key}: `{kvp.Value}`\n";
+                    }
+                    prompt += "\n";
+                }
+                
+                if (wyrmRecommendation.SuggestedAreas.Any())
+                {
+                    prompt += $"**Suggested Task Areas:** {string.Join(", ", wyrmRecommendation.SuggestedAreas)}\n\n";
+                }
+                
+                prompt += $"**Estimated Complexity:** {wyrmRecommendation.Complexity}\n\n";
+                
+                if (!string.IsNullOrEmpty(wyrmRecommendation.Notes))
+                {
+                    prompt += $"**Additional Notes:** {wyrmRecommendation.Notes}\n\n";
+                }
+                
+                prompt += "Use these recommendations as guidance for your analysis, but feel free to adjust based on the full specification.\n\n";
             }
 
             var analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(prompt);

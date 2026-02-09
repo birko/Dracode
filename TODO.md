@@ -1,7 +1,89 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-09 - File write race condition fixes completed**
+**Last updated: 2026-02-09 - Wyrm workflow and agent factory audit completed**
+
+---
+
+## 🟢 COMPLETED - Wyrm Pre-Analysis Workflow (Option B)
+
+All Wyrm workflow changes have been implemented and tested as of 2026-02-09.
+
+### Implementation Details
+
+- [x] **Project Status Changes** *(Completed 2026-02-09)*
+  - Added `WyrmAssigned` status for post-Wyrm, pre-Wyvern state
+  - Deprecated `WyvernAssigned` status (backward compatible)
+  - Workflow: New → WyrmAssigned → Analyzed → InProgress
+
+- [x] **WyrmRecommendation Model** *(Completed 2026-02-09)*
+  - Created `Models/Agents/WyrmRecommendation.cs`
+  - Properties: ProjectId, ProjectName, RecommendedLanguages, RecommendedAgentTypes, TechnicalStack, SuggestedAreas, Complexity, AnalysisSummary, Notes
+  - Saved to `wyrm-recommendation.json` in project workspace
+
+- [x] **WyrmFactory Updates** *(Completed 2026-02-09)*
+  - Added ProviderConfigurationService dependency
+  - Implemented `CreateWyrm(Project project)` method
+  - Uses `KoboldLairAgentFactory` for consistency
+  - Creates coding agent for specification pre-analysis
+
+- [x] **WyrmProcessingService** *(Completed 2026-02-09)*
+  - New background service (60s interval)
+  - Monitors `New` projects
+  - Runs Wyrm pre-analysis on specifications
+  - Generates recommendations JSON
+  - Transitions projects to `WyrmAssigned`
+
+- [x] **WyvernProcessingService Updates** *(Completed 2026-02-09)*
+  - Changed to process `WyrmAssigned` instead of `New` projects
+  - Loads `wyrm-recommendation.json` (if exists)
+  - Passes recommendations to Wyvern as guidance
+
+- [x] **Wyvern Orchestrator Updates** *(Completed 2026-02-09)*
+  - `AnalyzeProjectAsync` accepts optional `WyrmRecommendation` parameter
+  - Includes recommendations in analysis prompt as "hints"
+  - Thread-safe with `_analysisLock`
+
+- [x] **ProjectService Updates** *(Completed 2026-02-09)*
+  - Loads Wyrm recommendations from JSON
+  - Passes to Wyvern during analysis
+  - Uses `WyrmAssigned` status instead of deprecated `WyvernAssigned`
+
+- [x] **DI Registration** *(Completed 2026-02-09)*
+  - Updated `WyrmFactory` registration with ProviderConfigurationService
+  - Registered `WyrmProcessingService` as hosted service
+  - Both services run on 60-second intervals
+
+- [x] **Documentation Updates** *(Completed 2026-02-09)*
+  - Updated `CLAUDE.md` with new workflow diagram
+  - Updated `Background-Services.md` with WyrmProcessingService details
+  - Updated workflow documentation with Wyrm pre-analysis phase
+
+**Impact**: Provides initial analysis guidance before Wyvern's detailed task breakdown, improving task delegation accuracy.
+
+---
+
+## 🟢 COMPLETED - Agent Creation Pattern Audit
+
+All agent creation patterns audited and fixed as of 2026-02-09.
+
+### Audit Results
+
+- [x] **Factory Pattern Enforcement** *(Completed 2026-02-09)*
+  - Audited all agent creation in DraCode.KoboldLair
+  - Fixed WyrmFactory to use `KoboldLairAgentFactory` instead of `DraCode.Agent.Agents.AgentFactory`
+  - Verified 4 factories use consistent pattern:
+    - DrakeFactory ✅
+    - WyvernFactory ✅
+    - KoboldFactory ✅
+    - WyrmFactory ✅ (fixed)
+
+- [x] **Acceptable Exceptions Documented** *(Completed 2026-02-09)*
+  - Dragon Council sub-agents (Sage, Seeker, Sentinel, Warden) use `new`
+  - Justified: Custom constructors with callbacks and dependencies
+  - Not standard agents - internal council members
+
+**Impact**: Ensures consistent provider configuration and agent instantiation across all KoboldLair components.
 
 ---
 

@@ -223,7 +223,7 @@ namespace DraCode.KoboldLair.Services
 
                 // Update project
                 project.Tracking.WyvernId = wyvern.ProjectName; // Using project name as wyvern ID
-                project.Status = ProjectStatus.WyvernAssigned;
+                project.Status = ProjectStatus.WyrmAssigned;
                 _repository.Update(project);
 
                 _logger.LogInformation("🐉 Assigned wyvern to project: {ProjectName}", project.Name);
@@ -276,8 +276,30 @@ namespace DraCode.KoboldLair.Services
                 {
                     _logger.LogInformation("🔍 Starting wyvern analysis for project: {ProjectName}", project.Name);
 
-                    // Run full analysis
-                    analysis = await wyvern.AnalyzeProjectAsync();
+                    // Load Wyrm recommendations if they exist
+                    WyrmRecommendation? wyrmRecommendation = null;
+                    var wyrmRecommendationPath = Path.Combine(project.Paths.Output, "wyrm-recommendation.json");
+                    if (File.Exists(wyrmRecommendationPath))
+                    {
+                        try
+                        {
+                            var wyrmJson = await File.ReadAllTextAsync(wyrmRecommendationPath);
+                            wyrmRecommendation = System.Text.Json.JsonSerializer.Deserialize<WyrmRecommendation>(wyrmJson, new System.Text.Json.JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true,
+                                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                            });
+                            
+                            _logger.LogInformation("📖 Loaded Wyrm recommendations for project: {ProjectName}", project.Name);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to load Wyrm recommendations, proceeding without them");
+                        }
+                    }
+
+                    // Run full analysis with optional Wyrm recommendations
+                    analysis = await wyvern.AnalyzeProjectAsync(null, wyrmRecommendation);
 
                     // Save analysis report (simplified name - project folder provides context)
                     var analysisReportPath = Path.Combine(project.Paths.Output, "analysis.md");
@@ -335,8 +357,8 @@ namespace DraCode.KoboldLair.Services
                 }
                 else
                 {
-                    // Keep as WyvernAssigned - will be reprocessed on next service cycle
-                    project.Status = ProjectStatus.WyvernAssigned;
+                    // Keep as WyrmAssigned - will be reprocessed on next service cycle
+                    project.Status = ProjectStatus.WyrmAssigned;
 
                     if (!wyrmEnabled)
                     {
@@ -494,7 +516,7 @@ namespace DraCode.KoboldLair.Services
                 TotalProjects = allProjects.Count,
                 PrototypeProjects = allProjects.Count(p => p.Status == ProjectStatus.Prototype),
                 NewProjects = allProjects.Count(p => p.Status == ProjectStatus.New),
-                WyvernAssignedProjects = allProjects.Count(p => p.Status == ProjectStatus.WyvernAssigned),
+                WyvernAssignedProjects = allProjects.Count(p => p.Status == ProjectStatus.WyrmAssigned),
                 AnalyzedProjects = allProjects.Count(p => p.Status == ProjectStatus.Analyzed),
                 SpecificationModifiedProjects = allProjects.Count(p => p.Status == ProjectStatus.SpecificationModified),
                 InProgressProjects = allProjects.Count(p => p.Status == ProjectStatus.InProgress),
