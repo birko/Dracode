@@ -6,6 +6,7 @@ using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
+using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Orchestrators
 {
@@ -42,6 +43,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly Channel<bool> _saveChannel;
         private readonly Task _saveTask;
         private readonly TimeSpan _debounceInterval = TimeSpan.FromSeconds(2);
+        private readonly TaskStateWal _wal;
 
         /// <summary>
         /// Maps TaskId to KoboldId for tracking active assignments
@@ -113,6 +115,16 @@ namespace DraCode.KoboldLair.Orchestrators
             _fileFilterService = new PlanFileFilterService(null); // Logger is optional for filter service
             _taskToKoboldMap = new Dictionary<string, Guid>();
 
+            // Initialize WAL for crash-safe state persistence
+            _wal = new TaskStateWal(_outputMarkdownPath, _logger);
+
+            // Check for uncommitted WAL entries and recover if needed
+            if (_wal.HasUncommittedChanges())
+            {
+                _logger?.LogWarning("Found uncommitted WAL entries, recovering task state...");
+                _ = RecoverFromWalAsync(); // Fire-and-forget recovery
+            }
+
             // Initialize debounced save channel (bounded to 1 to coalesce writes)
             _saveChannel = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
             {
@@ -152,6 +164,31 @@ namespace DraCode.KoboldLair.Orchestrators
         public void SetWyvern(Wyvern wyvern)
         {
             _wyvern = wyvern;
+        }
+
+        /// <summary>
+        /// Updates task status with WAL logging for crash safety
+        /// </summary>
+        private async Task UpdateTaskWithWalAsync(TaskRecord task, TaskStatus newStatus, string? assignedAgent = null, string? errorMessage = null)
+        {
+            var previousStatus = task.Status.ToString();
+            
+            // Log to WAL before updating in-memory state
+            await _wal.AppendAsync(new WalEntry(
+                DateTime.UtcNow,
+                task.Id,
+                previousStatus,
+                newStatus.ToString(),
+                assignedAgent,
+                errorMessage));
+
+            // Update in-memory state
+            _taskTracker.UpdateTask(task, newStatus, assignedAgent);
+            
+            if (!string.IsNullOrEmpty(errorMessage))
+            {
+                _taskTracker.SetError(task, errorMessage);
+            }
         }
 
         /// <summary>
@@ -511,13 +548,8 @@ namespace DraCode.KoboldLair.Orchestrators
                 _ => task.Status // Keep current if unknown
             };
 
-            // Update task with Kobold's error if present
-            if (kobold.HasError)
-            {
-                _taskTracker.SetError(task, kobold.ErrorMessage ?? "Unknown error");
-            }
-
-            _taskTracker.UpdateTask(task, taskStatus);
+            // Update task with WAL logging for crash safety
+            await UpdateTaskWithWalAsync(task, taskStatus, task.AssignedAgent, kobold.HasError ? (kobold.ErrorMessage ?? "Unknown error") : null);
 
             // Log status transition if changed
             if (previousStatus != taskStatus)
@@ -984,6 +1016,9 @@ namespace DraCode.KoboldLair.Orchestrators
                     try
                     {
                         await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
+                        
+                        // Clear WAL after successful checkpoint
+                        await _wal.CheckpointAsync();
                     }
                     catch (Exception ex)
                     {
@@ -1003,6 +1038,9 @@ namespace DraCode.KoboldLair.Orchestrators
         public async Task SaveTasksToFileAsync()
         {
             await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
+            
+            // Clear WAL after successful checkpoint
+            await _wal.CheckpointAsync();
         }
 
         /// <summary>
@@ -1145,6 +1183,60 @@ namespace DraCode.KoboldLair.Orchestrators
             }
 
             return recovered;
+        }
+
+        /// <summary>
+        /// Recovers task state from Write-Ahead Log after a crash
+        /// </summary>
+        private async Task RecoverFromWalAsync()
+        {
+            try
+            {
+                var entries = await _wal.ReadAllAsync();
+                if (entries.Count == 0)
+                {
+                    _logger?.LogInformation("WAL recovery: No entries to replay");
+                    return;
+                }
+
+                _logger?.LogInformation("WAL recovery: Replaying {Count} state changes", entries.Count);
+
+                // Replay each entry
+                foreach (var entry in entries)
+                {
+                    var task = _taskTracker.GetTaskById(entry.TaskId);
+                    if (task == null)
+                    {
+                        _logger?.LogWarning("WAL recovery: Task {TaskId} not found, skipping", entry.TaskId);
+                        continue;
+                    }
+
+                    // Apply the state transition
+                    if (Enum.TryParse<TaskStatus>(entry.NewStatus, out var newStatus))
+                    {
+                        _taskTracker.UpdateTask(task, newStatus, entry.AssignedAgent);
+                        
+                        if (!string.IsNullOrEmpty(entry.ErrorMessage))
+                        {
+                            _taskTracker.SetError(task, entry.ErrorMessage);
+                        }
+
+                        _logger?.LogDebug("WAL recovery: {TaskId} → {NewStatus}", entry.TaskId, entry.NewStatus);
+                    }
+                }
+
+                // Save recovered state to file
+                await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
+                
+                // Clear WAL after successful recovery
+                await _wal.CheckpointAsync();
+                
+                _logger?.LogInformation("WAL recovery completed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "WAL recovery failed");
+            }
         }
 
         /// <summary>
