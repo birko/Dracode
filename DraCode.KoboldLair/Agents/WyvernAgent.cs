@@ -61,58 +61,47 @@ You MUST propose an optimal file structure based on the project type:
 
 ## Output Format (valid JSON only, no markdown):
 {
-  ""projectName"": ""Name"",
+  ""projectName"": ""ProjectName"",
   ""structure"": {
-    ""namingConventions"": {
-      ""csharp-classes"": ""PascalCase"",
-      ""csharp-files"": ""PascalCase"",
-      ""javascript-functions"": ""camelCase"",
-      ""component-files"": ""PascalCase"",
-      ""config-files"": ""kebab-case""
-    },
-    ""directoryPurposes"": {
-      ""src/"": ""Main source code"",
-      ""src/controllers/"": ""API endpoint controllers"",
-      ""src/models/"": ""Data models and entities"",
-      ""src/services/"": ""Business logic services"",
-      ""tests/"": ""Unit and integration tests"",
-      ""docs/"": ""Project documentation""
-    },
-    ""fileLocationGuidelines"": {
-      ""controller"": ""src/controllers/"",
-      ""model"": ""src/models/"",
-      ""service"": ""src/services/"",
-      ""test"": ""tests/"",
-      ""config"": ""config/"",
-      ""documentation"": ""docs/""
-    },
-    ""architectureNotes"": ""Brief description of the recommended architecture and organization patterns""
+    ""namingConventions"": { ""file-type"": ""convention"", ... },
+    ""directoryPurposes"": { ""path/"": ""purpose"", ... },
+    ""fileLocationGuidelines"": { ""type"": ""path/"", ... },
+    ""architectureNotes"": ""Architecture overview and organization patterns""
   },
-  ""areas"": [{
-    ""name"": ""Documentation"",
-    ""tasks"": [{
-      ""id"": ""docs-1"",
-      ""name"": ""Create README.md"",
-      ""description"": ""Create comprehensive README with setup instructions, usage guide, dependencies, and running instructions"",
-      ""agentType"": ""documentation"",
-      ""complexity"": ""low"",
-      ""dependencies"": [],
-      ""dependencyLevel"": 0,
-      ""priority"": ""critical""
-    }]
-  }, {
-    ""name"": ""Backend"",
-    ""tasks"": [{
-      ""id"": ""backend-1"",
-      ""name"": ""Setup project structure"",
-      ""description"": ""Organize code into folders: src/, tests/, docs/, config/"",
-      ""agentType"": ""csharp"",
-      ""complexity"": ""low"",
-      ""dependencies"": [],
-      ""dependencyLevel"": 0,
-      ""priority"": ""high""
-    }]
-  }],
+  ""areas"": [
+    {
+      ""name"": ""Documentation"",
+      ""tasks"": [
+        {
+          ""id"": ""docs-1"",
+          ""name"": ""Create README.md"",
+          ""description"": ""Comprehensive README: setup, usage, dependencies, run instructions"",
+          ""agentType"": ""documentation"",
+          ""complexity"": ""low"",
+          ""dependencies"": [],
+          ""dependencyLevel"": 0,
+          ""priority"": ""critical""
+        }
+      ]
+    },
+    {
+      ""name"": ""Backend"",
+      ""tasks"": [
+        {
+          ""id"": ""backend-1"",
+          ""name"": ""Setup project structure"",
+          ""description"": ""Create folder structure: src/, tests/, docs/, config/"",
+          ""agentType"": ""csharp"",
+          ""complexity"": ""low"",
+          ""dependencies"": [],
+          ""dependencyLevel"": 0,
+          ""priority"": ""high""
+        },
+        { ... more tasks ... }
+      ]
+    },
+    { ... more areas ... }
+  ],
   ""totalTasks"": 15,
   ""estimatedComplexity"": ""medium""
 }
