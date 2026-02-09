@@ -23,5 +23,32 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// List of files created or modified by this task (extracted from git commit)
         /// </summary>
         public List<string> OutputFiles { get; set; } = new();
+
+        // Retry tracking properties
+        
+        /// <summary>
+        /// Number of retry attempts made for this task
+        /// </summary>
+        public int RetryCount { get; set; } = 0;
+        
+        /// <summary>
+        /// Timestamp of the last retry attempt
+        /// </summary>
+        public DateTime? LastRetryAttempt { get; set; }
+        
+        /// <summary>
+        /// Calculated timestamp when next retry should be attempted
+        /// </summary>
+        public DateTime? NextRetryAt { get; set; }
+        
+        /// <summary>
+        /// Error category for determining retry eligibility (transient vs permanent)
+        /// </summary>
+        public string? ErrorCategory { get; set; }
+        
+        /// <summary>
+        /// LLM provider used for this task (for circuit breaker tracking)
+        /// </summary>
+        public string? Provider { get; set; }
     }
 }

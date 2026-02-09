@@ -576,17 +576,20 @@ Critical for production use and user trust. Blocks effective multi-agent workflo
 
 ### From Phase H - Workflow Enhancements
 
-- [ ] **Failure Recovery Service** - Auto-retry transient errors
+- [x] **Failure Recovery Service** - Auto-retry transient errors ✅ COMPLETED (2026-02-09)
   - Background service that runs every 5 minutes
   - Detects failed tasks with transient errors (network, timeout, rate limit)
   - Applies exponential backoff (1min, 2min, 5min, 15min, 30min)
   - Auto-retries up to 5 times for known transient failures
   - Failure categorization: transient (network) vs permanent (syntax error)
   - Circuit breaker pattern for provider outages (3 failures = pause 10 min)
-  - Notifies user via Dragon if still failing after retries
-  - Status: Manual retry via `retry_failed_task` tool currently required
+  - Implementation complete with 4 new components:
+    - `ErrorClassifier` - Categorizes errors as transient/permanent
+    - `ProviderCircuitBreaker` - Tracks provider health
+    - `FailureRecoveryService` - Background service for auto-retry
+    - Extended `TaskRecord` with retry tracking fields
   - Impact: Reduces manual intervention for temporary issues (network glitches)
-  - **Effort**: Medium (~3 days)
+  - **Effort**: Completed
 
 ### From Phase I - Context Preservation
 

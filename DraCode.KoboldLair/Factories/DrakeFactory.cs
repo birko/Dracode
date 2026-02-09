@@ -20,6 +20,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ProjectRepository? _projectRepository;
         private readonly GitService? _gitService;
+        private readonly ProviderCircuitBreaker? _circuitBreaker;
         private readonly ILoggerFactory? _loggerFactory;
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly string _projectsPath;
@@ -42,6 +43,7 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="loggerFactory">Optional logger factory for Drake logging</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         /// <param name="projectRepository">Optional project repository for resolving project paths</param>
+        /// <param name="circuitBreaker">Optional circuit breaker for provider failure tracking</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
             ProviderConfigurationService providerConfigService,
@@ -49,7 +51,8 @@ namespace DraCode.KoboldLair.Factories
             KoboldLairConfiguration koboldLairConfig,
             ILoggerFactory? loggerFactory = null,
             GitService? gitService = null,
-            ProjectRepository? projectRepository = null)
+            ProjectRepository? projectRepository = null,
+            ProviderCircuitBreaker? circuitBreaker = null)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
@@ -58,6 +61,7 @@ namespace DraCode.KoboldLair.Factories
             _projectRepository = projectRepository;
             _loggerFactory = loggerFactory;
             _gitService = gitService;
+            _circuitBreaker = circuitBreaker;
             
             // Extract configuration values from koboldLairConfig
             _projectsPath = koboldLairConfig.ProjectsPath ?? "./projects";
@@ -181,6 +185,7 @@ namespace DraCode.KoboldLair.Factories
                 _gitService,
                 planService,
                 plannerAgent,
+                _circuitBreaker,
                 _planningEnabled,
                 _useEnhancedExecution,
                 _allowPlanModifications,
@@ -259,6 +264,22 @@ namespace DraCode.KoboldLair.Factories
                 return _drakeProjectIds
                     .Where(kvp => kvp.Value == projectId)
                     .Select(kvp => (_drakes[kvp.Key], kvp.Key))
+                    .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Gets all Drakes associated with a specific project (simple list without names)
+        /// </summary>
+        /// <param name="projectId">Project identifier</param>
+        /// <returns>List of Drake instances</returns>
+        public List<Drake> GetDrakesByProject(string projectId)
+        {
+            lock (_lock)
+            {
+                return _drakeProjectIds
+                    .Where(kvp => kvp.Value == projectId)
+                    .Select(kvp => _drakes[kvp.Key])
                     .ToList();
             }
         }

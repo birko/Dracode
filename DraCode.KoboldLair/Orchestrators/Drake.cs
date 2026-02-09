@@ -31,6 +31,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly GitService? _gitService;
         private readonly KoboldPlanService? _planService;
         private readonly KoboldPlannerAgent? _plannerAgent;
+        private readonly ProviderCircuitBreaker? _circuitBreaker;
         private readonly bool _planningEnabled;
         private readonly bool _useEnhancedExecution;
         private readonly bool _allowPlanModifications;
@@ -67,6 +68,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         /// <param name="planService">Optional plan service for implementation plan persistence</param>
         /// <param name="plannerAgent">Optional planner agent for creating implementation plans</param>
+        /// <param name="circuitBreaker">Optional circuit breaker for provider failure tracking</param>
         /// <param name="planningEnabled">Whether to enable implementation planning (default: true if planService and plannerAgent are provided)</param>
         /// <param name="useEnhancedExecution">Whether to use Phase 2 enhanced execution with auto-detection (default: true)</param>
         /// <param name="allowPlanModifications">Whether to allow agent-suggested plan modifications (default: false)</param>
@@ -87,6 +89,7 @@ namespace DraCode.KoboldLair.Orchestrators
             GitService? gitService = null,
             KoboldPlanService? planService = null,
             KoboldPlannerAgent? plannerAgent = null,
+            ProviderCircuitBreaker? circuitBreaker = null,
             bool? planningEnabled = null,
             bool useEnhancedExecution = true,
             bool allowPlanModifications = false,
@@ -107,6 +110,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _gitService = gitService;
             _planService = planService;
             _plannerAgent = plannerAgent;
+            _circuitBreaker = circuitBreaker;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
@@ -352,6 +356,9 @@ namespace DraCode.KoboldLair.Orchestrators
             // Track the mapping
             _taskToKoboldMap[task.Id] = kobold.Id;
 
+            // Track provider for circuit breaker and retry logic
+            task.Provider = effectiveProvider;
+
             // Update task status
             _taskTracker.UpdateTask(task, TaskStatus.NotInitialized, agentType);
             SaveTasksToFile();
@@ -563,6 +570,20 @@ namespace DraCode.KoboldLair.Orchestrators
 
             // Update task with WAL logging for crash safety
             await UpdateTaskWithWalAsync(task, taskStatus, task.AssignedAgent, kobold.HasError ? (kobold.ErrorMessage ?? "Unknown error") : null);
+
+            // Report failure to circuit breaker
+            if (taskStatus == TaskStatus.Failed && !string.IsNullOrWhiteSpace(task.Provider))
+            {
+                _circuitBreaker?.RecordFailure(task.Provider);
+                _logger?.LogDebug(
+                    "Reported failure to circuit breaker for provider {Provider} (task {TaskId})",
+                    task.Provider, task.Id[..Math.Min(8, task.Id.Length)]);
+            }
+            // Report success to circuit breaker to reset failure counter
+            else if (taskStatus == TaskStatus.Done && !string.IsNullOrWhiteSpace(task.Provider))
+            {
+                _circuitBreaker?.RecordSuccess(task.Provider);
+            }
 
             // Log status transition if changed
             if (previousStatus != taskStatus)

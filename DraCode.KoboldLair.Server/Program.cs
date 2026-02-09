@@ -30,6 +30,9 @@ builder.Services.AddSingleton<ProviderConfigurationService>();
 // Register project configuration service (depends on ProviderConfigurationService for defaults)
 builder.Services.AddSingleton<ProjectConfigurationService>();
 
+// Register provider circuit breaker for failure tracking
+builder.Services.AddSingleton<ProviderCircuitBreaker>();
+
 // Register git service for version control integration
 builder.Services.AddSingleton<GitService>();
 
@@ -89,8 +92,9 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var projectRepository = sp.GetRequiredService<ProjectRepository>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
     var gitService = sp.GetRequiredService<GitService>();
+    var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository);
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository, circuitBreaker);
 });
 
 // Register services
@@ -161,6 +165,22 @@ builder.Services.AddHostedService<WyvernProcessingService>(sp =>
     var logger = sp.GetRequiredService<ILogger<WyvernProcessingService>>();
     var projectService = sp.GetRequiredService<ProjectService>();
     return new WyvernProcessingService(logger, projectService, checkIntervalSeconds: 60);
+});
+
+// Register Failure Recovery Service (auto-retries transient failures, checks every 5 minutes)
+builder.Services.AddHostedService<FailureRecoveryService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<FailureRecoveryService>>();
+    var projectService = sp.GetRequiredService<ProjectService>();
+    var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
+    return new FailureRecoveryService(
+        logger,
+        projectService,
+        drakeFactory,
+        circuitBreaker,
+        checkIntervalSeconds: 300, // 5 minutes
+        maxRetryAttempts: 5);
 });
 
 // Add CORS for web client

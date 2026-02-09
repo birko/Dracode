@@ -164,6 +164,12 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - **LLM Retry Logic**: All providers use exponential backoff with `SendWithRetryAsync`
   - Handles 429 (rate limiting), 5xx errors, timeouts, network failures
   - Respects `Retry-After` header; configurable via `RetryPolicy`
+- **Failure Recovery System** (added 2026-02-09)
+  - Automatic retry of failed tasks with transient errors
+  - Exponential backoff: 1min, 2min, 5min, 15min, 30min (max 5 retries)
+  - Circuit breaker pattern: 3 failures = 10 minute pause
+  - Error classification: transient (network) vs permanent (syntax)
+  - Background service runs every 5 minutes
 - **Streaming Support**: All 10 providers support real-time token streaming (added 2026-02-06)
   - Enabled by default for Dragon interactive chat
   - Automatic fallback to synchronous mode on streaming failures
