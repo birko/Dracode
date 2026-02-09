@@ -1,7 +1,7 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-09 - Wyrm workflow and agent factory audit completed**
+**Last updated: 2026-02-09 - Pause/Resume project execution feature completed**
 
 ---
 
@@ -731,14 +731,16 @@ Critical for production use and user trust. Blocks effective multi-agent workflo
 
 ### From Phase H - Workflow Control
 
-- [ ] **Pause/Resume Project Execution**
-  - Add `ProjectExecutionState` enum: Running, Paused, Suspended, Cancelled
-  - Add state field to `Project.cs`
-  - Update DrakeExecutionService to respect execution state
-  - Dragon tools: `pause_project`, `resume_project`, `suspend_project`, `cancel_project`
+- [x] **Pause/Resume Project Execution** *(Completed 2026-02-09)*
+  - Added `ProjectExecutionState` enum: Running, Paused, Suspended, Cancelled
+  - Added `ExecutionState` field to `Project.cs` with default value `Running`
+  - Updated DrakeExecutionService to filter projects by execution state
+  - Added `SetExecutionState` and `GetExecutionState` methods to ProjectService with validation
+  - Created 4 new Dragon tools via Warden: `pause_project`, `resume_project`, `suspend_project`, `cancel_project`
+  - Updated `ListProjectsTool` to display execution state with icons (▶️⏸️⏹️❌)
   - Use cases: High system load, debugging, change of plans
-  - **Impact**: Essential for production use - users need execution control
-  - **Effort**: High (~1 week)
+  - **Impact**: Essential for production use - users now have full execution control
+  - **Effort**: High (~1 week) - COMPLETED
 
 - [ ] **Task Prioritization System**
   - Add `TaskPriority` enum: Critical, High, Normal, Low

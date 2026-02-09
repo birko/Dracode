@@ -3,6 +3,7 @@ using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Agents;
+using DraCode.KoboldLair.Models.Projects;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents.SubAgents
@@ -27,6 +28,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<string, RunningAgentInfo?>? _getRunningAgentsForProject;
         private readonly Func<KoboldStatistics>? _getGlobalKoboldStats;
         private readonly RetryFailedTaskTool? _retryFailedTaskTool;
+        private readonly Func<string, ProjectExecutionState, bool>? _setExecutionState;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -46,7 +48,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<List<RunningAgentInfo>>? getRunningAgents = null,
             Func<string, RunningAgentInfo?>? getRunningAgentsForProject = null,
             Func<KoboldStatistics>? getGlobalKoboldStats = null,
-            RetryFailedTaskTool? retryFailedTaskTool = null)
+            RetryFailedTaskTool? retryFailedTaskTool = null,
+            Func<string, ProjectExecutionState, bool>? setExecutionState = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -63,6 +66,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _getRunningAgentsForProject = getRunningAgentsForProject;
             _getGlobalKoboldStats = getGlobalKoboldStats;
             _retryFailedTaskTool = retryFailedTaskTool;
+            _setExecutionState = setExecutionState;
             RebuildTools();
         }
 
@@ -73,7 +77,11 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 new AgentConfigurationTool(_getProjectConfig, _getAllProjects, _setAgentEnabled, _setAgentLimit),
                 new ExternalPathTool(_getExternalPaths, _addExternalPath, _removeExternalPath, _getAllProjects),
                 new RetryAnalysisTool(_getProjectStatus, _retryAnalysis, _getFailedProjects),
-                new AgentStatusTool(_getRunningAgents, _getRunningAgentsForProject, _getGlobalKoboldStats)
+                new AgentStatusTool(_getRunningAgents, _getRunningAgentsForProject, _getGlobalKoboldStats),
+                new PauseProjectTool(_setExecutionState),
+                new ResumeProjectTool(_setExecutionState),
+                new SuspendProjectTool(_setExecutionState),
+                new CancelProjectTool(_setExecutionState)
             };
             
             // Add retry failed task tool if available
@@ -99,6 +107,7 @@ Your role is to manage the workforce - the background agents that process projec
 5. **Manage external path access** - grant/revoke file access outside workspace
 6. **Retry failed analysis** - view and retry projects with failed Wyvern analysis
 7. **Retry failed tasks** - view and retry individual failed tasks from Kobolds
+8. **Control project execution** - pause, resume, suspend, or cancel project execution
 
 ## Tools Available:
 - **agent_status**: View running agents per project (actions: list, project, summary)
@@ -106,6 +115,10 @@ Your role is to manage the workforce - the background agents that process projec
 - **manage_external_paths**: Control which external paths agents can access (actions: list, add, remove)
 - **retry_analysis**: View failed projects and retry Wyvern analysis (actions: list, retry, status)
 - **retry_failed_task**: View and retry failed Kobold tasks (actions: list, retry, retry_all)
+- **pause_project**: Temporarily halt project execution (short-term)
+- **resume_project**: Resume paused or suspended project
+- **suspend_project**: Long-term hold (awaiting external changes)
+- **cancel_project**: Permanently stop project (requires confirmation)
 
 ## Agent Types You Oversee:
 - **Wyvern**: Analyzes specifications, creates task breakdowns (first step after approval)
@@ -144,6 +157,23 @@ Your role is to manage the workforce - the background agents that process projec
 - **Important**: By default, agents can only access the project workspace
 - External paths allow agents to read/write files in other locations
 - This is useful when agents need access to shared libraries, templates, or existing codebases
+
+### Controlling Project Execution:
+- **pause_project**: Temporarily pause execution during high system load or debugging
+  - Use for short-term interruptions
+  - Can be resumed at any time
+  - Example: ""pause my-project during peak hours""
+- **resume_project**: Resume a paused or suspended project
+  - Restores normal execution
+  - Cannot resume cancelled projects
+- **suspend_project**: Long-term hold for projects awaiting external changes
+  - Use when project won't continue soon
+  - Requires explicit resume action
+  - Example: ""suspend project until API keys arrive""
+- **cancel_project**: Permanently stop project execution
+  - Terminal state - cannot be resumed
+  - REQUIRES user confirmation
+  - Use when project is abandoned
 
 ### Retrying Failed Analysis:
 - Use retry_analysis with action:'list' to see all failed projects and their errors

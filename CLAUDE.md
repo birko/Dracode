@@ -134,7 +134,7 @@ Located in `DraCode.Agent/Tools/`:
 - `ask_user` - User interaction
 - `display_text` - Output display
 
-### Dragon Tools (10)
+### Dragon Tools (14)
 
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `list_projects` - List all registered projects
@@ -149,6 +149,10 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `retry_analysis` - Retry failed Wyvern analysis (list/retry/status actions)
 - `agent_status` - View running agents (Drakes, Kobolds) per project
 - `retry_failed_task` - Retry failed tasks by resetting to Unassigned
+- `pause_project` - Temporarily pause project execution (short-term hold)
+- `resume_project` - Resume paused or suspended project
+- `suspend_project` - Long-term hold for projects awaiting external changes
+- `cancel_project` - Permanently cancel project (terminal state, requires confirmation)
 
 ### Kobold Planner Tool (1)
 
@@ -261,6 +265,7 @@ Unified format combining project metadata and agent configuration:
     "id": "uuid-here",
     "name": "my-project",
     "status": "Analyzed",
+    "executionState": "Running",
     "paths": {
       "specification": "./my-project/specification.md",
       "output": "./my-project/workspace",
@@ -310,6 +315,19 @@ Unified format combining project metadata and agent configuration:
 - `workspace` - Only project workspace accessible (default)
 - `relaxed` - Workspace + allowed external paths
 - `strict` - Minimal access, explicit allowlist only
+
+**Execution States:**
+- `Running` - Normal execution, Drake processes tasks automatically (default)
+- `Paused` - Temporarily halted, can be resumed at any time (short-term)
+- `Suspended` - Long-term hold, requires explicit resume action
+- `Cancelled` - Permanently stopped, terminal state (cannot be resumed)
+
+**Execution Control:**
+- Projects can be paused during high system load or debugging
+- DrakeExecutionService only processes projects in `Running` state
+- Execution state is independent of project status (e.g., InProgress but Paused)
+- Use Warden's execution control tools: `pause_project`, `resume_project`, `suspend_project`, `cancel_project`
+- Cancellation requires user confirmation and is permanent
 
 ### User Settings (user-settings.json)
 

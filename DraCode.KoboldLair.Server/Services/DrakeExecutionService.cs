@@ -111,10 +111,26 @@ namespace DraCode.KoboldLair.Server.Services
             // Get all projects
             var allProjects = _projectService.GetAllProjects();
 
-            // Find projects that are analyzed or in progress
+            // Find projects that are analyzed or in progress AND actively running
             var projectsToProcess = allProjects
-                .Where(p => p.Status == ProjectStatus.Analyzed || p.Status == ProjectStatus.InProgress)
+                .Where(p => (p.Status == ProjectStatus.Analyzed || p.Status == ProjectStatus.InProgress) 
+                            && p.ExecutionState == ProjectExecutionState.Running)
                 .ToList();
+
+            // Log skipped projects with non-Running execution states
+            var skippedProjects = allProjects
+                .Where(p => (p.Status == ProjectStatus.Analyzed || p.Status == ProjectStatus.InProgress)
+                            && p.ExecutionState != ProjectExecutionState.Running)
+                .ToList();
+
+            if (skippedProjects.Count > 0)
+            {
+                foreach (var skipped in skippedProjects)
+                {
+                    _logger.LogDebug("⏸️ Skipping project {ProjectName} - execution state: {State}", 
+                        skipped.Name, skipped.ExecutionState);
+                }
+            }
 
             if (projectsToProcess.Count == 0)
             {

@@ -408,6 +408,61 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Updates the execution state of a project with validation
+        /// </summary>
+        /// <param name="projectId">Project ID or name</param>
+        /// <param name="state">New execution state</param>
+        /// <returns>True if state was updated successfully, false if validation failed</returns>
+        public bool SetExecutionState(string projectId, ProjectExecutionState state)
+        {
+            var project = _repository.GetById(projectId) ?? _repository.GetByName(projectId);
+            if (project == null)
+            {
+                _logger.LogWarning("Cannot set execution state: Project not found: {ProjectId}", projectId);
+                return false;
+            }
+
+            // Validate state transition
+            var currentState = project.ExecutionState;
+
+            // Cannot resume from Cancelled state
+            if (currentState == ProjectExecutionState.Cancelled && state == ProjectExecutionState.Running)
+            {
+                _logger.LogWarning("Cannot resume cancelled project {ProjectName}", project.Name);
+                return false;
+            }
+
+            // Cannot pause/suspend completed or failed projects
+            if ((project.Status == ProjectStatus.Completed || project.Status == ProjectStatus.Failed) &&
+                (state == ProjectExecutionState.Paused || state == ProjectExecutionState.Suspended))
+            {
+                _logger.LogWarning("Cannot pause/suspend project {ProjectName} with status {Status}", 
+                    project.Name, project.Status);
+                return false;
+            }
+
+            project.ExecutionState = state;
+            _repository.Update(project);
+            
+            _logger.LogInformation("Updated project {ProjectName} execution state: {OldState} → {NewState}", 
+                project.Name, currentState, state);
+            
+            return true;
+        }
+
+        /// <summary>
+        /// Gets the current execution state of a project
+        /// </summary>
+        /// <param name="projectId">Project ID or name</param>
+        /// <returns>Current execution state, or null if project not found</returns>
+        public ProjectExecutionState? GetExecutionState(string projectId)
+        {
+            var project = _repository.GetById(projectId) ?? _repository.GetByName(projectId);
+            return project?.ExecutionState;
+        }
+
+
+        /// <summary>
         /// Resets a failed project so Wyvern analysis can be retried.
         /// Clears the error message and sets status back to New for reprocessing.
         /// </summary>

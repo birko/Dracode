@@ -25,6 +25,11 @@ namespace DraCode.KoboldLair.Models.Projects
         public ProjectStatus Status { get; set; } = ProjectStatus.Prototype;
 
         /// <summary>
+        /// Execution state - controls whether the project is actively being processed
+        /// </summary>
+        public ProjectExecutionState ExecutionState { get; set; } = ProjectExecutionState.Running;
+
+        /// <summary>
         /// File paths associated with the project
         /// </summary>
         public ProjectPaths Paths { get; set; } = new();

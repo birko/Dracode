@@ -46,8 +46,8 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 var result = new System.Text.StringBuilder();
                 result.AppendLine($"**{projects.Count} project(s):**\n");
-                result.AppendLine("| Status | Project | Features | Git | Updated |");
-                result.AppendLine("|--------|---------|----------|-----|---------|");
+                result.AppendLine("| Status | Project | Execution | Features | Git | Updated |");
+                result.AppendLine("|--------|---------|-----------|----------|-----|---------|");
 
                 foreach (var project in projects.OrderByDescending(p => p.UpdatedAt))
                 {
@@ -55,6 +55,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                     {
                         "New" => "🆕",
                         "WyvernAssigned" => "📋",
+                        "WyrmAssigned" => "🔍",
                         "Analyzed" => "✅",
                         "SpecificationModified" => "📝",
                         "InProgress" => "🔨",
@@ -63,8 +64,17 @@ namespace DraCode.KoboldLair.Agents.Tools
                         _ => "❓"
                     };
 
+                    var execIcon = project.ExecutionState switch
+                    {
+                        "Running" => "▶️",
+                        "Paused" => "⏸️",
+                        "Suspended" => "⏹️",
+                        "Cancelled" => "❌",
+                        _ => "▶️"
+                    };
+
                     var gitIcon = project.HasGitRepository ? "✓" : "✗";
-                    result.AppendLine($"| {statusIcon} {project.Status} | {project.Name} | {project.FeatureCount} | {gitIcon} | {project.UpdatedAt:MM-dd HH:mm} |");
+                    result.AppendLine($"| {statusIcon} {project.Status} | {project.Name} | {execIcon} {project.ExecutionState} | {project.FeatureCount} | {gitIcon} | {project.UpdatedAt:MM-dd HH:mm} |");
                 }
 
                 return result.ToString();
