@@ -35,22 +35,22 @@ namespace DraCode.KoboldLair.Agents
             // Handle KoboldLair-specific agents locally
             if (agentType.Equals("wyrm", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType);
                 return new WyrmAgent(llmProvider, options, provider, config);
             }
             else if (agentType.Equals("dragon", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType);
                 return new DragonAgent(llmProvider, options);
             }
             else if (agentType.Equals("wyvern", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType);
                 return new WyvernAgent(llmProvider, options);
             }
             else if (agentType.Equals("kobold-planner", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType);
                 return new KoboldPlannerAgent(llmProvider, options);
             }
 
@@ -61,7 +61,7 @@ namespace DraCode.KoboldLair.Agents
         /// <summary>
         /// Creates an LLM provider instance. Delegates to DraCode.Agent.AgentFactory.CreateLlmProvider.
         /// </summary>
-        public static ILlmProvider CreateLlmProvider(string provider, Dictionary<string, string> config)
-            => AgentFactory.CreateLlmProvider(provider, config);
+        public static ILlmProvider CreateLlmProvider(string provider, Dictionary<string, string> config, string? agentType = null)
+            => AgentFactory.CreateLlmProvider(provider, config, agentType);
     }
 }

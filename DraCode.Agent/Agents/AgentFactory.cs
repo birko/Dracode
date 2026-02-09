@@ -14,17 +14,36 @@ namespace DraCode.Agent.Agents
             ["openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "vllm", "sglang", "githubcopilot", "zai"];
 
         /// <summary>
+        /// Agent types that benefit from coding-optimized endpoints
+        /// </summary>
+        private static readonly HashSet<string> CodingAgentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "coding", "csharp", "cpp", "assembler", "javascript", "typescript", 
+            "css", "html", "react", "angular", "php", "python", "debug", 
+            "refactor", "test", "svg"
+        };
+
+        /// <summary>
+        /// Checks if an agent type is a coding agent
+        /// </summary>
+        public static bool IsCodingAgent(string agentType) => CodingAgentTypes.Contains(agentType);
+
+        /// <summary>
         /// Creates an LLM provider instance based on provider name and configuration.
         /// </summary>
         /// <param name="provider">Provider name: openai, azureopenai, claude, gemini, ollama, llamacpp, vllm, sglang, githubcopilot</param>
         /// <param name="config">Provider configuration (apiKey, model, baseUrl, etc.)</param>
+        /// <param name="agentType">Optional agent type to optimize provider settings (e.g., use coding endpoint for Z.AI)</param>
         /// <returns>ILlmProvider instance</returns>
-        public static ILlmProvider CreateLlmProvider(string provider, Dictionary<string, string>? config = null)
+        public static ILlmProvider CreateLlmProvider(string provider, Dictionary<string, string>? config = null, string? agentType = null)
         {
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             string C(string key, string def = "") =>
                 config.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : def;
+
+            // Determine if we should use Z.AI coding endpoint
+            bool useCodingEndpoint = !string.IsNullOrEmpty(agentType) && IsCodingAgent(agentType);
 
             return provider.ToLowerInvariant() switch
             {
@@ -41,7 +60,8 @@ namespace DraCode.Agent.Agents
                     C("apiKey"),
                     C("model", "glm-4.5-flash"),
                     C("baseUrl", ZAiProvider.InternationalEndpoint),
-                    C("deepThinking", "false").Equals("true", StringComparison.OrdinalIgnoreCase)),
+                    C("deepThinking", "false").Equals("true", StringComparison.OrdinalIgnoreCase),
+                    useCodingEndpoint),
                 _ => throw new ArgumentException($"Unknown provider '{provider}'. Supported: {string.Join(", ", SupportedProviders)}")
             };
         }
@@ -58,7 +78,7 @@ namespace DraCode.Agent.Agents
             options ??= new AgentOptions();
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            ILlmProvider llm = CreateLlmProvider(provider, config);
+            ILlmProvider llm = CreateLlmProvider(provider, config, agentType);
 
             return agentType.ToLowerInvariant() switch
             {

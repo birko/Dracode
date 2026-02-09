@@ -117,11 +117,13 @@ Located in `DraCode.Agent/LLMs/Providers/`:
 - `OllamaProvider` - Local Ollama server ✨ **Streaming**
 - `LlamaCppProvider` - Local llama.cpp server (extends OpenAiCompatibleProviderBase) ✨ **Streaming**
 - `GithubCopilotProvider` - GitHub Copilot API ✨ **Streaming**
-- `ZAiProvider` - Z.AI (Zhipu) GLM models (glm-4.5, glm-4.6, glm-4.7) ✨ **Streaming**
+- `ZAiProvider` - Z.AI (Zhipu) GLM models (glm-4.5, glm-4.6, glm-4.7) ✨ **Streaming** 🔧 **Coding Endpoint**
 - `VllmProvider` - vLLM local inference (extends OpenAiCompatibleProviderBase) ✨ **Streaming**
 - `SglangProvider` - SGLang inference (extends OpenAiCompatibleProviderBase) ✨ **Streaming**
 
 **All providers support streaming responses** for real-time token-by-token display.
+
+**Z.AI Coding Endpoint**: When using Z.AI with coding agents (csharp, python, javascript, etc.), the provider automatically routes requests to the specialized coding endpoint (`https://api.z.ai/api/coding/paas/v4/chat/completions`) for optimized code generation.
 
 ### Built-in Tools (7)
 

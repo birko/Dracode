@@ -1,6 +1,6 @@
-using DraCode.Agent.Tools;
 using System.Text;
 using System.Text.Json;
+using DraCode.Agent.Tools;
 
 namespace DraCode.Agent.LLMs.Providers
 {
@@ -24,6 +24,11 @@ namespace DraCode.Agent.LLMs.Providers
         public const string InternationalEndpoint = "https://api.z.ai/api/paas/v4";
 
         /// <summary>
+        /// International Coding API endpoint (for coding scenarios only)
+        /// </summary>
+        public const string InternationalCodingEndpoint = "https://api.z.ai/api/coding/paas/v4";
+
+        /// <summary>
         /// China mainland API endpoint
         /// </summary>
         public const string ChinaEndpoint = "https://open.bigmodel.cn/api/paas/v4";
@@ -37,15 +42,27 @@ namespace DraCode.Agent.LLMs.Providers
         /// <param name="model">Model name (glm-4.5-flash, glm-4.6-flash, glm-4.7, etc.)</param>
         /// <param name="baseUrl">API base URL (defaults to international endpoint)</param>
         /// <param name="enableDeepThinking">Enable Deep Thinking mode for supported models</param>
+        /// <param name="useCodingEndpoint">Use coding-optimized endpoint for code generation tasks</param>
         public ZAiProvider(
             string apiKey,
             string model = "glm-4.5-flash",
             string? baseUrl = null,
-            bool enableDeepThinking = false)
+            bool enableDeepThinking = false,
+            bool useCodingEndpoint = false)
         {
             _apiKey = apiKey;
             _model = model;
-            _baseUrl = (baseUrl ?? InternationalEndpoint).TrimEnd('/');
+
+            // Select appropriate base URL based on coding endpoint flag
+            if (baseUrl != null)
+            {
+                _baseUrl = baseUrl.TrimEnd('/');
+            }
+            else
+            {
+                _baseUrl = useCodingEndpoint ? InternationalCodingEndpoint : InternationalEndpoint;
+            }
+
             _enableDeepThinking = enableDeepThinking;
 
             _httpClient = new HttpClient
@@ -279,12 +296,13 @@ namespace DraCode.Agent.LLMs.Providers
                 }
 
                 var json = JsonSerializer.Serialize(payload);
+                var url = $"{_baseUrl}/chat/completions";
 
                 var response = await SendStreamingWithRetryAsync(
                     _httpClient,
                     () =>
                     {
-                        var request = new HttpRequestMessage(HttpMethod.Post, _baseUrl);
+                        var request = new HttpRequestMessage(HttpMethod.Post, url);
                         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
                         return request;
                     },

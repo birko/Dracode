@@ -267,11 +267,20 @@ Z.AI (formerly Zhipu AI) offers GLM models with OpenAI-compatible API.
 ### Endpoints
 - **International**: `https://api.z.ai/api/paas/v4`
 - **China Mainland**: `https://open.bigmodel.cn/api/paas/v4`
+- **Coding Endpoint** (auto-used for coding agents): `https://api.z.ai/api/coding/paas/v4`
 
 ### Features
+- **Automatic Coding Optimization**: When using coding agents (csharp, python, javascript, react, etc.), requests automatically route to the dedicated coding endpoint for better code generation performance
 - Deep Thinking mode for complex reasoning (supported on GLM-4.7)
 - Tool calling support
 - Long context windows
+
+### Coding Agent Support
+Z.AI automatically uses its dedicated coding endpoint when working with:
+- All coding-specific agents: `csharp`, `cpp`, `javascript`, `typescript`, `python`, `php`, `html`, `css`, `react`, `angular`, `assembler`, `svg`
+- General agents: `coding`, `debug`, `refactor`, `test`
+
+**Note**: The coding endpoint is only for coding scenarios and uses a different base URL (`/api/coding/paas/v4` instead of `/api/paas/v4`). This optimization happens automatically when you select Z.AI as your provider for coding agents.
 
 ---
 
