@@ -33,6 +33,66 @@ namespace DraCode.KoboldLair.Server.Services
         public DateTime LastActivity { get; set; } = DateTime.UtcNow;
         public List<SessionMessage> MessageHistory { get; } = new();
         public string? LastMessageId { get; set; }
+        public string? CurrentProjectFolder { get; set; }
+
+        /// <summary>
+        /// Saves the message history to a JSON file in the project folder.
+        /// </summary>
+        public async Task SaveHistoryToFileAsync(string projectFolder, ILogger? logger = null)
+        {
+            try
+            {
+                if (!Directory.Exists(projectFolder))
+                {
+                    Directory.CreateDirectory(projectFolder);
+                }
+
+                var historyPath = Path.Combine(projectFolder, "dragon-history.json");
+                
+                // Prune to last 100 messages before saving
+                var messagesToSave = MessageHistory.Count > 100 
+                    ? MessageHistory.Skip(MessageHistory.Count - 100).ToList() 
+                    : MessageHistory;
+
+                var json = JsonSerializer.Serialize(messagesToSave, new JsonSerializerOptions 
+                { 
+                    WriteIndented = true 
+                });
+                
+                await File.WriteAllTextAsync(historyPath, json);
+                logger?.LogDebug("Saved Dragon history for session {SessionId} to {Path}", SessionId, historyPath);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Failed to save Dragon history for session {SessionId}", SessionId);
+            }
+        }
+
+        /// <summary>
+        /// Loads message history from a JSON file in the project folder.
+        /// </summary>
+        public static async Task<List<SessionMessage>?> LoadHistoryFromFileAsync(string projectFolder, ILogger? logger = null)
+        {
+            try
+            {
+                var historyPath = Path.Combine(projectFolder, "dragon-history.json");
+                if (!File.Exists(historyPath))
+                {
+                    return null;
+                }
+
+                var json = await File.ReadAllTextAsync(historyPath);
+                var messages = JsonSerializer.Deserialize<List<SessionMessage>>(json);
+                
+                logger?.LogDebug("Loaded {Count} messages from Dragon history at {Path}", messages?.Count ?? 0, historyPath);
+                return messages;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Failed to load Dragon history from {Path}", projectFolder);
+                return null;
+            }
+        }
     }
 
     /// <summary>
@@ -560,6 +620,22 @@ namespace DraCode.KoboldLair.Server.Services
                     var projectFolder = Path.GetDirectoryName(latestSpec)!;
                     var projectName = Path.GetFileName(projectFolder);
 
+                    // Set current project folder and load history if available
+                    if (session.CurrentProjectFolder != projectFolder)
+                    {
+                        session.CurrentProjectFolder = projectFolder;
+                        var loadedHistory = await DragonSession.LoadHistoryFromFileAsync(projectFolder, _logger);
+                        if (loadedHistory != null && loadedHistory.Count > 0)
+                        {
+                            // Only load if session history is empty or very different
+                            if (session.MessageHistory.Count == 0)
+                            {
+                                session.MessageHistory.AddRange(loadedHistory);
+                                _logger.LogInformation("Loaded {Count} messages from history for project {Project}", loadedHistory.Count, projectName);
+                            }
+                        }
+                    }
+
                     await SendTrackedMessageAsync(webSocket, session, "specification_created", new
                     {
                         type = "specification_created",
@@ -729,6 +805,22 @@ namespace DraCode.KoboldLair.Server.Services
             var excess = session.MessageHistory.Count - _maxMessageHistory;
             if (excess > 0)
                 session.MessageHistory.RemoveRange(0, excess);
+
+            // Fire-and-forget async save if project folder is set
+            if (!string.IsNullOrEmpty(session.CurrentProjectFolder))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await session.SaveHistoryToFileAsync(session.CurrentProjectFolder, _logger);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to persist Dragon history for session {SessionId}", session.SessionId);
+                    }
+                });
+            }
         }
 
         private async Task ReloadAgentAsync(DragonSession session, string? providerOverride = null)
