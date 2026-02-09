@@ -69,7 +69,7 @@ namespace DraCode.Agent.Tools
                     var promptTask = PromptCallback(question ?? "", context ?? "");
                     var timeoutTask = Task.Delay(TimeSpan.FromSeconds(timeout));
                     
-                    var completedTask = Task.WhenAny(promptTask, timeoutTask).ConfigureAwait(false).GetAwaiter().GetResult();
+                    var completedTask = Task.WhenAny(promptTask, timeoutTask).GetAwaiter().GetResult();
                     
                     if (completedTask == timeoutTask)
                     {
@@ -77,7 +77,7 @@ namespace DraCode.Agent.Tools
                         return $"Error: Prompt timed out after {timeout} seconds. No response received from user.";
                     }
                     
-                    var response = promptTask.ConfigureAwait(false).GetAwaiter().GetResult();
+                    var response = promptTask.GetAwaiter().GetResult();
                     return response;
                 }
 

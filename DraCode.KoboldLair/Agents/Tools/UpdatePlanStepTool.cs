@@ -167,7 +167,7 @@ Returns: Confirmation of the update with current plan progress.";
                             _currentPlan.CurrentStepIndex + 1, _currentPlan.Steps.Count, DateTime.UtcNow);
                     }
 
-                    // Save the plan synchronously to avoid race conditions with Kobold's own saves
+                    // Save the plan (using async internally for non-blocking I/O)
                     if (_planService != null && !string.IsNullOrEmpty(_currentPlan.ProjectId))
                     {
                         try

@@ -71,7 +71,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 return "Error: Delegation service not available.";
             }
 
-            // Execute async delegation synchronously (the tool framework is sync)
+            // Execute async delegation (using async internally for non-blocking I/O)
             try
             {
                 var result = _delegateToSubAgent(councilMember, task).GetAwaiter().GetResult();

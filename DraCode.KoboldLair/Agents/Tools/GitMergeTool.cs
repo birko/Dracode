@@ -73,7 +73,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 return $"Error: Could not find project folder for '{projectName}'";
             }
 
-            // Check if git is available
+            // Check if git is available (using async internally for non-blocking I/O)
             if (!_gitService.IsGitInstalledAsync().GetAwaiter().GetResult())
             {
                 return "Git is not installed on this system.";

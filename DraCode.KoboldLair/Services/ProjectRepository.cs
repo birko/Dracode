@@ -45,7 +45,7 @@ namespace DraCode.KoboldLair.Services
                 {
                     if (File.Exists(_projectsFilePath))
                     {
-                        var json = File.ReadAllText(_projectsFilePath);
+                        var json = File.ReadAllTextAsync(_projectsFilePath).GetAwaiter().GetResult();
                         _projects = JsonSerializer.Deserialize<List<Project>>(json) ?? new List<Project>();
 
                         // Resolve all relative paths to absolute paths and ensure timestamps are set
@@ -207,7 +207,7 @@ namespace DraCode.KoboldLair.Services
                     {
                         WriteIndented = true
                     });
-                    File.WriteAllText(_projectsFilePath, json);
+                    File.WriteAllTextAsync(_projectsFilePath, json).GetAwaiter().GetResult();
                     _logger?.LogDebug("Saved {Count} project(s) to storage", _projects.Count);
                 }
                 catch (Exception ex)

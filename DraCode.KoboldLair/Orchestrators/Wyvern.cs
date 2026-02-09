@@ -107,7 +107,7 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 if (File.Exists(AnalysisJsonPath))
                 {
-                    var json = File.ReadAllText(AnalysisJsonPath);
+                    var json = File.ReadAllTextAsync(AnalysisJsonPath).GetAwaiter().GetResult();
                     _analysis = JsonSerializer.Deserialize<WyvernAnalysis>(json, _jsonOptions);
                 }
             }

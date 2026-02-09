@@ -812,7 +812,7 @@ namespace DraCode.KoboldLair.Server.Services
                 CreatedAt = p.Timestamps.CreatedAt,
                 UpdatedAt = p.Timestamps.UpdatedAt,
                 HasGitRepository = !string.IsNullOrEmpty(p.Paths.Output) &&
-                    _gitService.IsRepositoryAsync(p.Paths.Output).GetAwaiter().GetResult()
+                    _gitService.IsRepositoryAsync(p.Paths.Output).GetAwaiter().GetResult() // Sync wrapper for projection
             }).ToList();
         }
 

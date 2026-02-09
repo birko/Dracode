@@ -356,8 +356,8 @@ namespace DraCode.KoboldLair.Services
                 var jsonPath = GetPlanJsonPath(projectId, planFilename);
                 var mdPath = GetPlanMarkdownPath(projectId, planFilename);
 
-                if (File.Exists(jsonPath)) File.Delete(jsonPath);
-                if (File.Exists(mdPath)) File.Delete(mdPath);
+                if (File.Exists(jsonPath)) await Task.Run(() => File.Delete(jsonPath));
+                if (File.Exists(mdPath)) await Task.Run(() => File.Delete(mdPath));
 
                 // Remove from index
                 index.Remove(taskId);

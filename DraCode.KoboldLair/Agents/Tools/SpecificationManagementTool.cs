@@ -120,7 +120,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             {
                 if (File.Exists(existingSpec.FilePath))
                 {
-                    var content = File.ReadAllText(existingSpec.FilePath);
+                    var content = File.ReadAllTextAsync(existingSpec.FilePath).GetAwaiter().GetResult();
                     existingSpec.Content = content;
 
                     // Load features from project folder
@@ -145,7 +145,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                var content = File.ReadAllText(specPath);
+                var content = File.ReadAllTextAsync(specPath).GetAwaiter().GetResult();
                 var spec = new Specification
                 {
                     Name = name,
@@ -214,7 +214,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                File.WriteAllText(fullPath, content);
+                File.WriteAllTextAsync(fullPath, content).GetAwaiter().GetResult();
 
                 var spec = new Specification
                 {
@@ -276,7 +276,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                File.WriteAllText(fullPath, content);
+                File.WriteAllTextAsync(fullPath, content).GetAwaiter().GetResult();
 
                 var spec = _specifications.GetValueOrDefault(name) ?? new Specification
                 {

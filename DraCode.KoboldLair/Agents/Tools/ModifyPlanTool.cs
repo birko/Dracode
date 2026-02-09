@@ -175,10 +175,10 @@ The modification will be logged and may require approval depending on configurat
                         _ => $"Error: Unknown operation '{operation}'"
                     };
 
-                    // Save the modified plan
+                    // Save the modified plan (using async internally for non-blocking I/O)
                     if (_planService != null && !result.StartsWith("Error"))
                     {
-                        _planService.SavePlanAsync(_currentPlan).Wait();
+                        _planService.SavePlanAsync(_currentPlan).GetAwaiter().GetResult();
                     }
 
                     return result;

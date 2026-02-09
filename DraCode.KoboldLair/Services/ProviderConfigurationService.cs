@@ -443,7 +443,7 @@ namespace DraCode.KoboldLair.Services
             {
                 if (File.Exists(_userSettingsPath))
                 {
-                    var json = File.ReadAllText(_userSettingsPath);
+                    var json = File.ReadAllTextAsync(_userSettingsPath).GetAwaiter().GetResult();
                     var settings = JsonSerializer.Deserialize<UserSettings>(json, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
@@ -492,7 +492,7 @@ namespace DraCode.KoboldLair.Services
                     WriteIndented = true,
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
-                File.WriteAllText(_userSettingsPath, json);
+                File.WriteAllTextAsync(_userSettingsPath, json).GetAwaiter().GetResult();
                 _logger.LogInformation("Saved user settings to {Path}", _userSettingsPath);
             }
             catch (Exception ex)

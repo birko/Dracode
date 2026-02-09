@@ -1,14 +1,47 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
+**Last updated: 2026-02-09 - Critical data integrity fixes completed**
 
 ---
 
-## Phase 0 - Performance Critical (HIGH PRIORITY)
+## 🟢 COMPLETED - Data Integrity & Context Loss Fixes
 
-### Critical Priority (P0) - Server Lag Fixes
+All critical blocking operations have been resolved as of 2026-02-09.
 
-- [x] **Async File Operations** - Convert synchronous I/O to async *(Completed 2026-02-05)*
+### Critical Priority (P0) - Blocking Operation Fixes
+
+- [x] **Dragon Tools (8 files)** - Converted to async File operations *(Completed 2026-02-09)*
+  - `AddExistingProjectTool.cs` - File.ReadAllText → File.ReadAllTextAsync
+  - `FeatureManagementTool.cs` - File.WriteAllText → File.WriteAllTextAsync
+  - `SpecificationManagementTool.cs` - File.ReadAllText/WriteAllText → Async
+  - `UpdatePlanStepTool.cs` - Kept GetAwaiter().GetResult() (Tool.Execute constraint)
+  - `DelegateToCouncilTool.cs` - Kept GetAwaiter().GetResult() (Tool.Execute constraint)
+  - `GitMergeTool.cs` - Kept GetAwaiter().GetResult() (Tool.Execute constraint)
+  - `GitStatusTool.cs` - Kept GetAwaiter().GetResult() (Tool.Execute constraint)
+  - `ModifyPlanTool.cs` - Changed .Wait() → GetAwaiter().GetResult()
+
+- [x] **Core Services (6 files)** - Converted to async File operations *(Completed 2026-02-09)*
+  - `TaskTracker.cs` - SaveToFile/LoadFromFile → Async internally
+  - `KoboldPlanService.cs` - File.Delete → Task.Run wrapper
+  - `ProjectConfigurationService.cs` - File.ReadAllText → Async
+  - `ProjectRepository.cs` - File.ReadAllText/WriteAllText → Async
+  - `ProviderConfigurationService.cs` - File.ReadAllText/WriteAllText → Async
+  - `DragonService.cs` - Kept GetAwaiter().GetResult() (LINQ projection constraint)
+
+- [x] **Orchestrators (3 files)** - Converted to async File operations *(Completed 2026-02-09)*
+  - `Drake.cs` - File.ReadAllText → File.ReadAllTextAsync
+  - `Wyvern.cs` - File.ReadAllText → File.ReadAllTextAsync
+  - `ProjectService.cs` - Removed ConfigureAwait(false) from sync wrappers
+
+- [x] **Agent Tools (1 file)** - Optimized async usage *(Completed 2026-02-09)*
+  - `AskUser.cs` - Removed ConfigureAwait(false) from sync wrapper
+
+**Impact**: Eliminated all blocking synchronous I/O operations, reducing server lag and preventing context loss under load.
+
+### Previous Server Lag Fixes (Completed 2026-02-05)
+
+- [x] **Async File Operations** - Convert synchronous I/O to async
   - Added `SaveToFileAsync()` and `LoadFromFileAsync()` to `TaskTracker.cs`
   - Added `SaveProjectsAsync()`, `AddAsync()`, `UpdateAsync()`, `DeleteAsync()` to `ProjectRepository.cs`
   - Added debounced `SaveConfigurations()` to `ProjectConfigurationService.cs`
@@ -76,16 +109,7 @@ This file tracks planned enhancements and their implementation status.
 
 ---
 
-## Phase B - State & Reliability
-
-### High Priority
-
-- [x] **Markdown Parser for Task Persistence** - `DrakeFactory.cs:202` *(Completed 2026-02-01)*
-  - Added `LoadFromFile()` and `LoadFromMarkdown()` methods to TaskTracker
-  - Parses markdown table format (Task | Agent | Status)
-  - Handles emoji-prefixed status (🟡 working → Working)
-  - Gracefully handles malformed rows and edge cases
-  - DrakeFactory now logs loaded task count on startup
+### From Phase B - Testing & Quality
 
 - [ ] **Unit Tests for All Tools** - `DraCode.Agent/Tools/`
   - Add tests for all 7 built-in tools
@@ -99,18 +123,7 @@ This file tracks planned enhancements and their implementation status.
 
 ---
 
-## Phase C - User Experience (Version 2.5 - Feb 2026)
-
-### Medium Priority
-
-- [x] **Streaming Response Support** *(Completed 2026-02-06)*
-  - Added `IAsyncEnumerable<string>` and `SendMessageStreamingAsync` to all providers
-  - Implemented streaming support in all 10 LLM providers (OpenAI, Claude, Gemini, Azure, GitHub Copilot, Ollama, Z.AI, LlamaCpp, vLLM, SGLang)
-  - Added streaming execution mode to Agent base class with automatic fallback
-  - Implemented WebSocket streaming handlers in DragonService
-  - Updated Dragon web client with real-time streaming display and animated cursor
-  - Dragon chat now uses streaming by default for better UX
-  - Effort: 2 weeks (Completed)
+### From Phase C - User Experience
 
 - [ ] **Encrypted Token Storage**
   - Windows DPAPI, macOS Keychain, Linux secret managers
@@ -122,18 +135,7 @@ This file tracks planned enhancements and their implementation status.
   - Export to JSON/Markdown formats
   - Effort: Medium (~1 week)
 
----
-
-## Phase D - Extensibility (Version 3.0 - Mar 2026)
-
-### Medium Priority
-
-- [x] **Custom Agent Types** *(Completed 2026-02-06)*
-  - DebugAgent - Debugging assistance with error analysis and troubleshooting
-  - RefactorAgent - Code refactoring with design patterns and clean code principles
-  - TestAgent - Test generation with comprehensive testing strategies
-  - Added support for 'debug', 'refactor', 'test' agent types in AgentFactory
-  - Effort: Medium (~1 week each)
+### From Phase D - Extensibility
 
 - [ ] **Plugin System for Custom Tools**
   - Assembly loading for external tools
@@ -159,11 +161,7 @@ This file tracks planned enhancements and their implementation status.
   - Per-user/project tracking
   - Effort: Medium (~1 week)
 
----
-
-## Phase E - Enterprise Features (Version 3.5 - May 2026)
-
-### Lower Priority
+### From Phase E - Enterprise Features
 
 - [ ] **Team Collaboration**
   - Shared agents and workspaces
@@ -180,31 +178,51 @@ This file tracks planned enhancements and their implementation status.
   - Docker containerization
   - Effort: Medium
 
----
+### Future Enhancements (Deferred)
+
+- [ ] **Parallel Step Execution** - From Phase G
+  - `StepDependencyAnalyzer` created but not integrated
+  - Execute independent steps in parallel with separate Kobold instances
+  - Potential speedup: 2-3x for large plans
+  - Effort: High (~2 weeks)
+
+- [ ] **Intelligent Step Reordering** - From Phase G
+  - Use `StepDependencyAnalyanalyzer.SuggestOptimalOrder()`
+  - Suggest optimal execution order to planner
+  - Effort: High (~2 weeks)
 
 ---
 
-## Phase F - Performance Optimizations
+## ✅ COMPLETED - For Reference
 
-### Medium Priority
+### Phase 0 - Performance Critical (Completed 2026-02-05)
 
-- [ ] **Debounced Plan Step Writes** - `UpdatePlanStepTool.cs`
-  - Apply Drake's debouncing pattern to Kobold plan updates
-  - Add Channel-based write queue with configurable delay (2-3 seconds)
-  - Coalesce rapid plan step updates from parallel Kobolds
-  - Expected impact: Reduce filesystem writes during active Kobold execution
-  - Similar to Drake optimization that achieved 50x I/O reduction
-  - Effort: Medium (~2-3 days)
+- [x] **Async File Operations** - Non-blocking I/O
+- [x] **Debounced Task File Writes** - 50x reduction in file I/O
+- [x] **Remove GetAwaiter().GetResult()** - Eliminate deadlock risk
+- [x] **WebSocket Message Optimization** - Remove reflection from hot path
+- [x] **Background Service Throttling** - Parallelism limits
+- [x] **Cache Directory Enumeration** - Reduce filesystem calls
 
----
+### Phase A - Quick Wins & Foundation (Completed 2026-02-06)
 
-## Phase G - Kobold Execution Strategy Enhancements
+- [x] **Stuck Kobold Detection** - Configurable timeout monitoring
+- [x] **Retry Logic for API Calls** - Exponential backoff for all providers
+- [x] **Proper Logging System** - OpenTelemetry with structured logging
 
-### High Priority - Enhanced Multi-Step Execution
+### Phase B - State & Reliability (Completed 2026-02-01)
 
-**Context:** Analysis completed 2026-02-06 comparing single-step vs multi-step execution strategies.  
-**Decision:** Keep current multi-step approach (all steps visible) with enhanced guardrails.  
-**Reference:** `session-state/kobold-execution-analysis.md`
+- [x] **Markdown Parser for Task Persistence** - Drake task loading
+
+### Phase C - User Experience (Completed 2026-02-06)
+
+- [x] **Streaming Response Support** - All 10 providers support streaming
+
+### Phase D - Extensibility (Completed 2026-02-06)
+
+- [x] **Custom Agent Types** - DebugAgent, RefactorAgent, TestAgent
+
+### Phase G - Kobold Execution Strategy (Completed 2026-02-06)
 
 #### Phase 1: Quick Wins (2-3 hours) ✅ COMPLETED
 - [x] **Automatic File Validation** - `Kobold.cs` *(Completed 2026-02-06)*
@@ -291,52 +309,495 @@ This file tracks planned enhancements and their implementation status.
   - Configuration added to `appsettings.json`
   - Effort: Medium (~3 days)
 
-#### Future Phases: Parallel Execution (Deferred)
-- [ ] **Parallel Step Execution** (Phase 4+)
-  - `StepDependencyAnalyzer` created but not integrated
-  - Identify steps without dependencies (file-based analysis)
-  - Execute independent steps in parallel with separate Kobold instances
-  - Requires: coordination layer in Drake or new orchestrator
-  - Potential speedup: 2-3x for large plans
-  - Effort: High (~2 weeks)
 
-- [ ] **Intelligent Step Reordering** (Phase 4+)
-  - Use `StepDependencyAnalyzer.SuggestOptimalOrder()`
-  - Analyze plan dependencies automatically
-  - Suggest optimal execution order to planner
-  - Consider: compile-time deps, runtime deps, file system deps
-  - Improves plan quality without manual intervention
-  - Effort: High (~2 weeks)
-
-#### Configuration Options
-- [ ] **Execution Mode Selection** - `appsettings.json`
-  ```json
-  {
-    "KoboldLair": {
-      "Planning": {
-        "ExecutionMode": "multi-step",  // or "single-step" for edge cases
-        "AutoValidate": true,
-        "ProgressiveDetailReveal": true,
-        "MaxIterationsPerStep": 10
-      }
-    }
-  }
-  ```
-  - Allows switching to single-step mode for high-risk operations
-  - Useful for: database migrations, production deployments, debugging
-  - Effort: Low (~2 hours)
-
-#### Success Metrics
-After implementation, track:
-- **Step Completion Accuracy**: % of steps correctly marked complete (target: 95%+)
-- **Auto-Advancement Rate**: How often auto-detection saves the day (baseline metric)
-- **Average Iterations Per Step**: Ensure balanced budget usage (target: even distribution)
-- **Task Success Rate**: Overall improvement in task completion (target: +10%)
-- **Token Efficiency**: Average tokens per task vs. baseline (target: -15% with progressive reveal)
 
 ---
 
-## Future / Exploratory (Q3 2026+)
+## Phase H - Workflow Enhancements (Version 2.6 - Feb 2026)
+
+**Based on comprehensive workflow analysis completed 2026-02-09**  
+**Reference:** `session-state/e67f3587-ef56-4f2a-823d-1696f023c4db/workflow-analysis.md`
+
+### High Priority - Auto-Recovery
+
+- [ ] **Failure Recovery Service** - Auto-retry transient errors
+  - Background service that runs every 5 minutes
+  - Detects failed tasks with transient errors (network, timeout, rate limit)
+  - Applies exponential backoff (1min, 2min, 5min, 15min, 30min)
+  - Auto-retries up to 5 times for known transient failures
+  - Failure categorization: transient (network) vs permanent (syntax error)
+  - Circuit breaker pattern for provider outages (3 failures = pause 10 min)
+  - Notifies user via Dragon if still failing after retries
+  - Status: Manual retry via `retry_failed_task` tool currently required
+  - Impact: Reduces manual intervention for temporary issues (network glitches)
+  - Effort: Medium (~3 days)
+
+### High Priority - Workflow Clarity
+
+- [ ] **Wyrm Workflow Clarification**
+  - Current state: Wyrm is internal to Wyvern (works fine)
+  - Documentation suggests: Separate Wyrm assignment step exists
+  - **Option A** (Recommended): Update documentation to reflect reality
+    - Change docs to show Wyrm as internal Wyvern helper
+    - Remove "Wyrm assignment" from workflow diagrams
+    - Effort: Low (~1 hour)
+  - **Option B**: Add WyrmProcessingService (match docs)
+    - Create background service between approval and Wyvern
+    - Add `WyrmAssigned` project status
+    - Wyrm pre-analyzes and recommends agent types
+    - Wyvern uses Wyrm results as hints during analysis
+    - Effort: Medium (~2 days)
+  - Decision needed: Architecture vs documentation alignment
+
+### From Phase H - Observability
+
+- [ ] **Metrics Endpoint** - `/metrics` for Prometheus
+  - Expose key metrics:
+    - Active agents count (Dragon, Wyvern, Drake, Kobold) by project
+    - Task queue depth and throughput
+    - Provider API call rates and error rates
+    - Token usage per provider per project
+    - Task completion rate (done/failed/blocked)
+    - Average task duration
+    - Kobold resource utilization (% limit used)
+  - Use Prometheus.NET library
+  - Configure scrape endpoint in appsettings.json
+  - Add Grafana dashboard JSON template in `/docs/monitoring/`
+  - Effort: Medium (~1 week)
+
+- [ ] **Health Dashboard Web UI** - Real-time monitoring
+  - New project: `DraCode.KoboldLair.Dashboard`
+  - Features:
+    - Live view of active agents (Drake → Kobolds hierarchy)
+    - Project progress bars (tasks done/total)
+    - Error log stream with filtering
+    - Provider status indicators (healthy/rate-limited/down)
+    - Kobold resource gauges per project
+    - Task timeline visualization
+  - Technology: Blazor Server or React + SignalR
+  - WebSocket connection to KoboldLair.Server
+  - Read-only view (control via Dragon chat)
+  - Effort: High (~2 weeks)
+
+### From Phase H - Quality of Life
+
+- [ ] **Batch Task Operations**
+  - Dragon tools for bulk operations:
+    - `retry_all_failed_tasks(project_id)` - Retry all failed tasks at once
+    - `reset_blocked_tasks(project_id)` - Unblock tasks waiting on failed deps
+    - `reassign_task(task_id, new_agent_type)` - Change agent for stuck task
+  - Status: Currently must retry one-by-one via `retry_failed_task`
+  - Impact: Efficiency for large projects with cascading failures
+  - Effort: Low (~2 days)
+
+- [ ] **Provider Circuit Breaker**
+  - Detect when provider is down (3 consecutive failures)
+  - Automatically pause all tasks using that provider
+  - Notify user via Dragon chat
+  - Auto-resume after cooldown period (10 minutes)
+  - Prevents wasted retries during known outages
+  - Complements existing retry logic
+  - Effort: Low (~2 days)
+
+---
+
+## ⚪ LOW PRIORITY - Enhancements & Future Features
+
+Nice to have. Can be deferred without impacting core functionality.
+
+---
+
+### From Phase I - Context Preservation
+
+- [ ] **Persist Dragon Conversation History** 🔴 CRITICAL - DATA LOSS RISK
+  - **Issue**: Dragon chat history stored in-memory only (ConcurrentDictionary)
+  - When service restarts: ALL conversation context is LOST
+  - User requirements reasoning, preferences, alternatives discussed - gone
+  - **Location**: `DragonService.cs` - DragonSession class
+  - **Implementation**:
+    ```csharp
+    // Add to DragonSession.cs
+    public class DragonSession
+    {
+        public void SaveHistoryToFile(string projectFolder)
+        {
+            var historyPath = Path.Combine(projectFolder, "dragon-history.json");
+            var json = JsonSerializer.Serialize(MessageHistory);
+            File.WriteAllText(historyPath, json);
+        }
+        
+        public static DragonSession LoadFromFile(string projectFolder, string sessionId)
+        {
+            var historyPath = Path.Combine(projectFolder, "dragon-history.json");
+            if (!File.Exists(historyPath)) return null;
+            
+            var json = File.ReadAllText(historyPath);
+            var messages = JsonSerializer.Deserialize<List<SessionMessage>>(json);
+            
+            var session = new DragonSession { SessionId = sessionId };
+            session.MessageHistory.AddRange(messages);
+            return session;
+        }
+    }
+    ```
+  - **Changes needed**:
+    - Save history on every message (async, non-blocking)
+    - Load history on session reconnect
+    - Store in: `./projects/{project}/dragon-history.json`
+    - Add to specification export/archive
+    - Prune old history (keep last 100 messages)
+  - **Impact**: Preserves "why" behind requirements decisions
+  - **Example lost context**: "Dark mode only for authenticated users" → spec says "dark mode" → reasoning lost
+  - **Effort**: Medium (~1 day)
+
+- [ ] **Write-Ahead Log for Task State** 🔴 CRITICAL - DATA LOSS RISK
+  - **Issue**: 2-second debounce on task file writes - crash during window loses updates
+  - Very rare (requires crash during 2-second window) but severe impact
+  - **Location**: `Drake.cs` - Debounced save mechanism
+  - Transaction safety for critical state changes
+  - No data loss even during crashes
+  - **Impact**: Prevents rare but catastrophic edge case (crash during 2-second debounce window)
+  - **Effort**: Medium (~3 days)
+
+---
+
+## 🟠 HIGH PRIORITY - Functional Gaps & Workflow Reliability
+
+Critical for production use and user trust. Blocks effective multi-agent workflows.
+
+### From Phase H - Workflow Enhancements
+
+- [ ] **Failure Recovery Service** - Auto-retry transient errors
+  - Background service that runs every 5 minutes
+  - Detects failed tasks with transient errors (network, timeout, rate limit)
+  - Applies exponential backoff (1min, 2min, 5min, 15min, 30min)
+  - Auto-retries up to 5 times for known transient failures
+  - Failure categorization: transient (network) vs permanent (syntax error)
+  - Circuit breaker pattern for provider outages (3 failures = pause 10 min)
+  - Notifies user via Dragon if still failing after retries
+  - Status: Manual retry via `retry_failed_task` tool currently required
+  - Impact: Reduces manual intervention for temporary issues (network glitches)
+  - **Effort**: Medium (~3 days)
+
+### From Phase I - Context Preservation
+
+- [ ] **Pass Dependency Task Outputs to Kobolds** 🟠 HIGH PRIORITY
+  - **Issue**: Task B depends on Task A, but Kobold executing B doesn't know what A created
+  - Drake respects dependencies in scheduling, but doesn't pass output context
+  - Risk: Duplicate implementations, missing reusable components
+  - **Location**: `Drake.cs` - SummonKobold method
+  - **Implementation**:
+    ```csharp
+    // In Drake.SummonKobold():
+    // After line 300 (AssignTask), add dependency context
+    if (task.Dependencies?.Any() == true)
+    {
+        var dependencyContext = BuildDependencyContext(task.Dependencies);
+        kobold.UpdateSpecificationContext(
+            kobold.SpecificationContext + "\n\n" + dependencyContext
+        );
+    }
+    
+    private string BuildDependencyContext(List<string> dependencyIds)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("---");
+        sb.AppendLine();
+        sb.AppendLine("## Completed Dependencies");
+        sb.AppendLine();
+        sb.AppendLine("The following tasks were completed before this one. Use their outputs:");
+        sb.AppendLine();
+        
+        foreach (var depId in dependencyIds)
+        {
+            var depTask = _taskTracker.GetTask(depId);
+            if (depTask?.Status == TaskStatus.Done)
+            {
+                sb.AppendLine($"### Task: {depTask.Task}");
+                
+                // Extract files created/modified from git commits
+                var outputFiles = GetTaskOutputFiles(depTask.Id);
+                if (outputFiles.Any())
+                {
+                    sb.AppendLine("Files created:");
+                    foreach (var file in outputFiles)
+                    {
+                        sb.AppendLine($"- `{file}`");
+                    }
+                }
+                sb.AppendLine();
+            }
+        }
+        
+        return sb.ToString();
+    }
+    ```
+  - **Changes needed**:
+    - Track output files in TaskRecord (new property: `OutputFiles`)
+    - Extract files from git commits after task completion
+    - Include dependency context in Kobold prompt
+    - Show files created by dependency tasks
+  - **Impact**: Better code reuse, fewer duplicate implementations
+  - **Example**: Task B creating UserRepository knows User.cs exists from Task A
+  - **Effort**: Medium (~2 days)
+
+- [ ] **Shared Planning Context Service** 🟠 HIGH PRIORITY - COORDINATION
+  - **Issue**: Parallel Kobolds create plans independently, may conflict
+  - Example: Two Kobolds both create different DbContext classes
+  - No real-time coordination between active agents
+  - **Location**: New service - `DraCode.KoboldLair/Services/SharedPlanContext.cs`
+  - **Implementation**:
+    ```csharp
+    public class SharedPlanContextService
+    {
+        private readonly ConcurrentDictionary<string, FileClaimInfo> _claimedFiles;
+        private readonly ConcurrentDictionary<string, PlanSummary> _activePlans;
+        
+        public class FileClaimInfo
+        {
+            public string FilePath { get; set; }
+            public Guid KoboldId { get; set; }
+            public string TaskId { get; set; }
+            public DateTime ClaimedAt { get; set; }
+        }
+        
+        public class PlanSummary
+        {
+            public Guid KoboldId { get; set; }
+            public string TaskId { get; set; }
+            public List<string> FilesToCreate { get; set; }
+            public List<string> FilesToModify { get; set; }
+        }
+        
+        // Check if file can be claimed
+        public bool CanClaimFile(string path, Guid koboldId, out FileClaimInfo? existingClaim)
+        {
+            if (_claimedFiles.TryGetValue(path, out var claim) && claim.KoboldId != koboldId)
+            {
+                existingClaim = claim;
+                return false;
+            }
+            existingClaim = null;
+            return true;
+        }
+        
+        // Register a plan and its file claims
+        public ConflictReport RegisterPlan(KoboldImplementationPlan plan, Guid koboldId)
+        {
+            var conflicts = new List<FileConflict>();
+            
+            // Check for conflicts with existing plans
+            foreach (var file in plan.Steps.SelectMany(s => s.FilesToCreate))
+            {
+                if (!CanClaimFile(file, koboldId, out var existingClaim))
+                {
+                    conflicts.Add(new FileConflict
+                    {
+                        FilePath = file,
+                        ConflictType = "create",
+                        OtherKoboldId = existingClaim.KoboldId,
+                        OtherTaskId = existingClaim.TaskId
+                    });
+                }
+            }
+            
+            return new ConflictReport { Conflicts = conflicts };
+        }
+        
+        // Release claims when Kobold completes
+        public void ReleaseClaims(Guid koboldId) { ... }
+    }
+    ```
+  - **Changes needed**:
+    - Create SharedPlanContextService as singleton
+    - Integrate with KoboldPlannerAgent (register plan after creation)
+    - Add conflict detection before plan execution starts
+    - Option: Auto-resolve conflicts (assign different file names) or alert user
+    - Drake checks for conflicts before summoning Kobolds
+  - **Impact**: Prevents parallel work conflicts, better coordination
+  - **Effort**: High (~1 week)
+
+### From Phase H - Workflow Control
+
+- [ ] **Pause/Resume Project Execution**
+  - Add `ProjectExecutionState` enum: Running, Paused, Suspended, Cancelled
+  - Add state field to `Project.cs`
+  - Update DrakeExecutionService to respect execution state
+  - Dragon tools: `pause_project`, `resume_project`, `suspend_project`, `cancel_project`
+  - Use cases: High system load, debugging, change of plans
+  - **Impact**: Essential for production use - users need execution control
+  - **Effort**: High (~1 week)
+
+- [ ] **Task Prioritization System**
+  - Add `TaskPriority` enum: Critical, High, Normal, Low
+  - Update Wyvern analysis to assign priorities
+  - Update Drake.GetReadyTasks() to sort by priority, dependencies, complexity
+  - Dragon tool: `set_task_priority` for manual override
+  - **Impact**: Optimizes execution order for large projects (20+ tasks)
+  - **Effort**: Medium (~3 days)
+
+---
+
+## 🟡 MEDIUM PRIORITY - Correctness & Quality
+
+Important for reliability but workarounds exist. Improves system quality.
+
+### From Phase I - Context Preservation
+
+- [ ] **Specification Version Tracking** 🟡 MEDIUM PRIORITY
+  - **Issue**: Specification updated mid-execution, old Kobolds use stale context
+  - Example: Spec changes from SQLite → PostgreSQL, active Kobold still implements SQLite
+  - No version checking during execution
+  - **Location**: `DraCode.KoboldLair/Models/Projects/Specification.cs`
+  - **Implementation**:
+    ```csharp
+    public class Specification
+    {
+        public int Version { get; set; } = 1;
+        public DateTime LastModified { get; set; }
+        public string ContentHash { get; set; } // SHA256 of specification.md
+        
+        public void IncrementVersion()
+        {
+            Version++;
+            LastModified = DateTime.UtcNow;
+            ContentHash = ComputeHash(Content);
+        }
+    }
+    
+    public class TaskRecord
+    {
+        public int SpecificationVersion { get; set; } // Version when task was created
+    }
+    
+    // In Kobold.StartWorking():
+    public async Task<List<Message>> StartWorkingAsync()
+    {
+        // Check if specification changed
+        var currentSpec = LoadCurrentSpecification();
+        if (currentSpec.Version > _assignedSpecVersion)
+        {
+            _logger.LogWarning(
+                "Specification version changed: {Old} → {New}. Reloading context.",
+                _assignedSpecVersion, currentSpec.Version);
+            
+            // Reload specification context
+            SpecificationContext = File.ReadAllText(_specificationPath);
+        }
+        
+        // Continue with execution...
+    }
+    ```
+  - **Changes needed**:
+    - Add Version and ContentHash to Specification model
+    - Track version in TaskRecord at creation time
+    - Kobolds check version before execution, reload if changed
+    - Log version mismatches in audit trail
+    - Dragon tool: `view_specification_history` (show version changes)
+  - **Impact**: Prevents specification drift, keeps work consistent
+  - **Effort**: Medium (~2 days)
+
+### From Phase H - Workflow Clarity
+
+- [ ] **Wyrm Workflow Clarification**
+  - Current state: Wyrm is internal to Wyvern (works fine)
+  - Documentation suggests: Separate Wyrm assignment step exists
+  - **Option A** (Recommended): Update documentation to reflect reality
+    - Change docs to show Wyrm as internal Wyvern helper
+    - Remove "Wyrm assignment" from workflow diagrams
+    - Effort: Low (~1 hour)
+  - **Option B**: Add WyrmProcessingService (match docs)
+    - Effort: Medium (~2 days)
+  - Decision needed: Architecture vs documentation alignment
+
+### From Phase F - Performance Optimizations
+
+- [ ] **Debounced Plan Step Writes** - `UpdatePlanStepTool.cs`
+  - Apply Drake's debouncing pattern to Kobold plan updates
+  - Add Channel-based write queue with configurable delay (2-3 seconds)
+  - Coalesce rapid plan step updates from parallel Kobolds
+  - Expected impact: Reduce filesystem writes during active Kobold execution
+  - Similar to Drake optimization that achieved 50x I/O reduction
+  - **Effort**: Medium (~2-3 days)
+
+### From Phase I - Tracking & Visibility
+
+- [ ] **Enhanced Git Commit Messages with Context**
+  - **Issue**: Git commits lack feature context, task IDs, traceability
+  - Hard to revert entire features or track task completion via git
+  - **Location**: `Drake.cs` - Git integration after task completion
+  - **Current**:
+    ```csharp
+    await _gitService.CommitChangesAsync(
+        workspacePath,
+        commitMessage: "Kobold work completed",
+        author: "Kobold"
+    );
+    ```
+  - **Improved**:
+    ```csharp
+    await _gitService.CommitChangesAsync(
+        workspacePath,
+        commitMessage: BuildDetailedCommitMessage(task, agentType),
+        author: $"Kobold-{agentType}"
+    );
+    
+    private string BuildDetailedCommitMessage(TaskRecord task, string agentType)
+    {
+        var sb = new StringBuilder();
+        
+        // Short title
+        sb.AppendLine(task.Task);
+        sb.AppendLine();
+        
+        // Metadata
+        if (!string.IsNullOrEmpty(task.FeatureId))
+            sb.AppendLine($"Feature: {task.FeatureId}");
+        sb.AppendLine($"Task-Id: {task.Id}");
+        sb.AppendLine($"Agent-Type: {agentType}");
+        sb.AppendLine($"Project: {_projectId}");
+        
+        // Dependencies
+        if (task.Dependencies?.Any() == true)
+        {
+            sb.AppendLine();
+            sb.AppendLine("Dependencies:");
+            foreach (var dep in task.Dependencies)
+            {
+                var depTask = _taskTracker.GetTask(dep);
+                sb.AppendLine($"- {depTask?.Task ?? dep}");
+            }
+        }
+        
+        return sb.ToString();
+    }
+    ```
+  - **Benefits**:
+    - Better git history readability
+    - Easy feature tracking and rollback
+    - Traceability between tasks and code changes
+    - Useful for compliance and audit
+  - **Effort**: Low (~1 day)
+
+- [ ] **Task Output File Tracking**
+  - Add `OutputFiles` property to TaskRecord
+  - Populate from git diff after task completion
+  - Store in task markdown: `<!-- outputs: file1.cs, file2.cs -->`
+  - Display in Drake statistics and Dragon tools
+  - Used by dependency context builder (see above)
+  - **Effort**: Low (~1 day)
+
+---
+
+## 🔵 NORMAL PRIORITY - Observability & Developer Experience
+
+Helpful but not blocking. Improves monitoring and debugging capabilities.
+
+---
+
+---
+
+## 🔮 FUTURE / EXPLORATORY (Q3 2026+)
 
 ### Under Consideration
 
@@ -373,44 +834,30 @@ After implementation, track:
 
 ---
 
-## Technical Debt
+## 📊 SUCCESS METRICS
 
-| Item | Priority | Effort | Status |
-|------|----------|--------|--------|
-| Add unit tests for all tools | High | Medium | Pending |
-| Implement proper logging system | Medium | Low | Pending |
-| Add XML documentation comments | Low | Medium | Pending |
-| Refactor configuration loading | Medium | Medium | Pending |
-| Add retry logic for API calls | High | Low | **Done** |
-| Implement rate limiting | Medium | Medium | Pending |
+### Context Preservation (Phase I)
+- **Dragon History Recovery Rate**: % of reconnected sessions with full history (target: 100%)
+- **Task Dependency Awareness**: % of Kobolds that reference dependency outputs (target: 80%+)
+- **Parallel Conflict Rate**: File conflicts per 100 parallel Kobolds (target: <5)
+- **Specification Drift Incidents**: Tasks using wrong spec version (target: 0)
+- **Context Loss Reports**: User-reported context issues per month (target: -80%)
+- **Git Traceability Score**: % of commits with full metadata (target: 95%+)
 
----
+### Workflow Reliability (Phase H)
+- **Auto-Recovery Rate**: % of transient failures resolved without manual intervention (target: 80%+)
+- **Mean Time to Recovery**: Average time from failure to resolution (target: <5 min)
+- **Manual Intervention Rate**: User actions per failed task (target: -60%)
+- **Observability Score**: User survey - "Can you monitor system health?" (target: 8/10)
+- **Workflow Control Score**: User survey - "Can you manage project execution?" (target: 8/10)
 
-## Completed
-
-- [x] Phase 1: Foundation
-- [x] Phase 2: Multi-Provider Support
-- [x] Phase 3: GitHub Copilot Integration
-- [x] Phase 4: UI Enhancement
-- [x] Phase 5: Message Format Fixes
-- [x] Phase 6: Multi-Task Execution
-- [x] DrakeFactory created
-- [x] DrakeMonitoringService created
-- [x] Dragon multi-session support
-- [x] Wyvern project analyzer
-- [x] Git integration (GitService, GitStatusTool, GitMergeTool)
-- [x] Kobold Implementation Planner
-- [x] Allowed External Paths feature
-- [x] Dragon Sub-Agents (Warden, Librarian, Architect)
-- [x] LLM Retry Logic with exponential backoff
+### Kobold Execution Quality (Phase G)
+- **Step Completion Accuracy**: % of steps correctly marked complete (target: 95%+)
+- **Auto-Advancement Rate**: How often auto-detection saves the day (baseline metric)
+- **Average Iterations Per Step**: Ensure balanced budget usage (target: even distribution)
+- **Task Success Rate**: Overall improvement in task completion (target: +10%)
+- **Token Efficiency**: Average tokens per task vs. baseline (target: -15%)
 
 ---
 
-## Recently Completed (v2.4.0)
-
-- [x] **Kobold Implementation Planner** - KoboldPlannerAgent creates structured plans before execution
-- [x] **Allowed External Paths** - Per-project access control for directories outside workspace
-- [x] **Dragon Sub-Agents** - Specialized agents (Warden, Librarian, Architect)
-- [x] **LLM Retry Logic** - Exponential backoff for all 10 providers
-
-*Last updated: 2026-02-03*
+*Last updated: 2026-02-09*

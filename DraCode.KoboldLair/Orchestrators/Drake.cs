@@ -218,7 +218,7 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 try
                 {
-                    specificationContext = File.ReadAllText(_specificationPath);
+                    specificationContext = File.ReadAllTextAsync(_specificationPath).GetAwaiter().GetResult();
                     
                     // Append project structure information if available
                     if (_wyvern?.Analysis?.Structure != null)
@@ -333,7 +333,7 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 try
                 {
-                    baseSpecification = File.ReadAllText(_specificationPath);
+                    baseSpecification = File.ReadAllTextAsync(_specificationPath).GetAwaiter().GetResult();
                 }
                 catch (Exception ex)
                 {

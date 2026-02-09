@@ -470,7 +470,7 @@ namespace DraCode.KoboldLair.Services
 
             try
             {
-                var json = File.ReadAllText(_configPath);
+                var json = File.ReadAllTextAsync(_configPath).GetAwaiter().GetResult();
                 var configs = JsonSerializer.Deserialize<ProjectConfigurations>(json, ReadOptions);
 
                 if (configs == null)

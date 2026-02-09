@@ -660,7 +660,7 @@ namespace DraCode.KoboldLair.Services
         /// <returns>True if approved successfully</returns>
         public bool ApproveProject(string projectId)
         {
-            return ApproveProjectAsync(projectId).ConfigureAwait(false).GetAwaiter().GetResult();
+            return ApproveProjectAsync(projectId).GetAwaiter().GetResult();
         }
 
         /// <summary>

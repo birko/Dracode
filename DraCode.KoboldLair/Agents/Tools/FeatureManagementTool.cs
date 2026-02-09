@@ -206,7 +206,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var featuresPath = Path.Combine(folder, "specification.features.json");
                 var options = new JsonSerializerOptions { WriteIndented = true };
                 var json = JsonSerializer.Serialize(spec.Features, options);
-                File.WriteAllText(featuresPath, json);
+                File.WriteAllTextAsync(featuresPath, json).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -231,7 +231,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 if (File.Exists(featuresPath))
                 {
-                    var json = File.ReadAllText(featuresPath);
+                    var json = File.ReadAllTextAsync(featuresPath).GetAwaiter().GetResult();
                     var features = JsonSerializer.Deserialize<List<Feature>>(json);
                     if (features != null)
                     {

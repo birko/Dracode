@@ -368,7 +368,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 // Try to read package.json for more info
                 try
                 {
-                    var packageJson = File.ReadAllText(Path.Combine(path, "package.json"));
+                    var packageJson = File.ReadAllTextAsync(Path.Combine(path, "package.json")).GetAwaiter().GetResult();
                     if (packageJson.Contains("\"react\""))
                         analysis.ProjectIndicators.Add("React framework detected");
                     if (packageJson.Contains("\"vue\""))
