@@ -8,14 +8,16 @@
 
 **DraCode** is a multi-provider AI coding agent system with:
 - Real-time WebSocket-based multi-agent orchestration
-- Support for 10 LLM providers (OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp)
+- Support for 10 LLM providers with streaming support (OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp)
 - 23 specialized agent types organized hierarchically (v2.5.0): Base classes (Agent, OrchestratorAgent, CodingAgent, MediaAgent), Coding agents (Debug, Documentation, Refactor, Test), Specialized language agents (C#, C++, JavaScript/TypeScript, PHP, Python, etc.), Media agents (Image, SVG, Bitmap), and Diagramming agent
 - Modern TypeScript web client with zero frontend dependencies
-- Tool-based autonomous code manipulation (7 built-in + 10 Dragon-specific tools + 1 Planner tool)
+- Tool-based autonomous code manipulation (7 built-in + 12 Dragon-specific tools + 1 Planner tool)
 - Interactive user prompts via ask_user tool
 - .NET Aspire orchestration for service discovery
 - Optional token-based authentication with IP address binding
-- KoboldLair multi-agent autonomous coding system (Dragon, Wyvern, Drake, Kobold Planner, Kobold)
+- KoboldLair multi-agent autonomous coding system (Dragon, Wyrm, Wyvern, Drake, Kobold Planner, Kobold)
+- Two-phase analysis workflow (Wyrm pre-analysis → Wyvern detailed tasks) (v2.6.0)
+- Shared planning context for cross-agent coordination and learning (v2.6.0)
 - Git integration (GitService, GitStatusTool, GitMergeTool)
 - Per-project and per-agent-type provider configuration for Kobolds
 

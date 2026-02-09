@@ -5,30 +5,33 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 ## Quick Links
 
 - **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete spec for regenerating the project
-- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.4.1 - February 2026)
+- **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.6.0 - February 2026)
 - **[KoboldLair Core Library](../DraCode.KoboldLair/README.md)** - Multi-agent orchestration library
 - **[KoboldLair Server](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
 - **[KoboldLair Client](../DraCode.KoboldLair.Client/README.md)** - Multi-agent web UI
 
-## Latest Updates (v2.5.1)
+## Latest Updates (v2.6.0)
 
-- **Network Error Handling Fix**: Critical bug fixed where network errors incorrectly marked tasks as complete
-  - Properly fails Kobold tasks on network/provider errors
-  - Error messages injected into conversation for `"error"` and `"NotConfigured"` stop reasons
-  - Applies to all 10 LLM providers and all agent types
+- **Shared Planning Context Service**: Cross-agent coordination and learning from past executions
+  - File conflict detection prevents parallel work on same files
+  - Historical insights from similar tasks improve planning
+  - Real-time agent tracking and activity monitoring
+  - Thread-safe with LRU caching (max 50 projects)
+  - Auto-persists to `planning-context.json` per project
+- **Wyrm Pre-Analysis Workflow**: Two-phase analysis with initial recommendations
+  - Wyrm analyzes specs for languages, tech stack, agent types, complexity
+  - Creates `wyrm-recommendation.json` for Wyvern consumption
+  - New `WyrmAssigned` status between `New` and `Analyzed`
+  - Separates concerns: Wyrm = recommendations, Wyvern = detailed tasks
+- **Agent Creation Pattern Consistency**: All factories now use consistent creation patterns
+  - WyrmFactory fixed to use `KoboldLairAgentFactory.Create`
+  - Audit verified compliance across 4 factories
+  - Dragon Council sub-agents documented as acceptable exceptions
+- **Network Error Handling Fix** (v2.5.1): Critical bug fixed where network errors incorrectly marked tasks as complete
 - **OrchestratorAgent Base Class** (v2.5.0): New abstract base for Dragon, Wyrm, Wyvern with shared helper methods
-  - `GetOrchestratorGuidance()`, `GetDepthGuidance()`, `ExtractTextFromContent()`, `ExtractJson()`
-  - Reduces code duplication, improves maintainability
 - **Agent Reorganization** (v2.5.0): 23 agents organized into hierarchical folder structure
-  - `Agents/` (6 base classes) + `Coding/` (4) + `Coding/Specialized/` (10) + `Media/` (3)
-  - New namespaces: `DraCode.Agent.Agents.Coding.*`, `DraCode.Agent.Agents.Media.*`
 - **Parallel Execution** (v2.4.2): 4-8x speedup with parallelized Drake, Wyvern, and monitoring services
-- **Drake Execution Service** (v2.4.1): New background service bridges Wyvern analysis to task execution
-- **Wyvern Analysis Persistence** (v2.4.1): Analysis survives server restarts with disk persistence
-- **Retry Analysis Tool** (v2.4.1): Retry failed Wyvern analysis via Warden agent
-- **Performance Optimizations** (v2.4.1): JSON serialization caching, 64KB WebSocket buffer
 - **Kobold Implementation Planner** (v2.4.0): Creates structured plans before task execution
-- **Allowed External Paths** (v2.4.0): Per-project access control for external directories
 - **LLM Retry Logic** (v2.4.0): Exponential backoff for all 10 providers
 - **Dragon Council** (v2.4.0): Specialized sub-agents (Sage, Seeker, Sentinel, Warden)
 
@@ -43,8 +46,8 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 | Agent | Role | Interactive | Documentation |
 |-------|------|-------------|---------------|
 | **Dragon** | Requirements gathering | Yes | [Dragon-Requirements-Agent.md](Dragon-Requirements-Agent.md) |
+| **Wyrm** | Pre-analysis & recommendations | Automatic | Part of KoboldLair orchestration |
 | **Wyvern** | Project analysis & task organization | Automatic | [Wyvern-Project-Analyzer.md](Wyvern-Project-Analyzer.md) |
-| **Wyrm** | Task delegation & agent selection | Automatic | Part of KoboldLair orchestration |
 | **Drake** | Task supervision & Kobold management | Automatic | [Drake-Monitoring-System.md](Drake-Monitoring-System.md) |
 | **Kobold Planner** | Implementation planning before execution | Automatic | [Kobold-Planner-Agent.md](Kobold-Planner-Agent.md) |
 | **Kobold** | Code generation workers | Automatic | [Kobold-System.md](Kobold-System.md) |
@@ -53,11 +56,12 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 
 1. **You interact with Dragon** (web chat) to describe project requirements
 2. **Dragon creates specification** → automatically registers project
-3. **Wyvern is assigned** → background service runs every 60s
-4. **Wyvern analyzes** → creates organized task files
-5. **Drake monitors** → assigns tasks to Kobolds (via Wyrm for agent selection)
-6. **Kobold Planner** → creates implementation plan with atomic steps
-7. **Kobolds execute plan** → generates code step-by-step (resumable)
+3. **Wyrm is assigned** → pre-analyzes specification for languages, tech stack, agent recommendations
+4. **Wyvern is assigned** → background service runs every 60s
+5. **Wyvern analyzes** → creates organized task files using Wyrm's recommendations
+6. **Drake monitors** → assigns tasks to Kobolds (via Wyrm for final agent selection)
+7. **Kobold Planner** → creates implementation plan with atomic steps
+8. **Kobolds execute plan** → generates code step-by-step (resumable, with shared context coordination)
 
 Only Dragon requires interaction - everything else is automatic!
 
@@ -71,16 +75,17 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
     {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
         specification.md              # Project specification
         specification.features.json   # Feature list
+        wyrm-recommendation.json      # Wyrm pre-analysis (NEW - v2.6.0)
         analysis.md                   # Wyvern analysis report (human-readable)
         analysis.json                 # Wyvern analysis (machine-readable, persisted)
         tasks/                        # Task files subdirectory
             {area}-tasks.md           # Task files (e.g., backend-tasks.md)
         workspace/                    # Generated code output
-        kobold-plans/                 # Implementation plans (NEW)
+        kobold-plans/                 # Implementation plans
             {plan-filename}-plan.json # Machine-readable plan
             {plan-filename}-plan.md   # Human-readable plan
             plan-index.json           # Plan lookup index
-        planning-context.json         # Shared planning context (NEW - 2026-02-09)
+        planning-context.json         # Shared planning context (NEW - v2.6.0)
 ```
 
 ---

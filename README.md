@@ -19,25 +19,28 @@ dotnet run --project DraCode.AppHost
 # Open http://localhost:5001 in your browser
 ```
 
-📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md) (v2.5.1)
+📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md) (v2.6.0)
 
 ## 🏰 KoboldLair - Autonomous Multi-Agent Coding System
 
 **KoboldLair** is an intelligent, hierarchical multi-agent system that autonomously transforms your ideas into working code:
 
 🐉 **Dragon** (Interactive) - Your only touchpoint. Conduct conversational requirements gathering, refine specifications.
-🐲 **Wyvern** (Automatic) - Analyzes specifications, breaks down into organized tasks, manages dependencies.
+🐉 **Wyrm** (Automatic) - Pre-analyzes specifications for languages, tech stack, agent recommendations, complexity.
+🐲 **Wyvern** (Automatic) - Analyzes specifications, breaks down into organized tasks using Wyrm's recommendations.
 🦅 **Drake** (Automatic) - Supervises task execution, monitors progress, handles errors.
 📋 **Kobold Planner** (Automatic) - Creates implementation plans with atomic steps before code generation.
 👹 **Kobold** (Automatic) - Executes plans step-by-step, writing the actual code.
 
 **Key Features:**
 - 💬 **Interactive Dragon Chat** - Natural conversation interface for requirements
+- 🔍 **Two-Phase Analysis** - Wyrm pre-analysis provides initial recommendations, Wyvern creates detailed tasks
 - 📋 **Implementation Planning** - Kobold Planner creates structured plans before execution (resumable)
-- 🔄 **Automated Workflow** - Wyvern, Drakes, and Kobolds work automatically in background
+- 🔄 **Automated Workflow** - Wyrm, Wyvern, Drakes, and Kobolds work automatically in background
+- 🤝 **Shared Planning Context** - Cross-agent coordination, file conflict detection, and learning from past executions
 - 📊 **Real-time Visualization** - Animated hierarchy display showing agent relationships and status
 - 📁 **Project Management** - Automatic project tracking with metadata and output locations
-- ⏱️ **Background Processing** - Services run every 60 seconds checking for new work
+- ⏱️ **Background Processing** - Services run every 30-60 seconds checking for new work
 - 🎨 **Modern UI** - Three-page interface: Status Monitor, Dragon Chat, Hierarchy View
 - 🔀 **Git Integration** - Branch management, merge operations, conflict detection
 - 💭 **Thinking Indicator** - Real-time processing feedback during Dragon chat
@@ -54,7 +57,7 @@ dotnet run --project DraCode.AppHost
 
 ## 🚀 Features
 
-- **10 LLM Providers**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp
+- **10 LLM Providers**: OpenAI, Claude, Gemini, Azure OpenAI, Ollama, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp (all with streaming support)
 - **23 Specialized Agent Types** (v2.5.0): Organized hierarchically - Base classes (Agent, OrchestratorAgent, CodingAgent, MediaAgent), Coding agents (Debug, Documentation, Refactor, Test), Specialized language agents (C#, C++, JavaScript/TypeScript, PHP, Python, etc.), Media agents (Image, SVG, Bitmap), and Diagramming agent. Features OrchestratorAgent base class with shared orchestration helper methods.
 - **Multi-Task Execution**: Define and execute multiple tasks sequentially with fresh agent instances
 - **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
@@ -64,6 +67,7 @@ dotnet run --project DraCode.AppHost
   - **Built-in**: `list_files`, `read_file`, `write_file`, `search_code`, `run_command`, `ask_user`, `display_text`
   - **Dragon Tools**: `git_status`, `git_merge`, `manage_specification`, `manage_features`, `approve_specification`, `list_projects`, `add_existing_project`, `select_agent`, `manage_external_paths`, `retry_analysis`, `agent_status`, `retry_failed_task`
   - **Planner Tool**: `create_implementation_plan`
+- **Shared Planning Context**: Cross-agent coordination, file conflict detection, learning from past executions (v2.6.0)
 - **GitHub Copilot OAuth**: Integrated device flow authentication
 - **Sandboxed Workspace**: All operations restricted to working directory
 - **Flexible Configuration**: JSON config with environment variable overrides

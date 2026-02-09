@@ -1,7 +1,7 @@
 # DraCode Architecture Specification
 
-**Version:** 2.5.1
-**Last Updated:** February 6, 2026
+**Version:** 2.6.0
+**Last Updated:** February 9, 2026
 **Status:** Current Implementation
 
 ---
@@ -24,14 +24,18 @@
 DraCode is an AI-powered coding agent CLI that enables autonomous code manipulation through natural language instructions. It provides a secure, sandboxed environment for LLM-driven development tasks.
 
 ### 1.2 Key Capabilities
-- **Multi-Provider LLM Support**: Seamless integration with 10 LLM providers
+- **Multi-Provider LLM Support**: Seamless integration with 10 LLM providers (all with streaming support)
+- **Multi-Agent System**: Hierarchical agent orchestration (Dragon → Wyrm → Wyvern → Drake → Kobold)
+- **Two-Phase Analysis**: Wyrm pre-analysis provides recommendations, Wyvern creates detailed tasks
+- **Shared Planning Context**: Cross-agent coordination, file conflict detection, historical learning
 - **Multi-Task Execution**: Sequential execution of multiple tasks with fresh agent instances
-- **Tool-Based Architecture**: Extensible system for adding new capabilities
+- **Tool-Based Architecture**: Extensible system (7 built-in + 12 Dragon tools + 1 Planner tool)
 - **Interactive CLI**: Modern, colorful interface with Spectre.Console
 - **OAuth Integration**: Secure GitHub Copilot authentication
 - **Provider Selection**: Interactive menu for choosing AI providers
-- **Sandboxed Execution**: All operations restricted to workspace
+- **Sandboxed Execution**: All operations restricted to workspace with per-project external path control
 - **Batch Processing**: Comma-separated tasks or interactive multi-task input
+- **Git Integration**: Branch management, merge operations, conflict detection
 
 ### 1.3 Technology Stack
 - **Language**: C# 14.0
