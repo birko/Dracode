@@ -25,6 +25,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly AgentOptions _options;
         private readonly string _outputPath;
         private Specification? _specification;
+        private readonly object _analysisLock = new object();
 
         // Wyrm-specific provider settings (separate from Wyvern's own settings)
         private readonly string _wyrmProvider;
@@ -149,15 +150,23 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         public async Task SaveAnalysisAsync()
         {
-            if (_analysis == null)
-                return;
+            WyvernAnalysis? analysisToSave;
+            
+            lock (_analysisLock)
+            {
+                if (_analysis == null)
+                    return;
+                    
+                // Take snapshot to avoid holding lock during I/O
+                analysisToSave = _analysis;
+            }
 
             try
             {
                 // Ensure output directory exists
                 Directory.CreateDirectory(_outputPath);
 
-                var json = JsonSerializer.Serialize(_analysis, _jsonOptions);
+                var json = JsonSerializer.Serialize(analysisToSave, _jsonOptions);
                 await File.WriteAllTextAsync(AnalysisJsonPath, json);
             }
             catch

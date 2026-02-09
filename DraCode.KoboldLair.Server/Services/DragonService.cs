@@ -24,6 +24,8 @@ namespace DraCode.KoboldLair.Server.Services
     /// </summary>
     public class DragonSession
     {
+        internal readonly object _historyLock = new object();
+        
         public string SessionId { get; init; } = "";
         public DragonAgent? Dragon { get; set; }
         public SageAgent? Sage { get; set; }
@@ -37,6 +39,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         /// <summary>
         /// Saves the message history to a JSON file in the project folder.
+        /// Thread-safe: takes snapshot under lock to prevent race conditions.
         /// </summary>
         public async Task SaveHistoryToFileAsync(string projectFolder, ILogger? logger = null)
         {
@@ -49,11 +52,17 @@ namespace DraCode.KoboldLair.Server.Services
 
                 var historyPath = Path.Combine(projectFolder, "dragon-history.json");
                 
-                // Prune to last 100 messages before saving
-                var messagesToSave = MessageHistory.Count > 100 
-                    ? MessageHistory.Skip(MessageHistory.Count - 100).ToList() 
-                    : MessageHistory;
+                // Take snapshot under lock to prevent race conditions
+                List<SessionMessage> messagesToSave;
+                lock (_historyLock)
+                {
+                    // Prune to last 100 messages before saving
+                    messagesToSave = MessageHistory.Count > 100 
+                        ? MessageHistory.Skip(MessageHistory.Count - 100).ToList() 
+                        : new List<SessionMessage>(MessageHistory);
+                }
 
+                // Serialize and write outside lock
                 var json = JsonSerializer.Serialize(messagesToSave, new JsonSerializerOptions 
                 { 
                     WriteIndented = true 
@@ -243,15 +252,23 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     _logger.LogInformation("[Dragon] Resuming session {SessionId}", currentSessionId);
 
+                    int messageCount;
+                    List<SessionMessage> messagesToReplay;
+                    lock (session._historyLock)
+                    {
+                        messageCount = session.MessageHistory.Count;
+                        messagesToReplay = new List<SessionMessage>(session.MessageHistory);
+                    }
+
                     await SendTrackedMessageAsync(webSocket, session, "session_resumed", new
                     {
                         type = "session_resumed",
                         sessionId = currentSessionId,
-                        messageCount = session.MessageHistory.Count,
+                        messageCount,
                         timestamp = DateTime.UtcNow
                     });
 
-                    foreach (var msg in session.MessageHistory)
+                    foreach (var msg in messagesToReplay)
                     {
                         var replayData = new Dictionary<string, object>
                         {
@@ -628,10 +645,13 @@ namespace DraCode.KoboldLair.Server.Services
                         if (loadedHistory != null && loadedHistory.Count > 0)
                         {
                             // Only load if session history is empty or very different
-                            if (session.MessageHistory.Count == 0)
+                            lock (session._historyLock)
                             {
-                                session.MessageHistory.AddRange(loadedHistory);
-                                _logger.LogInformation("Loaded {Count} messages from history for project {Project}", loadedHistory.Count, projectName);
+                                if (session.MessageHistory.Count == 0)
+                                {
+                                    session.MessageHistory.AddRange(loadedHistory);
+                                    _logger.LogInformation("Loaded {Count} messages from history for project {Project}", loadedHistory.Count, projectName);
+                                }
                             }
                         }
                     }
@@ -798,13 +818,17 @@ namespace DraCode.KoboldLair.Server.Services
         private void TrackMessage(DragonSession session, string messageType, object data, string? messageId = null)
         {
             messageId ??= Guid.NewGuid().ToString();
-            session.MessageHistory.Add(new SessionMessage(messageId, messageType, data, DateTime.UtcNow));
-            session.LastMessageId = messageId;
+            
+            lock (session._historyLock)
+            {
+                session.MessageHistory.Add(new SessionMessage(messageId, messageType, data, DateTime.UtcNow));
+                session.LastMessageId = messageId;
 
-            // Efficient trimming: remove excess items in one operation instead of O(n²) loop
-            var excess = session.MessageHistory.Count - _maxMessageHistory;
-            if (excess > 0)
-                session.MessageHistory.RemoveRange(0, excess);
+                // Efficient trimming: remove excess items in one operation instead of O(n²) loop
+                var excess = session.MessageHistory.Count - _maxMessageHistory;
+                if (excess > 0)
+                    session.MessageHistory.RemoveRange(0, excess);
+            }
 
             // Fire-and-forget async save if project folder is set
             if (!string.IsNullOrEmpty(session.CurrentProjectFolder))
@@ -834,7 +858,11 @@ namespace DraCode.KoboldLair.Server.Services
                     _providerConfigService.SetProviderForAgent("dragon", providerOverride);
 
                 CreateSessionAgents(session);
-                session.MessageHistory.Clear();
+                
+                lock (session._historyLock)
+                {
+                    session.MessageHistory.Clear();
+                }
 
                 // Set message callbacks for all agents to forward thinking updates and streaming
                 Action<string, string> messageCallback = (type, content) =>
@@ -882,7 +910,11 @@ namespace DraCode.KoboldLair.Server.Services
             if (!_sessionWebSockets.TryGetValue(sessionId, out var webSocket)) return;
 
             session.Dragon?.ClearContext();
-            session.MessageHistory.Clear();
+            
+            lock (session._historyLock)
+            {
+                session.MessageHistory.Clear();
+            }
 
             await SendTrackedMessageAsync(webSocket, session, "context_cleared", new
             {

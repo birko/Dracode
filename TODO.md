@@ -1,13 +1,40 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-09 - Critical data integrity fixes completed**
+**Last updated: 2026-02-09 - File write race condition fixes completed**
 
 ---
 
 ## 🟢 COMPLETED - Data Integrity & Context Loss Fixes
 
-All critical blocking operations have been resolved as of 2026-02-09.
+All critical blocking operations and race conditions have been resolved as of 2026-02-09.
+
+### Critical Priority (P0) - File Write Race Conditions
+
+- [x] **Thread-Safe File Operations** - All file writes now protected *(Completed 2026-02-09)*
+  - `DragonService.cs` - Added `_historyLock` to DragonSession for MessageHistory thread-safety
+    - SaveHistoryToFileAsync: Snapshot under lock before serialization
+    - TrackMessage: Lock when adding/trimming messages
+    - Session resume: Lock when replaying messages
+    - LoadHistoryFromFileAsync: Lock when loading messages
+    - Context clear: Lock when clearing history
+  - `Specification.cs` - Added internal locking with thread-safe methods
+    - GetFeaturesCopy(): Returns snapshot of features
+    - WithFeatures(Action): Execute action under lock
+    - WithFeatures<T>(Func): Execute function under lock
+  - `FeatureManagementTool.cs` - Uses Specification's thread-safe methods
+    - SaveFeatures: Takes snapshot for serialization
+    - CreateFeature: Uses WithFeatures for modifications
+    - UpdateFeature: Uses WithFeatures for modifications
+    - ListFeatures: Uses GetFeaturesCopy for reads
+  - `SpecificationManagementTool.cs` - Added `_specificationsLock` for dictionary
+    - CreateSpecification: File I/O outside lock, dictionary update inside
+    - UpdateSpecification: Read path under lock, write file, update under lock
+    - LoadSpecification: Read and update dictionary under lock
+  - `Wyvern.cs` - Added defensive `_analysisLock`
+    - SaveAnalysisAsync: Snapshot under lock before serialization
+  - **Pattern**: Snapshot under lock, serialize/write outside lock
+  - **Impact**: Prevents race conditions where older state overwrites newer state
 
 ### Critical Priority (P0) - Blocking Operation Fixes
 

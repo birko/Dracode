@@ -105,8 +105,12 @@ namespace DraCode.KoboldLair.Agents.Tools
                 Status = FeatureStatus.New
             };
 
-            spec.Features.Add(feature);
-            spec.UpdatedAt = DateTime.UtcNow;
+            spec.WithFeatures(features =>
+            {
+                features.Add(feature);
+                spec.UpdatedAt = DateTime.UtcNow;
+            });
+            
             SaveFeatures(spec);
 
             SendMessage("success", $"Feature created: {name}");
@@ -121,50 +125,63 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
 
             var name = nameObj.ToString() ?? "";
-            var feature = spec.Features.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-
-            if (feature == null)
+            
+            string? result = null;
+            spec.WithFeatures(features =>
             {
-                return $"Error: Feature '{name}' not found in specification '{spec.Name}'";
-            }
+                var feature = features.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-            if (feature.Status != FeatureStatus.New)
-            {
-                return $"❌ Cannot update feature '{name}': Status is '{feature.Status}'. Only features with status 'New' can be updated.\n" +
-                       $"Create a new feature instead if you need to add more functionality.";
-            }
+                if (feature == null)
+                {
+                    result = $"Error: Feature '{name}' not found in specification '{spec.Name}'";
+                    return;
+                }
 
-            if (input.TryGetValue("description", out var descObj))
-            {
-                feature.Description = descObj.ToString() ?? feature.Description;
-            }
+                if (feature.Status != FeatureStatus.New)
+                {
+                    result = $"❌ Cannot update feature '{name}': Status is '{feature.Status}'. Only features with status 'New' can be updated.\n" +
+                           $"Create a new feature instead if you need to add more functionality.";
+                    return;
+                }
 
-            if (input.TryGetValue("priority", out var prioObj))
-            {
-                feature.Priority = prioObj.ToString() ?? feature.Priority;
-            }
+                if (input.TryGetValue("description", out var descObj))
+                {
+                    feature.Description = descObj.ToString() ?? feature.Description;
+                }
 
-            feature.UpdatedAt = DateTime.UtcNow;
-            spec.UpdatedAt = DateTime.UtcNow;
+                if (input.TryGetValue("priority", out var prioObj))
+                {
+                    feature.Priority = prioObj.ToString() ?? feature.Priority;
+                }
+
+                feature.UpdatedAt = DateTime.UtcNow;
+                spec.UpdatedAt = DateTime.UtcNow;
+            });
+            
+            if (result != null)
+                return result;
+                
             SaveFeatures(spec);
 
             SendMessage("success", $"Feature updated: {name}");
-            return $"✅ Feature '{name}' updated successfully\nStatus: {feature.Status}\nPriority: {feature.Priority}";
+            return $"✅ Feature '{name}' updated successfully";
         }
 
         private string ListFeatures(Specification spec)
         {
-            if (spec.Features.Count == 0)
+            var features = spec.GetFeaturesCopy();
+            
+            if (features.Count == 0)
             {
                 return $"No features in '{spec.Name}'";
             }
 
             var result = new System.Text.StringBuilder();
-            result.AppendLine($"**{spec.Features.Count} feature(s) in '{spec.Name}':**\n");
+            result.AppendLine($"**{features.Count} feature(s) in '{spec.Name}':**\n");
             result.AppendLine("| Status | Priority | Feature | Description |");
             result.AppendLine("|--------|----------|---------|-------------|");
 
-            foreach (var feature in spec.Features.OrderBy(f => f.Status).ThenBy(f => f.Priority))
+            foreach (var feature in features.OrderBy(f => f.Status).ThenBy(f => f.Priority))
             {
                 var statusIcon = feature.Status switch
                 {

@@ -10,6 +10,7 @@ namespace DraCode.KoboldLair.Agents.Tools
     {
         private readonly string _projectsPath;
         private readonly Dictionary<string, Specification> _specifications;
+        private readonly object _specificationsLock = new object();
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<string, string>? _getProjectFolder;
 
@@ -115,22 +116,25 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             var name = nameObj.ToString() ?? "";
 
-            // First check if we have the spec cached with its project folder
-            if (_specifications.TryGetValue(name, out var existingSpec) && !string.IsNullOrEmpty(existingSpec.FilePath))
+            // First check if we have the spec cached with its project folder (under lock)
+            lock (_specificationsLock)
             {
-                if (File.Exists(existingSpec.FilePath))
+                if (_specifications.TryGetValue(name, out var existingSpec) && !string.IsNullOrEmpty(existingSpec.FilePath))
                 {
-                    var content = File.ReadAllTextAsync(existingSpec.FilePath).GetAwaiter().GetResult();
-                    existingSpec.Content = content;
-
-                    // Load features from project folder
-                    var projectFolder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingSpec.FilePath) ?? "";
-                    if (!string.IsNullOrEmpty(projectFolder))
+                    if (File.Exists(existingSpec.FilePath))
                     {
-                        FeatureManagementTool.LoadFeatures(existingSpec, projectFolder);
-                    }
+                        var content = File.ReadAllTextAsync(existingSpec.FilePath).GetAwaiter().GetResult();
+                        existingSpec.Content = content;
 
-                    return $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {existingSpec.Features.Count}";
+                        // Load features from project folder
+                        var projectFolder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingSpec.FilePath) ?? "";
+                        if (!string.IsNullOrEmpty(projectFolder))
+                        {
+                            FeatureManagementTool.LoadFeatures(existingSpec, projectFolder);
+                        }
+
+                        return $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {existingSpec.Features.Count}";
+                    }
                 }
             }
 
@@ -154,7 +158,10 @@ namespace DraCode.KoboldLair.Agents.Tools
                     Content = content
                 };
 
-                _specifications[name] = spec;
+                lock (_specificationsLock)
+                {
+                    _specifications[name] = spec;
+                }
 
                 // Load features from project folder
                 FeatureManagementTool.LoadFeatures(spec, projectFolder2);
@@ -214,6 +221,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
+                // Write file first (outside lock to avoid holding lock during I/O)
                 File.WriteAllTextAsync(fullPath, content).GetAwaiter().GetResult();
 
                 var spec = new Specification
@@ -226,7 +234,11 @@ namespace DraCode.KoboldLair.Agents.Tools
                     UpdatedAt = DateTime.UtcNow
                 };
 
-                _specifications[name] = spec;
+                // Update dictionary under lock
+                lock (_specificationsLock)
+                {
+                    _specifications[name] = spec;
+                }
 
                 SendMessage("success", $"Specification created: {name}");
                 return $"✅ Specification '{name}' created successfully at: {fullPath}";
@@ -247,16 +259,20 @@ namespace DraCode.KoboldLair.Agents.Tools
             var name = nameObj.ToString() ?? "";
             var content = contentObj.ToString() ?? "";
 
-            // Get existing spec to find its path
+            // Get existing spec to find its path (read under lock)
             string? fullPath = null;
             string? folder = null;
 
-            if (_specifications.TryGetValue(name, out var existingSpec) && !string.IsNullOrEmpty(existingSpec.FilePath))
+            lock (_specificationsLock)
             {
-                fullPath = existingSpec.FilePath;
-                folder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingSpec.FilePath);
+                if (_specifications.TryGetValue(name, out var existingSpec) && !string.IsNullOrEmpty(existingSpec.FilePath))
+                {
+                    fullPath = existingSpec.FilePath;
+                    folder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingSpec.FilePath);
+                }
             }
-            else
+            
+            if (fullPath == null)
             {
                 // Try consolidated structure
                 var projectFolder = Path.Combine(_projectsPath, SanitizeProjectName(name));
@@ -276,26 +292,37 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
+                // Write file first (outside lock)
                 File.WriteAllTextAsync(fullPath, content).GetAwaiter().GetResult();
 
-                var spec = _specifications.GetValueOrDefault(name) ?? new Specification
+                // Update spec under lock
+                lock (_specificationsLock)
                 {
-                    Name = name,
-                    FilePath = fullPath,
-                    ProjectFolder = folder ?? ""
-                };
+                    var spec = _specifications.GetValueOrDefault(name) ?? new Specification
+                    {
+                        Name = name,
+                        FilePath = fullPath,
+                        ProjectFolder = folder ?? ""
+                    };
 
-                spec.Content = content;
-                spec.UpdatedAt = DateTime.UtcNow;
-                spec.Version++;
+                    spec.Content = content;
+                    spec.UpdatedAt = DateTime.UtcNow;
+                    spec.Version++;
 
-                _specifications[name] = spec;
+                    _specifications[name] = spec;
+                }
 
                 // Notify that specification was updated (triggers Wyvern reprocessing)
                 _onSpecificationUpdated?.Invoke(fullPath);
 
                 SendMessage("success", $"Specification updated: {name}");
-                return $"✅ Specification '{name}' updated successfully (version {spec.Version}). Wyvern will reprocess changes.";
+                
+                int version;
+                lock (_specificationsLock)
+                {
+                    version = _specifications[name].Version;
+                }
+                return $"✅ Specification '{name}' updated successfully (version {version}). Wyvern will reprocess changes.";
             }
             catch (Exception ex)
             {

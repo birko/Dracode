@@ -7,6 +7,8 @@ namespace DraCode.KoboldLair.Models.Projects
     /// </summary>
     public class Specification
     {
+        private readonly object _lock = new object();
+        
         /// <summary>
         /// Unique identifier for the specification
         /// </summary>
@@ -61,5 +63,38 @@ namespace DraCode.KoboldLair.Models.Projects
         /// Additional metadata
         /// </summary>
         public Dictionary<string, string> Metadata { get; set; } = new();
+        
+        /// <summary>
+        /// Gets a thread-safe snapshot of features
+        /// </summary>
+        public List<Feature> GetFeaturesCopy()
+        {
+            lock (_lock)
+            {
+                return new List<Feature>(Features);
+            }
+        }
+        
+        /// <summary>
+        /// Executes an action on features with thread-safety
+        /// </summary>
+        public void WithFeatures(Action<List<Feature>> action)
+        {
+            lock (_lock)
+            {
+                action(Features);
+            }
+        }
+        
+        /// <summary>
+        /// Executes a function on features with thread-safety and returns result
+        /// </summary>
+        public T WithFeatures<T>(Func<List<Feature>, T> func)
+        {
+            lock (_lock)
+            {
+                return func(Features);
+            }
+        }
     }
 }
