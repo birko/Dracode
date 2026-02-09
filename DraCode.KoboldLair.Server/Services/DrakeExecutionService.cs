@@ -339,6 +339,15 @@ namespace DraCode.KoboldLair.Server.Services
                 return;
             }
 
+            // Log priority-based task ordering
+            if (tasksToExecute.Count > 1)
+            {
+                _logger.LogDebug(
+                    "Task execution order (by priority): {Tasks}",
+                    string.Join(", ", tasksToExecute.Select(t => 
+                        $"[{t.Task.Priority}] {t.Task.Task.Substring(0, Math.Min(30, t.Task.Task.Length))}")));
+            }
+
             _logger.LogInformation("Found {Count} ready task(s) to execute in project {ProjectName}", tasksToExecute.Count, project.Name);
 
             // Execute all ready tasks in parallel (Kobold limits are enforced by the factory)

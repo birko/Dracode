@@ -1,7 +1,7 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-09 - Pause/Resume project execution feature completed**
+**Last updated: 2026-02-09 - Task Prioritization System completed**
 
 ---
 
@@ -692,13 +692,15 @@ Critical for production use and user trust. Blocks effective multi-agent workflo
   - **Impact**: Essential for production use - users now have full execution control
   - **Effort**: High (~1 week) - COMPLETED
 
-- [ ] **Task Prioritization System**
-  - Add `TaskPriority` enum: Critical, High, Normal, Low
-  - Update Wyvern analysis to assign priorities
-  - Update Drake.GetReadyTasks() to sort by priority, dependencies, complexity
-  - Dragon tool: `set_task_priority` for manual override
+- [x] **Task Prioritization System** ✅ COMPLETED (2026-02-09)
+  - Created `TaskPriority` enum: Critical, High, Normal, Low
+  - Updated Wyvern analysis prompt with priority assignment guidelines
+  - Updated Drake.GetUnassignedTasks() to sort by priority → dependency → complexity
+  - Added `set_task_priority` Dragon tool for manual priority override
+  - Added priority logging to DrakeExecutionService
+  - Updated Warden agent with new tool and documentation
   - **Impact**: Optimizes execution order for large projects (20+ tasks)
-  - **Effort**: Medium (~3 days)
+  - **Effort**: Completed in 1 session
 
 ---
 

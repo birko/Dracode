@@ -693,7 +693,9 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                             : "";
                         var taskDescription = $"[{task.Id}] {task.Name}{deps}";
 
-                        var taskRecord = tracker.AddTask(taskDescription);
+                        // Parse priority from string to enum
+                        var priority = ParsePriority(task.Priority);
+                        var taskRecord = tracker.AddTask(taskDescription, priority);
 
                         // Set the recommended agent type if available
                         if (!string.IsNullOrEmpty(task.AgentType))
@@ -777,6 +779,20 @@ Respond with ONLY valid JSON (no markdown, no explanations):
         /// Gets the path to the persisted analysis JSON file
         /// </summary>
         public string AnalysisPath => AnalysisJsonPath;
+
+        /// <summary>
+        /// Parses priority string from WyvernTask to TaskPriority enum
+        /// </summary>
+        private static TaskPriority ParsePriority(string priority)
+        {
+            return priority?.ToLower() switch
+            {
+                "critical" => TaskPriority.Critical,
+                "high" => TaskPriority.High,
+                "low" => TaskPriority.Low,
+                _ => TaskPriority.Normal
+            };
+        }
 
         public string ProjectName => _projectName;
         public string SpecificationPath => _specificationPath;

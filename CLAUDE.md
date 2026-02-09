@@ -134,7 +134,7 @@ Located in `DraCode.Agent/Tools/`:
 - `ask_user` - User interaction
 - `display_text` - Output display
 
-### Dragon Tools (14)
+### Dragon Tools (15)
 
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `list_projects` - List all registered projects
@@ -149,6 +149,7 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `retry_analysis` - Retry failed Wyvern analysis (list/retry/status actions)
 - `agent_status` - View running agents (Drakes, Kobolds) per project
 - `retry_failed_task` - Retry failed tasks by resetting to Unassigned
+- `set_task_priority` - Manually override task priority (critical/high/normal/low) to control execution order
 - `pause_project` - Temporarily pause project execution (short-term hold)
 - `resume_project` - Resume paused or suspended project
 - `suspend_project` - Long-term hold for projects awaiting external changes
@@ -198,6 +199,17 @@ Located in `DraCode.KoboldLair/Services/`:
   - Automatic fallback to synchronous mode on streaming failures
   - WebSocket message type: `dragon_stream` with real-time chunk delivery
   - Client displays streaming text with animated cursor
+- **Task Prioritization System** (added 2026-02-09)
+  - Tasks assigned priority: Critical, High, Normal (default), Low
+  - Wyvern automatically assigns priorities during analysis
+  - Drake sorts tasks by: Priority DESC → Dependency Level → Complexity ASC
+  - Manual override via Dragon tool: `set_task_priority`
+  - Priority guidelines:
+    - **Critical**: Blocking tasks, infrastructure, project setup, README
+    - **High**: Core features that are important but not blocking
+    - **Normal**: Standard features and functionality (default)
+    - **Low**: Nice-to-have features, polish, optional documentation
+  - Dependencies always take precedence over priority
 
 ### Streaming Configuration
 

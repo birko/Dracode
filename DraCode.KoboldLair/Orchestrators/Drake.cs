@@ -1418,7 +1418,37 @@ namespace DraCode.KoboldLair.Orchestrators
                 result.Add((task, agentType));
             }
 
-            return result;
+            // Sort by priority before returning
+            return SortTasksByPriority(result);
+        }
+
+        /// <summary>
+        /// Sorts ready tasks by priority (descending), then by complexity
+        /// </summary>
+        private List<(TaskRecord Task, string AgentType)> SortTasksByPriority(List<(TaskRecord Task, string AgentType)> tasks)
+        {
+            return tasks
+                .OrderByDescending(t => t.Task.Priority)  // Critical > High > Normal > Low
+                .ThenBy(t => GetComplexityScore(t.Task))   // Simple tasks first within same priority
+                .ToList();
+        }
+
+        /// <summary>
+        /// Estimates complexity score from task description (lower score = simpler task)
+        /// </summary>
+        private int GetComplexityScore(TaskRecord task)
+        {
+            var description = task.Task.ToLower();
+            
+            // Check for explicit complexity indicators in task description
+            if (description.Contains("setup") || description.Contains("create") || description.Contains("add"))
+                return 1; // Simple tasks
+            if (description.Contains("implement") || description.Contains("build"))
+                return 2; // Medium tasks
+            if (description.Contains("integrate") || description.Contains("refactor") || description.Contains("optimize"))
+                return 3; // Complex tasks
+            
+            return 2; // Default to medium complexity
         }
 
         /// <summary>

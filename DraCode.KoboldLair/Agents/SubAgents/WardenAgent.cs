@@ -28,6 +28,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<string, RunningAgentInfo?>? _getRunningAgentsForProject;
         private readonly Func<KoboldStatistics>? _getGlobalKoboldStats;
         private readonly RetryFailedTaskTool? _retryFailedTaskTool;
+        private readonly SetTaskPriorityTool? _setTaskPriorityTool;
         private readonly Func<string, ProjectExecutionState, bool>? _setExecutionState;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
@@ -49,6 +50,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<string, RunningAgentInfo?>? getRunningAgentsForProject = null,
             Func<KoboldStatistics>? getGlobalKoboldStats = null,
             RetryFailedTaskTool? retryFailedTaskTool = null,
+            SetTaskPriorityTool? setTaskPriorityTool = null,
             Func<string, ProjectExecutionState, bool>? setExecutionState = null)
             : base(provider, options)
         {
@@ -66,6 +68,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _getRunningAgentsForProject = getRunningAgentsForProject;
             _getGlobalKoboldStats = getGlobalKoboldStats;
             _retryFailedTaskTool = retryFailedTaskTool;
+            _setTaskPriorityTool = setTaskPriorityTool;
             _setExecutionState = setExecutionState;
             RebuildTools();
         }
@@ -88,6 +91,12 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             if (_retryFailedTaskTool != null)
             {
                 tools.Add(_retryFailedTaskTool);
+            }
+            
+            // Add set task priority tool if available
+            if (_setTaskPriorityTool != null)
+            {
+                tools.Add(_setTaskPriorityTool);
             }
             
             return tools;
@@ -115,6 +124,7 @@ Your role is to manage the workforce - the background agents that process projec
 - **manage_external_paths**: Control which external paths agents can access (actions: list, add, remove)
 - **retry_analysis**: View failed projects and retry Wyvern analysis (actions: list, retry, status)
 - **retry_failed_task**: View and retry failed Kobold tasks (actions: list, retry, retry_all)
+- **set_task_priority**: Manually override task priority to control execution order
 - **pause_project**: Temporarily halt project execution (short-term)
 - **resume_project**: Resume paused or suspended project
 - **suspend_project**: Long-term hold (awaiting external changes)
@@ -187,6 +197,13 @@ Your role is to manage the workforce - the background agents that process projec
 - Use action:'retry' with task_id to retry a specific failed task
 - Use action:'retry_all' with project_id to retry all failed tasks in a project
 - After retry, tasks are reset to 'Unassigned' and Drake will pick them up on next cycle
+
+### Setting Task Priority:
+- Use set_task_priority to manually override a task's priority
+- Priorities: critical (blocking/infrastructure), high (core features), normal (standard), low (polish)
+- Higher priority tasks execute first when dependencies allow
+- Dependencies always take precedence - can't skip prerequisites
+- Use this to accelerate important tasks or defer non-critical work
 
 ## Processing Pipeline:
 When all agents are enabled, the flow is:

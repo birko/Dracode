@@ -31,7 +31,9 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// <summary>
         /// Add a new task to track
         /// </summary>
-        public TaskRecord AddTask(string task)
+        /// <param name="task">Task description</param>
+        /// <param name="priority">Task priority (default: Normal)</param>
+        public TaskRecord AddTask(string task, TaskPriority priority = TaskPriority.Normal)
         {
             lock (_lock)
             {
@@ -39,6 +41,7 @@ namespace DraCode.KoboldLair.Models.Tasks
                 {
                     Task = task,
                     Status = TaskStatus.Unassigned,
+                    Priority = priority,
                     CreatedAt = DateTime.UtcNow
                 };
                 _tasks.Add(record);

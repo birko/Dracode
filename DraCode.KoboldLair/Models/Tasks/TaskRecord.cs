@@ -10,6 +10,7 @@ namespace DraCode.KoboldLair.Models.Tasks
         public string AssignedAgent { get; set; } = string.Empty;
         public string? ProjectId { get; set; }
         public TaskStatus Status { get; set; } = TaskStatus.Unassigned;
+        public TaskPriority Priority { get; set; } = TaskPriority.Normal;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
         public string? ErrorMessage { get; set; }

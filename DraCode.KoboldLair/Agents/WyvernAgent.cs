@@ -38,7 +38,18 @@ namespace DraCode.KoboldLair.Agents
 2. Design optimal file/folder structure based on project type
 3. Categorize into areas: Backend, Frontend, Database, Infrastructure, Testing, Documentation, Security
 4. Create tasks with: clear name, description, agentType (csharp/react/etc), complexity (low/medium/high)
-5. Set dependencies: foundation tasks first, use dependencyLevel (0=no deps, 1=depends on 0, etc)
+5. Assign priority: critical (blocking/infrastructure), high (core features), normal (standard), low (polish/nice-to-have)
+6. Set dependencies: foundation tasks first, use dependencyLevel (0=no deps, 1=depends on 0, etc)
+
+## Priority Guidelines:
+- **Critical**: Blocking tasks, core infrastructure, project setup, README documentation
+  * Examples: project structure, core config files, essential dependencies
+- **High**: Core features that are important but not blocking
+  * Examples: main API endpoints, primary UI components, database schemas
+- **Normal**: Standard features and functionality (default for most tasks)
+  * Examples: secondary features, utility functions, standard CRUD operations
+- **Low**: Nice-to-have features, polish, additional documentation
+  * Examples: styling improvements, optional features, extended documentation
 
 ## REQUIRED Tasks:
 - ALWAYS include a README.md task (highest priority) with instructions on how to run/use the result
