@@ -38,15 +38,9 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="koboldFactory">Kobold factory for creating workers</param>
         /// <param name="providerConfigService">Provider configuration service</param>
         /// <param name="projectConfigService">Project configuration service for parallel limits</param>
-        /// <param name="koboldLairConfig">KoboldLair configuration</param>
+        /// <param name="koboldLairConfig">KoboldLair configuration (extracts projectsPath and planning settings internally)</param>
         /// <param name="loggerFactory">Optional logger factory for Drake logging</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
-        /// <param name="projectsPath">Path to projects directory for plan storage</param>
-        /// <param name="planningEnabled">Whether to enable implementation planning (default: true)</param>
-        /// <param name="useEnhancedExecution">Whether to use Phase 2 enhanced execution with auto-detection (default: true)</param>
-        /// <param name="allowPlanModifications">Whether to allow agent-suggested plan modifications (default: false)</param>
-        /// <param name="autoApproveModifications">Whether to auto-approve plan modifications (default: false)</param>
-        /// <param name="filterFilesByPlan">Whether to filter file structure by plan requirements (default: true)</param>
         /// <param name="projectRepository">Optional project repository for resolving project paths</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
@@ -55,12 +49,6 @@ namespace DraCode.KoboldLair.Factories
             KoboldLairConfiguration koboldLairConfig,
             ILoggerFactory? loggerFactory = null,
             GitService? gitService = null,
-            string projectsPath = "./projects",
-            bool planningEnabled = true,
-            bool useEnhancedExecution = true,
-            bool allowPlanModifications = false,
-            bool autoApproveModifications = false,
-            bool filterFilesByPlan = true,
             ProjectRepository? projectRepository = null)
         {
             _koboldFactory = koboldFactory;
@@ -70,12 +58,15 @@ namespace DraCode.KoboldLair.Factories
             _projectRepository = projectRepository;
             _loggerFactory = loggerFactory;
             _gitService = gitService;
-            _projectsPath = projectsPath;
-            _planningEnabled = planningEnabled;
-            _useEnhancedExecution = useEnhancedExecution;
-            _allowPlanModifications = allowPlanModifications;
-            _autoApproveModifications = autoApproveModifications;
-            _filterFilesByPlan = filterFilesByPlan;
+            
+            // Extract configuration values from koboldLairConfig
+            _projectsPath = koboldLairConfig.ProjectsPath ?? "./projects";
+            _planningEnabled = koboldLairConfig.Planning?.Enabled ?? true;
+            _useEnhancedExecution = koboldLairConfig.Planning?.UseEnhancedExecution ?? true;
+            _allowPlanModifications = koboldLairConfig.Planning?.AllowPlanModifications ?? false;
+            _autoApproveModifications = koboldLairConfig.Planning?.AutoApproveModifications ?? false;
+            _filterFilesByPlan = koboldLairConfig.Planning?.FilterFilesByPlan ?? true;
+            
             _drakes = new Dictionary<string, Drake>();
             _drakeProjectIds = new Dictionary<string, string?>();
         }

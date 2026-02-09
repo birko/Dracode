@@ -23,13 +23,13 @@ namespace DraCode.KoboldLair.Services
             WyvernFactory wyvernFactory,
             ILogger<ProjectService> logger,
             GitService gitService,
-            string projectsPath = "./projects")
+            KoboldLairConfiguration config)
         {
             _repository = repository;
             _wyvernFactory = wyvernFactory;
             _logger = logger;
             _gitService = gitService;
-            _projectsPath = projectsPath;
+            _projectsPath = config.ProjectsPath ?? "./projects";
         }
 
         /// <summary>

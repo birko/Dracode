@@ -8,6 +8,7 @@ using DraCode.KoboldLair.Agents.SubAgents;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
+using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
 
@@ -79,7 +80,7 @@ namespace DraCode.KoboldLair.Server.Services
             ProjectConfigurationService projectConfigService,
             ProjectService projectService,
             GitService gitService,
-            string? projectsPath = "./projects",
+            KoboldLairConfiguration config,
             KoboldFactory? koboldFactory = null,
             DrakeFactory? drakeFactory = null)
         {
@@ -92,7 +93,7 @@ namespace DraCode.KoboldLair.Server.Services
             _gitService = gitService;
             _koboldFactory = koboldFactory;
             _drakeFactory = drakeFactory;
-            _projectsPath = projectsPath ?? "./projects";
+            _projectsPath = config.ProjectsPath ?? "./projects";
 
             _cleanupTimer = new Timer(CleanupExpiredSessions, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
         }

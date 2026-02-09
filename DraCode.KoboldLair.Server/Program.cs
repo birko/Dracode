@@ -38,8 +38,7 @@ builder.Services.AddSingleton<ProjectRepository>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<ProjectRepository>>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    var projectsPath = config.ProjectsPath ?? "./projects";
-    return new ProjectRepository(projectsPath, logger);
+    return new ProjectRepository(config.ProjectsPath ?? "./projects", logger);
 });
 
 builder.Services.AddSingleton<WyvernFactory>(sp =>
@@ -48,12 +47,7 @@ builder.Services.AddSingleton<WyvernFactory>(sp =>
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var gitService = sp.GetRequiredService<GitService>();
-    return new WyvernFactory(
-        providerConfigService,
-        projectConfigService,
-        config,
-        gitService: gitService
-    );
+    return new WyvernFactory(providerConfigService, projectConfigService, config, gitService: gitService);
 });
 
 builder.Services.AddSingleton<ProjectService>(sp =>
@@ -63,8 +57,7 @@ builder.Services.AddSingleton<ProjectService>(sp =>
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
     var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    var projectsPath = config.ProjectsPath ?? "./projects";
-    return new ProjectService(repository, wyvernFactory, logger, gitService, projectsPath);
+    return new ProjectService(repository, wyvernFactory, logger, gitService, config);
 });
 
 // Register factories as singletons
@@ -96,13 +89,7 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
     var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    var projectsPath = config.ProjectsPath ?? "./projects";
-    var planningEnabled = config.Planning?.Enabled ?? true;
-    var useEnhancedExecution = config.Planning?.UseEnhancedExecution ?? true;
-    var allowPlanModifications = config.Planning?.AllowPlanModifications ?? false;
-    var autoApproveModifications = config.Planning?.AutoApproveModifications ?? false;
-    var filterFilesByPlan = config.Planning?.FilterFilesByPlan ?? true;
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectsPath, planningEnabled, useEnhancedExecution, allowPlanModifications, autoApproveModifications, filterFilesByPlan, projectRepository);
+    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository);
 });
 
 // Register services
@@ -125,8 +112,7 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var koboldFactory = sp.GetRequiredService<KoboldFactory>();
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    var projectsPath = config.ProjectsPath ?? "./projects";
-    return new DragonService(logger, providerConfigService, projectConfigService, projectService, gitService, projectsPath, koboldFactory, drakeFactory);
+    return new DragonService(logger, providerConfigService, projectConfigService, projectService, gitService, config, koboldFactory, drakeFactory);
 });
 
 // Register background monitoring service
