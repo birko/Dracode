@@ -239,11 +239,6 @@ All critical blocking operations and race conditions have been resolved as of 20
   - Migration path from plain text storage
   - Effort: Medium (~2-3 days)
 
-- [ ] **Persistent Conversation History**
-  - SQLite storage for conversations
-  - Export to JSON/Markdown formats
-  - Effort: Medium (~1 week)
-
 ### From Phase D - Extensibility
 
 - [ ] **Plugin System for Custom Tools**
@@ -429,34 +424,34 @@ All critical blocking operations and race conditions have been resolved as of 20
 
 ### High Priority - Auto-Recovery
 
-- [ ] **Failure Recovery Service** - Auto-retry transient errors
+- [x] **Failure Recovery Service** - Auto-retry transient errors ✅ COMPLETED (2026-02-09)
   - Background service that runs every 5 minutes
   - Detects failed tasks with transient errors (network, timeout, rate limit)
   - Applies exponential backoff (1min, 2min, 5min, 15min, 30min)
   - Auto-retries up to 5 times for known transient failures
   - Failure categorization: transient (network) vs permanent (syntax error)
   - Circuit breaker pattern for provider outages (3 failures = pause 10 min)
-  - Notifies user via Dragon if still failing after retries
-  - Status: Manual retry via `retry_failed_task` tool currently required
-  - Impact: Reduces manual intervention for temporary issues (network glitches)
-  - Effort: Medium (~3 days)
+  - **Details**: See "🟠 HIGH PRIORITY" section line 550 for full implementation details
+  - **Effort**: Completed
 
 ### High Priority - Workflow Clarity
 
-- [ ] **Wyrm Workflow Clarification**
-  - Current state: Wyrm is internal to Wyvern (works fine)
-  - Documentation suggests: Separate Wyrm assignment step exists
-  - **Option A** (Recommended): Update documentation to reflect reality
-    - Change docs to show Wyrm as internal Wyvern helper
-    - Remove "Wyrm assignment" from workflow diagrams
-    - Effort: Low (~1 hour)
-  - **Option B**: Add WyrmProcessingService (match docs)
-    - Create background service between approval and Wyvern
-    - Add `WyrmAssigned` project status
-    - Wyrm pre-analyzes and recommends agent types
-    - Wyvern uses Wyrm results as hints during analysis
-    - Effort: Medium (~2 days)
-  - Decision needed: Architecture vs documentation alignment
+- [x] **Wyrm Workflow Clarification** ✅ COMPLETED (2026-02-09)
+  - **Decision**: Implemented Option B - WyrmProcessingService
+  - Background service between approval and Wyvern
+  - Added `WyrmAssigned` project status
+  - Wyrm pre-analyzes and recommends agent types
+  - Wyvern uses Wyrm results as hints during analysis
+  - **Details**: See "🟢 COMPLETED - Wyrm Pre-Analysis Workflow" section line 8 for full details
+  - **Effort**: Completed
+
+---
+
+## ⚪ LOW PRIORITY - Enhancements & Future Features
+
+Nice to have. Can be deferred without impacting core functionality.
+
+---
 
 ### From Phase H - Observability
 
@@ -499,74 +494,28 @@ All critical blocking operations and race conditions have been resolved as of 20
   - Impact: Efficiency for large projects with cascading failures
   - Effort: Low (~2 days)
 
-- [ ] **Provider Circuit Breaker**
-  - Detect when provider is down (3 consecutive failures)
-  - Automatically pause all tasks using that provider
-  - Notify user via Dragon chat
-  - Auto-resume after cooldown period (10 minutes)
-  - Prevents wasted retries during known outages
-  - Complements existing retry logic
-  - Effort: Low (~2 days)
-
----
-
-## ⚪ LOW PRIORITY - Enhancements & Future Features
-
-Nice to have. Can be deferred without impacting core functionality.
-
----
-
 ### From Phase I - Context Preservation
 
-- [ ] **Persist Dragon Conversation History** 🔴 CRITICAL - DATA LOSS RISK
-  - **Issue**: Dragon chat history stored in-memory only (ConcurrentDictionary)
-  - When service restarts: ALL conversation context is LOST
-  - User requirements reasoning, preferences, alternatives discussed - gone
-  - **Location**: `DragonService.cs` - DragonSession class
-  - **Implementation**:
-    ```csharp
-    // Add to DragonSession.cs
-    public class DragonSession
-    {
-        public void SaveHistoryToFile(string projectFolder)
-        {
-            var historyPath = Path.Combine(projectFolder, "dragon-history.json");
-            var json = JsonSerializer.Serialize(MessageHistory);
-            File.WriteAllText(historyPath, json);
-        }
-        
-        public static DragonSession LoadFromFile(string projectFolder, string sessionId)
-        {
-            var historyPath = Path.Combine(projectFolder, "dragon-history.json");
-            if (!File.Exists(historyPath)) return null;
-            
-            var json = File.ReadAllText(historyPath);
-            var messages = JsonSerializer.Deserialize<List<SessionMessage>>(json);
-            
-            var session = new DragonSession { SessionId = sessionId };
-            session.MessageHistory.AddRange(messages);
-            return session;
-        }
-    }
-    ```
-  - **Changes needed**:
-    - Save history on every message (async, non-blocking)
-    - Load history on session reconnect
-    - Store in: `./projects/{project}/dragon-history.json`
-    - Add to specification export/archive
-    - Prune old history (keep last 100 messages)
-  - **Impact**: Preserves "why" behind requirements decisions
-  - **Example lost context**: "Dark mode only for authenticated users" → spec says "dark mode" → reasoning lost
-  - **Effort**: Medium (~1 day)
+- [x] **Persist Dragon Conversation History** ✅ COMPLETED (2026-02-09)
+  - Dragon chat history now persisted to `dragon-history.json` per project
+  - Implemented `SaveHistoryToFileAsync()` and `LoadHistoryFromFileAsync()`
+  - Saves automatically after every message (fire-and-forget async)
+  - Loads on session reconnect if project folder set
+  - Thread-safe with `_historyLock` to prevent race conditions
+  - Prunes to last 100 messages before saving
+  - **Location**: `DragonService.cs` - DragonSession class (lines 44-104)
+  - **Impact**: Preserves "why" behind requirements decisions across restarts
+  - **Details**: Documented in "COMPLETED - Data Integrity & Context Loss Fixes" section (lines 90-149)
 
-- [ ] **Write-Ahead Log for Task State** 🔴 CRITICAL - DATA LOSS RISK
-  - **Issue**: 2-second debounce on task file writes - crash during window loses updates
-  - Very rare (requires crash during 2-second window) but severe impact
-  - **Location**: `Drake.cs` - Debounced save mechanism
-  - Transaction safety for critical state changes
-  - No data loss even during crashes
-  - **Impact**: Prevents rare but catastrophic edge case (crash during 2-second debounce window)
-  - **Effort**: Medium (~3 days)
+- [x] **Write-Ahead Log for Task State** ✅ COMPLETED (Already implemented)
+  - Drake uses `TaskStateWal` to log state transitions before updates
+  - Prevents data loss during 2-second debounce window
+  - Implements transaction safety for critical state changes
+  - **Location**: `TaskStateWal.cs` (full implementation)
+  - Integrated in `Drake.cs` constructor (line 127) and state changes
+  - WAL entries: Timestamp, TaskId, PreviousStatus, NewStatus, AssignedAgent, ErrorMessage
+  - **Impact**: Prevents rare but catastrophic data loss during crashes
+  - **Effort**: Already complete
 
 ---
 
@@ -765,16 +714,13 @@ Important for reliability but workarounds exist. Improves system quality.
 
 ### From Phase H - Workflow Clarity
 
-- [ ] **Wyrm Workflow Clarification**
-  - Current state: Wyrm is internal to Wyvern (works fine)
-  - Documentation suggests: Separate Wyrm assignment step exists
-  - **Option A** (Recommended): Update documentation to reflect reality
-    - Change docs to show Wyrm as internal Wyvern helper
-    - Remove "Wyrm assignment" from workflow diagrams
-    - Effort: Low (~1 hour)
-  - **Option B**: Add WyrmProcessingService (match docs)
-    - Effort: Medium (~2 days)
-  - Decision needed: Architecture vs documentation alignment
+- [x] **Wyrm Workflow Clarification** ✅ COMPLETED (2026-02-09)
+  - **Decision**: Implemented Option B - WyrmProcessingService
+  - WyrmProcessingService runs as background service (60s interval)
+  - Monitors `New` projects and creates Wyrm recommendations
+  - Workflow: New → WyrmAssigned → Analyzed → InProgress
+  - Full implementation details in "COMPLETED - Wyrm Pre-Analysis Workflow" section above
+  - **Effort**: Completed
 
 ### From Phase F - Performance Optimizations
 
@@ -788,78 +734,27 @@ Important for reliability but workarounds exist. Improves system quality.
 
 ### From Phase I - Tracking & Visibility
 
-- [ ] **Enhanced Git Commit Messages with Context**
+- [ ] **Enhanced Git Commit Messages with Context** 🟡 MEDIUM PRIORITY
   - **Issue**: Git commits lack feature context, task IDs, traceability
+  - Current commits: Generic "Kobold work completed" messages
   - Hard to revert entire features or track task completion via git
   - **Location**: `Drake.cs` - Git integration after task completion
-  - **Current**:
-    ```csharp
-    await _gitService.CommitChangesAsync(
-        workspacePath,
-        commitMessage: "Kobold work completed",
-        author: "Kobold"
-    );
-    ```
-  - **Improved**:
-    ```csharp
-    await _gitService.CommitChangesAsync(
-        workspacePath,
-        commitMessage: BuildDetailedCommitMessage(task, agentType),
-        author: $"Kobold-{agentType}"
-    );
-    
-    private string BuildDetailedCommitMessage(TaskRecord task, string agentType)
-    {
-        var sb = new StringBuilder();
-        
-        // Short title
-        sb.AppendLine(task.Task);
-        sb.AppendLine();
-        
-        // Metadata
-        if (!string.IsNullOrEmpty(task.FeatureId))
-            sb.AppendLine($"Feature: {task.FeatureId}");
-        sb.AppendLine($"Task-Id: {task.Id}");
-        sb.AppendLine($"Agent-Type: {agentType}");
-        sb.AppendLine($"Project: {_projectId}");
-        
-        // Dependencies
-        if (task.Dependencies?.Any() == true)
-        {
-            sb.AppendLine();
-            sb.AppendLine("Dependencies:");
-            foreach (var dep in task.Dependencies)
-            {
-                var depTask = _taskTracker.GetTask(dep);
-                sb.AppendLine($"- {depTask?.Task ?? dep}");
-            }
-        }
-        
-        return sb.ToString();
-    }
-    ```
   - **Benefits**:
     - Better git history readability
-    - Easy feature tracking and rollback
+    - Easy feature tracking and rollback  
     - Traceability between tasks and code changes
     - Useful for compliance and audit
+  - **Implementation**: BuildDetailedCommitMessage() with Task-Id, Feature, Agent-Type, Dependencies
   - **Effort**: Low (~1 day)
 
-- [ ] **Task Output File Tracking**
-  - Add `OutputFiles` property to TaskRecord
-  - Populate from git diff after task completion
-  - Store in task markdown: `<!-- outputs: file1.cs, file2.cs -->`
-  - Display in Drake statistics and Dragon tools
-  - Used by dependency context builder (see above)
-  - **Effort**: Low (~1 day)
-
----
-
-## 🔵 NORMAL PRIORITY - Observability & Developer Experience
-
-Helpful but not blocking. Improves monitoring and debugging capabilities.
-
----
+- [x] **Task Output File Tracking** ✅ COMPLETED (Already implemented)
+  - Added `OutputFiles` property to TaskRecord ✓
+  - Populates from git diff after task completion ✓
+  - Used by dependency context builder ✓
+  - Files tracked via `CommitSha` property ✓
+  - Extracted via `_gitService.GetFilesFromCommitAsync()` ✓
+  - **Location**: `TaskRecord.cs` lines 21-26, `Drake.cs` lines 687-696
+  - **Effort**: Already complete
 
 ---
 
