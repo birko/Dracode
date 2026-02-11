@@ -7,6 +7,14 @@ using Microsoft.Extensions.Logging;
 namespace DraCode.KoboldLair.Agents.Tools
 {
     /// <summary>
+    /// Step dependency status for blocking downstream steps
+    /// </summary>
+    public enum StepBlockedStatus
+    {
+        Ready,
+        BlockedByFailure
+    }
+    /// <summary>
     /// Tool for updating implementation plan step status during execution.
     /// Kobolds use this tool to mark steps as completed, failed, or skipped.
     /// The plan is automatically saved after each update for resumability.
@@ -134,6 +142,7 @@ Returns: Confirmation of the update with current plan progress.";
                     }
 
                     var step = _currentPlan.Steps[arrayIndex];
+                    var dependentStepsSkipped = 0;
 
                     // Update step status
                     switch (newStatus)
@@ -141,19 +150,28 @@ Returns: Confirmation of the update with current plan progress.";
                         case StepStatus.Completed:
                             step.Complete(output);
                             _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) completed");
-                            _logger?.LogInformation("Plan step {StepIndex}/{TotalSteps} completed: {StepTitle} at {Timestamp:o}", 
+                            _logger?.LogInformation("Plan step {StepIndex}/{TotalSteps} completed: {StepTitle} at {Timestamp:o}",
                                 stepIndex, _currentPlan.Steps.Count, step.Title, DateTime.UtcNow);
                             break;
                         case StepStatus.Failed:
                             step.Fail(output);
                             _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) failed: {output ?? "No reason provided"}");
-                            _logger?.LogError("Plan step {StepIndex}/{TotalSteps} failed: {StepTitle} - {Reason} at {Timestamp:o}", 
+                            _logger?.LogError("Plan step {StepIndex}/{TotalSteps} failed: {StepTitle} - {Reason} at {Timestamp:o}",
                                 stepIndex, _currentPlan.Steps.Count, step.Title, output ?? "No reason provided", DateTime.UtcNow);
+
+                            // Automatically skip dependent steps when a step fails
+                            dependentStepsSkipped = SkipDependentSteps(step, stepIndex, output);
+                            if (dependentStepsSkipped > 0)
+                            {
+                                _currentPlan.AddLogEntry($"{dependentStepsSkipped} dependent step(s) automatically skipped due to failed step {stepIndex}");
+                                _logger?.LogWarning("Auto-skipped {SkippedCount} dependent steps after step {StepIndex} failed at {Timestamp:o}",
+                                    dependentStepsSkipped, stepIndex, DateTime.UtcNow);
+                            }
                             break;
                         case StepStatus.Skipped:
                             step.Skip(output);
                             _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) skipped: {output ?? "No reason provided"}");
-                            _logger?.LogInformation("Plan step {StepIndex}/{TotalSteps} skipped: {StepTitle} - {Reason} at {Timestamp:o}", 
+                            _logger?.LogInformation("Plan step {StepIndex}/{TotalSteps} skipped: {StepTitle} - {Reason} at {Timestamp:o}",
                                 stepIndex, _currentPlan.Steps.Count, step.Title, output ?? "No reason provided", DateTime.UtcNow);
                             break;
                     }
@@ -195,12 +213,43 @@ Returns: Confirmation of the update with current plan progress.";
                     };
 
                     var nextStepInfo = "";
+                    var blockedInfo = "";
+
+                    // If step failed and dependent steps were skipped, inform about it
+                    if (newStatus == StepStatus.Failed && dependentStepsSkipped > 0)
+                    {
+                        blockedInfo = $"\n\n⚠️ {dependentStepsSkipped} dependent step(s) have been automatically skipped because they depend on files from this failed step.";
+
+                        // Get list of skipped steps
+                        var skippedSteps = _currentPlan.Steps
+                            .Where(s => s.Status == StepStatus.Skipped && s.Index > step.Index && s.Output?.Contains($"failed step {stepIndex}") == true)
+                            .Select(s => $"  - Step {s.Index}: {s.Title}")
+                            .ToList();
+
+                        if (skippedSteps.Count > 0)
+                        {
+                            blockedInfo += "\nSkipped steps:\n" + string.Join("\n", skippedSteps);
+                        }
+                    }
+
                     if (_currentPlan.HasMoreSteps)
                     {
-                        var nextStep = _currentPlan.CurrentStep;
+                        // Find next executable step (skip already skipped/failed ones)
+                        var nextStep = _currentPlan.Steps
+                            .FirstOrDefault(s => s.Status == StepStatus.Pending || s.Status == StepStatus.InProgress);
+
                         if (nextStep != null)
                         {
                             nextStepInfo = $"\n\nNext step: Step {nextStep.Index} - {nextStep.Title}";
+                        }
+                        else
+                        {
+                            // All remaining steps are either done or blocked
+                            var pendingCount = _currentPlan.Steps.Count(s => s.Status == StepStatus.Pending);
+                            if (pendingCount == 0)
+                            {
+                                nextStepInfo = "\n\nAll steps finished! Plan execution complete (some steps may have failed or been skipped).";
+                            }
                         }
                     }
                     else
@@ -210,7 +259,7 @@ Returns: Confirmation of the update with current plan progress.";
 
                     return $@"{statusIcon} Step {stepIndex} marked as {statusStr}
 
-Progress: {completedCount}/{totalSteps} steps ({progress}%){nextStepInfo}";
+Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextStepInfo}";
                 }
             }
             catch (Exception ex)
@@ -256,6 +305,61 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){nextStepInfo}";
             {
                 return _currentPlan;
             }
+        }
+
+        /// <summary>
+        /// Skips steps that depend on the failed step.
+        /// Uses file dependency analysis to determine which steps need to be skipped.
+        /// </summary>
+        /// <param name="failedStep">The step that failed</param>
+        /// <param name="failedStepIndex">1-based index of the failed step</param>
+        /// <param name="failureReason">Why the step failed</param>
+        /// <returns>Number of steps that were skipped</returns>
+        private static int SkipDependentSteps(ImplementationStep failedStep, int failedStepIndex, string? failureReason)
+        {
+            if (_currentPlan == null)
+            {
+                return 0;
+            }
+
+            var skippedCount = 0;
+            var analyzer = new StepDependencyAnalyzer();
+
+            // Get files that the failed step was supposed to create or modify
+            var failedStepOutputFiles = new HashSet<string>(
+                failedStep.FilesToCreate.Concat(failedStep.FilesToModify),
+                StringComparer.OrdinalIgnoreCase
+            );
+
+            if (failedStepOutputFiles.Count == 0)
+            {
+                return 0; // No files to check dependencies against
+            }
+
+            // Check all subsequent pending steps for dependencies on the failed step
+            foreach (var step in _currentPlan.Steps.Where(s => s.Index > failedStep.Index && s.Status == StepStatus.Pending))
+            {
+                // Check if this step depends on files the failed step was supposed to create/modify
+                var dependsOnFailedStep = analyzer.HasDependency(failedStep, step);
+
+                // Also check if this step tries to modify files the failed step was supposed to create
+                var modifiesFailedOutput = step.FilesToModify.Any(f =>
+                    failedStep.FilesToCreate.Contains(f, StringComparer.OrdinalIgnoreCase));
+
+                if (dependsOnFailedStep || modifiesFailedOutput)
+                {
+                    var reason = $"Blocked: dependency on failed step {failedStepIndex} ({failedStep.Title}). " +
+                                 $"Original failure: {failureReason ?? "No reason provided"}";
+                    step.Skip(reason);
+                    _currentPlan.AddLogEntry($"Step {step.Index} ({step.Title}) skipped - depends on failed step {failedStepIndex}");
+                    _logger?.LogWarning(
+                        "🟠 Step {StepIndex} ({StepTitle}) auto-skipped due to dependency on failed step {FailedStepIndex} at {Timestamp:o}",
+                        step.Index, step.Title, failedStepIndex, DateTime.UtcNow);
+                    skippedCount++;
+                }
+            }
+
+            return skippedCount;
         }
     }
 }
