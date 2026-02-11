@@ -336,9 +336,13 @@ namespace DraCode.KoboldLair.Server.Services
                         var welcomeResponse = await session.Dragon.StartSessionAsync();
                         _logger.LogInformation("[Dragon] Welcome: {Response}", welcomeResponse);
 
-                        // Only send if not already sent via streaming callback
+                        // Brief yield to allow any pending fire-and-forget streaming sends to complete/fail
+                        await Task.Delay(50);
+
+                        // Send message if streaming callback didn't send it (or if streaming send failed)
                         if (!session.StreamingResponseSent)
                         {
+                            _logger.LogDebug("[Dragon] Sending non-streamed welcome (StreamingResponseSent={Sent})", session.StreamingResponseSent);
                             await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
                             {
                                 type = "dragon_message",
@@ -604,9 +608,15 @@ namespace DraCode.KoboldLair.Server.Services
                 var response = await session.Dragon!.ContinueSessionAsync(message.Message);
                 _logger.LogInformation("[Dragon] Response: {Response}", response);
 
-                // Only send if not already sent via streaming callback
+                // Brief yield to allow any pending fire-and-forget streaming sends to complete/fail
+                // This handles the race condition where streaming callback sets StreamingResponseSent
+                // but the async send hasn't completed yet
+                await Task.Delay(50);
+
+                // Send message if streaming callback didn't send it (or if streaming send failed)
                 if (!session.StreamingResponseSent)
                 {
+                    _logger.LogDebug("[Dragon] Sending non-streamed response (StreamingResponseSent={Sent})", session.StreamingResponseSent);
                     await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
                     {
                         type = "dragon_message",
@@ -798,6 +808,13 @@ namespace DraCode.KoboldLair.Server.Services
         {
             try
             {
+                if (webSocket.State != WebSocketState.Open)
+                {
+                    _logger.LogWarning("[Dragon] Cannot send stream complete - WebSocket not open (state: {State})", webSocket.State);
+                    session.StreamingResponseSent = false; // Allow fallback to non-streaming send
+                    return;
+                }
+
                 await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
                 {
                     type = "dragon_message",
@@ -807,7 +824,11 @@ namespace DraCode.KoboldLair.Server.Services
                     isStreamed = true  // Flag to indicate this was a streamed response
                 });
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Dragon] Failed to send stream complete message");
+                session.StreamingResponseSent = false; // Allow fallback to non-streaming send
+            }
         }
 
         private async Task SendMessageAsync(WebSocket webSocket, object data)
@@ -910,9 +931,13 @@ namespace DraCode.KoboldLair.Server.Services
                 session.StreamingResponseSent = false;
                 var welcomeResponse = await session.Dragon.StartSessionAsync();
 
-                // Only send if not already sent via streaming callback
+                // Brief yield to allow any pending fire-and-forget streaming sends to complete/fail
+                await Task.Delay(50);
+
+                // Send message if streaming callback didn't send it (or if streaming send failed)
                 if (!session.StreamingResponseSent)
                 {
+                    _logger.LogDebug("[Dragon] Sending non-streamed reload welcome (StreamingResponseSent={Sent})", session.StreamingResponseSent);
                     await SendTrackedMessageAsync(webSocket, session, "dragon_reloaded", new
                     {
                         type = "dragon_reloaded",

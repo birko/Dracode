@@ -107,8 +107,10 @@ class DragonSession {
             this.view.showNotification(`Failed to restore conversation: ${data.error}`, 'error');
             return;
         } else if (data.type === 'dragon_message') {
-            // Check if this is a completion of a streaming response
-            if (data.isStreamed) {
+            // Check if this is a completion of a streaming response.
+            // Note: isStreamed may be true even if no streaming chunks arrived (e.g., after tool use)
+            const streamingElementExists = this.view.hasStreamingElement();
+            if (data.isStreamed && streamingElementExists) {
                 // Finalize the streaming message display (remove cursor)
                 this.view.finalizeStreamingMessage();
             }
@@ -117,14 +119,14 @@ class DragonSession {
             // Use data.message with fallback - prevents "undefined" display
             const content = data.message ?? data.content ?? '';
             if (content) {
-                if (data.isStreamed) {
+                if (data.isStreamed && streamingElementExists) {
                     // For streamed: save without UI update (streaming element already displays it)
                     const msg = { role: 'assistant', content };
                     if (data.messageId) msg.messageId = data.messageId;
                     this.messages.push(msg);
                     this.view.saveAllSessions();
                 } else {
-                    // For non-streamed: normal flow with UI update
+                    // For non-streamed OR streamed without chunks: normal flow with UI update
                     this.addMessage('assistant', content, data.messageId);
                 }
             }
@@ -837,6 +839,16 @@ export class DragonView {
 
         // Auto-scroll to bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    /**
+     * Check if a streaming message element currently exists.
+     * Used to determine if streaming chunks were actually received.
+     */
+    hasStreamingElement() {
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (!messagesContainer) return false;
+        return !!messagesContainer.querySelector('.chat-message[data-streaming="true"]');
     }
 
     /**
