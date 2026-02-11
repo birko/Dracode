@@ -1,4 +1,5 @@
 using DraCode.Agent.Tools;
+using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -71,12 +72,14 @@ Returns: Information about the selected agent and confirmation that it will hand
                 var reasoning = reasoningObj.ToString()!;
                 var task = taskObj.ToString()!;
 
-                // Validate agent type
-                var validAgentTypes = new[] { "coding", "csharp", "cpp", "assembler", "javascript", "typescript", "css", "html", "react", "angular", "php", "python", "diagramming", "media", "image", "svg", "bitmap" };
-                if (!validAgentTypes.Contains(agentType.ToLowerInvariant()))
+                // Validate agent type using shared validator
+                if (!AgentTypeValidator.IsValid(agentType))
                 {
-                    return $"Error: Invalid agent_type '{agentType}'. Must be one of: {string.Join(", ", validAgentTypes)}";
+                    return $"Error: Invalid agent_type '{agentType}'. Must be one of: {AgentTypeValidator.GetValidTypesString()}";
                 }
+
+                // Normalize to lowercase
+                agentType = agentType.ToLowerInvariant();
 
                 // Store selection metadata for retrieval
                 StoreSelection(agentType, reasoning, task);

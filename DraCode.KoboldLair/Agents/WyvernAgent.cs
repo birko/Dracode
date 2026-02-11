@@ -37,9 +37,20 @@ namespace DraCode.KoboldLair.Agents
 1. Parse specification: deliverables, tech stack, constraints
 2. Design optimal file/folder structure based on project type
 3. Categorize into areas: Backend, Frontend, Database, Infrastructure, Testing, Documentation, Security
-4. Create tasks with: clear name, description, agentType (csharp/react/etc), complexity (low/medium/high)
+4. Create tasks with: clear name, description, agentType (MUST be one of the valid types below), complexity (low/medium/high)
 5. Assign priority: critical (blocking/infrastructure), high (core features), normal (standard), low (polish/nice-to-have)
 6. Set dependencies: foundation tasks first, use dependencyLevel (0=no deps, 1=depends on 0, etc)
+
+## VALID agentType Values (use ONLY these):
+- **Systems**: csharp, cpp, assembler, php, python
+- **Web**: javascript, typescript, html, css, react, angular
+- **Media**: svg, bitmap, image, media
+- **Other**: diagramming, coding (general/fallback), documentation
+
+IMPORTANT: Area names (Frontend, Backend, etc.) are for ORGANIZATION only.
+The agentType field MUST be a specific agent type, NOT an area name.
+- WRONG: agentType: ""frontend"" or agentType: ""backend""
+- CORRECT: agentType: ""react"" or agentType: ""csharp""
 
 ## Priority Guidelines:
 - **Critical**: Blocking tasks, core infrastructure, project setup

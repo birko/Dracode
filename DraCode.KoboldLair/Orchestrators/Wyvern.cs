@@ -705,10 +705,11 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                         var priority = ParsePriority(task.Priority);
                         var taskRecord = tracker.AddTask(taskDescription, priority);
 
-                        // Set the recommended agent type if available
+                        // Set the recommended agent type if available (normalized to valid agent type)
                         if (!string.IsNullOrEmpty(task.AgentType))
                         {
-                            tracker.UpdateTask(taskRecord, TaskStatus.Unassigned, task.AgentType);
+                            var normalizedAgentType = AgentTypeValidator.Normalize(task.AgentType);
+                            tracker.UpdateTask(taskRecord, TaskStatus.Unassigned, normalizedAgentType);
                         }
                     }
 

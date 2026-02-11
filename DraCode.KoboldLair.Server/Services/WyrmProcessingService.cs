@@ -79,7 +79,22 @@ namespace DraCode.KoboldLair.Server.Services
 
 {spec}
 {crossProjectContext}
-Provide JSON with: RecommendedLanguages[], RecommendedAgentTypes{{}}, TechnicalStack[], SuggestedAreas[], Complexity, AnalysisSummary";
+Provide JSON with:
+- RecommendedLanguages[]: Programming languages used (e.g., ""csharp"", ""typescript"", ""python"")
+- RecommendedAgentTypes{{}}: Map area names to VALID agent types (see list below)
+- TechnicalStack[]: Frameworks and libraries detected
+- SuggestedAreas[]: Work areas like ""Backend"", ""Frontend"", ""Database""
+- Complexity: ""Low"", ""Medium"", or ""High""
+- AnalysisSummary: Brief analysis
+
+IMPORTANT: For RecommendedAgentTypes, use ONLY these valid agent type values:
+- Systems: csharp, cpp, assembler, php, python
+- Web: javascript, typescript, html, css, react, angular
+- Media: svg, bitmap, image, media
+- Other: diagramming, coding (general fallback), documentation
+
+Example RecommendedAgentTypes: {{""backend"": ""csharp"", ""frontend"": ""react"", ""styling"": ""css""}}
+Do NOT use area names like ""frontend"" or ""backend"" as agent types - map them to specific agents.";
                 
                 var messages = await wyrm.RunAsync(prompt);
                 var lastMessage = messages.LastOrDefault();

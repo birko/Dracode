@@ -1701,9 +1701,8 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
 
                 // Get agent type from AssignedAgent field (set during task creation)
-                var agentType = !string.IsNullOrEmpty(task.AssignedAgent)
-                    ? task.AssignedAgent
-                    : "coding"; // Default fallback
+                // Normalize to ensure valid agent type (handles cases where area names were used)
+                var agentType = AgentTypeValidator.Normalize(task.AssignedAgent);
 
                 result.Add((task, agentType));
             }

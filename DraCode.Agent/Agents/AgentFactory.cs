@@ -14,12 +14,38 @@ namespace DraCode.Agent.Agents
             ["openai", "azureopenai", "claude", "gemini", "ollama", "llamacpp", "vllm", "sglang", "githubcopilot", "zai"];
 
         /// <summary>
+        /// All supported agent types (primary names only, not aliases).
+        /// This is the authoritative list used by AgentTypeValidator.
+        /// </summary>
+        public static readonly string[] SupportedAgentTypes =
+        [
+            "coding", "csharp", "cpp", "assembler", "javascript", "typescript",
+            "css", "html", "react", "angular", "php", "python",
+            "documentation", "debug", "refactor", "test",
+            "diagramming", "media", "image", "svg", "bitmap"
+        ];
+
+        /// <summary>
+        /// Agent type aliases that map to primary agent types.
+        /// Key: alias, Value: primary agent type
+        /// </summary>
+        public static readonly IReadOnlyDictionary<string, string> AgentTypeAliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "general", "coding" },
+            { "docs", "documentation" },
+            { "debugging", "debug" },
+            { "refactoring", "refactor" },
+            { "testing", "test" },
+            { "diagram", "diagramming" }
+        };
+
+        /// <summary>
         /// Agent types that benefit from coding-optimized endpoints
         /// </summary>
         private static readonly HashSet<string> CodingAgentTypes = new(StringComparer.OrdinalIgnoreCase)
         {
-            "coding", "csharp", "cpp", "assembler", "javascript", "typescript", 
-            "css", "html", "react", "angular", "php", "python", "debug", 
+            "coding", "csharp", "cpp", "assembler", "javascript", "typescript",
+            "css", "html", "react", "angular", "php", "python", "debug",
             "refactor", "test", "svg"
         };
 
@@ -102,7 +128,7 @@ namespace DraCode.Agent.Agents
                 "image" => new ImageAgent(llm, options),
                 "svg" => new SvgAgent(llm, options),
                 "bitmap" => new BitmapAgent(llm, options),
-                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding', 'general', 'csharp', 'cpp', 'assembler', 'javascript', 'typescript', 'css', 'html', 'react', 'angular', 'php', 'python', 'documentation', 'debug', 'refactor', 'test', 'diagramming', 'media', 'image', 'svg', 'bitmap'")
+                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: {string.Join(", ", SupportedAgentTypes)}")
             };
         }
 
