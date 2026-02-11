@@ -212,6 +212,28 @@ namespace DraCode.KoboldLair.Models.Agents
         /// </summary>
         public DateTime? CompletedAt { get; set; }
 
+        // Step-level retry tracking
+
+        /// <summary>
+        /// Number of retry attempts made for this step
+        /// </summary>
+        public int RetryCount { get; set; } = 0;
+
+        /// <summary>
+        /// Maximum retry attempts for transient errors (default: 3)
+        /// </summary>
+        public int MaxRetries { get; set; } = 3;
+
+        /// <summary>
+        /// Last error message (preserved across retries)
+        /// </summary>
+        public string? LastErrorMessage { get; set; }
+
+        /// <summary>
+        /// Error category from ErrorClassifier (Transient, Permanent, Unknown)
+        /// </summary>
+        public string? ErrorCategory { get; set; }
+
         /// <summary>
         /// Phase 3: Step execution metrics for telemetry
         /// </summary>

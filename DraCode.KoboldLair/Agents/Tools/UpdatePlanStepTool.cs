@@ -144,6 +144,9 @@ Returns: Confirmation of the update with current plan progress.";
                     var step = _currentPlan.Steps[arrayIndex];
                     var dependentStepsSkipped = 0;
 
+                    // Track if step was reset for retry
+                    var wasResetForRetry = false;
+
                     // Update step status
                     switch (newStatus)
                     {
@@ -154,18 +157,44 @@ Returns: Confirmation of the update with current plan progress.";
                                 stepIndex, _currentPlan.Steps.Count, step.Title, DateTime.UtcNow);
                             break;
                         case StepStatus.Failed:
-                            step.Fail(output);
-                            _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) failed: {output ?? "No reason provided"}");
-                            _logger?.LogError("Plan step {StepIndex}/{TotalSteps} failed: {StepTitle} - {Reason} at {Timestamp:o}",
-                                stepIndex, _currentPlan.Steps.Count, step.Title, output ?? "No reason provided", DateTime.UtcNow);
+                            // Check if error is transient and retries are available
+                            var errorCategory = ErrorClassifier.Classify(output);
+                            step.LastErrorMessage = output;
+                            step.ErrorCategory = errorCategory.ToString();
 
-                            // Automatically skip dependent steps when a step fails
-                            dependentStepsSkipped = SkipDependentSteps(step, stepIndex, output);
-                            if (dependentStepsSkipped > 0)
+                            if (errorCategory == ErrorClassifier.ErrorCategory.Transient && step.RetryCount < step.MaxRetries)
                             {
-                                _currentPlan.AddLogEntry($"{dependentStepsSkipped} dependent step(s) automatically skipped due to failed step {stepIndex}");
-                                _logger?.LogWarning("Auto-skipped {SkippedCount} dependent steps after step {StepIndex} failed at {Timestamp:o}",
-                                    dependentStepsSkipped, stepIndex, DateTime.UtcNow);
+                                // Transient error with retries remaining - reset to Pending for retry
+                                step.RetryCount++;
+                                step.Status = StepStatus.Pending;
+                                step.StartedAt = null; // Reset start time for fresh attempt
+                                wasResetForRetry = true;
+
+                                _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) failed with transient error, scheduled for retry ({step.RetryCount}/{step.MaxRetries})");
+                                _logger?.LogWarning(
+                                    "🔄 Plan step {StepIndex}/{TotalSteps} failed with transient error, retry {RetryCount}/{MaxRetries}: {StepTitle} - {Reason} at {Timestamp:o}",
+                                    stepIndex, _currentPlan.Steps.Count, step.RetryCount, step.MaxRetries, step.Title, output ?? "No reason provided", DateTime.UtcNow);
+                            }
+                            else
+                            {
+                                // Permanent error or retries exhausted - mark as failed
+                                var reason = errorCategory == ErrorClassifier.ErrorCategory.Transient
+                                    ? $"Max retries ({step.MaxRetries}) exhausted. Last error: {output}"
+                                    : output;
+
+                                step.Fail(reason);
+                                _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) failed: {reason ?? "No reason provided"}");
+                                _logger?.LogError("Plan step {StepIndex}/{TotalSteps} failed: {StepTitle} - {Reason} (Category: {ErrorCategory}, Retries: {RetryCount}) at {Timestamp:o}",
+                                    stepIndex, _currentPlan.Steps.Count, step.Title, reason ?? "No reason provided", errorCategory, step.RetryCount, DateTime.UtcNow);
+
+                                // Automatically skip dependent steps when a step fails permanently
+                                dependentStepsSkipped = SkipDependentSteps(step, stepIndex, reason);
+                                if (dependentStepsSkipped > 0)
+                                {
+                                    _currentPlan.AddLogEntry($"{dependentStepsSkipped} dependent step(s) automatically skipped due to failed step {stepIndex}");
+                                    _logger?.LogWarning("Auto-skipped {SkippedCount} dependent steps after step {StepIndex} failed at {Timestamp:o}",
+                                        dependentStepsSkipped, stepIndex, DateTime.UtcNow);
+                                }
                             }
                             break;
                         case StepStatus.Skipped:
@@ -176,12 +205,13 @@ Returns: Confirmation of the update with current plan progress.";
                             break;
                     }
 
-                    // Advance current step index if this was the current step and it's done
+                    // Advance current step index if this was the current step and it's done (not reset for retry)
                     if (arrayIndex == _currentPlan.CurrentStepIndex &&
-                        (newStatus == StepStatus.Completed || newStatus == StepStatus.Skipped))
+                        (newStatus == StepStatus.Completed || newStatus == StepStatus.Skipped) &&
+                        !wasResetForRetry)
                     {
                         _currentPlan.AdvanceToNextStep();
-                        _logger?.LogDebug("Plan advanced to step {CurrentStep}/{TotalSteps} at {Timestamp:o}", 
+                        _logger?.LogDebug("Plan advanced to step {CurrentStep}/{TotalSteps} at {Timestamp:o}",
                             _currentPlan.CurrentStepIndex + 1, _currentPlan.Steps.Count, DateTime.UtcNow);
                     }
 
@@ -203,6 +233,19 @@ Returns: Confirmation of the update with current plan progress.";
                     var completedCount = _currentPlan.CompletedStepsCount;
                     var totalSteps = _currentPlan.Steps.Count;
                     var progress = _currentPlan.ProgressPercentage;
+
+                    // Handle retry case with special response
+                    if (wasResetForRetry)
+                    {
+                        return $@"🔄 Step {stepIndex} failed with transient error - RETRY SCHEDULED
+
+Retry attempt: {step.RetryCount}/{step.MaxRetries}
+Error: {step.LastErrorMessage ?? "Unknown error"}
+
+The step has been reset to pending. Please retry Step {stepIndex} ({step.Title}) now.
+
+Progress: {completedCount}/{totalSteps} steps ({progress}%)";
+                    }
 
                     var statusIcon = newStatus switch
                     {
@@ -230,6 +273,12 @@ Returns: Confirmation of the update with current plan progress.";
                         {
                             blockedInfo += "\nSkipped steps:\n" + string.Join("\n", skippedSteps);
                         }
+                    }
+
+                    // Add retry exhaustion info if step failed after retries
+                    if (newStatus == StepStatus.Failed && step.RetryCount > 0)
+                    {
+                        blockedInfo = $"\n\n⚠️ Step failed after {step.RetryCount} retry attempt(s). Error category: {step.ErrorCategory}" + blockedInfo;
                     }
 
                     if (_currentPlan.HasMoreSteps)
