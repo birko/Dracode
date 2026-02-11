@@ -49,6 +49,14 @@ Planning guidelines:
 - Place files in appropriate directories based on file location guidelines
 - Don't forget test files if applicable
 
+**Default Web Project Structure (use if no specific guidelines provided):**
+- HTML files: root folder (index.html) or html/ subfolder
+- JavaScript: js/ folder (e.g., js/app.js, js/utils.js)
+- CSS/Stylesheets: css/ folder (e.g., css/styles.css, css/components.css)
+- Images/Assets: assets/ or assets/images/ folder
+- Components: components/ folder for reusable UI pieces
+- NEVER put .js, .css files in root unless it's a single-file project
+
 **Dependencies:**
 - Order steps so dependencies come first
 - If step B depends on step A, A must come before B
@@ -207,7 +215,10 @@ After analyzing the task, use the create_implementation_plan tool to output your
             }
 
             // Add project structure guidance if available
-            if (projectStructure != null)
+            var hasStructureGuidelines = projectStructure != null &&
+                (projectStructure.DirectoryPurposes.Any() || projectStructure.FileLocationGuidelines.Any());
+
+            if (projectStructure != null && hasStructureGuidelines)
             {
                 prompt.AppendLine();
                 prompt.AppendLine("## Project Structure Guidelines");
@@ -251,6 +262,29 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 }
 
                 prompt.AppendLine("IMPORTANT: Follow these guidelines when creating your implementation plan. Place files in the correct directories according to the guidelines.");
+                prompt.AppendLine();
+            }
+            else
+            {
+                // Fallback: Provide default structure guidance when Wyvern didn't provide specific guidelines
+                prompt.AppendLine();
+                prompt.AppendLine("## Default File Organization Guidelines");
+                prompt.AppendLine();
+                prompt.AppendLine("No specific project structure was provided. Use these standard conventions:");
+                prompt.AppendLine();
+                prompt.AppendLine("**Web Projects (HTML/JS/CSS):**");
+                prompt.AppendLine("- `index.html` → root folder (entry point)");
+                prompt.AppendLine("- JavaScript files → `js/` folder (e.g., `js/app.js`, `js/utils.js`)");
+                prompt.AppendLine("- CSS/Stylesheets → `css/` folder (e.g., `css/styles.css`)");
+                prompt.AppendLine("- Images/Assets → `assets/` or `assets/images/` folder");
+                prompt.AppendLine("- Components → `components/` folder for reusable UI pieces");
+                prompt.AppendLine();
+                prompt.AppendLine("**Backend Projects:**");
+                prompt.AppendLine("- Source code → `src/` folder");
+                prompt.AppendLine("- Tests → `tests/` folder");
+                prompt.AppendLine("- Configuration → `config/` folder");
+                prompt.AppendLine();
+                prompt.AppendLine("**CRITICAL**: Never put .js or .css files directly in the root folder (except for config files like package.json). Always organize into appropriate subfolders.");
                 prompt.AppendLine();
             }
 

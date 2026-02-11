@@ -74,9 +74,25 @@ You MUST propose an optimal file structure based on the project type:
 {
   ""projectName"": ""ProjectName"",
   ""structure"": {
-    ""namingConventions"": { ""file-type"": ""convention"", ... },
-    ""directoryPurposes"": { ""path/"": ""purpose"", ... },
-    ""fileLocationGuidelines"": { ""type"": ""path/"", ... },
+    ""namingConventions"": {
+      ""js-files"": ""camelCase"",
+      ""css-files"": ""kebab-case"",
+      ""html-files"": ""kebab-case"",
+      ""csharp-classes"": ""PascalCase""
+    },
+    ""directoryPurposes"": {
+      ""js/"": ""JavaScript modules and scripts"",
+      ""css/"": ""Stylesheets and CSS modules"",
+      ""assets/"": ""Images, fonts, and static resources"",
+      ""components/"": ""Reusable UI components""
+    },
+    ""fileLocationGuidelines"": {
+      ""javascript"": ""js/"",
+      ""stylesheet"": ""css/"",
+      ""html"": ""root or html/"",
+      ""image"": ""assets/images/"",
+      ""component"": ""components/""
+    },
     ""architectureNotes"": ""Architecture overview and organization patterns""
   },
   ""areas"": [
