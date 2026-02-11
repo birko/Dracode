@@ -40,6 +40,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly bool _filterFilesByPlan;
         private readonly PlanFileFilterService _fileFilterService;
         private Wyvern? _wyvern;
+        private WyrmRecommendation? _wyrmRecommendation;
 
         // Debounced file write support
         private readonly Channel<bool> _saveChannel;
@@ -172,6 +173,44 @@ namespace DraCode.KoboldLair.Orchestrators
         public void SetWyvern(Wyvern wyvern)
         {
             _wyvern = wyvern;
+            // Also load Wyrm recommendations when Wyvern is set
+            _ = LoadWyrmRecommendationsAsync();
+        }
+
+        /// <summary>
+        /// Loads Wyrm recommendations from the project folder (GAP 5 FIX)
+        /// </summary>
+        private async Task LoadWyrmRecommendationsAsync()
+        {
+            if (string.IsNullOrEmpty(_specificationPath))
+                return;
+
+            try
+            {
+                // Derive project folder from specification path: ./projects/my-project/specification.md -> ./projects/my-project
+                var projectFolder = Path.GetDirectoryName(_specificationPath);
+                if (string.IsNullOrEmpty(projectFolder))
+                    return;
+
+                var wyrmPath = Path.Combine(projectFolder, "wyrm-recommendation.json");
+                if (!File.Exists(wyrmPath))
+                {
+                    _logger?.LogDebug("No Wyrm recommendations found at {Path}", wyrmPath);
+                    return;
+                }
+
+                var json = await File.ReadAllTextAsync(wyrmPath);
+                _wyrmRecommendation = System.Text.Json.JsonSerializer.Deserialize<WyrmRecommendation>(json,
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                _logger?.LogDebug("Loaded Wyrm recommendations for project: Complexity={Complexity}, Languages={Languages}",
+                    _wyrmRecommendation?.Complexity ?? "unknown",
+                    string.Join(", ", _wyrmRecommendation?.RecommendedLanguages ?? new List<string>()));
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to load Wyrm recommendations");
+            }
         }
 
         /// <summary>
@@ -276,26 +315,94 @@ namespace DraCode.KoboldLair.Orchestrators
                 try
                 {
                     specificationContext = File.ReadAllTextAsync(_specificationPath).GetAwaiter().GetResult();
-                    
+
+                    // GAP 5 FIX: Append Wyrm recommendations context
+                    if (_wyrmRecommendation != null)
+                    {
+                        var wyrmInfo = new System.Text.StringBuilder();
+                        wyrmInfo.AppendLine();
+                        wyrmInfo.AppendLine("---");
+                        wyrmInfo.AppendLine();
+                        wyrmInfo.AppendLine("## Wyrm Analysis Summary");
+                        wyrmInfo.AppendLine();
+
+                        if (!string.IsNullOrEmpty(_wyrmRecommendation.AnalysisSummary))
+                        {
+                            wyrmInfo.AppendLine($"**Summary**: {_wyrmRecommendation.AnalysisSummary}");
+                            wyrmInfo.AppendLine();
+                        }
+
+                        wyrmInfo.AppendLine($"**Estimated Complexity**: {_wyrmRecommendation.Complexity}");
+                        wyrmInfo.AppendLine();
+
+                        if (_wyrmRecommendation.RecommendedLanguages.Any())
+                        {
+                            wyrmInfo.AppendLine($"**Recommended Languages**: {string.Join(", ", _wyrmRecommendation.RecommendedLanguages)}");
+                            wyrmInfo.AppendLine();
+                        }
+
+                        if (_wyrmRecommendation.TechnicalStack.Any())
+                        {
+                            wyrmInfo.AppendLine("**Technical Stack**:");
+                            foreach (var tech in _wyrmRecommendation.TechnicalStack)
+                            {
+                                wyrmInfo.AppendLine($"- {tech}");
+                            }
+                            wyrmInfo.AppendLine();
+                        }
+
+                        specificationContext += wyrmInfo.ToString();
+                    }
+
+                    // GAP 3 FIX: Append full Wyvern analysis context (not just structure)
+                    if (_wyvern?.Analysis != null)
+                    {
+                        var analysis = _wyvern.Analysis;
+                        var analysisInfo = new System.Text.StringBuilder();
+
+                        analysisInfo.AppendLine();
+                        analysisInfo.AppendLine("---");
+                        analysisInfo.AppendLine();
+                        analysisInfo.AppendLine("## Wyvern Analysis Context");
+                        analysisInfo.AppendLine();
+
+                        analysisInfo.AppendLine($"**Project Name**: {analysis.ProjectName}");
+                        analysisInfo.AppendLine($"**Total Tasks**: {analysis.TotalTasks}");
+                        analysisInfo.AppendLine($"**Estimated Complexity**: {analysis.EstimatedComplexity}");
+                        analysisInfo.AppendLine();
+
+                        if (analysis.Areas.Any())
+                        {
+                            analysisInfo.AppendLine("**Task Areas**:");
+                            foreach (var area in analysis.Areas)
+                            {
+                                analysisInfo.AppendLine($"- **{area.Name}**: {area.Tasks.Count} tasks");
+                            }
+                            analysisInfo.AppendLine();
+                        }
+
+                        specificationContext += analysisInfo.ToString();
+                    }
+
                     // Append project structure information if available
                     if (_wyvern?.Analysis?.Structure != null)
                     {
                         var structure = _wyvern.Analysis.Structure;
                         var structureInfo = new System.Text.StringBuilder();
-                        
+
                         structureInfo.AppendLine();
                         structureInfo.AppendLine("---");
                         structureInfo.AppendLine();
                         structureInfo.AppendLine("## Project Structure Context");
                         structureInfo.AppendLine();
-                        
+
                         if (!string.IsNullOrEmpty(structure.ArchitectureNotes))
                         {
                             structureInfo.AppendLine("### Architecture Notes");
                             structureInfo.AppendLine(structure.ArchitectureNotes);
                             structureInfo.AppendLine();
                         }
-                        
+
                         if (structure.DirectoryPurposes.Any())
                         {
                             structureInfo.AppendLine("### Directory Organization");
@@ -305,7 +412,7 @@ namespace DraCode.KoboldLair.Orchestrators
                             }
                             structureInfo.AppendLine();
                         }
-                        
+
                         if (structure.FileLocationGuidelines.Any())
                         {
                             structureInfo.AppendLine("### File Location Guidelines");
@@ -315,7 +422,7 @@ namespace DraCode.KoboldLair.Orchestrators
                             }
                             structureInfo.AppendLine();
                         }
-                        
+
                         if (structure.NamingConventions.Any())
                         {
                             structureInfo.AppendLine("### Naming Conventions");
@@ -325,7 +432,7 @@ namespace DraCode.KoboldLair.Orchestrators
                             }
                             structureInfo.AppendLine();
                         }
-                        
+
                         if (structure.ExistingFiles.Any())
                         {
                             structureInfo.AppendLine($"### Existing Files ({structure.ExistingFiles.Count} files)");
@@ -340,7 +447,7 @@ namespace DraCode.KoboldLair.Orchestrators
                             }
                             structureInfo.AppendLine("```");
                         }
-                        
+
                         specificationContext += structureInfo.ToString();
                     }
                 }
@@ -695,10 +802,13 @@ namespace DraCode.KoboldLair.Orchestrators
                     {
                         task.CommitSha = commitSha;
                         task.OutputFiles = await _gitService.GetFilesFromCommitAsync(projectFolder, commitSha);
-                        
+
                         _logger?.LogDebug(
                             "Tracked {FileCount} output files for task {TaskId} (commit: {CommitSha})",
                             task.OutputFiles.Count, task.Id.ToString()[..8], commitSha[..8]);
+
+                        // GAP 4 FIX: Register output files with SharedPlanningContextService
+                        await RegisterOutputFilesWithContextAsync(kobold, task);
                     }
                 }
             }
@@ -706,6 +816,53 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 _logger?.LogWarning(ex, "Failed to commit task completion for task {TaskId}", task.Id);
                 // Don't fail the workflow if git commit fails
+            }
+        }
+
+        /// <summary>
+        /// Registers output files from a completed task with SharedPlanningContextService (GAP 4 FIX)
+        /// </summary>
+        private async Task RegisterOutputFilesWithContextAsync(Kobold kobold, TaskRecord task)
+        {
+            if (_sharedPlanningContext == null || string.IsNullOrEmpty(_projectId))
+                return;
+
+            if (task.OutputFiles == null || !task.OutputFiles.Any())
+                return;
+
+            try
+            {
+                foreach (var filePath in task.OutputFiles)
+                {
+                    // Determine if this was a creation or modification
+                    var isCreation = true; // Assume creation for now, could be enhanced with git diff analysis
+
+                    // Infer purpose from implementation plan if available
+                    var purpose = _sharedPlanningContext.InferFilePurpose(filePath, kobold.ImplementationPlan);
+
+                    // If no plan, create a basic purpose from the task description
+                    if (kobold.ImplementationPlan == null && !string.IsNullOrEmpty(task.Task))
+                    {
+                        var taskPreview = task.Task.Length > 100 ? task.Task.Substring(0, 100) + "..." : task.Task;
+                        purpose = $"Part of task: {taskPreview}";
+                    }
+
+                    await _sharedPlanningContext.UpdateFileMetadataAsync(
+                        _projectId,
+                        filePath,
+                        purpose,
+                        task.Id,
+                        isCreation);
+                }
+
+                _logger?.LogDebug(
+                    "Registered {Count} output files with SharedPlanningContext for task {TaskId}",
+                    task.OutputFiles.Count, task.Id[..Math.Min(8, task.Id.Length)]);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to register output files with SharedPlanningContext for task {TaskId}", task.Id);
+                // Non-critical, don't fail the workflow
             }
         }
 

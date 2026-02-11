@@ -12,6 +12,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ILogger<WyrmProcessingService> _logger;
         private readonly ProjectService _projectService;
         private readonly WyrmFactory _wyrmFactory;
+        private readonly SharedPlanningContextService? _sharedPlanningContext;
         private readonly TimeSpan _checkInterval;
         private bool _isRunning;
         private readonly object _lock = new object();
@@ -22,11 +23,13 @@ namespace DraCode.KoboldLair.Server.Services
             ILogger<WyrmProcessingService> logger,
             ProjectService projectService,
             WyrmFactory wyrmFactory,
+            SharedPlanningContextService? sharedPlanningContext = null,
             int checkIntervalSeconds = 60)
         {
             _logger = logger;
             _projectService = projectService;
             _wyrmFactory = wyrmFactory;
+            _sharedPlanningContext = sharedPlanningContext;
             _checkInterval = TimeSpan.FromSeconds(checkIntervalSeconds);
             _isRunning = false;
             _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
@@ -68,11 +71,15 @@ namespace DraCode.KoboldLair.Server.Services
                 var spec = File.Exists(project.Paths.Specification)
                     ? await File.ReadAllTextAsync(project.Paths.Specification, stoppingToken)
                     : "";
-                
-                var prompt = $@"Analyze the following project specification and provide initial recommendations as JSON:
-{spec}
 
-Provide JSON with: RecommendedLanguages[], RecommendedAgentTypes{{}}, TechnicalStack[], SuggestedAreas[], Complexity";
+                // GAP 2 FIX: Build cross-project insights context
+                var crossProjectContext = await BuildCrossProjectContextAsync(project.Id);
+
+                var prompt = $@"Analyze the following project specification and provide initial recommendations as JSON:
+
+{spec}
+{crossProjectContext}
+Provide JSON with: RecommendedLanguages[], RecommendedAgentTypes{{}}, TechnicalStack[], SuggestedAreas[], Complexity, AnalysisSummary";
                 
                 var messages = await wyrm.RunAsync(prompt);
                 var lastMessage = messages.LastOrDefault();
@@ -169,6 +176,70 @@ Provide JSON with: RecommendedLanguages[], RecommendedAgentTypes{{}}, TechnicalS
             }
             
             return content.ToString() ?? "";
+        }
+
+        /// <summary>
+        /// Builds cross-project learning context for Wyrm analysis (GAP 2 FIX)
+        /// </summary>
+        private async Task<string> BuildCrossProjectContextAsync(string projectId)
+        {
+            if (_sharedPlanningContext == null)
+            {
+                return string.Empty;
+            }
+
+            var sb = new System.Text.StringBuilder();
+
+            try
+            {
+                // Get insights from other successful projects
+                var codingInsights = await _sharedPlanningContext.GetCrossProjectInsightsAsync(projectId, "coding", 5);
+                var csharpInsights = await _sharedPlanningContext.GetCrossProjectInsightsAsync(projectId, "csharp", 3);
+                var jsInsights = await _sharedPlanningContext.GetCrossProjectInsightsAsync(projectId, "javascript", 3);
+                var pythonInsights = await _sharedPlanningContext.GetCrossProjectInsightsAsync(projectId, "python", 3);
+
+                var allInsights = codingInsights
+                    .Concat(csharpInsights)
+                    .Concat(jsInsights)
+                    .Concat(pythonInsights)
+                    .GroupBy(i => i.AgentType)
+                    .ToList();
+
+                if (!allInsights.Any())
+                {
+                    return string.Empty;
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("## Cross-Project Learning Context");
+                sb.AppendLine();
+                sb.AppendLine("Based on previous successful projects, here are patterns to consider:");
+                sb.AppendLine();
+
+                foreach (var group in allInsights)
+                {
+                    var agentType = group.Key;
+                    var insights = group.ToList();
+                    var avgSteps = insights.Average(i => i.StepCount);
+                    var avgDuration = insights.Average(i => i.DurationSeconds);
+                    var successRate = insights.Count(i => i.Success) / (double)insights.Count * 100;
+
+                    sb.AppendLine($"**{agentType} tasks**: {insights.Count} completed, avg {avgSteps:F1} steps, {avgDuration:F0}s duration, {successRate:F0}% success rate");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("Consider these patterns when recommending agent types and estimating complexity.");
+                sb.AppendLine();
+
+                _logger.LogDebug("Added cross-project context with {Count} insight groups for project {Name}",
+                    allInsights.Count, projectId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to build cross-project context, proceeding without it");
+            }
+
+            return sb.ToString();
         }
 
         private static string ExtractJson(string content)

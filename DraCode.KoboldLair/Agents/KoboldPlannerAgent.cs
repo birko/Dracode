@@ -4,6 +4,7 @@ using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Services;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents
@@ -98,6 +99,9 @@ After analyzing the task, use the create_implementation_plan tool to output your
         /// <param name="workspaceFiles">List of files already in workspace</param>
         /// <param name="filesInUse">Files currently being worked on by other agents</param>
         /// <param name="fileMetadata">Metadata about files including their purposes</param>
+        /// <param name="relatedPlans">Related completed plans that touched similar files</param>
+        /// <param name="similarTaskInsights">Insights from similar task executions</param>
+        /// <param name="bestPractices">Best practices learned for this agent type</param>
         /// <param name="maxIterations">Maximum iterations for plan generation</param>
         /// <returns>The generated implementation plan</returns>
         public async Task<KoboldImplementationPlan> CreatePlanAsync(
@@ -107,13 +111,16 @@ After analyzing the task, use the create_implementation_plan tool to output your
             List<string>? workspaceFiles = null,
             HashSet<string>? filesInUse = null,
             Dictionary<string, string>? fileMetadata = null,
+            List<KoboldImplementationPlan>? relatedPlans = null,
+            List<PlanningInsight>? similarTaskInsights = null,
+            Dictionary<string, string>? bestPractices = null,
             int maxIterations = 5)
         {
             // Clear any previous plan
             CreateImplementationPlanTool.ClearLastPlan();
 
             // Build the prompt
-            var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure, workspaceFiles, filesInUse, fileMetadata);
+            var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure, workspaceFiles, filesInUse, fileMetadata, relatedPlans, similarTaskInsights, bestPractices);
 
             // Run the agent to generate the plan
             await RunAsync(prompt, maxIterations);
@@ -151,16 +158,86 @@ After analyzing the task, use the create_implementation_plan tool to output your
         }
 
         private string BuildPlanningPrompt(
-            string taskDescription, 
-            string? specificationContext, 
+            string taskDescription,
+            string? specificationContext,
             ProjectStructure? projectStructure,
             List<string>? workspaceFiles,
             HashSet<string>? filesInUse,
-            Dictionary<string, string>? fileMetadata)
+            Dictionary<string, string>? fileMetadata,
+            List<KoboldImplementationPlan>? relatedPlans,
+            List<PlanningInsight>? similarTaskInsights,
+            Dictionary<string, string>? bestPractices)
         {
             var prompt = new System.Text.StringBuilder();
             prompt.AppendLine("Please create an implementation plan for the following task.");
             prompt.AppendLine();
+
+            // Add learning context from past executions (GAP 1 fix)
+            if (bestPractices != null && bestPractices.Any())
+            {
+                prompt.AppendLine("## Learned Best Practices");
+                prompt.AppendLine();
+                prompt.AppendLine("Based on similar completed tasks, here are learned patterns:");
+                prompt.AppendLine();
+                foreach (var practice in bestPractices)
+                {
+                    prompt.AppendLine($"- **{practice.Key}**: {practice.Value}");
+                }
+                prompt.AppendLine();
+                prompt.AppendLine("---");
+                prompt.AppendLine();
+            }
+
+            // Add insights from similar task executions
+            if (similarTaskInsights != null && similarTaskInsights.Any())
+            {
+                prompt.AppendLine("## Similar Task Insights");
+                prompt.AppendLine();
+                prompt.AppendLine("Previous similar tasks completed successfully:");
+                prompt.AppendLine();
+                foreach (var insight in similarTaskInsights.Take(3))
+                {
+                    var avgIterationsPerStep = insight.StepCount > 0 ? insight.TotalIterations / (double)insight.StepCount : 0;
+                    prompt.AppendLine($"- **Task {insight.TaskId[..Math.Min(8, insight.TaskId.Length)]}**: {insight.StepCount} steps, {insight.TotalIterations} iterations ({avgIterationsPerStep:F1} per step), {insight.DurationSeconds:F0}s duration");
+                    prompt.AppendLine($"  - Created {insight.FilesCreated} files, modified {insight.FilesModified} files");
+                }
+                prompt.AppendLine();
+                prompt.AppendLine("Use these insights to estimate appropriate step granularity.");
+                prompt.AppendLine();
+                prompt.AppendLine("---");
+                prompt.AppendLine();
+            }
+
+            // Add related plans that touched similar files
+            if (relatedPlans != null && relatedPlans.Any())
+            {
+                prompt.AppendLine("## Related Completed Plans");
+                prompt.AppendLine();
+                prompt.AppendLine("These completed plans worked with related files - learn from their structure:");
+                prompt.AppendLine();
+                foreach (var plan in relatedPlans.Take(3))
+                {
+                    prompt.AppendLine($"### Plan: {plan.TaskDescription?.Substring(0, Math.Min(50, plan.TaskDescription?.Length ?? 0)) ?? "Unknown"}...");
+                    prompt.AppendLine($"Steps: {plan.Steps.Count} | Status: {plan.Status}");
+
+                    // Show step titles for reference
+                    var stepTitles = plan.Steps.Select(s => s.Title).Take(5);
+                    prompt.AppendLine("Step overview:");
+                    foreach (var title in stepTitles)
+                    {
+                        prompt.AppendLine($"  - {title}");
+                    }
+                    if (plan.Steps.Count > 5)
+                    {
+                        prompt.AppendLine($"  - ... and {plan.Steps.Count - 5} more steps");
+                    }
+                    prompt.AppendLine();
+                }
+                prompt.AppendLine("Consider similar step organization if appropriate.");
+                prompt.AppendLine();
+                prompt.AppendLine("---");
+                prompt.AppendLine();
+            }
 
             // Add workspace state - CRITICAL for correct planning
             if (workspaceFiles != null && workspaceFiles.Any())

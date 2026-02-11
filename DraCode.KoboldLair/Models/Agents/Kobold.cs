@@ -287,6 +287,9 @@ You are working on a task that is part of a larger project. Below is the project
             List<string>? workspaceFiles = null;
             HashSet<string>? filesInUse = null;
             Dictionary<string, string>? fileMetadata = null;
+            List<KoboldImplementationPlan>? relatedPlans = null;
+            List<PlanningInsight>? similarTaskInsights = null;
+            Dictionary<string, string>? bestPractices = null;
 
             try
             {
@@ -304,15 +307,61 @@ You are working on a task that is part of a larger project. Below is the project
                 if (sharedPlanningContext != null && !string.IsNullOrEmpty(ProjectId))
                 {
                     filesInUse = await sharedPlanningContext.GetFilesInUseAsync(ProjectId);
-                    
+
                     // Get file metadata with purposes
                     var metadataDict = await sharedPlanningContext.GetFileMetadataAsync(ProjectId);
                     fileMetadata = metadataDict.ToDictionary(
                         kvp => kvp.Key,
-                        kvp => string.IsNullOrWhiteSpace(kvp.Value.Purpose) 
-                            ? $"{kvp.Value.Category} file" 
+                        kvp => string.IsNullOrWhiteSpace(kvp.Value.Purpose)
+                            ? $"{kvp.Value.Category} file"
                             : kvp.Value.Purpose
                     );
+
+                    // GAP 1 FIX: Get learning context from SharedPlanningContextService
+
+                    // Get related plans that touched similar files
+                    if (workspaceFiles != null && workspaceFiles.Any())
+                    {
+                        relatedPlans = await sharedPlanningContext.GetRelatedPlansAsync(
+                            ProjectId,
+                            taskIdStr,
+                            workspaceFiles);
+
+                        if (relatedPlans.Any())
+                        {
+                            _logger?.LogDebug("Found {Count} related plans for task {TaskId}",
+                                relatedPlans.Count, taskIdStr[..8]);
+                        }
+                    }
+
+                    // Get insights from similar task executions (same agent type)
+                    similarTaskInsights = await sharedPlanningContext.GetSimilarTaskInsightsAsync(
+                        ProjectId,
+                        AgentType);
+
+                    if (similarTaskInsights.Any())
+                    {
+                        _logger?.LogDebug("Found {Count} similar task insights for agent type {AgentType}",
+                            similarTaskInsights.Count, AgentType);
+                    }
+
+                    // Get best practices learned for this agent type
+                    bestPractices = await sharedPlanningContext.GetBestPracticesAsync(AgentType);
+
+                    // Also get cross-project insights if within-project insights are sparse
+                    if (similarTaskInsights.Count < 3)
+                    {
+                        var crossProjectInsights = await sharedPlanningContext.GetCrossProjectInsightsAsync(
+                            ProjectId,
+                            AgentType);
+
+                        if (crossProjectInsights.Any())
+                        {
+                            _logger?.LogDebug("Added {Count} cross-project insights for agent type {AgentType}",
+                                crossProjectInsights.Count, AgentType);
+                            similarTaskInsights.AddRange(crossProjectInsights);
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -320,14 +369,17 @@ You are working on a task that is part of a larger project. Below is the project
                 _logger?.LogWarning(ex, "Failed to gather workspace state for planning, proceeding without it");
             }
 
-            // Create new plan using the planner agent with workspace awareness
+            // Create new plan using the planner agent with workspace awareness and learning context
             var plan = await planner.CreatePlanAsync(
-                TaskDescription, 
-                SpecificationContext, 
-                ProjectStructure, 
-                workspaceFiles, 
+                TaskDescription,
+                SpecificationContext,
+                ProjectStructure,
+                workspaceFiles,
                 filesInUse,
-                fileMetadata);
+                fileMetadata,
+                relatedPlans,
+                similarTaskInsights,
+                bestPractices);
             
             plan.TaskId = taskIdStr;
             plan.ProjectId = ProjectId;
