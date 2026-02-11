@@ -988,7 +988,7 @@ You are working on a task that is part of a larger project. Below is the project
         /// <param name="mediumDetailCount">Number of upcoming steps to show medium details for (default: 2)</param>
         /// <param name="sharedPlanningContext">Optional shared planning context for workspace awareness</param>
         private async Task<string> BuildFullPromptWithPlanAsync(
-            bool useProgressiveReveal = true, 
+            bool useProgressiveReveal = true,
             int mediumDetailCount = 2,
             SharedPlanningContextService? sharedPlanningContext = null)
         {
@@ -998,6 +998,9 @@ You are working on a task that is part of a larger project. Below is the project
             sb.AppendLine();
             sb.AppendLine("You are working on a task that is part of a larger project.");
             sb.AppendLine();
+
+            // Add file location guidelines - CRITICAL for correct file placement
+            AppendFileLocationGuidelines(sb);
 
             // Add workspace state section - CRITICAL for execution context
             await AppendWorkspaceStateAsync(sb, sharedPlanningContext);
@@ -1278,6 +1281,76 @@ You are working on a task that is part of a larger project. Below is the project
                 _logger?.LogWarning(ex, "Failed to build workspace state for Kobold {KoboldId}", Id.ToString()[..8]);
             }
 
+            sb.AppendLine("---");
+            sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Appends file location guidelines to ensure files are created in correct directories
+        /// </summary>
+        private void AppendFileLocationGuidelines(System.Text.StringBuilder sb)
+        {
+            sb.AppendLine("## File Location Guidelines");
+            sb.AppendLine();
+
+            // Use project-specific structure if available
+            var hasProjectGuidelines = ProjectStructure != null &&
+                (ProjectStructure.DirectoryPurposes.Any() || ProjectStructure.FileLocationGuidelines.Any());
+
+            if (hasProjectGuidelines && ProjectStructure != null)
+            {
+                if (ProjectStructure.NamingConventions.Any())
+                {
+                    sb.AppendLine("**Naming Conventions:**");
+                    foreach (var convention in ProjectStructure.NamingConventions)
+                    {
+                        sb.AppendLine($"- {convention.Key}: {convention.Value}");
+                    }
+                    sb.AppendLine();
+                }
+
+                if (ProjectStructure.DirectoryPurposes.Any())
+                {
+                    sb.AppendLine("**Directory Organization:**");
+                    foreach (var dir in ProjectStructure.DirectoryPurposes)
+                    {
+                        sb.AppendLine($"- `{dir.Key}`: {dir.Value}");
+                    }
+                    sb.AppendLine();
+                }
+
+                if (ProjectStructure.FileLocationGuidelines.Any())
+                {
+                    sb.AppendLine("**File Placement Rules (MUST FOLLOW):**");
+                    foreach (var guideline in ProjectStructure.FileLocationGuidelines)
+                    {
+                        sb.AppendLine($"- {guideline.Key} files → `{guideline.Value}`");
+                    }
+                    sb.AppendLine();
+                }
+            }
+            else
+            {
+                // Default file location guidelines when no project-specific structure is provided
+                sb.AppendLine("**Default File Placement Rules (MUST FOLLOW):**");
+                sb.AppendLine();
+                sb.AppendLine("**Web Projects (HTML/JS/CSS):**");
+                sb.AppendLine("- `index.html` → root folder (ONLY the main HTML entry point goes in root)");
+                sb.AppendLine("- JavaScript/TypeScript files → `js/` or `src/` folder (e.g., `js/app.js`) - **NEVER in root**");
+                sb.AppendLine("- CSS/Stylesheets → `css/` folder (e.g., `css/styles.css`) - **NEVER in root**");
+                sb.AppendLine("- Images/Assets → `assets/` or `assets/images/` folder");
+                sb.AppendLine("- Components → `components/` folder for reusable UI pieces");
+                sb.AppendLine();
+                sb.AppendLine("**Backend Projects:**");
+                sb.AppendLine("- Source code → `src/` folder");
+                sb.AppendLine("- Tests → `tests/` folder");
+                sb.AppendLine("- Configuration → `config/` folder");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("**CRITICAL**: `.js`, `.ts`, and `.css` files must **NEVER** be placed in the root folder.");
+            sb.AppendLine("Only config files (package.json, tsconfig.json) and HTML entry points (index.html) belong in root.");
+            sb.AppendLine();
             sb.AppendLine("---");
             sb.AppendLine();
         }
