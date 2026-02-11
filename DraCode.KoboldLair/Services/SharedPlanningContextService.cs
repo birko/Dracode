@@ -277,27 +277,219 @@ public class SharedPlanningContextService
     }
 
     /// <summary>
-    /// Extracts or infers file purpose from plan steps
+    /// Generates a meaningful purpose description for a file based on its path, step context, and task
     /// </summary>
-    public string InferFilePurpose(string filePath, KoboldImplementationPlan? plan)
+    public string GenerateFilePurpose(
+        string filePath,
+        ImplementationStep step,
+        string taskDescription,
+        bool isCreation)
     {
-        if (plan == null) return "Unknown purpose";
+        var fileName = Path.GetFileName(filePath);
+        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(filePath);
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
+        var directory = Path.GetDirectoryName(filePath) ?? "";
+        var category = GetFileCategoryFromPath(filePath);
 
-        // Look through steps to find descriptions mentioning this file
-        foreach (var step in plan.Steps)
+        // Build a purpose based on file characteristics and context
+        var purposeParts = new List<string>();
+
+        // 1. Determine file type/role from naming conventions
+        var fileRole = InferFileRole(fileNameWithoutExt, extension, directory);
+        if (!string.IsNullOrEmpty(fileRole))
         {
-            if (step.FilesToCreate.Contains(filePath) || step.FilesToModify.Contains(filePath))
+            purposeParts.Add(fileRole);
+        }
+
+        // 2. Add action context (created vs modified)
+        var action = isCreation ? "Created" : "Modified";
+
+        // 3. Extract relevant context from step title (usually more concise than description)
+        var stepContext = ExtractRelevantContext(step.Title, fileName);
+        if (!string.IsNullOrEmpty(stepContext))
+        {
+            purposeParts.Add(stepContext);
+        }
+
+        // 4. If still minimal, try to extract from task description
+        if (purposeParts.Count < 2 && !string.IsNullOrEmpty(taskDescription))
+        {
+            var taskContext = ExtractTaskContext(taskDescription);
+            if (!string.IsNullOrEmpty(taskContext))
             {
-                // Use step description as purpose
-                return step.Description.Length > 200 
-                    ? step.Description.Substring(0, 200) + "..."
-                    : step.Description;
+                purposeParts.Add($"for {taskContext}");
             }
         }
 
-        // Fallback to file name analysis
+        // Build final purpose string
+        if (purposeParts.Count == 0)
+        {
+            return $"{category} - {action} in step: {TruncateText(step.Title, 100)}";
+        }
+
+        var purpose = string.Join(" - ", purposeParts);
+        return TruncateText(purpose, 200);
+    }
+
+    /// <summary>
+    /// Infers the role/purpose of a file from its name and location
+    /// </summary>
+    private string InferFileRole(string fileNameWithoutExt, string extension, string directory)
+    {
+        var nameLower = fileNameWithoutExt.ToLowerInvariant();
+        var dirLower = directory.ToLowerInvariant();
+
+        // Check for common patterns in file name
+        if (nameLower.StartsWith("i") && char.IsUpper(fileNameWithoutExt.ElementAtOrDefault(1)))
+            return "Interface definition";
+        if (nameLower.EndsWith("service")) return "Service implementation";
+        if (nameLower.EndsWith("controller")) return "API controller";
+        if (nameLower.EndsWith("repository")) return "Data repository";
+        if (nameLower.EndsWith("handler")) return "Event/request handler";
+        if (nameLower.EndsWith("factory")) return "Factory class";
+        if (nameLower.EndsWith("provider")) return "Provider implementation";
+        if (nameLower.EndsWith("helper") || nameLower.EndsWith("utils")) return "Utility functions";
+        if (nameLower.EndsWith("config") || nameLower.EndsWith("configuration")) return "Configuration";
+        if (nameLower.EndsWith("test") || nameLower.EndsWith("tests") || nameLower.EndsWith("spec")) return "Test file";
+        if (nameLower.EndsWith("model") || nameLower.EndsWith("dto") || nameLower.EndsWith("entity")) return "Data model";
+        if (nameLower.EndsWith("middleware")) return "Middleware component";
+        if (nameLower.EndsWith("extension") || nameLower.EndsWith("extensions")) return "Extension methods";
+        if (nameLower.Contains("component")) return "UI component";
+        if (nameLower.Contains("hook")) return "React hook";
+        if (nameLower.Contains("context")) return "Context provider";
+        if (nameLower.Contains("reducer")) return "State reducer";
+        if (nameLower.Contains("action")) return "Action definitions";
+        if (nameLower.Contains("store")) return "State store";
+        if (nameLower.Contains("route") || nameLower.Contains("router")) return "Routing configuration";
+        if (nameLower.Contains("style") || nameLower.Contains("theme")) return "Styling/theme";
+        if (nameLower.Contains("constant") || nameLower.Contains("const")) return "Constants/enums";
+        if (nameLower.Contains("type") && extension is ".ts" or ".tsx") return "Type definitions";
+        if (nameLower == "index") return "Module index/exports";
+        if (nameLower == "program" || nameLower == "main" || nameLower == "app") return "Application entry point";
+        if (nameLower == "startup") return "Application startup configuration";
+
+        // Check directory patterns
+        if (dirLower.Contains("models") || dirLower.Contains("entities")) return "Data model";
+        if (dirLower.Contains("services")) return "Service layer";
+        if (dirLower.Contains("controllers") || dirLower.Contains("api")) return "API endpoint";
+        if (dirLower.Contains("components")) return "UI component";
+        if (dirLower.Contains("hooks")) return "Custom hook";
+        if (dirLower.Contains("utils") || dirLower.Contains("helpers")) return "Utility module";
+        if (dirLower.Contains("tests") || dirLower.Contains("__tests__")) return "Test file";
+        if (dirLower.Contains("config") || dirLower.Contains("configuration")) return "Configuration";
+        if (dirLower.Contains("middleware")) return "Middleware";
+        if (dirLower.Contains("views") || dirLower.Contains("pages")) return "View/page";
+        if (dirLower.Contains("styles") || dirLower.Contains("css")) return "Stylesheet";
+
+        // Check extension-specific defaults
+        return extension switch
+        {
+            ".cs" => "C# source file",
+            ".csproj" => "Project configuration",
+            ".sln" or ".slnx" => "Solution file",
+            ".json" when nameLower.Contains("package") => "Package manifest",
+            ".json" when nameLower.Contains("tsconfig") => "TypeScript configuration",
+            ".json" => "JSON data/config",
+            ".ts" or ".tsx" => "TypeScript module",
+            ".js" or ".jsx" => "JavaScript module",
+            ".css" or ".scss" or ".sass" or ".less" => "Stylesheet",
+            ".html" => "HTML template",
+            ".md" => "Documentation",
+            ".sql" => "Database script",
+            ".yaml" or ".yml" => "YAML configuration",
+            ".xml" => "XML configuration",
+            ".env" => "Environment variables",
+            ".gitignore" => "Git ignore rules",
+            ".dockerfile" or ".docker" => "Docker configuration",
+            _ => ""
+        };
+    }
+
+    /// <summary>
+    /// Extracts relevant context from step title, avoiding redundancy with file name
+    /// </summary>
+    private string ExtractRelevantContext(string stepTitle, string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(stepTitle)) return "";
+
+        // Remove common step prefixes
+        var cleaned = stepTitle
+            .Replace("Create ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Implement ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Add ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Update ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Modify ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Set up ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Configure ", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        // If the step title is just about the file, skip it
+        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+        if (cleaned.Equals(fileNameWithoutExt, StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Equals(fileName, StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+
+        return TruncateText(cleaned, 100);
+    }
+
+    /// <summary>
+    /// Extracts a concise context from the task description
+    /// </summary>
+    private string ExtractTaskContext(string taskDescription)
+    {
+        if (string.IsNullOrWhiteSpace(taskDescription)) return "";
+
+        // Take first sentence or first 50 chars
+        var firstSentenceEnd = taskDescription.IndexOfAny(new[] { '.', '!', '?' });
+        var context = firstSentenceEnd > 0 && firstSentenceEnd < 80
+            ? taskDescription[..firstSentenceEnd]
+            : TruncateText(taskDescription, 60);
+
+        // Clean up common task prefixes
+        context = context
+            .Replace("Implement ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Create ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Add ", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Build ", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        return context;
+    }
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+        return text[..(maxLength - 3)] + "...";
+    }
+
+    /// <summary>
+    /// Extracts or infers file purpose from plan steps (legacy method for backward compatibility)
+    /// </summary>
+    public string InferFilePurpose(string filePath, KoboldImplementationPlan? plan)
+    {
+        if (plan == null) return $"{GetFileCategoryFromPath(filePath)} - Unknown purpose";
+
+        // Look through steps to find the step that touches this file
+        foreach (var step in plan.Steps)
+        {
+            var isCreation = step.FilesToCreate.Contains(filePath);
+            var isModification = step.FilesToModify.Contains(filePath);
+
+            if (isCreation || isModification)
+            {
+                return GenerateFilePurpose(filePath, step, plan.TaskDescription, isCreation);
+            }
+        }
+
+        // Fallback to basic file analysis
         var fileName = Path.GetFileNameWithoutExtension(filePath);
-        return $"{fileName} - {GetFileCategoryFromPath(filePath)}";
+        var role = InferFileRole(fileName, Path.GetExtension(filePath), Path.GetDirectoryName(filePath) ?? "");
+        return !string.IsNullOrEmpty(role)
+            ? role
+            : $"{GetFileCategoryFromPath(filePath)} - {fileName}";
     }
 
     private string GetFileCategoryFromPath(string filePath)
@@ -357,24 +549,26 @@ public class SharedPlanningContextService
         {
             foreach (var step in plan.Steps.Where(s => s.Status == StepStatus.Completed))
             {
-                // Record created files
+                // Record created files with meaningful purpose
                 foreach (var file in step.FilesToCreate)
                 {
+                    var purpose = GenerateFilePurpose(file, step, plan.TaskDescription, isCreation: true);
                     await UpdateFileMetadataAsync(
                         agentContext.ProjectId,
                         file,
-                        step.Description,
+                        purpose,
                         agentContext.TaskId,
                         isCreation: true);
                 }
 
-                // Record modified files
+                // Record modified files with meaningful purpose
                 foreach (var file in step.FilesToModify)
                 {
+                    var purpose = GenerateFilePurpose(file, step, plan.TaskDescription, isCreation: false);
                     await UpdateFileMetadataAsync(
                         agentContext.ProjectId,
                         file,
-                        step.Description,
+                        purpose,
                         agentContext.TaskId,
                         isCreation: false);
                 }
