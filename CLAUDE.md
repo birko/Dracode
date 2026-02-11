@@ -207,10 +207,10 @@ Located in `DraCode.KoboldLair/Services/`:
   - Drake sorts tasks by: Priority DESC → Dependency Level → Complexity ASC
   - Manual override via Dragon tool: `set_task_priority`
   - Priority guidelines:
-    - **Critical**: Blocking tasks, infrastructure, project setup, README
+    - **Critical**: Blocking tasks, infrastructure, project setup
     - **High**: Core features that are important but not blocking
     - **Normal**: Standard features and functionality (default)
-    - **Low**: Nice-to-have features, polish, optional documentation
+    - **Low**: Nice-to-have features, polish, documentation (README, etc.)
   - Dependencies always take precedence over priority
 
 ### Streaming Configuration
@@ -436,6 +436,14 @@ Per-project access control for directories outside workspace:
 ### JSON Serialization
 - Incoming: `PropertyNameCaseInsensitive = true` (accepts camelCase from JS)
 - Outgoing: `PropertyNamingPolicy.CamelCase` (sends camelCase to JS)
+
+## Project Generation Guidelines
+
+### Documentation Timing
+- **README.md and similar project description files should be created LAST**, after all code is complete
+- This ensures documentation accurately reflects the final project structure
+- Wyvern/Kobolds should prioritize code implementation tasks before documentation tasks
+- Documentation tasks should have **Low** priority to naturally execute last
 
 ## Documentation Index
 

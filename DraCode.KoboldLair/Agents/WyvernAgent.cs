@@ -42,17 +42,20 @@ namespace DraCode.KoboldLair.Agents
 6. Set dependencies: foundation tasks first, use dependencyLevel (0=no deps, 1=depends on 0, etc)
 
 ## Priority Guidelines:
-- **Critical**: Blocking tasks, core infrastructure, project setup, README documentation
+- **Critical**: Blocking tasks, core infrastructure, project setup
   * Examples: project structure, core config files, essential dependencies
 - **High**: Core features that are important but not blocking
   * Examples: main API endpoints, primary UI components, database schemas
 - **Normal**: Standard features and functionality (default for most tasks)
   * Examples: secondary features, utility functions, standard CRUD operations
-- **Low**: Nice-to-have features, polish, additional documentation
-  * Examples: styling improvements, optional features, extended documentation
+- **Low**: Nice-to-have features, polish, documentation (README, etc.)
+  * Examples: styling improvements, optional features, README and project documentation
+  * Documentation tasks should be LOW priority so they execute LAST when project structure is finalized
 
 ## REQUIRED Tasks:
-- ALWAYS include a README.md task (highest priority) with instructions on how to run/use the result
+- ALWAYS include a README.md task (LOW priority - created LAST) with instructions on how to run/use the result
+  * README should depend on all major implementation tasks so it executes after code is complete
+  * This ensures documentation accurately reflects the final project structure
 - ALWAYS organize files into proper folder structures:
   * Entry point files (index.html, main.py, app.js, Program.cs, etc.) should be in the root folder
   * Web projects: js/, css/, html/, assets/, docs/
@@ -105,9 +108,9 @@ You MUST propose an optimal file structure based on the project type:
           ""description"": ""Comprehensive README: setup, usage, dependencies, run instructions"",
           ""agentType"": ""documentation"",
           ""complexity"": ""low"",
-          ""dependencies"": [],
-          ""dependencyLevel"": 0,
-          ""priority"": ""critical""
+          ""dependencies"": [""backend-1"", ""frontend-1""],
+          ""dependencyLevel"": 99,
+          ""priority"": ""low""
         }
       ]
     },
