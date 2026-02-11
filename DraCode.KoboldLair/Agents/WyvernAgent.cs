@@ -57,8 +57,11 @@ namespace DraCode.KoboldLair.Agents
   * README should depend on all major implementation tasks so it executes after code is complete
   * This ensures documentation accurately reflects the final project structure
 - ALWAYS organize files into proper folder structures:
-  * Entry point files (index.html, main.py, app.js, Program.cs, etc.) should be in the root folder
-  * Web projects: js/, css/, html/, assets/, docs/
+  * Entry point HTML files (index.html) should be in the root folder
+  * JavaScript/TypeScript files should ALWAYS go in js/ or src/ folder, NEVER in root
+  * CSS/Stylesheets should ALWAYS go in css/ or styles/ folder, NEVER in root
+  * Python entry points (main.py) and C# entry points (Program.cs) can be in root or src/
+  * Web projects: js/, css/, assets/, docs/
   * Backend projects: src/, tests/, docs/, config/
   * Libraries: src/, tests/, examples/, docs/
   * Adapt folder structure to project type and conventions
@@ -90,9 +93,10 @@ You MUST propose an optimal file structure based on the project type:
       ""components/"": ""Reusable UI components""
     },
     ""fileLocationGuidelines"": {
-      ""javascript"": ""js/"",
-      ""stylesheet"": ""css/"",
-      ""html"": ""root or html/"",
+      ""javascript"": ""js/ (NEVER in root)"",
+      ""typescript"": ""src/ or js/ (NEVER in root)"",
+      ""stylesheet"": ""css/ (NEVER in root)"",
+      ""html"": ""root (index.html) or html/"",
       ""image"": ""assets/images/"",
       ""component"": ""components/""
     },

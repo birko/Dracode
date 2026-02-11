@@ -51,12 +51,12 @@ Planning guidelines:
 - Don't forget test files if applicable
 
 **Default Web Project Structure (use if no specific guidelines provided):**
-- HTML files: root folder (index.html) or html/ subfolder
-- JavaScript: js/ folder (e.g., js/app.js, js/utils.js)
-- CSS/Stylesheets: css/ folder (e.g., css/styles.css, css/components.css)
+- HTML entry point: root folder (index.html only)
+- JavaScript/TypeScript: ALWAYS in js/ or src/ folder (e.g., js/app.js, js/utils.js) - NEVER in root
+- CSS/Stylesheets: ALWAYS in css/ folder (e.g., css/styles.css) - NEVER in root
 - Images/Assets: assets/ or assets/images/ folder
 - Components: components/ folder for reusable UI pieces
-- NEVER put .js, .css files in root unless it's a single-file project
+- CRITICAL: .js, .ts, .css files must NEVER be placed in the root folder
 
 **Dependencies:**
 - Order steps so dependencies come first
@@ -350,9 +350,9 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 prompt.AppendLine("No specific project structure was provided. Use these standard conventions:");
                 prompt.AppendLine();
                 prompt.AppendLine("**Web Projects (HTML/JS/CSS):**");
-                prompt.AppendLine("- `index.html` → root folder (entry point)");
-                prompt.AppendLine("- JavaScript files → `js/` folder (e.g., `js/app.js`, `js/utils.js`)");
-                prompt.AppendLine("- CSS/Stylesheets → `css/` folder (e.g., `css/styles.css`)");
+                prompt.AppendLine("- `index.html` → root folder (ONLY HTML entry point goes in root)");
+                prompt.AppendLine("- JavaScript/TypeScript files → `js/` or `src/` folder (e.g., `js/app.js`) - NEVER in root");
+                prompt.AppendLine("- CSS/Stylesheets → `css/` folder (e.g., `css/styles.css`) - NEVER in root");
                 prompt.AppendLine("- Images/Assets → `assets/` or `assets/images/` folder");
                 prompt.AppendLine("- Components → `components/` folder for reusable UI pieces");
                 prompt.AppendLine();
@@ -361,7 +361,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 prompt.AppendLine("- Tests → `tests/` folder");
                 prompt.AppendLine("- Configuration → `config/` folder");
                 prompt.AppendLine();
-                prompt.AppendLine("**CRITICAL**: Never put .js or .css files directly in the root folder (except for config files like package.json). Always organize into appropriate subfolders.");
+                prompt.AppendLine("**CRITICAL**: .js, .ts, and .css files must NEVER be placed in the root folder. Only config files (package.json, tsconfig.json) and HTML entry points (index.html) belong in root.");
                 prompt.AppendLine();
             }
 
