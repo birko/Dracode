@@ -74,17 +74,31 @@ namespace DraCode.KoboldLair.Models.Tasks
             {
                 task.ErrorMessage = errorMessage;
                 task.UpdatedAt = DateTime.UtcNow;
-                
+
                 // Classify error for retry eligibility
                 var category = Services.ErrorClassifier.Classify(errorMessage);
                 task.ErrorCategory = category.ToString();
-                
+
                 // Set initial retry timing if this is a transient error
                 if (category == Services.ErrorClassifier.ErrorCategory.Transient && task.RetryCount == 0)
                 {
                     // Set NextRetryAt to 1 minute from now (first retry)
                     task.NextRetryAt = DateTime.UtcNow.AddMinutes(1);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Clear error state from a task (used when task completes successfully after recovery)
+        /// </summary>
+        public void ClearError(TaskRecord task)
+        {
+            lock (_lock)
+            {
+                task.ErrorMessage = null;
+                task.ErrorCategory = null;
+                task.NextRetryAt = null;
+                task.UpdatedAt = DateTime.UtcNow;
             }
         }
 

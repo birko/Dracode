@@ -231,10 +231,16 @@ namespace DraCode.KoboldLair.Orchestrators
 
             // Update in-memory state
             _taskTracker.UpdateTask(task, newStatus, assignedAgent);
-            
+
             if (!string.IsNullOrEmpty(errorMessage))
             {
                 _taskTracker.SetError(task, errorMessage);
+            }
+            else if (newStatus == TaskStatus.Done)
+            {
+                // Clear any previous error state when task completes successfully
+                // This handles cases where a task had transient errors but eventually succeeded
+                _taskTracker.ClearError(task);
             }
         }
 
@@ -1331,12 +1337,20 @@ namespace DraCode.KoboldLair.Orchestrators
 
         /// <summary>
         /// Updates a task's status. Public wrapper for external task management.
+        /// Also clears error state when retrying a task (transitioning to Unassigned).
         /// </summary>
         /// <param name="task">Task to update</param>
         /// <param name="newStatus">New status for the task</param>
         public void UpdateTask(TaskRecord task, TaskStatus newStatus)
         {
             _taskTracker.UpdateTask(task, newStatus);
+
+            // Clear error state when retrying a task
+            if (newStatus == TaskStatus.Unassigned)
+            {
+                _taskTracker.ClearError(task);
+            }
+
             SaveTasksToFile();
         }
 
