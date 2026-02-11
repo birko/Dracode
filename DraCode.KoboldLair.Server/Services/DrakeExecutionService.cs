@@ -189,7 +189,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             // Process all Drakes in parallel - find unassigned tasks and execute them
             var drakeTasks = drakesWithNames.Select(item =>
-                ProcessDrakeTasksAsync(item.Drake, project, cancellationToken));
+                ProcessDrakeTasksAsync(item.Drake, item.Name, project, cancellationToken));
 
             await Task.WhenAll(drakeTasks);
 
@@ -243,6 +243,13 @@ namespace DraCode.KoboldLair.Server.Services
                     continue;
                 }
 
+                // Check if all tasks in this area are blocked by dependencies (NEW)
+                if (IsAreaFullyBlocked(normalizedPath))
+                {
+                    _logger.LogDebug("Skipping Drake creation for {DrakeName} - all unassigned tasks blocked by dependencies", drakeName);
+                    continue;
+                }
+
                 // Check if we can create a new Drake
                 if (!_drakeFactory.CanCreateDrakeForProject(project.Id))
                 {
@@ -276,7 +283,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Processes tasks for a single Drake - finds unassigned tasks and starts Kobolds
         /// </summary>
-        private async Task ProcessDrakeTasksAsync(Drake drake, Project project, CancellationToken cancellationToken)
+        private async Task ProcessDrakeTasksAsync(Drake drake, string drakeName, Project project, CancellationToken cancellationToken)
         {
             // Reload tasks from file to get current state (fixes stale Drake reuse bug)
             await drake.ReloadTasksFromFileAsync();
@@ -335,7 +342,25 @@ namespace DraCode.KoboldLair.Server.Services
             
             if (tasksToExecute.Count == 0)
             {
-                _logger.LogDebug("No ready tasks to execute (all unassigned tasks have unmet dependencies)");
+                // Check if Drake has unassigned tasks but none are ready (all blocked by dependencies)
+                if (stats.UnassignedTasks > 0)
+                {
+                    _logger.LogInformation(
+                        "🔄 Drake {DrakeName} for project {ProjectName} has {UnassignedCount} unassigned task(s) but all are blocked by dependencies. Unloading Drake to free up resources.",
+                        drakeName, project.Name, stats.UnassignedTasks);
+                    
+                    var removed = _drakeFactory.RemoveDrake(drakeName);
+                    if (removed)
+                    {
+                        _logger.LogInformation(
+                            "✓ Drake {DrakeName} unloaded successfully. It will be recreated when dependencies are resolved.",
+                            drakeName);
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug("No ready tasks to execute (all unassigned tasks have unmet dependencies)");
+                }
                 return;
             }
 
@@ -502,6 +527,140 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogError(ex, "Failed to check completion status for {Path}", taskFilePath);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Checks if all unassigned tasks in an area are blocked by unfulfilled dependencies.
+        /// Returns true if there are unassigned tasks but none are ready to execute.
+        /// </summary>
+        private bool IsAreaFullyBlocked(string taskFilePath)
+        {
+            try
+            {
+                var tracker = new TaskTracker();
+                var loaded = tracker.LoadFromFile(taskFilePath);
+
+                if (loaded == 0)
+                {
+                    return false;
+                }
+
+                var tasks = tracker.GetAllTasks();
+                var unassignedTasks = tasks.Where(t => t.Status == TaskStatus.Unassigned).ToList();
+
+                // If no unassigned tasks, not blocked (either all done or all working)
+                if (unassignedTasks.Count == 0)
+                {
+                    return false;
+                }
+
+                // Check if at least one unassigned task has all dependencies met
+                var doneTasks = tasks.Where(t => t.Status == TaskStatus.Done).Select(t => t.Task).ToHashSet();
+
+                // Load done tasks from ALL task files in the project for cross-area dependencies
+                var projectDoneTasks = LoadDoneTasksFromProjectPath(taskFilePath);
+                doneTasks.UnionWith(projectDoneTasks);
+
+                foreach (var task in unassignedTasks)
+                {
+                    // Check if task has dependencies
+                    var dependsOnMatch = System.Text.RegularExpressions.Regex.Match(
+                        task.Task, @"\(depends on:\s*([^)]+)\)");
+
+                    if (!dependsOnMatch.Success)
+                    {
+                        // No dependencies, task is ready
+                        return false;
+                    }
+
+                    var dependencies = dependsOnMatch.Groups[1].Value
+                        .Split(',')
+                        .Select(d => d.Trim())
+                        .Where(d => !string.IsNullOrEmpty(d));
+
+                    bool allDepsMet = true;
+                    foreach (var dep in dependencies)
+                    {
+                        var depMet = doneTasks.Any(doneTask =>
+                            doneTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
+                        
+                        if (!depMet)
+                        {
+                            allDepsMet = false;
+                            break;
+                        }
+                    }
+
+                    if (allDepsMet)
+                    {
+                        // At least one task is ready
+                        return false;
+                    }
+                }
+
+                // All unassigned tasks are blocked
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to check blocked status for {Path}, assuming not blocked", taskFilePath);
+                return false; // On error, assume not blocked to avoid skipping Drake creation
+            }
+        }
+
+        /// <summary>
+        /// Loads done tasks from all task files in the project directory given a task file path.
+        /// Helper method for checking cross-area dependencies.
+        /// </summary>
+        private HashSet<string> LoadDoneTasksFromProjectPath(string taskFilePath)
+        {
+            var doneTasks = new HashSet<string>();
+
+            try
+            {
+                // Get project directory from task file path: ./projects/my-project/tasks/backend-tasks.md -> ./projects/my-project
+                var taskFolder = Path.GetDirectoryName(taskFilePath);
+                var projectDir = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
+                if (string.IsNullOrEmpty(projectDir) || !Directory.Exists(projectDir))
+                {
+                    return doneTasks;
+                }
+
+                // Find all *-tasks.md files in the project task directory
+                var taskDir = Path.Combine(projectDir, "tasks");
+                if (!Directory.Exists(taskDir))
+                {
+                    return doneTasks;
+                }
+
+                var taskFiles = Directory.GetFiles(taskDir, "*-tasks.md");
+
+                foreach (var file in taskFiles)
+                {
+                    // Skip the current task file (already loaded)
+                    if (Path.GetFullPath(file) == Path.GetFullPath(taskFilePath))
+                    {
+                        continue;
+                    }
+
+                    var tracker = new TaskTracker();
+                    tracker.LoadFromFile(file);
+                    var tasks = tracker.GetAllTasks()
+                        .Where(t => t.Status == TaskStatus.Done)
+                        .Select(t => t.Task);
+
+                    foreach (var task in tasks)
+                    {
+                        doneTasks.Add(task);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load done tasks from project for dependency checking");
+            }
+
+            return doneTasks;
         }
 
         /// <summary>

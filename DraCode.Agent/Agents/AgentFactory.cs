@@ -82,7 +82,7 @@ namespace DraCode.Agent.Agents
 
             return agentType.ToLowerInvariant() switch
             {
-                "coding" => new CodingAgent(llm, options),
+                "coding" or "general" => new CodingAgent(llm, options),
                 "csharp" => new CSharpCodingAgent(llm, options),
                 "cpp" => new CppCodingAgent(llm, options),
                 "assembler" => new AssemblerCodingAgent(llm, options),
@@ -102,7 +102,7 @@ namespace DraCode.Agent.Agents
                 "image" => new ImageAgent(llm, options),
                 "svg" => new SvgAgent(llm, options),
                 "bitmap" => new BitmapAgent(llm, options),
-                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding', 'csharp', 'cpp', 'assembler', 'javascript', 'typescript', 'css', 'html', 'react', 'angular', 'php', 'python', 'documentation', 'debug', 'refactor', 'test', 'diagramming', 'media', 'image', 'svg', 'bitmap'")
+                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: 'coding', 'general', 'csharp', 'cpp', 'assembler', 'javascript', 'typescript', 'css', 'html', 'react', 'angular', 'php', 'python', 'documentation', 'debug', 'refactor', 'test', 'diagramming', 'media', 'image', 'svg', 'bitmap'")
             };
         }
 

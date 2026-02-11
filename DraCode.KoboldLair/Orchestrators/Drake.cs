@@ -1576,6 +1576,17 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Checks if this Drake has any tasks ready for execution (unassigned with dependencies met).
+        /// Returns false if all unassigned tasks are blocked by unfulfilled dependencies.
+        /// </summary>
+        /// <returns>True if at least one task is ready to execute, false if all are blocked</returns>
+        public bool HasReadyTasks()
+        {
+            var readyTasks = GetUnassignedTasks();
+            return readyTasks.Count > 0;
+        }
+
+        /// <summary>
         /// Builds dependency context information from completed dependency tasks.
         /// Includes task descriptions and files created by each dependency.
         /// </summary>
