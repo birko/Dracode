@@ -38,11 +38,11 @@ namespace DraCode.Agent.Agents
         }
 
         /// <summary>
-        /// Model depth-based reasoning guidance.
+        /// Model depth-based reasoning guidance for orchestrators.
         /// Returns appropriate reasoning instructions based on the LLM's capability level.
-        /// Derived classes can include this to adapt behavior to model sophistication.
+        /// This is a simplified version compared to Agent.GetDepthGuidance() for orchestration tasks.
         /// </summary>
-        protected string GetDepthGuidance()
+        protected override string GetDepthGuidance()
         {
             return Options.ModelDepth switch
             {

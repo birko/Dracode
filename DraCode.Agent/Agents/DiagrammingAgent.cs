@@ -13,26 +13,6 @@ namespace DraCode.Agent.Agents
         {
             get
             {
-                var depthGuidance = Options.ModelDepth switch
-                {
-                    <= 3 => @"
-Reasoning approach: Quick and efficient
-- Make direct, straightforward decisions
-- Prioritize speed over exhaustive analysis
-- Use common patterns and best practices",
-                    >= 7 => @"
-Reasoning approach: Deep and thorough
-- Think carefully through multiple approaches before acting
-- Consider edge cases and potential issues
-- Analyze trade-offs and document your reasoning
-- Be extra careful with changes that could have side effects",
-                    _ => @"
-Reasoning approach: Balanced
-- Think step-by-step about what you need to do
-- Consider important edge cases
-- Balance thoroughness with efficiency"
-                };
-
                 return $@"You are a diagramming specialist assistant working in a sandboxed workspace at {WorkingDirectory}.
 
 You are an expert in creating:
@@ -58,7 +38,7 @@ When given a task:
 5. Ensure diagrams are accurate and follow standards
 6. Save diagrams in appropriate formats
 
-{depthGuidance}
+{GetDepthGuidance()}
 
 Important guidelines:
 {GetFileOperationGuidelines()}

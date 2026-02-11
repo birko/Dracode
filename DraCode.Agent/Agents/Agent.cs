@@ -1,6 +1,6 @@
+using System.Text.Json;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
-using System.Text.Json;
 
 namespace DraCode.Agent.Agents
 {
@@ -17,10 +17,10 @@ namespace DraCode.Agent.Agents
             _options = options ?? new AgentOptions();
             _tools = CreateTools();
             _messageCallback = messageCallback;
-            
+
             // Set callback on provider
             _llmProvider.MessageCallback = messageCallback;
-            
+
             // Set callback and options on all tools
             foreach (var tool in _tools)
             {
@@ -39,10 +39,10 @@ namespace DraCode.Agent.Agents
         public void SetMessageCallback(Action<string, string>? callback)
         {
             _messageCallback = callback;
-            
+
             // Update callback on provider
             _llmProvider.MessageCallback = callback;
-            
+
             // Update callback on all tools
             foreach (var tool in _tools)
             {
@@ -122,7 +122,7 @@ namespace DraCode.Agent.Agents
             }
             return false;
         }
-        
+
         // Legacy properties for backward compatibility
         public string WorkingDirectory => _options.WorkingDirectory;
         public bool Verbose => _options.Verbose;
@@ -155,6 +155,34 @@ namespace DraCode.Agent.Agents
             return @"- Test your code after making changes
 - If something fails, analyze the error and try a different approach
 - Be methodical and thorough";
+        }
+
+        /// <summary>
+        /// Returns model depth-based reasoning guidance.
+        /// Returns appropriate reasoning instructions based on the LLM's capability level.
+        /// Use this in system prompts to adapt behavior to model sophistication.
+        /// </summary>
+        protected virtual string GetDepthGuidance()
+        {
+            return Options.ModelDepth switch
+            {
+                <= 3 => @"
+Reasoning approach: Quick and efficient
+- Make direct, straightforward decisions
+- Prioritize speed over exhaustive analysis
+- Use common patterns and best practices",
+                >= 7 => @"
+Reasoning approach: Deep and thorough
+- Think carefully through multiple approaches before acting
+- Consider edge cases and potential issues
+- Analyze trade-offs and document your reasoning
+- Be extra careful with changes that could have side effects",
+                _ => @"
+Reasoning approach: Balanced
+- Think step-by-step about what you need to do
+- Consider important edge cases
+- Balance thoroughness with efficiency"
+            };
         }
 
         public async Task<List<Message>> RunAsync(string task, int? maxIterations = null)
@@ -352,7 +380,7 @@ namespace DraCode.Agent.Agents
                         }
 
                         // If all tools failed, no point continuing - let agent know and give one more chance
-                        if (hasErrors && toolResults.Count > 0 && toolResults.All(r => 
+                        if (hasErrors && toolResults.Count > 0 && toolResults.All(r =>
                             r.GetType().GetProperty("content")?.GetValue(r)?.ToString()?.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) ?? false))
                         {
                             if (_options.Verbose)
@@ -373,7 +401,7 @@ namespace DraCode.Agent.Agents
                     case "error":
                         // Error occurred - stop immediately
                         SendMessage("error", "Error occurred during LLM request. Stopping.");
-                        
+
                         // Add error message to content so it can be detected by error handlers
                         if (response.Content == null || response.Content.Count == 0 || !response.Content.Any(b => b.Type == "text"))
                         {
@@ -381,9 +409,9 @@ namespace DraCode.Agent.Agents
                             {
                                 response.Content = new List<ContentBlock>();
                             }
-                            response.Content.Add(new ContentBlock 
-                            { 
-                                Type = "text", 
+                            response.Content.Add(new ContentBlock
+                            {
+                                Type = "text",
                                 Text = "Error: An error occurred during LLM request."
                             });
                             // Update the assistant message with the error text
@@ -398,7 +426,7 @@ namespace DraCode.Agent.Agents
                     case "NotConfigured":
                         // Provider not configured - stop immediately
                         SendMessage("error", $"Provider '{_llmProvider.Name}' is not properly configured.");
-                        
+
                         // Add error message to content so it can be detected by error handlers
                         if (response.Content == null || response.Content.Count == 0 || !response.Content.Any(b => b.Type == "text"))
                         {
@@ -406,9 +434,9 @@ namespace DraCode.Agent.Agents
                             {
                                 response.Content = new List<ContentBlock>();
                             }
-                            response.Content.Add(new ContentBlock 
-                            { 
-                                Type = "text", 
+                            response.Content.Add(new ContentBlock
+                            {
+                                Type = "text",
                                 Text = $"Error: Provider '{_llmProvider.Name}' is not properly configured."
                             });
                             // Update the assistant message with the error text
