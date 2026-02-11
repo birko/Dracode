@@ -249,6 +249,14 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Gets the feature name by its ID
+        /// </summary>
+        public string? GetFeatureNameById(string featureId)
+        {
+            return _specification?.Features.FirstOrDefault(f => f.Id == featureId)?.Name;
+        }
+
+        /// <summary>
         /// Updates feature status based on task completion
         /// </summary>
         /// <param name="taskStatuses">Dictionary of task IDs to their status</param>

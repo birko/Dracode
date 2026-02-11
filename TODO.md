@@ -1,7 +1,7 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-09 - Task Prioritization System completed**
+**Last updated: 2026-02-11 - Enhanced Git Commit Messages completed**
 
 ---
 
@@ -734,18 +734,23 @@ Important for reliability but workarounds exist. Improves system quality.
 
 ### From Phase I - Tracking & Visibility
 
-- [ ] **Enhanced Git Commit Messages with Context** 🟡 MEDIUM PRIORITY
+- [x] **Enhanced Git Commit Messages with Context** ✅ COMPLETED (2026-02-11)
   - **Issue**: Git commits lack feature context, task IDs, traceability
-  - Current commits: Generic "Kobold work completed" messages
-  - Hard to revert entire features or track task completion via git
-  - **Location**: `Drake.cs` - Git integration after task completion
+  - **Solution**: Implemented `BuildDetailedCommitMessage()` in `Drake.cs`
+  - **Commit message now includes**:
+    - Conventional commit format: `feat({agent}): {description}`
+    - Task-Id, Agent-Type, Priority trailers
+    - Feature context (from Wyvern analysis or branch name)
+    - Dependencies (parsed from task description)
+    - Project ID
+  - Added `GetFeatureNameById()` helper to `Wyvern.cs`
+  - **Location**: `Drake.cs:867-980`, `Wyvern.cs:251-258`
   - **Benefits**:
     - Better git history readability
-    - Easy feature tracking and rollback  
+    - Easy feature tracking and rollback
     - Traceability between tasks and code changes
     - Useful for compliance and audit
-  - **Implementation**: BuildDetailedCommitMessage() with Task-Id, Feature, Agent-Type, Dependencies
-  - **Effort**: Low (~1 day)
+  - **Effort**: Completed
 
 - [x] **Task Output File Tracking** ✅ COMPLETED (Already implemented)
   - Added `OutputFiles` property to TaskRecord ✓
@@ -821,4 +826,4 @@ Important for reliability but workarounds exist. Improves system quality.
 
 ---
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-02-11*

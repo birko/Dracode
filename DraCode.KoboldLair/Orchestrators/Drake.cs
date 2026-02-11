@@ -777,9 +777,8 @@ namespace DraCode.KoboldLair.Orchestrators
                 // Stage all changes
                 await _gitService.StageAllAsync(projectFolder);
 
-                // Create commit message
-                var shortTaskDesc = task.Task.Length > 50 ? task.Task[..50] + "..." : task.Task;
-                var commitMessage = $"Task completed: {shortTaskDesc}\n\nTask ID: {task.Id}\nAgent: {kobold.AgentType}";
+                // Create detailed commit message with context
+                var commitMessage = BuildDetailedCommitMessage(kobold, task, currentBranch);
 
                 // Commit with Kobold agent type as author
                 var authorName = $"Kobold-{kobold.AgentType}";
@@ -788,13 +787,14 @@ namespace DraCode.KoboldLair.Orchestrators
                 if (committed)
                 {
                     var projectInfo = _projectId ?? "unknown project";
+                    var taskSummary = task.Task.Length > 50 ? task.Task[..50] + "..." : task.Task;
                     _logger?.LogInformation(
                         "✓ Git commit successful\n" +
                         "  Project: {ProjectId}\n" +
                         "  Branch: {Branch}\n" +
                         "  Task: {Task}\n" +
                         "  Agent: {AgentType}",
-                        projectInfo, currentBranch ?? "current branch", shortTaskDesc, kobold.AgentType);
+                        projectInfo, currentBranch ?? "current branch", taskSummary, kobold.AgentType);
                     
                     // Track commit SHA and output files for dependency context
                     var commitSha = await _gitService.GetLastCommitShaAsync(projectFolder);
@@ -864,6 +864,133 @@ namespace DraCode.KoboldLair.Orchestrators
                 _logger?.LogWarning(ex, "Failed to register output files with SharedPlanningContext for task {TaskId}", task.Id);
                 // Non-critical, don't fail the workflow
             }
+        }
+
+        /// <summary>
+        /// Builds a detailed commit message with task context, feature info, dependencies, and priority.
+        /// Format follows conventional commit style with trailers for traceability.
+        /// </summary>
+        private string BuildDetailedCommitMessage(Kobold kobold, TaskRecord task, string? currentBranch)
+        {
+            var sb = new System.Text.StringBuilder();
+
+            // Subject line: short description (max ~72 chars for git best practices)
+            var taskDesc = task.Task;
+
+            // Remove task ID prefix if present (e.g., "[abc123] Task name")
+            var taskIdPrefixMatch = System.Text.RegularExpressions.Regex.Match(taskDesc, @"^\[[^\]]+\]\s*");
+            if (taskIdPrefixMatch.Success)
+            {
+                taskDesc = taskDesc[taskIdPrefixMatch.Length..];
+            }
+
+            // Remove dependency suffix if present (e.g., "Task name (depends on: X)")
+            var dependsSuffixMatch = System.Text.RegularExpressions.Regex.Match(taskDesc, @"\s*\(depends on:[^)]+\)\s*$");
+            if (dependsSuffixMatch.Success)
+            {
+                taskDesc = taskDesc[..dependsSuffixMatch.Index];
+            }
+
+            // Truncate for subject line
+            var subject = taskDesc.Length > 60 ? taskDesc[..57] + "..." : taskDesc;
+            sb.AppendLine($"feat({kobold.AgentType}): {subject}");
+            sb.AppendLine();
+
+            // Body: full task description if different from subject
+            if (taskDesc.Length > 60)
+            {
+                sb.AppendLine(taskDesc);
+                sb.AppendLine();
+            }
+
+            // Trailers for traceability (git trailer format)
+            sb.AppendLine($"Task-Id: {task.Id}");
+            sb.AppendLine($"Agent-Type: {kobold.AgentType}");
+            sb.AppendLine($"Priority: {task.Priority}");
+
+            // Extract and add feature info
+            var (featureId, featureName) = GetFeatureInfoForTask(task, currentBranch);
+            if (!string.IsNullOrEmpty(featureId))
+            {
+                var featureDisplay = !string.IsNullOrEmpty(featureName)
+                    ? $"{featureName} ({featureId[..Math.Min(8, featureId.Length)]})"
+                    : featureId[..Math.Min(8, featureId.Length)];
+                sb.AppendLine($"Feature: {featureDisplay}");
+            }
+
+            // Extract and add dependencies
+            var dependencies = ExtractDependencies(task.Task);
+            if (dependencies.Any())
+            {
+                sb.AppendLine($"Depends-On: {string.Join(", ", dependencies)}");
+            }
+
+            // Add project context if available
+            if (!string.IsNullOrEmpty(_projectId))
+            {
+                sb.AppendLine($"Project: {_projectId[..Math.Min(8, _projectId.Length)]}");
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>
+        /// Gets feature information for a task from Wyvern analysis or branch name.
+        /// </summary>
+        private (string? featureId, string? featureName) GetFeatureInfoForTask(TaskRecord task, string? currentBranch)
+        {
+            // Try to get feature info from Wyvern analysis first
+            if (_wyvern?.Analysis != null)
+            {
+                foreach (var area in _wyvern.Analysis.Areas)
+                {
+                    // Match by task description (WyvernTask.Id may differ from TaskRecord.Id)
+                    var wyvernTask = area.Tasks.FirstOrDefault(t =>
+                        task.Task.Contains(t.Description, StringComparison.OrdinalIgnoreCase) ||
+                        t.Description.Contains(task.Task.Split('(')[0].Trim(), StringComparison.OrdinalIgnoreCase));
+
+                    if (wyvernTask?.FeatureId != null)
+                    {
+                        // Look up feature name from specification
+                        var featureName = _wyvern.GetFeatureNameById(wyvernTask.FeatureId);
+                        return (wyvernTask.FeatureId, featureName);
+                    }
+                }
+            }
+
+            // Fall back to extracting from branch name (feature/{id}-{name})
+            if (!string.IsNullOrEmpty(currentBranch))
+            {
+                var branchMatch = System.Text.RegularExpressions.Regex.Match(
+                    currentBranch, @"^feature/([^-]+)-(.+)$");
+                if (branchMatch.Success)
+                {
+                    var featureId = branchMatch.Groups[1].Value;
+                    var featureName = branchMatch.Groups[2].Value.Replace("-", " ");
+                    return (featureId, featureName);
+                }
+            }
+
+            return (null, null);
+        }
+
+        /// <summary>
+        /// Extracts dependency task IDs from a task description.
+        /// Format: "Task name (depends on: dep1, dep2)"
+        /// </summary>
+        private static List<string> ExtractDependencies(string taskDescription)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                taskDescription, @"\(depends on:\s*([^)]+)\)");
+
+            if (!match.Success)
+                return new List<string>();
+
+            return match.Groups[1].Value
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(d => d.Trim())
+                .Where(d => !string.IsNullOrEmpty(d))
+                .ToList();
         }
 
         /// <summary>
