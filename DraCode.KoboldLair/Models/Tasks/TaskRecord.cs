@@ -14,6 +14,12 @@ namespace DraCode.KoboldLair.Models.Tasks
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
         public string? ErrorMessage { get; set; }
+
+        /// <summary>
+        /// Task IDs that this task depends on (e.g., ["frontend-1", "frontend-2"])
+        /// Stored as structured data to avoid parsing from task description
+        /// </summary>
+        public List<string> Dependencies { get; set; } = new();
         
         /// <summary>
         /// Git commit SHA created when task was completed (for tracking output files)

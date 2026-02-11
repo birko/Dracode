@@ -1,15 +1,26 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace DraCode.KoboldLair.Models.Tasks
 {
     /// <summary>
-    /// Manages task tracking and markdown report generation
+    /// Manages task tracking and markdown report generation.
+    /// Uses JSON as source of truth for programmatic reading (preserves all data including dependencies).
+    /// Markdown is generated for human readability only.
     /// </summary>
     public class TaskTracker
     {
         private readonly List<TaskRecord> _tasks = new();
         private readonly object _lock = new();
+
+        // JSON serialization options
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
+        };
 
         // Regex to match markdown table rows: | Task | Agent | Status |
         private static readonly Regex TableRowRegex = new(
@@ -28,25 +39,56 @@ namespace DraCode.KoboldLair.Models.Tasks
             @"^\[id:([a-f0-9-]+)\]\s*",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        // Regex to extract dependencies from task description: (depends on: X, Y)
+        private static readonly Regex DependsOnRegex = new(
+            @"\(depends on:\s*([^)]+)\)",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         /// <summary>
-        /// Add a new task to track
+        /// Add a new task to track.
+        /// Dependencies are extracted from the task description if present (depends on: X, Y)
+        /// and stored as structured data in the Dependencies property.
         /// </summary>
-        /// <param name="task">Task description</param>
+        /// <param name="task">Task description (may include dependencies clause)</param>
         /// <param name="priority">Task priority (default: Normal)</param>
-        public TaskRecord AddTask(string task, TaskPriority priority = TaskPriority.Normal)
+        /// <param name="dependencies">Optional explicit dependencies (overrides parsed ones)</param>
+        public TaskRecord AddTask(string task, TaskPriority priority = TaskPriority.Normal, List<string>? dependencies = null)
         {
             lock (_lock)
             {
+                // Extract dependencies from task description if not explicitly provided
+                var taskDependencies = dependencies ?? ExtractDependencies(task);
+
                 var record = new TaskRecord
                 {
                     Task = task,
                     Status = TaskStatus.Unassigned,
                     Priority = priority,
+                    Dependencies = taskDependencies,
                     CreatedAt = DateTime.UtcNow
                 };
                 _tasks.Add(record);
                 return record;
             }
+        }
+
+        /// <summary>
+        /// Extracts dependency task IDs from a task description.
+        /// Parses "(depends on: frontend-1, frontend-2)" into ["frontend-1", "frontend-2"]
+        /// </summary>
+        private static List<string> ExtractDependencies(string taskDescription)
+        {
+            var match = DependsOnRegex.Match(taskDescription);
+            if (!match.Success)
+            {
+                return new List<string>();
+            }
+
+            return match.Groups[1].Value
+                .Split(',')
+                .Select(d => d.Trim())
+                .Where(d => !string.IsNullOrEmpty(d))
+                .ToList();
         }
 
         /// <summary>
@@ -155,9 +197,34 @@ namespace DraCode.KoboldLair.Models.Tasks
                     // Format: [id:abc12345] Task description
                     var taskWithId = $"[id:{task.Id}] {taskNormalized}";
 
-                    var taskDisplay = taskWithId.Length > 120
-                        ? taskWithId.Substring(0, 117) + "..."
-                        : taskWithId;
+                    // IMPORTANT: Avoid truncating dependency information!
+                    // Dependencies are stored as "(depends on: X, Y)" and the closing ) is essential
+                    // for the regex parser in GetUnassignedTasks() to work correctly.
+                    var taskDisplay = taskWithId;
+                    if (taskWithId.Length > 120)
+                    {
+                        // Check if there's a dependency clause we need to preserve
+                        var depsMatch = Regex.Match(taskWithId, @"\(depends on:[^)]+\)");
+                        if (depsMatch.Success)
+                        {
+                            // Extract dependency clause and truncate only the description part
+                            var depsClause = depsMatch.Value;
+                            var beforeDeps = taskWithId.Substring(0, depsMatch.Index).TrimEnd();
+
+                            // Calculate how much we can show before deps
+                            var maxBeforeLen = Math.Max(40, 117 - depsClause.Length);
+                            if (beforeDeps.Length > maxBeforeLen)
+                            {
+                                beforeDeps = beforeDeps.Substring(0, maxBeforeLen - 3) + "...";
+                            }
+                            taskDisplay = $"{beforeDeps} {depsClause}";
+                        }
+                        else
+                        {
+                            // No dependencies, safe to truncate normally
+                            taskDisplay = taskWithId.Substring(0, 117) + "...";
+                        }
+                    }
 
                     // Escape pipe characters in task description
                     taskDisplay = taskDisplay.Replace("|", "\\|");
@@ -227,21 +294,67 @@ namespace DraCode.KoboldLair.Models.Tasks
         }
 
         /// <summary>
-        /// Save the markdown report to a file (uses async internally for non-blocking I/O)
+        /// Save tasks to file. Saves both JSON (source of truth) and markdown (human readable).
+        /// JSON file is saved alongside with .json extension (e.g., frontend-tasks.json)
         /// </summary>
         public void SaveToFile(string filePath, string? title = null)
         {
+            // Save JSON (source of truth for programmatic reading)
+            var jsonPath = GetJsonPath(filePath);
+            SaveToJsonFile(jsonPath);
+
+            // Save markdown (human readable)
             var markdown = GenerateMarkdown(title);
             File.WriteAllTextAsync(filePath, markdown).GetAwaiter().GetResult();
         }
 
         /// <summary>
-        /// Save the markdown report to a file asynchronously
+        /// Save tasks to file asynchronously. Saves both JSON and markdown.
         /// </summary>
         public async Task SaveToFileAsync(string filePath, string? title = null)
         {
+            // Save JSON (source of truth)
+            var jsonPath = GetJsonPath(filePath);
+            await SaveToJsonFileAsync(jsonPath);
+
+            // Save markdown (human readable)
             var markdown = GenerateMarkdown(title);
             await File.WriteAllTextAsync(filePath, markdown);
+        }
+
+        /// <summary>
+        /// Saves tasks to a JSON file (structured data, no truncation)
+        /// </summary>
+        public void SaveToJsonFile(string jsonPath)
+        {
+            lock (_lock)
+            {
+                var json = JsonSerializer.Serialize(_tasks, JsonOptions);
+                File.WriteAllTextAsync(jsonPath, json).GetAwaiter().GetResult();
+            }
+        }
+
+        /// <summary>
+        /// Saves tasks to a JSON file asynchronously
+        /// </summary>
+        public async Task SaveToJsonFileAsync(string jsonPath)
+        {
+            List<TaskRecord> tasksCopy;
+            lock (_lock)
+            {
+                tasksCopy = new List<TaskRecord>(_tasks);
+            }
+            var json = JsonSerializer.Serialize(tasksCopy, JsonOptions);
+            await File.WriteAllTextAsync(jsonPath, json);
+        }
+
+        /// <summary>
+        /// Gets the JSON file path from a markdown file path.
+        /// e.g., frontend-tasks.md -> frontend-tasks.json
+        /// </summary>
+        private static string GetJsonPath(string markdownPath)
+        {
+            return Path.ChangeExtension(markdownPath, ".json");
         }
 
         /// <summary>
@@ -256,14 +369,21 @@ namespace DraCode.KoboldLair.Models.Tasks
         }
 
         /// <summary>
-        /// Loads tasks from a markdown file, restoring task state (uses async internally for non-blocking I/O).
-        /// Parses the markdown table format generated by GenerateMarkdown().
-        /// Task IDs are preserved if present in the format [id:xxx] at the start of the task description.
+        /// Loads tasks from file. Prefers JSON file if it exists (source of truth),
+        /// falls back to markdown parsing for backwards compatibility.
         /// </summary>
         /// <param name="filePath">Path to the markdown file</param>
         /// <returns>Number of tasks loaded</returns>
         public int LoadFromFile(string filePath)
         {
+            // Prefer JSON file if it exists (source of truth)
+            var jsonPath = GetJsonPath(filePath);
+            if (File.Exists(jsonPath))
+            {
+                return LoadFromJsonFile(jsonPath);
+            }
+
+            // Fall back to markdown parsing for backwards compatibility
             if (!File.Exists(filePath))
             {
                 return 0;
@@ -274,14 +394,20 @@ namespace DraCode.KoboldLair.Models.Tasks
         }
 
         /// <summary>
-        /// Loads tasks from a markdown file asynchronously, restoring task state.
-        /// Parses the markdown table format generated by GenerateMarkdown().
-        /// Task IDs are preserved if present in the format [id:xxx] at the start of the task description.
+        /// Loads tasks from file asynchronously. Prefers JSON if available.
         /// </summary>
         /// <param name="filePath">Path to the markdown file</param>
         /// <returns>Number of tasks loaded</returns>
         public async Task<int> LoadFromFileAsync(string filePath)
         {
+            // Prefer JSON file if it exists
+            var jsonPath = GetJsonPath(filePath);
+            if (File.Exists(jsonPath))
+            {
+                return await LoadFromJsonFileAsync(jsonPath);
+            }
+
+            // Fall back to markdown
             if (!File.Exists(filePath))
             {
                 return 0;
@@ -289,6 +415,60 @@ namespace DraCode.KoboldLair.Models.Tasks
 
             var content = await File.ReadAllTextAsync(filePath);
             return LoadFromMarkdown(content);
+        }
+
+        /// <summary>
+        /// Loads tasks from a JSON file (preferred method, no data loss)
+        /// </summary>
+        public int LoadFromJsonFile(string jsonPath)
+        {
+            if (!File.Exists(jsonPath))
+            {
+                return 0;
+            }
+
+            var json = File.ReadAllTextAsync(jsonPath).GetAwaiter().GetResult();
+            return LoadFromJson(json);
+        }
+
+        /// <summary>
+        /// Loads tasks from a JSON file asynchronously
+        /// </summary>
+        public async Task<int> LoadFromJsonFileAsync(string jsonPath)
+        {
+            if (!File.Exists(jsonPath))
+            {
+                return 0;
+            }
+
+            var json = await File.ReadAllTextAsync(jsonPath);
+            return LoadFromJson(json);
+        }
+
+        /// <summary>
+        /// Loads tasks from JSON content
+        /// </summary>
+        public int LoadFromJson(string json)
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    var tasks = JsonSerializer.Deserialize<List<TaskRecord>>(json, JsonOptions);
+                    if (tasks == null)
+                    {
+                        return 0;
+                    }
+
+                    _tasks.Clear();
+                    _tasks.AddRange(tasks);
+                    return tasks.Count;
+                }
+                catch (JsonException)
+                {
+                    return 0;
+                }
+            }
         }
 
         /// <summary>
@@ -396,12 +576,16 @@ namespace DraCode.KoboldLair.Models.Tasks
                 errorMessage = "Task had error (details lost during reload)";
             }
 
+            // Extract dependencies from task description for structured storage
+            var dependencies = ExtractDependencies(taskDescription);
+
             var record = new TaskRecord
             {
                 Task = taskDescription,
                 AssignedAgent = assignedAgent,
                 Status = status,
                 ErrorMessage = errorMessage,
+                Dependencies = dependencies,
                 CreatedAt = DateTime.UtcNow // Original creation time is not preserved
             };
 

@@ -1634,47 +1634,43 @@ namespace DraCode.KoboldLair.Orchestrators
 
             foreach (var task in allTasks.Where(t => t.Status == TaskStatus.Unassigned || t.Status == TaskStatus.BlockedByFailure))
             {
-                // Check if dependencies are met (parse from task description)
-                // Format: [task-id] Task name (depends on: dep1, dep2)
+                // Check if dependencies are met
+                // Uses structured Dependencies property (preferred) or falls back to parsing from description
                 var dependenciesMet = true;
                 var unmeetDependencies = new List<string>();
                 var failedDependencies = new List<string>();
-                var dependsOnMatch = System.Text.RegularExpressions.Regex.Match(
-                    task.Task, @"\(depends on:\s*([^)]+)\)");
 
-                if (dependsOnMatch.Success)
+                // Get dependencies from structured property (reliable, no truncation issues)
+                // Fall back to parsing from description for backwards compatibility
+                var dependencies = task.Dependencies.Count > 0
+                    ? task.Dependencies
+                    : ParseDependenciesFromDescription(task.Task);
+
+                foreach (var dep in dependencies)
                 {
-                    var dependencies = dependsOnMatch.Groups[1].Value
-                        .Split(',')
-                        .Select(d => d.Trim())
-                        .Where(d => !string.IsNullOrEmpty(d));
+                    // Check if dependency is done (look for [dep] in done task descriptions)
+                    var depMet = doneTasks.Any(doneTask =>
+                        doneTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
 
-                    foreach (var dep in dependencies)
+                    if (depMet)
                     {
-                        // Check if dependency is done
-                        var depMet = doneTasks.Any(doneTask =>
-                            doneTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
-
-                        if (depMet)
-                        {
-                            continue;
-                        }
-
-                        // Check if dependency has failed
-                        var depFailed = failedTasks.Any(failedTask =>
-                            failedTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
-
-                        if (depFailed)
-                        {
-                            failedDependencies.Add(dep);
-                        }
-                        else
-                        {
-                            unmeetDependencies.Add(dep);
-                        }
-
-                        dependenciesMet = false;
+                        continue;
                     }
+
+                    // Check if dependency has failed
+                    var depFailed = failedTasks.Any(failedTask =>
+                        failedTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
+
+                    if (depFailed)
+                    {
+                        failedDependencies.Add(dep);
+                    }
+                    else
+                    {
+                        unmeetDependencies.Add(dep);
+                    }
+
+                    dependenciesMet = false;
                 }
 
                 // Mark as blocked if any dependencies have failed
@@ -1752,6 +1748,27 @@ namespace DraCode.KoboldLair.Orchestrators
                 return 3; // Complex tasks
             
             return 2; // Default to medium complexity
+        }
+
+        /// <summary>
+        /// Parses dependencies from a task description string (backwards compatibility).
+        /// Format: "Task name (depends on: dep1, dep2)"
+        /// </summary>
+        private static List<string> ParseDependenciesFromDescription(string taskDescription)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                taskDescription, @"\(depends on:\s*([^)]+)\)");
+
+            if (!match.Success)
+            {
+                return new List<string>();
+            }
+
+            return match.Groups[1].Value
+                .Split(',')
+                .Select(d => d.Trim())
+                .Where(d => !string.IsNullOrEmpty(d))
+                .ToList();
         }
 
         /// <summary>
