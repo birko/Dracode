@@ -210,15 +210,20 @@ namespace DraCode.Agent.LLMs.Providers
                     };
                 }
 
-                return new LlmStreamingResponse
+                // Create response object that will be populated during streaming
+                var streamingResponse = new LlmStreamingResponse
                 {
-                    GetStreamAsync = async () =>
-                    {
-                        var stream = await response.Content.ReadAsStreamAsync();
-                        return ParseClaudeStreamChunks(ParseSseStream(stream));
-                    },
-                    IsComplete = false
+                    IsComplete = false,
+                    GetStreamAsync = null! // Will be set below
                 };
+
+                streamingResponse.GetStreamAsync = async () =>
+                {
+                    var stream = await response.Content.ReadAsStreamAsync();
+                    return ParseClaudeStreamChunksWithToolCapture(ParseSseStream(stream), streamingResponse);
+                };
+
+                return streamingResponse;
             }
             catch (Exception ex)
             {
@@ -300,6 +305,161 @@ namespace DraCode.Agent.LLMs.Providers
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Parses Claude streaming chunks and captures tool calls for the FinalResponse.
+        /// Yields text chunks for real-time display while accumulating the full response.
+        /// </summary>
+        private static async IAsyncEnumerable<string> ParseClaudeStreamChunksWithToolCapture(
+            IAsyncEnumerable<string> sseChunks,
+            LlmStreamingResponse streamingResponse)
+        {
+            var contentBlocks = new List<ContentBlock>();
+            var currentToolUseBlock = (ContentBlock?)null;
+            var toolInputBuilder = new StringBuilder();
+            var textBuilder = new StringBuilder();
+            string? stopReason = null;
+
+            await foreach (var chunk in sseChunks)
+            {
+                if (string.IsNullOrWhiteSpace(chunk))
+                    continue;
+
+                JsonElement json;
+                try
+                {
+                    json = JsonSerializer.Deserialize<JsonElement>(chunk);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                var eventType = json.TryGetProperty("type", out var type) ? type.GetString() : null;
+
+                switch (eventType)
+                {
+                    case "content_block_start":
+                        // New content block starting
+                        if (json.TryGetProperty("content_block", out var contentBlock))
+                        {
+                            var blockType = contentBlock.TryGetProperty("type", out var bt) ? bt.GetString() : null;
+
+                            if (blockType == "tool_use")
+                            {
+                                // Starting a tool_use block
+                                currentToolUseBlock = new ContentBlock
+                                {
+                                    Type = "tool_use",
+                                    Id = contentBlock.TryGetProperty("id", out var id) ? id.GetString() : null,
+                                    Name = contentBlock.TryGetProperty("name", out var name) ? name.GetString() : null,
+                                    Input = new Dictionary<string, object>()
+                                };
+                                toolInputBuilder.Clear();
+                            }
+                            else if (blockType == "text")
+                            {
+                                // Text block - will be filled by deltas
+                            }
+                        }
+                        break;
+
+                    case "content_block_delta":
+                        if (json.TryGetProperty("delta", out var delta))
+                        {
+                            var deltaType = delta.TryGetProperty("type", out var dt) ? dt.GetString() : null;
+
+                            if (deltaType == "text_delta" && delta.TryGetProperty("text", out var text))
+                            {
+                                var textValue = text.GetString();
+                                if (!string.IsNullOrEmpty(textValue))
+                                {
+                                    textBuilder.Append(textValue);
+                                    yield return textValue;
+                                }
+                            }
+                            else if (deltaType == "input_json_delta" && delta.TryGetProperty("partial_json", out var partialJson))
+                            {
+                                // Accumulate tool input JSON
+                                var jsonChunk = partialJson.GetString();
+                                if (!string.IsNullOrEmpty(jsonChunk))
+                                {
+                                    toolInputBuilder.Append(jsonChunk);
+                                }
+                            }
+                        }
+                        break;
+
+                    case "content_block_stop":
+                        // Content block finished
+                        if (currentToolUseBlock != null)
+                        {
+                            // Parse accumulated tool input
+                            var inputJson = toolInputBuilder.ToString();
+                            if (!string.IsNullOrEmpty(inputJson))
+                            {
+                                try
+                                {
+                                    var inputElement = JsonSerializer.Deserialize<JsonElement>(inputJson);
+                                    var inputDict = new Dictionary<string, object>();
+                                    foreach (var prop in inputElement.EnumerateObject())
+                                    {
+                                        inputDict[prop.Name] = prop.Value.ValueKind == JsonValueKind.String
+                                            ? prop.Value.GetString() ?? string.Empty
+                                            : prop.Value.ToString();
+                                    }
+                                    currentToolUseBlock.Input = inputDict;
+                                }
+                                catch
+                                {
+                                    // If parsing fails, store raw JSON
+                                    currentToolUseBlock.Input = new Dictionary<string, object> { ["_raw"] = inputJson };
+                                }
+                            }
+                            contentBlocks.Add(currentToolUseBlock);
+                            currentToolUseBlock = null;
+                            toolInputBuilder.Clear();
+                        }
+                        break;
+
+                    case "message_delta":
+                        // Message-level delta, contains stop_reason
+                        if (json.TryGetProperty("delta", out var msgDelta) &&
+                            msgDelta.TryGetProperty("stop_reason", out var sr))
+                        {
+                            stopReason = sr.GetString();
+                        }
+                        break;
+
+                    case "message_stop":
+                        // Message complete
+                        break;
+                }
+            }
+
+            // Build final response with all content
+            var finalContent = new List<ContentBlock>();
+
+            // Add accumulated text as a content block
+            var accumulatedText = textBuilder.ToString();
+            if (!string.IsNullOrEmpty(accumulatedText))
+            {
+                finalContent.Add(new ContentBlock { Type = "text", Text = accumulatedText });
+            }
+
+            // Add any tool_use blocks
+            finalContent.AddRange(contentBlocks);
+
+            // Populate the streaming response with final data
+            streamingResponse.FinalResponse = new LlmResponse
+            {
+                StopReason = stopReason ?? "end_turn",
+                Content = finalContent
+            };
+            streamingResponse.StopReason = stopReason ?? "end_turn";
+            streamingResponse.AccumulatedText = accumulatedText;
+            streamingResponse.IsComplete = true;
         }
     }
 }

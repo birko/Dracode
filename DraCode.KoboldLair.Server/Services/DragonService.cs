@@ -25,7 +25,7 @@ namespace DraCode.KoboldLair.Server.Services
     public class DragonSession
     {
         internal readonly object _historyLock = new object();
-        
+
         public string SessionId { get; init; } = "";
         public DragonAgent? Dragon { get; set; }
         public SageAgent? Sage { get; set; }
@@ -36,6 +36,12 @@ namespace DraCode.KoboldLair.Server.Services
         public List<SessionMessage> MessageHistory { get; } = new();
         public string? LastMessageId { get; set; }
         public string? CurrentProjectFolder { get; set; }
+
+        /// <summary>
+        /// Tracks whether a streaming response was sent during the current request.
+        /// Reset before each request, set to true when assistant_final callback fires.
+        /// </summary>
+        public bool StreamingResponseSent { get; set; }
 
         /// <summary>
         /// Saves the message history to a JSON file in the project folder.
@@ -310,7 +316,8 @@ namespace DraCode.KoboldLair.Server.Services
                         }
                         else if (type == "assistant_final")
                         {
-                            // Stream completed - send final message
+                            // Stream completed - send final message and mark as sent
+                            session.StreamingResponseSent = true;
                             _ = SendStreamCompleteAsync(webSocket, session, content);
                         }
                     };
@@ -324,16 +331,22 @@ namespace DraCode.KoboldLair.Server.Services
                     _logger.LogInformation("[Dragon] Starting session...");
                     try
                     {
+                        // Reset streaming flag before processing
+                        session.StreamingResponseSent = false;
                         var welcomeResponse = await session.Dragon.StartSessionAsync();
                         _logger.LogInformation("[Dragon] Welcome: {Response}", welcomeResponse);
 
-                        await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                        // Only send if not already sent via streaming callback
+                        if (!session.StreamingResponseSent)
                         {
-                            type = "dragon_message",
-                            sessionId = currentSessionId,
-                            message = welcomeResponse,
-                            timestamp = DateTime.UtcNow
-                        });
+                            await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                            {
+                                type = "dragon_message",
+                                sessionId = currentSessionId,
+                                message = welcomeResponse,
+                                timestamp = DateTime.UtcNow
+                            });
+                        }
                     }
                     catch (HttpRequestException ex)
                     {
@@ -585,16 +598,23 @@ namespace DraCode.KoboldLair.Server.Services
 
                 await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId });
 
+                // Reset streaming flag before processing
+                session.StreamingResponseSent = false;
+
                 var response = await session.Dragon!.ContinueSessionAsync(message.Message);
                 _logger.LogInformation("[Dragon] Response: {Response}", response);
 
-                await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                // Only send if not already sent via streaming callback
+                if (!session.StreamingResponseSent)
                 {
-                    type = "dragon_message",
-                    sessionId,
-                    message = response,
-                    timestamp = DateTime.UtcNow
-                });
+                    await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                    {
+                        type = "dragon_message",
+                        sessionId,
+                        message = response,
+                        timestamp = DateTime.UtcNow
+                    });
+                }
 
                 // Check for new specifications
                 await CheckForNewSpecifications(webSocket, session);
@@ -874,7 +894,10 @@ namespace DraCode.KoboldLair.Server.Services
                     else if (type == "assistant_stream")
                         _ = SendStreamingChunkAsync(webSocket, sessionId, content);
                     else if (type == "assistant_final")
+                    {
+                        session.StreamingResponseSent = true;
                         _ = SendStreamCompleteAsync(webSocket, session, content);
+                    }
                 };
 
                 session.Dragon!.SetMessageCallback(messageCallback);
@@ -883,15 +906,21 @@ namespace DraCode.KoboldLair.Server.Services
                 session.Sentinel!.SetMessageCallback(messageCallback);
                 session.Warden!.SetMessageCallback(messageCallback);
 
+                // Reset streaming flag before processing
+                session.StreamingResponseSent = false;
                 var welcomeResponse = await session.Dragon.StartSessionAsync();
 
-                await SendTrackedMessageAsync(webSocket, session, "dragon_reloaded", new
+                // Only send if not already sent via streaming callback
+                if (!session.StreamingResponseSent)
                 {
-                    type = "dragon_reloaded",
-                    sessionId,
-                    message = $"Dragon Council reloaded.\n\n{welcomeResponse}",
-                    timestamp = DateTime.UtcNow
-                });
+                    await SendTrackedMessageAsync(webSocket, session, "dragon_reloaded", new
+                    {
+                        type = "dragon_reloaded",
+                        sessionId,
+                        message = $"Dragon Council reloaded.\n\n{welcomeResponse}",
+                        timestamp = DateTime.UtcNow
+                    });
+                }
             }
             catch (Exception ex)
             {

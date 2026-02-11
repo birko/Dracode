@@ -562,7 +562,7 @@ namespace DraCode.Agent.LLMs.Providers
                     continue;
 
                 var delta = choices[0].GetProperty("delta");
-                
+
                 if (delta.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
                 {
                     var text = content.GetString();
@@ -572,6 +572,160 @@ namespace DraCode.Agent.LLMs.Providers
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Parses OpenAI-style streaming response chunks with tool call capture.
+        /// Yields text chunks for real-time display while accumulating tool calls.
+        /// </summary>
+        protected static async IAsyncEnumerable<string> ParseOpenAiStreamChunksWithToolCapture(
+            IAsyncEnumerable<string> sseChunks,
+            LlmStreamingResponse streamingResponse)
+        {
+            var textBuilder = new System.Text.StringBuilder();
+            var toolCalls = new Dictionary<int, (string? Id, string? Name, System.Text.StringBuilder Arguments)>();
+            string? finishReason = null;
+
+            await foreach (var chunk in sseChunks)
+            {
+                if (string.IsNullOrWhiteSpace(chunk))
+                    continue;
+
+                JsonElement json;
+                try
+                {
+                    json = JsonSerializer.Deserialize<JsonElement>(chunk);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (!json.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
+                    continue;
+
+                var choice = choices[0];
+
+                // Check for finish reason
+                if (choice.TryGetProperty("finish_reason", out var fr) && fr.ValueKind == JsonValueKind.String)
+                {
+                    finishReason = fr.GetString();
+                }
+
+                if (!choice.TryGetProperty("delta", out var delta))
+                    continue;
+
+                // Handle text content
+                if (delta.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
+                {
+                    var text = content.GetString();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        textBuilder.Append(text);
+                        yield return text;
+                    }
+                }
+
+                // Handle tool calls
+                if (delta.TryGetProperty("tool_calls", out var toolCallsDelta))
+                {
+                    foreach (var toolCallDelta in toolCallsDelta.EnumerateArray())
+                    {
+                        var index = toolCallDelta.GetProperty("index").GetInt32();
+
+                        // Initialize tool call entry if new
+                        if (!toolCalls.ContainsKey(index))
+                        {
+                            toolCalls[index] = (null, null, new System.Text.StringBuilder());
+                        }
+
+                        var entry = toolCalls[index];
+
+                        // Capture id
+                        if (toolCallDelta.TryGetProperty("id", out var id))
+                        {
+                            entry.Id = id.GetString();
+                        }
+
+                        // Capture function name and arguments
+                        if (toolCallDelta.TryGetProperty("function", out var function))
+                        {
+                            if (function.TryGetProperty("name", out var name))
+                            {
+                                entry.Name = name.GetString();
+                            }
+                            if (function.TryGetProperty("arguments", out var args) && args.ValueKind == JsonValueKind.String)
+                            {
+                                entry.Arguments.Append(args.GetString());
+                            }
+                        }
+
+                        toolCalls[index] = entry;
+                    }
+                }
+            }
+
+            // Build final response
+            var finalContent = new List<ContentBlock>();
+
+            // Add accumulated text
+            var accumulatedText = textBuilder.ToString();
+            if (!string.IsNullOrEmpty(accumulatedText))
+            {
+                finalContent.Add(new ContentBlock { Type = "text", Text = accumulatedText });
+            }
+
+            // Add tool calls
+            foreach (var (index, (id, name, arguments)) in toolCalls.OrderBy(kv => kv.Key))
+            {
+                var argsJson = arguments.ToString();
+                Dictionary<string, object>? inputDict = null;
+
+                if (!string.IsNullOrEmpty(argsJson))
+                {
+                    try
+                    {
+                        inputDict = JsonSerializer.Deserialize<Dictionary<string, object>>(argsJson);
+                    }
+                    catch
+                    {
+                        inputDict = new Dictionary<string, object> { ["_raw"] = argsJson };
+                    }
+                }
+
+                finalContent.Add(new ContentBlock
+                {
+                    Type = "tool_use",
+                    Id = id,
+                    Name = name,
+                    Input = inputDict ?? new Dictionary<string, object>()
+                });
+            }
+
+            // Determine stop reason
+            string stopReason;
+            if (toolCalls.Count > 0)
+            {
+                stopReason = "tool_use";
+            }
+            else if (finishReason == "stop" || finishReason == null)
+            {
+                stopReason = "end_turn";
+            }
+            else
+            {
+                stopReason = finishReason;
+            }
+
+            // Populate streaming response
+            streamingResponse.FinalResponse = new LlmResponse
+            {
+                StopReason = stopReason,
+                Content = finalContent
+            };
+            streamingResponse.StopReason = stopReason;
+            streamingResponse.AccumulatedText = accumulatedText;
+            streamingResponse.IsComplete = true;
         }
     }
 }

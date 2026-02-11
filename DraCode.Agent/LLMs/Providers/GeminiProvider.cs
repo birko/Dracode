@@ -329,15 +329,20 @@ namespace DraCode.Agent.LLMs.Providers
                     };
                 }
 
-                return new LlmStreamingResponse
+                // Create response object that will be populated during streaming
+                var streamingResponse = new LlmStreamingResponse
                 {
-                    GetStreamAsync = async () =>
-                    {
-                        var stream = await response.Content.ReadAsStreamAsync();
-                        return ParseGeminiStreamChunks(ParseSseStream(stream));
-                    },
-                    IsComplete = false
+                    IsComplete = false,
+                    GetStreamAsync = null! // Will be set below
                 };
+
+                streamingResponse.GetStreamAsync = async () =>
+                {
+                    var stream = await response.Content.ReadAsStreamAsync();
+                    return ParseGeminiStreamChunksWithToolCapture(ParseSseStream(stream), streamingResponse);
+                };
+
+                return streamingResponse;
             }
             catch (Exception ex)
             {
@@ -389,6 +394,125 @@ namespace DraCode.Agent.LLMs.Providers
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Parses Gemini streaming chunks with tool call capture.
+        /// Yields text chunks for real-time display while accumulating tool calls.
+        /// </summary>
+        private static async IAsyncEnumerable<string> ParseGeminiStreamChunksWithToolCapture(
+            IAsyncEnumerable<string> sseChunks,
+            LlmStreamingResponse streamingResponse)
+        {
+            var textBuilder = new System.Text.StringBuilder();
+            var toolCalls = new List<ContentBlock>();
+            string? finishReason = null;
+
+            await foreach (var chunk in sseChunks)
+            {
+                if (string.IsNullOrWhiteSpace(chunk))
+                    continue;
+
+                JsonElement json;
+                try
+                {
+                    json = JsonSerializer.Deserialize<JsonElement>(chunk);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (!json.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+                    continue;
+
+                var candidate = candidates[0];
+
+                // Capture finish reason
+                if (candidate.TryGetProperty("finishReason", out var fr))
+                {
+                    finishReason = fr.GetString();
+                }
+
+                if (!candidate.TryGetProperty("content", out var content))
+                    continue;
+
+                if (!content.TryGetProperty("parts", out var parts))
+                    continue;
+
+                foreach (var part in parts.EnumerateArray())
+                {
+                    if (part.TryGetProperty("text", out var text))
+                    {
+                        var textValue = text.GetString();
+                        if (!string.IsNullOrEmpty(textValue))
+                        {
+                            textBuilder.Append(textValue);
+                            yield return textValue;
+                        }
+                    }
+                    else if (part.TryGetProperty("functionCall", out var functionCall))
+                    {
+                        // Capture tool call
+                        var args = new Dictionary<string, object>();
+                        if (functionCall.TryGetProperty("args", out var argsElement))
+                        {
+                            foreach (var prop in argsElement.EnumerateObject())
+                            {
+                                args[prop.Name] = prop.Value.ValueKind == JsonValueKind.String
+                                    ? prop.Value.GetString() ?? string.Empty
+                                    : prop.Value.ToString();
+                            }
+                        }
+
+                        toolCalls.Add(new ContentBlock
+                        {
+                            Type = "tool_use",
+                            Id = Guid.NewGuid().ToString(),
+                            Name = functionCall.TryGetProperty("name", out var name) ? name.GetString() : null,
+                            Input = args
+                        });
+                    }
+                }
+            }
+
+            // Build final response
+            var finalContent = new List<ContentBlock>();
+
+            // Add accumulated text
+            var accumulatedText = textBuilder.ToString();
+            if (!string.IsNullOrEmpty(accumulatedText))
+            {
+                finalContent.Add(new ContentBlock { Type = "text", Text = accumulatedText });
+            }
+
+            // Add tool calls
+            finalContent.AddRange(toolCalls);
+
+            // Determine stop reason
+            string stopReason;
+            if (toolCalls.Count > 0)
+            {
+                stopReason = "tool_use";
+            }
+            else if (finishReason == "SAFETY" || finishReason == "RECITATION")
+            {
+                stopReason = "error";
+            }
+            else
+            {
+                stopReason = "end_turn";
+            }
+
+            // Populate streaming response
+            streamingResponse.FinalResponse = new LlmResponse
+            {
+                StopReason = stopReason,
+                Content = finalContent
+            };
+            streamingResponse.StopReason = stopReason;
+            streamingResponse.AccumulatedText = accumulatedText;
+            streamingResponse.IsComplete = true;
         }
     }
 }

@@ -216,16 +216,21 @@ namespace DraCode.Agent.LLMs.Providers
                     };
                 }
 
-                return new LlmStreamingResponse
+                // Create response object that will be populated during streaming
+                var streamingResponse = new LlmStreamingResponse
                 {
-                    GetStreamAsync = async () =>
-                    {
-                        var stream = await response.Content.ReadAsStreamAsync();
-                        var sseStream = ParseSseStream(stream);
-                        return ParseOpenAiStreamChunks(sseStream);
-                    },
-                    IsComplete = false
+                    IsComplete = false,
+                    GetStreamAsync = null! // Will be set below
                 };
+
+                streamingResponse.GetStreamAsync = async () =>
+                {
+                    var stream = await response.Content.ReadAsStreamAsync();
+                    var sseStream = ParseSseStream(stream);
+                    return ParseOpenAiStreamChunksWithToolCapture(sseStream, streamingResponse);
+                };
+
+                return streamingResponse;
             }
             catch (Exception ex)
             {

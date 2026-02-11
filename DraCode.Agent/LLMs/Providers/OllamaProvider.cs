@@ -165,15 +165,20 @@ namespace DraCode.Agent.LLMs.Providers
                     };
                 }
 
-                return new LlmStreamingResponse
+                // Create response object that will be populated during streaming
+                var streamingResponse = new LlmStreamingResponse
                 {
-                    GetStreamAsync = async () =>
-                    {
-                        var stream = await response.Content.ReadAsStreamAsync();
-                        return ParseOllamaStreamChunks(stream);
-                    },
-                    IsComplete = false
+                    IsComplete = false,
+                    GetStreamAsync = null! // Will be set below
                 };
+
+                streamingResponse.GetStreamAsync = async () =>
+                {
+                    var stream = await response.Content.ReadAsStreamAsync();
+                    return ParseOllamaStreamChunksWithToolCapture(stream, streamingResponse);
+                };
+
+                return streamingResponse;
             }
             catch (Exception ex)
             {
@@ -220,6 +225,110 @@ namespace DraCode.Agent.LLMs.Providers
                     yield break;
                 }
             }
+        }
+
+        /// <summary>
+        /// Parses Ollama streaming chunks with tool call capture.
+        /// Ollama uses NDJSON format with message.content for text and message.tool_calls for tools.
+        /// </summary>
+        private static async IAsyncEnumerable<string> ParseOllamaStreamChunksWithToolCapture(
+            Stream stream,
+            LlmStreamingResponse streamingResponse)
+        {
+            var textBuilder = new System.Text.StringBuilder();
+            var toolCalls = new List<ContentBlock>();
+            bool isDone = false;
+
+            using var reader = new StreamReader(stream);
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                JsonElement json;
+                try
+                {
+                    json = JsonSerializer.Deserialize<JsonElement>(line);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (json.TryGetProperty("message", out var message))
+                {
+                    // Capture text content
+                    if (message.TryGetProperty("content", out var content))
+                    {
+                        var text = content.GetString();
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            textBuilder.Append(text);
+                            yield return text;
+                        }
+                    }
+
+                    // Capture tool calls (usually in final message)
+                    if (message.TryGetProperty("tool_calls", out var toolCallsElement) &&
+                        toolCallsElement.ValueKind == JsonValueKind.Array &&
+                        toolCallsElement.GetArrayLength() > 0)
+                    {
+                        foreach (var toolCall in toolCallsElement.EnumerateArray())
+                        {
+                            if (toolCall.TryGetProperty("function", out var function))
+                            {
+                                var argumentsJson = function.TryGetProperty("arguments", out var args)
+                                    ? args.GetString()
+                                    : null;
+                                var inputArgs = argumentsJson is not null
+                                    ? JsonSerializer.Deserialize<Dictionary<string, object>>(argumentsJson)
+                                    : new Dictionary<string, object>();
+
+                                toolCalls.Add(new ContentBlock
+                                {
+                                    Type = "tool_use",
+                                    Id = Guid.NewGuid().ToString(),
+                                    Name = function.TryGetProperty("name", out var name) ? name.GetString() : null,
+                                    Input = inputArgs
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if (json.TryGetProperty("done", out var done) && done.GetBoolean())
+                {
+                    isDone = true;
+                    break;
+                }
+            }
+
+            // Build final response
+            var finalContent = new List<ContentBlock>();
+
+            // Add accumulated text
+            var accumulatedText = textBuilder.ToString();
+            if (!string.IsNullOrEmpty(accumulatedText))
+            {
+                finalContent.Add(new ContentBlock { Type = "text", Text = accumulatedText });
+            }
+
+            // Add tool calls
+            finalContent.AddRange(toolCalls);
+
+            // Determine stop reason
+            string stopReason = toolCalls.Count > 0 ? "tool_use" : "end_turn";
+
+            // Populate streaming response
+            streamingResponse.FinalResponse = new LlmResponse
+            {
+                StopReason = stopReason,
+                Content = finalContent
+            };
+            streamingResponse.StopReason = stopReason;
+            streamingResponse.AccumulatedText = accumulatedText;
+            streamingResponse.IsComplete = isDone;
         }
     }
 }

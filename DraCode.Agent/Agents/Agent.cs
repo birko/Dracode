@@ -233,64 +233,205 @@ Reasoning approach: Balanced
 
         /// <summary>
         /// Runs the agent loop with streaming responses.
-        /// Note: Streaming mode currently only supports text responses. Tool calls fall back to sync mode.
+        /// Supports both text streaming and tool calls - streams text in real-time,
+        /// then continues with tool processing loop if the LLM requests tool use.
         /// </summary>
         private async Task<List<Message>> RunWithHistoryStreamingAsync(List<Message> conversation, int? maxIterations = null)
         {
             var maxIter = maxIterations ?? _options.MaxIterations;
+            var iteration = 1;
 
-            // Streaming currently only supports single-turn text responses
-            // Multi-turn with tool calls requires sync mode
-            if (_options.Verbose)
+            while (iteration <= maxIter)
             {
-                SendMessage("info", "ITERATION 1 (streaming)");
-            }
-
-            var streamingResponse = await _llmProvider.SendMessageStreamingAsync(conversation, _tools, SystemPrompt);
-
-            if (!string.IsNullOrEmpty(streamingResponse.Error))
-            {
-                SendMessage("error", $"Streaming error: {streamingResponse.Error}");
-                throw new InvalidOperationException($"Streaming failed: {streamingResponse.Error}");
-            }
-
-            // Collect the full response from stream
-            var fullText = new System.Text.StringBuilder();
-            var stream = await streamingResponse.GetStreamAsync();
-
-            await foreach (var chunk in stream)
-            {
-                fullText.Append(chunk);
-                // Send streaming chunks to callback for real-time display
-                SendMessage("assistant_stream", chunk);
-            }
-
-            var responseText = fullText.ToString();
-
-            // For streaming, we only get text content (tool calls not yet supported in streaming mode)
-            var response = new LlmResponse
-            {
-                StopReason = "end_turn",
-                Content = new List<ContentBlock>
+                if (_options.Verbose)
                 {
-                    new ContentBlock { Type = "text", Text = responseText }
+                    SendMessage("info", $"ITERATION {iteration}{(iteration == 1 ? " (streaming)" : "")}");
                 }
-            };
 
-            if (_options.Verbose)
-            {
-                SendMessage("info", $"Stop reason: {response.StopReason}");
+                // First iteration uses streaming, subsequent iterations use sync for tool processing
+                LlmResponse response;
+                string responseText;
+
+                if (iteration == 1)
+                {
+                    // Stream the first response for real-time display
+                    var streamingResponse = await _llmProvider.SendMessageStreamingAsync(conversation, _tools, SystemPrompt);
+
+                    if (!string.IsNullOrEmpty(streamingResponse.Error))
+                    {
+                        SendMessage("error", $"Streaming error: {streamingResponse.Error}");
+                        throw new InvalidOperationException($"Streaming failed: {streamingResponse.Error}");
+                    }
+
+                    // Collect the full response from stream
+                    var fullText = new System.Text.StringBuilder();
+                    var stream = await streamingResponse.GetStreamAsync();
+
+                    await foreach (var chunk in stream)
+                    {
+                        fullText.Append(chunk);
+                        // Send streaming chunks to callback for real-time display
+                        SendMessage("assistant_stream", chunk);
+                    }
+
+                    responseText = fullText.ToString();
+
+                    // Check if provider captured full response with tool calls
+                    if (streamingResponse.FinalResponse != null)
+                    {
+                        response = streamingResponse.FinalResponse;
+                    }
+                    else
+                    {
+                        // Fallback: provider didn't capture tool calls, assume text-only
+                        response = new LlmResponse
+                        {
+                            StopReason = streamingResponse.StopReason ?? "end_turn",
+                            Content = new List<ContentBlock>
+                            {
+                                new ContentBlock { Type = "text", Text = responseText }
+                            }
+                        };
+                    }
+                }
+                else
+                {
+                    // Subsequent iterations use synchronous mode for tool processing
+                    response = await _llmProvider.SendMessageAsync(conversation, _tools, SystemPrompt);
+                    responseText = string.Join("\n", (response.Content ?? [])
+                        .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
+                        .Select(b => b.Text));
+                }
+
+                if (_options.Verbose)
+                {
+                    SendMessage("info", $"Stop reason: {response.StopReason}");
+                }
+
+                // Add assistant response to conversation
+                conversation.Add(new Message
+                {
+                    Role = "assistant",
+                    Content = response.Content
+                });
+
+                // Handle different stop reasons
+                switch (response.StopReason)
+                {
+                    case "tool_use":
+                        // Process tool calls
+                        var hasTextContent = (response.Content ?? []).Any(b => b.Type == "text" && !string.IsNullOrWhiteSpace(b.Text));
+                        var toolResults = new List<object>();
+                        var hasErrors = false;
+
+                        foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "tool_use"))
+                        {
+                            var toolCallMsg = $"Tool: {block.Name}\nInput: {JsonSerializer.Serialize(block.Input)}";
+                            SendMessage("tool_call", toolCallMsg);
+
+                            var tool = _tools.FirstOrDefault(t => t.Name == block.Name);
+                            var result = tool != null
+                                ? tool.Execute(_options.WorkingDirectory, block.Input ?? [])
+                                : $"Error: Unknown tool '{block.Name}'";
+
+                            // Check if tool execution resulted in an error
+                            if (result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasErrors = true;
+                            }
+
+                            var preview = result.Length > 500 ? string.Concat(result.AsSpan(0, 500), "...") : result;
+                            SendMessage("tool_result", $"Result from {block.Name}:\n{preview}");
+
+                            toolResults.Add(new
+                            {
+                                type = "tool_result",
+                                tool_use_id = block.Id,
+                                content = result
+                            });
+                        }
+
+                        conversation.Add(new Message
+                        {
+                            Role = "user",
+                            Content = toolResults
+                        });
+
+                        // If agent included text with tool calls, print it
+                        if (hasTextContent && _options.Verbose)
+                        {
+                            foreach (var block in (response.Content ?? []).Where(b => b.Type == "text"))
+                            {
+                                SendMessage("assistant", block.Text ?? "");
+                            }
+                        }
+
+                        // If we hit max iterations after tool calls, warn and stop
+                        if (iteration >= maxIter)
+                        {
+                            SendMessage("warning", $"Maximum iterations ({maxIter}) reached. Task may be incomplete.");
+                            return conversation;
+                        }
+
+                        // If all tools failed, no point continuing - let agent know and give one more chance
+                        if (hasErrors && toolResults.Count > 0 && toolResults.All(r =>
+                            r.GetType().GetProperty("content")?.GetValue(r)?.ToString()?.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) ?? false))
+                        {
+                            if (_options.Verbose)
+                            {
+                                SendMessage("warning", "All tool executions failed. Giving agent one final response...");
+                            }
+                        }
+
+                        iteration++;
+                        break;
+
+                    case "end_turn":
+                        // Agent finished - send response
+                        foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "text"))
+                        {
+                            SendMessage("assistant_final", block.Text ?? "");
+                        }
+                        return conversation;
+
+                    case "error":
+                        // Error occurred - stop immediately
+                        SendMessage("error", "Error occurred during LLM request. Stopping.");
+                        if (response.Content == null || response.Content.Count == 0 || !response.Content.Any(b => b.Type == "text"))
+                        {
+                            if (response.Content == null)
+                            {
+                                response.Content = new List<ContentBlock>();
+                            }
+                            response.Content.Add(new ContentBlock
+                            {
+                                Type = "text",
+                                Text = "Error: An error occurred during LLM request."
+                            });
+                            conversation[^1] = new Message
+                            {
+                                Role = "assistant",
+                                Content = response.Content
+                            };
+                        }
+                        return conversation;
+
+                    default:
+                        // Unexpected stop reason - stop to be safe
+                        if (_options.Verbose)
+                        {
+                            SendMessage("warning", $"Unexpected stop reason: {response.StopReason ?? "unknown"}. Stopping.");
+                        }
+                        return conversation;
+                }
             }
 
-            // Add assistant response to conversation
-            conversation.Add(new Message
+            // If we exit the loop naturally, we hit max iterations
+            if (_options.Verbose)
             {
-                Role = "assistant",
-                Content = response.Content
-            });
+                SendMessage("warning", $"Maximum iterations ({maxIter}) reached.");
+            }
 
-            // Streaming mode currently only supports text responses (no tool calls)
-            SendMessage("assistant_final", responseText);
             return conversation;
         }
 
