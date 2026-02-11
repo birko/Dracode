@@ -109,13 +109,26 @@ class DragonSession {
         } else if (data.type === 'dragon_message') {
             // Check if this is a completion of a streaming response
             if (data.isStreamed) {
-                // Finalize the streaming message (already displayed)
+                // Finalize the streaming message display (remove cursor)
                 this.view.finalizeStreamingMessage();
-            } else {
-                // Regular non-streaming message - add normally
-                this.addMessage('assistant', data.message, data.messageId);
             }
-            
+
+            // Always save the message from server response (handles both streamed and non-streamed)
+            // Use data.message with fallback - prevents "undefined" display
+            const content = data.message ?? data.content ?? '';
+            if (content) {
+                if (data.isStreamed) {
+                    // For streamed: save without UI update (streaming element already displays it)
+                    const msg = { role: 'assistant', content };
+                    if (data.messageId) msg.messageId = data.messageId;
+                    this.messages.push(msg);
+                    this.view.saveAllSessions();
+                } else {
+                    // For non-streamed: normal flow with UI update
+                    this.addMessage('assistant', content, data.messageId);
+                }
+            }
+
             // Hide thinking indicator and re-enable input
             this.isProcessing = false;
             this.view.hideThinkingIndicator();
@@ -742,7 +755,8 @@ export class DragonView {
             emptyState.remove();
         }
 
-        if (msg.content === '') return;
+        // Guard against empty or undefined content
+        if (!msg.content) return;
 
         // Clear if system reload message
         if (role === 'system' && msg.content.includes('reloaded')) {
@@ -826,7 +840,8 @@ export class DragonView {
     }
 
     /**
-     * Finalize the streaming message (remove cursor, save to history)
+     * Finalize the streaming message display (remove cursor).
+     * Note: Message saving is handled by handleMessage to ensure it works even when not on view.
      */
     finalizeStreamingMessage() {
         const messagesContainer = document.getElementById('dragonMessages');
@@ -840,16 +855,7 @@ export class DragonView {
             if (cursor) {
                 cursor.remove();
             }
-
-            // Get the final text and save to session
-            const textElement = streamingMessage.querySelector('.chat-message-text');
-            if (textElement && this.activeSessionId !== null) {
-                const session = this.sessions.get(this.activeSessionId);
-                if (session) {
-                    const finalText = textElement.textContent;
-                    session.addMessage('assistant', finalText);
-                }
-            }
+            // Message is saved by handleMessage, not here - ensures it works when not on view
         }
     }
 
