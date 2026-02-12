@@ -285,13 +285,8 @@ namespace DraCode.KoboldLair.Server.Services
                             ["timestamp"] = msg.Timestamp
                         };
 
-                        if (msg.Data is IDictionary<string, object> dataDict)
-                        {
-                            foreach (var kvp in dataDict.Where(k => k.Key != "type" && k.Key != "messageId" && k.Key != "sessionId" && k.Key != "timestamp"))
-                            {
-                                replayData[kvp.Key] = kvp.Value;
-                            }
-                        }
+                        // Extract properties from the stored data (handles both JsonNode and dictionary)
+                        ExtractMessageProperties(msg.Data, replayData);
 
                         await SendMessageAsync(webSocket, replayData);
                     }
@@ -815,6 +810,7 @@ namespace DraCode.KoboldLair.Server.Services
                     return;
                 }
 
+                _logger.LogDebug("[Dragon] Sending stream complete message to session {SessionId}", session.SessionId);
                 await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
                 {
                     type = "dragon_message",
@@ -823,6 +819,7 @@ namespace DraCode.KoboldLair.Server.Services
                     timestamp = DateTime.UtcNow,
                     isStreamed = true  // Flag to indicate this was a streamed response
                 });
+                _logger.LogDebug("[Dragon] Stream complete message sent successfully to session {SessionId}", session.SessionId);
             }
             catch (Exception ex)
             {
@@ -1168,6 +1165,114 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 ActiveSessions = _sessions.Count,
                 TotalSpecifications = totalSpecs
+            };
+        }
+
+        /// <summary>
+        /// Extracts message properties from stored data (handles JsonNode, JsonObject, and dictionary types)
+        /// </summary>
+        private static void ExtractMessageProperties(object data, Dictionary<string, object> targetDict)
+        {
+            var skipKeys = new HashSet<string> { "type", "messageId", "sessionId", "timestamp" };
+
+            if (data is System.Text.Json.Nodes.JsonObject jsonObject)
+            {
+                foreach (var kvp in jsonObject)
+                {
+                    if (!skipKeys.Contains(kvp.Key) && kvp.Value != null)
+                    {
+                        // Convert JsonNode to appropriate .NET type
+                        targetDict[kvp.Key] = ConvertJsonNode(kvp.Value);
+                    }
+                }
+            }
+            else if (data is System.Text.Json.Nodes.JsonNode jsonNode)
+            {
+                // Handle case where it's a JsonNode but not JsonObject
+                if (jsonNode is System.Text.Json.Nodes.JsonObject obj)
+                {
+                    foreach (var kvp in obj)
+                    {
+                        if (!skipKeys.Contains(kvp.Key) && kvp.Value != null)
+                        {
+                            targetDict[kvp.Key] = ConvertJsonNode(kvp.Value);
+                        }
+                    }
+                }
+            }
+            else if (data is IDictionary<string, object> dataDict)
+            {
+                foreach (var kvp in dataDict.Where(k => !skipKeys.Contains(k.Key)))
+                {
+                    targetDict[kvp.Key] = kvp.Value;
+                }
+            }
+            else if (data is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in jsonElement.EnumerateObject())
+                {
+                    if (!skipKeys.Contains(prop.Name))
+                    {
+                        targetDict[prop.Name] = ConvertJsonElement(prop.Value);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Converts a JsonNode to an appropriate .NET type for serialization
+        /// </summary>
+        private static object ConvertJsonNode(System.Text.Json.Nodes.JsonNode? node)
+        {
+            if (node == null) return null!;
+
+            if (node is System.Text.Json.Nodes.JsonValue value)
+            {
+                // Try to get the underlying value
+                if (value.TryGetValue<string>(out var str)) return str;
+                if (value.TryGetValue<bool>(out var b)) return b;
+                if (value.TryGetValue<int>(out var i)) return i;
+                if (value.TryGetValue<long>(out var l)) return l;
+                if (value.TryGetValue<double>(out var d)) return d;
+                if (value.TryGetValue<DateTime>(out var dt)) return dt;
+                return value.ToString();
+            }
+
+            if (node is System.Text.Json.Nodes.JsonArray arr)
+            {
+                return arr.Select(n => ConvertJsonNode(n)).ToList();
+            }
+
+            if (node is System.Text.Json.Nodes.JsonObject obj)
+            {
+                var dict = new Dictionary<string, object>();
+                foreach (var kvp in obj)
+                {
+                    if (kvp.Value != null)
+                    {
+                        dict[kvp.Key] = ConvertJsonNode(kvp.Value);
+                    }
+                }
+                return dict;
+            }
+
+            return node.ToString();
+        }
+
+        /// <summary>
+        /// Converts a JsonElement to an appropriate .NET type
+        /// </summary>
+        private static object ConvertJsonElement(JsonElement element)
+        {
+            return element.ValueKind switch
+            {
+                JsonValueKind.String => element.GetString()!,
+                JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToList(),
+                JsonValueKind.Object => element.EnumerateObject().ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
+                _ => element.ToString()
             };
         }
     }
