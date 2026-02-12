@@ -73,6 +73,8 @@ class DragonSession {
     }
 
     handleMessage(data) {
+        console.log(`[Session ${this.id}] Received message:`, data.type, data.messageId || '(no id)');
+
         // Track sessionId from server
         if (data.sessionId && data.sessionId !== this.sessionId) {
             this.sessionId = data.sessionId;
@@ -107,12 +109,22 @@ class DragonSession {
             this.view.showNotification(`Failed to restore conversation: ${data.error}`, 'error');
             return;
         } else if (data.type === 'dragon_message') {
+            console.log(`[Session ${this.id}] Processing dragon_message:`, {
+                isStreamed: data.isStreamed,
+                hasContent: !!(data.message || data.content),
+                contentLength: (data.message || data.content || '').length,
+                activeSession: this.view.activeSessionId === this.id
+            });
+
             // Check if this is a completion of a streaming response.
             // Note: isStreamed may be true even if no streaming chunks arrived (e.g., after tool use)
             const streamingElementExists = this.view.hasStreamingElement();
+            console.log(`[Session ${this.id}] Streaming element exists:`, streamingElementExists);
+
             if (data.isStreamed && streamingElementExists) {
-                // Finalize the streaming message display (remove cursor)
-                this.view.finalizeStreamingMessage();
+                // Finalize the streaming message display (remove cursor) and update content
+                // This ensures the final message is displayed even if streaming chunks were incomplete
+                this.view.finalizeStreamingMessage(data.message ?? data.content ?? '');
             }
 
             // Always save the message from server response (handles both streamed and non-streamed)
@@ -121,14 +133,18 @@ class DragonSession {
             if (content) {
                 if (data.isStreamed && streamingElementExists) {
                     // For streamed: save without UI update (streaming element already displays it)
+                    console.log(`[Session ${this.id}] Saving streamed message (UI already updated)`);
                     const msg = { role: 'assistant', content };
                     if (data.messageId) msg.messageId = data.messageId;
                     this.messages.push(msg);
                     this.view.saveAllSessions();
                 } else {
                     // For non-streamed OR streamed without chunks: normal flow with UI update
+                    console.log(`[Session ${this.id}] Adding message to UI via addMessage()`);
                     this.addMessage('assistant', content, data.messageId);
                 }
+            } else {
+                console.warn(`[Session ${this.id}] dragon_message received with no content!`);
             }
 
             // Hide thinking indicator and re-enable input
@@ -137,6 +153,7 @@ class DragonSession {
             this.view.setInputEnabled(true);
         } else if (data.type === 'dragon_stream') {
             // Handle streaming chunk - append to current streaming message
+            console.log(`[Session ${this.id}] dragon_stream chunk:`, JSON.stringify(data.chunk), 'full data:', data);
             this.view.appendStreamingChunk(data.chunk);
         } else if (data.type === 'dragon_reloaded') {
             // Hide thinking indicator and clear session on reload
@@ -183,6 +200,7 @@ class DragonSession {
     }
 
     addMessage(role, content, messageId = null) {
+        console.log(`[Session ${this.id}] addMessage called:`, { role, contentLength: content?.length, messageId });
         const msg = { role, content };
         if (messageId) {
             msg.messageId = messageId;
@@ -192,7 +210,10 @@ class DragonSession {
 
         // Only update UI if this is the active session
         if (this.view.activeSessionId === this.id) {
+            console.log(`[Session ${this.id}] Calling appendMessageToUI (active session)`);
             this.view.appendMessageToUI(msg, role);
+        } else {
+            console.log(`[Session ${this.id}] Not active session (active: ${this.view.activeSessionId}), skipping UI update`);
         }
     }
 
@@ -244,10 +265,8 @@ class DragonSession {
                 sessionId: this.sessionId
             });
         }
-        // Clear local messages
+        // Clear local messages - server will send context_cleared confirmation
         this.clearMessages();
-        // Add a system message indicating context was cleared
-        this.addMessage('system', 'Context cleared - conversation memory has been reset.');
         this.view.saveAllSessions();
     }
 
@@ -749,16 +768,24 @@ export class DragonView {
 
     appendMessageToUI(msg, role) {
         const messagesContainer = document.getElementById('dragonMessages');
-        if (!messagesContainer) return;
+        if (!messagesContainer) {
+            console.warn('[DragonView] appendMessageToUI: dragonMessages container NOT FOUND!');
+            return;
+        }
+        console.log('[DragonView] appendMessageToUI: container found, appending message');
 
         // Clear empty state if present
         const emptyState = messagesContainer.querySelector('.empty-state');
         if (emptyState) {
+            console.log('[DragonView] Removing empty state');
             emptyState.remove();
         }
 
         // Guard against empty or undefined content
-        if (!msg.content) return;
+        if (!msg.content) {
+            console.warn('[DragonView] appendMessageToUI: msg.content is empty/falsy!');
+            return;
+        }
 
         // Clear if system reload message
         if (role === 'system' && msg.content.includes('reloaded')) {
@@ -804,17 +831,23 @@ export class DragonView {
      */
     appendStreamingChunk(chunk) {
         const messagesContainer = document.getElementById('dragonMessages');
-        if (!messagesContainer) return;
+        console.log('[DragonView] appendStreamingChunk:', { chunk, hasContainer: !!messagesContainer });
+        if (!messagesContainer) {
+            console.warn('[DragonView] appendStreamingChunk: NO CONTAINER FOUND');
+            return;
+        }
 
         // Clear empty state if present
         const emptyState = messagesContainer.querySelector('.empty-state');
         if (emptyState) {
+            console.log('[DragonView] Removing empty state for streaming');
             emptyState.remove();
         }
 
         // Look for an existing streaming message (marked with data-streaming attribute)
         let streamingMessage = messagesContainer.querySelector('.chat-message[data-streaming="true"]');
-        
+        console.log('[DragonView] Existing streaming message:', !!streamingMessage);
+
         if (!streamingMessage) {
             // Create new streaming message element
             streamingMessage = document.createElement('div');
@@ -835,6 +868,9 @@ export class DragonView {
         const textElement = streamingMessage.querySelector('.chat-message-text');
         if (textElement) {
             textElement.textContent += chunk;
+            console.log('[DragonView] Appended chunk, current length:', textElement.textContent.length);
+        } else {
+            console.warn('[DragonView] No text element found in streaming message');
         }
 
         // Auto-scroll to bottom
@@ -852,15 +888,27 @@ export class DragonView {
     }
 
     /**
-     * Finalize the streaming message display (remove cursor).
+     * Finalize the streaming message display (remove cursor) and optionally update content.
+     * If finalContent is provided, updates the text element to ensure complete content is displayed.
      * Note: Message saving is handled by handleMessage to ensure it works even when not on view.
+     * @param {string|null} finalContent - The final message content from server (optional)
      */
-    finalizeStreamingMessage() {
+    finalizeStreamingMessage(finalContent = null) {
         const messagesContainer = document.getElementById('dragonMessages');
         if (!messagesContainer) return;
 
         const streamingMessage = messagesContainer.querySelector('.chat-message[data-streaming="true"]');
         if (streamingMessage) {
+            // Update content if final content provided - ensures complete message is displayed
+            // even if streaming chunks were incomplete or not rendered properly
+            if (finalContent) {
+                const textElement = streamingMessage.querySelector('.chat-message-text');
+                if (textElement) {
+                    console.log('[DragonView] Updating streaming content with final message, length:', finalContent.length);
+                    textElement.textContent = finalContent;
+                }
+            }
+
             // Remove streaming indicator
             streamingMessage.removeAttribute('data-streaming');
             const cursor = streamingMessage.querySelector('.streaming-cursor');

@@ -15,6 +15,8 @@ export class WebSocketClient {
         this.pongTimeout = null;
         this.missedPongs = 0;
         this.maxMissedPongs = 3;
+        this.pingSequence = 0;         // Tracks which ping we sent
+        this.lastPongSequence = 0;     // Tracks which ping was acknowledged
         this.sessionId = null;
         this.receivedMessageIds = new Set();
         this.onSessionNotFound = null;
@@ -99,9 +101,12 @@ export class WebSocketClient {
             this.ws.onmessage = (event) => {
                 try {
                     const message = JSON.parse(event.data);
+                    console.log('[WebSocket] Received raw message:', message.type, message.messageId || '(no id)');
 
                     // Handle pong responses
                     if (message.type === 'pong') {
+                        // Mark that we received a pong for the current ping sequence
+                        this.lastPongSequence = this.pingSequence;
                         this.missedPongs = 0;
                         clearTimeout(this.pongTimeout);
                         return;
@@ -125,7 +130,7 @@ export class WebSocketClient {
                     // Deduplicate messages using messageId
                     if (message.messageId) {
                         if (this.receivedMessageIds.has(message.messageId)) {
-                            console.log('Skipping duplicate message:', message.messageId);
+                            console.log('[WebSocket] Skipping duplicate message:', message.messageId);
                             return;
                         }
                         this.receivedMessageIds.add(message.messageId);
@@ -137,9 +142,10 @@ export class WebSocketClient {
                         }
                     }
 
+                    console.log('[WebSocket] Dispatching to handlers:', message.type);
                     this.handleMessage(message);
                 } catch (error) {
-                    console.error('Failed to parse message:', error);
+                    console.error('[WebSocket] Failed to parse message:', error, event.data?.substring?.(0, 200));
                 }
             };
         });
@@ -182,18 +188,31 @@ export class WebSocketClient {
     startHeartbeat() {
         this.stopHeartbeat();
         this.missedPongs = 0;
-        
+        this.pingSequence = 0;
+        this.lastPongSequence = 0;
+
         // Send ping every 20 seconds
         this.pingInterval = setInterval(() => {
             if (this.ws?.readyState === WebSocket.OPEN) {
                 try {
+                    // Increment sequence before sending ping
+                    this.pingSequence++;
+                    const expectedSequence = this.pingSequence;
+
                     this.ws.send(JSON.stringify({ action: 'ping' }));
-                    
+
                     // Set timeout for pong response (5 seconds)
                     this.pongTimeout = setTimeout(() => {
+                        // Check if pong was received for this specific ping
+                        // This handles the race condition where pong arrives just as timeout fires
+                        if (this.lastPongSequence >= expectedSequence) {
+                            // Pong was received, timeout callback is stale - ignore
+                            return;
+                        }
+
                         this.missedPongs++;
                         console.warn(`Missed pong response (${this.missedPongs}/${this.maxMissedPongs})`);
-                        
+
                         if (this.missedPongs >= this.maxMissedPongs) {
                             console.error('Connection appears dead, reconnecting...');
                             this.ws?.close();
@@ -216,6 +235,8 @@ export class WebSocketClient {
             this.pongTimeout = null;
         }
         this.missedPongs = 0;
+        this.pingSequence = 0;
+        this.lastPongSequence = 0;
     }
 
     async send(message) {
@@ -283,12 +304,16 @@ export class WebSocketClient {
 
     handleMessage(message) {
         const handlers = this.messageHandlers.get(message.type);
+        const handlerCount = handlers?.length || 0;
+        console.log(`[WebSocket] handleMessage: type=${message.type}, specific handlers=${handlerCount}`);
         if (handlers) {
             handlers.forEach(handler => handler(message));
         }
-        
+
         // Also handle generic 'message' handlers
         const allHandlers = this.messageHandlers.get('message');
+        const allHandlerCount = allHandlers?.length || 0;
+        console.log(`[WebSocket] handleMessage: generic 'message' handlers=${allHandlerCount}`);
         if (allHandlers) {
             allHandlers.forEach(handler => handler(message));
         }
