@@ -147,35 +147,33 @@ COMPLETION CHECK:
 
 ## Implementation Priority
 
-| Priority | Enhancement | Agent | Impact |
+| Priority | Enhancement | Agent | Status |
 |----------|-------------|-------|--------|
-| **P1** | Iteration checkpoints | Kobold | Catches stuck loops early |
-| **P1** | Error explanation | All | Better retry strategies |
-| **P2** | Plan re-evaluation | Kobold | Prevents wasted work |
-| **P2** | Success self-assessment | Kobold | Higher quality outputs |
-| **P3** | Uncertainty estimation | Planner | Better iteration budgets |
-| **P3** | Workspace conflict reasoning | Drake | Fewer parallel conflicts |
+| **P1** | Iteration checkpoints | Kobold | ✅ COMPLETED (2026-02-12) |
+| **P1** | Error explanation | Kobold | ✅ COMPLETED (2026-02-12) |
+| **P2** | Plan re-evaluation | Kobold | ⏳ Future |
+| **P2** | Success self-assessment | Kobold | ⏳ Future |
+| **P3** | Uncertainty estimation | Planner | ⏳ Future |
+| **P3** | Workspace conflict reasoning | Drake | ⏳ Future |
 
 ---
 
 ## Concrete Implementation Approaches
 
-### Option 1: Prompt-Based Self-Reflection
+### Option 1: Prompt-Based Self-Reflection ✅ COMPLETED (2026-02-12)
 
-Add reflection prompts to system instructions:
+**Location**: `DraCode.KoboldLair/Models/Agents/Kobold.cs`
 
-```csharp
-// In Kobold.BuildFullPromptWithPlanAsync()
-sb.AppendLine("\n## SELF-REFLECTION PROTOCOL");
-sb.AppendLine("Every 3 iterations, output a CHECKPOINT block:");
-sb.AppendLine("```");
-sb.AppendLine("CHECKPOINT:");
-sb.AppendLine("- Progress: [percentage] toward current step");
-sb.AppendLine("- Blockers: [any issues encountered]");
-sb.AppendLine("- Confidence: [how sure am I this approach will work]");
-sb.AppendLine("- Adjustment: [continue/pivot/escalate]");
-sb.AppendLine("```");
-```
+Implemented in `BuildFullPromptWithPlanAsync()`:
+
+1. **SELF-REFLECTION PROTOCOL** (lines 1070-1082)
+   - CHECKPOINT block format with Progress, Files done, Blockers, Confidence, Decision
+
+2. **ERROR HANDLING PROTOCOL** (lines 1084-1093)
+   - ERROR ANALYSIS block for root-cause reasoning
+
+3. **Checkpoint Injection** (lines 810-835)
+   - Runtime injection every N iterations (configurable via `CheckpointInterval`)
 
 **Pros**: Simple, no code changes beyond prompts
 **Cons**: LLM may ignore, inconsistent formatting
@@ -252,8 +250,8 @@ public class ReasoningMonitorService
 
 Self-reasoning would address DraCode's primary limitation: agents that execute plans rigidly without adapting to discovered realities. The highest-impact improvements are:
 
-1. **Iteration checkpoints** - Catch stuck loops early
-2. **Error root-cause analysis** - Smarter retry strategies
-3. **Plan feasibility re-evaluation** - Prevent wasted work downstream
+1. ✅ **Iteration checkpoints** - Catch stuck loops early - COMPLETED
+2. ✅ **Error root-cause analysis** - Smarter retry strategies - COMPLETED
+3. ⏳ **Plan feasibility re-evaluation** - Prevent wasted work downstream - FUTURE
 
-Recommended approach: Start with **Option 1 (prompt-based)** to validate the concept, then evolve to **Option 2 (structured tools)** once patterns are understood.
+**Status**: Option 1 (prompt-based) has been implemented. Next step is Option 2 (structured tools) to enforce and capture reflection data programmatically.
