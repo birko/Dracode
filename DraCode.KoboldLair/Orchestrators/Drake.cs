@@ -1259,6 +1259,40 @@ namespace DraCode.KoboldLair.Orchestrators
                 // Mark the Kobold as stuck (transitions to Done with error)
                 kobold.MarkAsStuck(workingDuration, timeout);
 
+                // Save plan progress so it can be resumed on retry
+                // IMPORTANT: Don't mark plan as Failed if there's partial progress - keep it InProgress for resumption
+                if (kobold.ImplementationPlan != null && _planService != null && !string.IsNullOrEmpty(kobold.ProjectId))
+                {
+                    var completedSteps = kobold.ImplementationPlan.CompletedStepsCount;
+                    var totalSteps = kobold.ImplementationPlan.Steps.Count;
+
+                    // Add timeout log entry
+                    kobold.ImplementationPlan.AddLogEntry(
+                        $"⏱️ Kobold timed out after {workingDuration.TotalMinutes:F1} minutes. " +
+                        $"Progress: {completedSteps}/{totalSteps} steps completed. " +
+                        $"Plan saved for resumption on retry.");
+
+                    // Keep plan InProgress (not Failed) if there's partial progress
+                    // This allows EnsurePlanAsync to reuse the plan on retry
+                    if (completedSteps > 0 && kobold.ImplementationPlan.Status == PlanStatus.InProgress)
+                    {
+                        // Status stays InProgress - don't mark as Failed
+                        _logger?.LogInformation(
+                            "📋 Preserving plan progress for retry: {CompletedSteps}/{TotalSteps} steps completed",
+                            completedSteps, totalSteps);
+                    }
+
+                    try
+                    {
+                        await _planService.SavePlanAsync(kobold.ImplementationPlan);
+                        _logger?.LogDebug("💾 Saved plan progress for timed-out Kobold {KoboldId}", kobold.Id.ToString()[..8]);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to save plan progress for timed-out Kobold {KoboldId}", kobold.Id.ToString()[..8]);
+                    }
+                }
+
                 // Sync the task status from the now-failed Kobold
                 await SyncTaskFromKoboldAsync(kobold);
 
