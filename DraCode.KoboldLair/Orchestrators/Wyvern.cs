@@ -651,10 +651,16 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 try
                 {
                     // Simplified naming: {area}-tasks.md (project folder provides context)
-                    // Sanitize area name to remove spaces and special characters
+                    // Sanitize area name: replace spaces and special characters (/, \, :, etc.) with dashes
                     var sanitizedAreaName = System.Text.RegularExpressions.Regex.Replace(
                         area.Name.ToLower(),
-                        @"\s+",
+                        @"[\s/\\:*?""<>|]+",
+                        "-"
+                    );
+                    // Remove leading/trailing dashes and collapse multiple dashes
+                    sanitizedAreaName = System.Text.RegularExpressions.Regex.Replace(
+                        sanitizedAreaName.Trim('-'),
+                        @"-+",
                         "-"
                     );
 
@@ -718,9 +724,10 @@ Respond with ONLY valid JSON (no markdown, no explanations):
 
                     taskFiles[area.Name] = areaOutputPath;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Track failed areas for reprocessing
+                    // Track failed areas for reprocessing with error details
+                    System.Diagnostics.Debug.WriteLine($"Failed to create task file for area '{area.Name}': {ex.Message}");
                     failedAreas.Add(area.Name);
                 }
             }
