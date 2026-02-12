@@ -85,7 +85,7 @@ namespace DraCode.Agent.Agents
                 "zai" or "zhipu" or "zhipuai" => new ZAiProvider(
                     C("apiKey"),
                     C("model", "glm-4.5-flash"),
-                    C("baseUrl", ZAiProvider.InternationalEndpoint),
+                    config.TryGetValue("baseUrl", out var zaiUrl) && !string.IsNullOrWhiteSpace(zaiUrl) ? zaiUrl : null, // null = let ZAiProvider choose based on useCodingEndpoint
                     C("deepThinking", "false").Equals("true", StringComparison.OrdinalIgnoreCase),
                     useCodingEndpoint),
                 _ => throw new ArgumentException($"Unknown provider '{provider}'. Supported: {string.Join(", ", SupportedProviders)}")
