@@ -296,10 +296,10 @@ namespace DraCode.KoboldLair.Server.Services
                     // Create all agents for this session
                     CreateSessionAgents(session);
 
-                    // Set message callbacks for all agents to forward thinking updates and streaming
-                    Action<string, string> messageCallback = (type, content) =>
+                    // Set message callback for Dragon (handles final response)
+                    Action<string, string> dragonCallback = (type, content) =>
                     {
-                        _logger.LogInformation("[Dragon Council] [{Type}] {Content}", type, content);
+                        _logger.LogInformation("[Dragon] [{Type}] {Content}", type, content);
                         if (type == "tool_call" || type == "tool_result" || type == "info")
                         {
                             _ = SendThinkingUpdateAsync(webSocket, currentSessionId, type, content);
@@ -317,11 +317,24 @@ namespace DraCode.KoboldLair.Server.Services
                         }
                     };
 
-                    session.Dragon!.SetMessageCallback(messageCallback);
-                    session.Sage!.SetMessageCallback(messageCallback);
-                    session.Seeker!.SetMessageCallback(messageCallback);
-                    session.Sentinel!.SetMessageCallback(messageCallback);
-                    session.Warden!.SetMessageCallback(messageCallback);
+                    // Set message callback for council members (does NOT handle assistant_final)
+                    // Council members' final responses are returned to Dragon, not sent directly to client
+                    Action<string, string> councilCallback = (type, content) =>
+                    {
+                        _logger.LogDebug("[Dragon Council] [{Type}] {Content}", type, content);
+                        if (type == "tool_call" || type == "tool_result" || type == "info")
+                        {
+                            _ = SendThinkingUpdateAsync(webSocket, currentSessionId, type, content);
+                        }
+                        // Note: assistant_stream and assistant_final are intentionally not forwarded
+                        // Council responses are returned to Dragon which sends the final response
+                    };
+
+                    session.Dragon!.SetMessageCallback(dragonCallback);
+                    session.Sage!.SetMessageCallback(councilCallback);
+                    session.Seeker!.SetMessageCallback(councilCallback);
+                    session.Sentinel!.SetMessageCallback(councilCallback);
+                    session.Warden!.SetMessageCallback(councilCallback);
 
                     _logger.LogInformation("[Dragon] Starting session...");
                     try
@@ -904,8 +917,8 @@ namespace DraCode.KoboldLair.Server.Services
                     session.MessageHistory.Clear();
                 }
 
-                // Set message callbacks for all agents to forward thinking updates and streaming
-                Action<string, string> messageCallback = (type, content) =>
+                // Set message callback for Dragon (handles final response)
+                Action<string, string> dragonCallback = (type, content) =>
                 {
                     if (type == "tool_call" || type == "tool_result" || type == "info")
                         _ = SendThinkingUpdateAsync(webSocket, sessionId, type, content);
@@ -918,11 +931,20 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                 };
 
-                session.Dragon!.SetMessageCallback(messageCallback);
-                session.Sage!.SetMessageCallback(messageCallback);
-                session.Seeker!.SetMessageCallback(messageCallback);
-                session.Sentinel!.SetMessageCallback(messageCallback);
-                session.Warden!.SetMessageCallback(messageCallback);
+                // Set message callback for council members (does NOT handle assistant_final)
+                // Council members' final responses are returned to Dragon, not sent directly to client
+                Action<string, string> councilCallback = (type, content) =>
+                {
+                    if (type == "tool_call" || type == "tool_result" || type == "info")
+                        _ = SendThinkingUpdateAsync(webSocket, sessionId, type, content);
+                    // Note: assistant_stream and assistant_final are intentionally not forwarded
+                };
+
+                session.Dragon!.SetMessageCallback(dragonCallback);
+                session.Sage!.SetMessageCallback(councilCallback);
+                session.Seeker!.SetMessageCallback(councilCallback);
+                session.Sentinel!.SetMessageCallback(councilCallback);
+                session.Warden!.SetMessageCallback(councilCallback);
 
                 // Reset streaming flag before processing
                 session.StreamingResponseSent = false;
