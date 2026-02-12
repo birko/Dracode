@@ -807,9 +807,37 @@ You are working on a task that is part of a larger project. Below is the project
                     Agent.Provider.MessageCallback?.Invoke("info", $"ITERATION {iteration} (Step {currentStepIndex + 1}, iter {stepIterationCount})");
                 }
 
-                var systemPrompt = (string?)Agent.GetType().GetProperty("SystemPrompt", 
+                // Inject checkpoint reminder every N iterations (P1 self-reflection)
+                var checkpointInterval = Agent.Options.CheckpointInterval;
+                if (checkpointInterval > 0 && stepIterationCount > 1 && stepIterationCount % checkpointInterval == 0)
+                {
+                    var currentStep = ImplementationPlan.Steps[currentStepIndex];
+                    var checkpointPrompt = $@"
+---
+**CHECKPOINT REQUIRED** (Iteration {iteration}, step iteration {stepIterationCount})
+
+You've spent {stepIterationCount} iterations on step {currentStepIndex + 1}: '{currentStep.Title}'
+
+Output a CHECKPOINT block now:
+```
+CHECKPOINT (iteration {iteration}):
+- Progress: [X%] toward '{currentStep.Title}'
+- Files done: [list]
+- Blockers: [any, or 'none']
+- Confidence: [0-100%]
+- Decision: [continue|pivot|escalate]
+```
+
+If step is complete, call `update_plan_step` with status 'completed'.
+---";
+
+                    conversation.Add(new Message { Role = "user", Content = checkpointPrompt });
+                    _logger?.LogDebug("Checkpoint reminder injected at iteration {Iteration}", iteration);
+                }
+
+                var systemPrompt = (string?)Agent.GetType().GetProperty("SystemPrompt",
                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(Agent) ?? "";
-                
+
                 var response = await Agent.Provider.SendMessageAsync(conversation, Agent.Tools.ToList(), systemPrompt);
 
                 if (Agent.Options.Verbose)
@@ -1038,10 +1066,37 @@ You are working on a task that is part of a larger project. Below is the project
                 sb.AppendLine("**CRITICAL**: After completing each step, you MUST call the `update_plan_step` tool to mark it as completed.");
                 sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
                 sb.AppendLine();
-                sb.AppendLine("**REFLECTION REMINDER**: Every few iterations, pause and reflect:");
-                sb.AppendLine("1. Did I create/modify the files specified in the current step?");
-                sb.AppendLine("2. Is the step truly complete? If yes, call `update_plan_step` immediately.");
-                sb.AppendLine("3. If incomplete, what specific work remains? Focus on that.");
+
+                // Self-Reflection Protocol (P1 - Prompt-based)
+                sb.AppendLine("## SELF-REFLECTION PROTOCOL");
+                sb.AppendLine();
+                sb.AppendLine("You MUST output a CHECKPOINT block every 3 iterations. This is mandatory.");
+                sb.AppendLine();
+                sb.AppendLine("```");
+                sb.AppendLine("CHECKPOINT (iteration N):");
+                sb.AppendLine("- Progress: [X%] toward current step completion");
+                sb.AppendLine("- Files done: [list files created/modified so far]");
+                sb.AppendLine("- Blockers: [any obstacles, or 'none']");
+                sb.AppendLine("- Confidence: [0-100%] this approach will succeed");
+                sb.AppendLine("- Decision: [continue|pivot|escalate]");
+                sb.AppendLine("```");
+                sb.AppendLine();
+                sb.AppendLine("## ERROR HANDLING PROTOCOL");
+                sb.AppendLine();
+                sb.AppendLine("When encountering errors, output an ERROR ANALYSIS block:");
+                sb.AppendLine();
+                sb.AppendLine("```");
+                sb.AppendLine("ERROR ANALYSIS:");
+                sb.AppendLine("- What happened: [specific error]");
+                sb.AppendLine("- Root cause: [code issue|external service|config|missing dependency]");
+                sb.AppendLine("- Strategy adjustment: [what to change before retry]");
+                sb.AppendLine("```");
+                sb.AppendLine();
+                sb.AppendLine("**CRITICAL**: After completing each step, call `update_plan_step` immediately.");
+                sb.AppendLine("Before marking complete, verify:");
+                sb.AppendLine("1. Did I create/modify the files specified?");
+                sb.AppendLine("2. Does the code actually work (no obvious errors)?");
+                sb.AppendLine("3. Is the step truly complete?");
                 sb.AppendLine();
 
                 // Show plan summary

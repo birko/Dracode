@@ -765,6 +765,63 @@ Important for reliability but workarounds exist. Improves system quality.
 
 ## 🔮 FUTURE / EXPLORATORY (Q3 2026+)
 
+### Self-Reasoning & Meta-Cognition for Agents
+
+**Analysis Document**: `docs/analysis/Self-Reasoning-Analysis.md`
+
+Agents currently operate in a plan-execution loop. Adding self-reflection could transform them into adaptive, learning agents.
+
+#### Implementation Status
+
+| Priority | Enhancement | Agent | Status |
+|----------|-------------|-------|--------|
+| **P1** | Iteration checkpoints (every 3-5 iterations) | Kobold | ✅ COMPLETED |
+| **P1** | Error explanation framework | Kobold | ✅ COMPLETED |
+| **P2** | Plan feasibility re-evaluation | Kobold | ⏳ Future |
+| **P2** | Success criteria self-assessment | Kobold | ⏳ Future |
+| **P3** | Uncertainty estimation | Planner | ⏳ Future |
+| **P3** | Workspace conflict reasoning | Drake | ⏳ Future |
+
+#### ✅ Completed: Option 1 - Prompt-Based Self-Reflection (2026-02-12)
+
+**Location**: `DraCode.KoboldLair/Models/Agents/Kobold.cs`
+
+1. **SELF-REFLECTION PROTOCOL** (lines 1070-1082)
+   - CHECKPOINT block format added to initial prompt
+   - Fields: Progress %, Files done, Blockers, Confidence %, Decision
+   - Decision options: continue | pivot | escalate
+
+2. **ERROR HANDLING PROTOCOL** (lines 1084-1093)
+   - ERROR ANALYSIS block format for root-cause reasoning
+   - Fields: What happened, Root cause, Strategy adjustment
+
+3. **Checkpoint Injection** (lines 810-835)
+   - Injects CHECKPOINT reminder every N iterations during execution
+   - Configurable via `AgentOptions.CheckpointInterval` (default: 3)
+   - Forces agent to pause and reflect mid-step
+
+#### Remaining Work (Option 2 - Structured Tools)
+
+- [ ] **ReflectionTool** - Structured tool forcing explicit reasoning output
+  - Capture progress_percent, blockers, confidence, adjustment
+  - Trigger Drake intervention if confidence < 30%
+  - Auto-escalate if progress stalled 3+ checkpoints
+  - Effort: Medium (~1 week)
+
+- [ ] **ReasoningMonitorService** - External service analyzing Kobold outputs
+  - Detect repeated error patterns
+  - Identify stuck loops (same files modified repeatedly)
+  - Flag low-progress iterations
+  - Recommend Drake intervention
+  - Effort: Medium (~1 week)
+
+#### Expected Benefits (from prompt-based)
+- Stuck loop detection: After max retries → After 3-5 iterations
+- Error retry success: ~40% → ~65% (adapted approach)
+- Plan completion rate: ~70% → ~85% (mid-course corrections)
+
+---
+
 ### Under Consideration
 
 - [ ] **KoboldLair CLI Client** - Standalone CLI tool (similar to GitHub Copilot CLI or Claude Code)
@@ -826,4 +883,4 @@ Important for reliability but workarounds exist. Improves system quality.
 
 ---
 
-*Last updated: 2026-02-11*
+*Last updated: 2026-02-12*

@@ -285,7 +285,7 @@ Returns: Confirmation of the update with current plan progress.";
                     var totalSteps = _currentPlan.Steps.Count;
                     var progress = _currentPlan.ProgressPercentage;
 
-                    // Handle retry case with special response
+                    // Handle retry case with special response including error reflection prompt
                     if (wasResetForRetry)
                     {
                         return $@"🔄 Step {stepIndex} failed with transient error - RETRY SCHEDULED
@@ -293,7 +293,15 @@ Returns: Confirmation of the update with current plan progress.";
 Retry attempt: {step.RetryCount}/{step.MaxRetries}
 Error: {step.LastErrorMessage ?? "Unknown error"}
 
-The step has been reset to pending. Please retry Step {stepIndex} ({step.Title}) now.
+**ERROR ANALYSIS REQUIRED** before retrying:
+```
+ERROR ANALYSIS:
+- What happened: [describe the specific failure]
+- Root cause: [why did this fail?]
+- Strategy adjustment: [what will you do differently?]
+```
+
+After analyzing, retry Step {stepIndex} ({step.Title}) with your adjusted approach.
 
 Progress: {completedCount}/{totalSteps} steps ({progress}%)";
                     }

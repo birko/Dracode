@@ -69,6 +69,12 @@ namespace DraCode.Agent
         public bool StreamingFallbackToSync { get; set; } = true;
 
         /// <summary>
+        /// Interval (in iterations) between self-reflection checkpoints. Default: 3
+        /// Set to 0 to disable checkpoint prompts.
+        /// </summary>
+        public int CheckpointInterval { get; set; } = 3;
+
+        /// <summary>
         /// Creates a copy of the current options
         /// </summary>
         public AgentOptions Clone()
@@ -85,7 +91,8 @@ namespace DraCode.Agent
                 ModelDepth = ModelDepth,
                 AllowedExternalPaths = new List<string>(AllowedExternalPaths),
                 EnableStreaming = EnableStreaming,
-                StreamingFallbackToSync = StreamingFallbackToSync
+                StreamingFallbackToSync = StreamingFallbackToSync,
+                CheckpointInterval = CheckpointInterval
             };
         }
 
@@ -110,6 +117,7 @@ namespace DraCode.Agent
                 AllowedExternalPaths = new List<string>(other.AllowedExternalPaths);
             EnableStreaming = other.EnableStreaming;
             StreamingFallbackToSync = other.StreamingFallbackToSync;
+            CheckpointInterval = other.CheckpointInterval;
         }
 
         /// <summary>
