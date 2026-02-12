@@ -546,6 +546,16 @@ namespace DraCode.KoboldLair.Server.Services
                 }
 
                 var tasks = tracker.GetAllTasks();
+
+                // If any tasks are NotInitialized or Working, a Drake is needed to either:
+                // - Continue work with existing Kobolds, or
+                // - Recover orphaned tasks (NotInitialized/Working with no active Kobold)
+                // So don't skip Drake creation
+                if (tasks.Any(t => t.Status == TaskStatus.NotInitialized || t.Status == TaskStatus.Working))
+                {
+                    return false;
+                }
+
                 var unassignedTasks = tasks.Where(t => t.Status == TaskStatus.Unassigned).ToList();
 
                 // If no unassigned tasks, not blocked (either all done or all working)
