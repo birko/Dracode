@@ -203,6 +203,24 @@ builder.Services.AddHostedService<FailureRecoveryService>(sp =>
         maxRetryAttempts: 5);
 });
 
+// Register Reasoning Monitor Service (detects concerning Kobold patterns, checks every 30 seconds)
+builder.Services.AddHostedService<ReasoningMonitorService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<ReasoningMonitorService>>();
+    var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
+    var projectService = sp.GetRequiredService<ProjectService>();
+    var planService = sp.GetRequiredService<KoboldPlanService>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>();
+    return new ReasoningMonitorService(
+        logger,
+        drakeFactory,
+        sharedPlanningContext,
+        projectService,
+        planService,
+        config);
+});
+
 // Add CORS for web client
 builder.Services.AddCors(options =>
 {

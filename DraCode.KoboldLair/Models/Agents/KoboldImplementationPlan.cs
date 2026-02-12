@@ -64,6 +64,12 @@ namespace DraCode.KoboldLair.Models.Agents
         public List<PlanLogEntry> ExecutionLog { get; set; } = new();
 
         /// <summary>
+        /// History of reflection checkpoints from self-reasoning during execution.
+        /// Used for pattern detection and Drake intervention analysis.
+        /// </summary>
+        public List<ReflectionSignal>? ReflectionHistory { get; set; }
+
+        /// <summary>
         /// Gets the current step being executed, or null if all complete
         /// </summary>
         public ImplementationStep? CurrentStep =>

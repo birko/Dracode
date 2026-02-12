@@ -178,49 +178,81 @@ Implemented in `BuildFullPromptWithPlanAsync()`:
 **Pros**: Simple, no code changes beyond prompts
 **Cons**: LLM may ignore, inconsistent formatting
 
-### Option 2: Structured Reflection Tool
+### Option 2: Structured Reflection Tool ✅ COMPLETED (2026-02-12)
 
-Add a `reflect` tool that forces explicit reasoning:
+**Location**: `DraCode.KoboldLair/Agents/Tools/ReflectionTool.cs`
+
+The `reflect` tool forces explicit, structured reasoning output:
 
 ```csharp
-public class ReflectionTool : ITool
+public class ReflectionTool : Tool
 {
-    public string Execute(Dictionary<string, object> args)
-    {
-        var progress = args["progress_percent"];
-        var blockers = args["blockers"];
-        var confidence = args["confidence_percent"];
-        var adjustment = args["adjustment"];
+    // Input Schema
+    // - progress_percent (0-100): Progress toward current step
+    // - files_done[]: Files successfully created/modified
+    // - blockers[]: Current obstacles
+    // - confidence (0-100): Confidence in current approach
+    // - decision: "continue" | "pivot" | "escalate"
+    // - notes: Optional context
 
-        // Log reflection for analysis
-        // Trigger Drake intervention if confidence < 30%
-        // Auto-escalate if progress stalled 3 checkpoints
-    }
+    // Automatic Intervention Detection:
+    // - Confidence < 30% → LowConfidence signal
+    // - Decision = "escalate" → AgentEscalated signal
+    // - 20%+ drop over 3 checkpoints → DecliningConfidence signal
+    // - 3+ blockers → MultipleBlockers signal
 }
 ```
 
-**Pros**: Structured data, can trigger automated responses
-**Cons**: More complex, adds tool call overhead
+**Implementation Details**:
+- Static context registration (same pattern as UpdatePlanStepTool)
+- Stores reflections in `KoboldImplementationPlan.ReflectionHistory`
+- Records to `SharedPlanningContextService` for cross-agent learning
+- Generates contextual guidance based on confidence level
+- Intervention callback for immediate Drake notification
 
-### Option 3: External Reasoning Monitor
+**Pros**: Structured data, automated intervention triggers, persistence
+**Cons**: Adds tool call, requires LLM cooperation
 
-Separate service analyzes Kobold outputs for patterns:
+### Option 3: External Reasoning Monitor ✅ COMPLETED (2026-02-12)
+
+**Location**: `DraCode.KoboldLair.Server/Services/ReasoningMonitorService.cs`
+
+Background service that analyzes reflection patterns across all active Kobolds:
 
 ```csharp
-public class ReasoningMonitorService
+public class ReasoningMonitorService : BackgroundService
 {
-    public async Task AnalyzeKoboldOutputAsync(string output, KoboldContext ctx)
-    {
-        // Detect repeated error patterns
-        // Identify stuck loops (same files modified repeatedly)
-        // Flag low-progress iterations
-        // Recommend Drake intervention
-    }
+    // Pattern Detection (runs every 30 seconds):
+    // - ExplicitEscalation: Agent requested help
+    // - LowConfidence: Below threshold (default: 30%)
+    // - DecliningConfidence: 20%+ drop over 3 checkpoints
+    // - MultipleBlockers: 3+ blockers reported
+    // - StalledProgress: 0% progress for 3+ checkpoints
+    // - RepeatedFileModifications: Same file edited 5+ times (stuck loop)
+
+    // Auto-Intervention:
+    // - Critical patterns → Mark Kobold as stuck
+    // - Drake recovers on next monitoring cycle
+    // - Plan log updated with intervention reason
 }
 ```
 
-**Pros**: Doesn't require LLM cooperation, observes actual behavior
-**Cons**: Post-hoc analysis, can't prevent issues proactively
+**Configuration** (`appsettings.json`):
+```json
+"ReasoningMonitor": {
+  "Enabled": true,
+  "MonitoringIntervalSeconds": 30,
+  "DecliningConfidenceCheckpoints": 3,
+  "RepeatedFileModificationThreshold": 5,
+  "StalledProgressCheckpoints": 3,
+  "HighBlockerThreshold": 3,
+  "LowConfidenceInterventionThreshold": 30,
+  "AutoInterventionEnabled": true
+}
+```
+
+**Pros**: Observes actual behavior, catches patterns LLM might miss, no LLM cooperation required
+**Cons**: Reactive (post-hoc), requires reflection data from Option 2
 
 ---
 
@@ -248,10 +280,28 @@ public class ReasoningMonitorService
 
 ## Conclusion
 
-Self-reasoning would address DraCode's primary limitation: agents that execute plans rigidly without adapting to discovered realities. The highest-impact improvements are:
+Self-reasoning addresses DraCode's primary limitation: agents that execute plans rigidly without adapting to discovered realities. The implemented improvements are:
 
-1. ✅ **Iteration checkpoints** - Catch stuck loops early - COMPLETED
-2. ✅ **Error root-cause analysis** - Smarter retry strategies - COMPLETED
-3. ⏳ **Plan feasibility re-evaluation** - Prevent wasted work downstream - FUTURE
+1. ✅ **Iteration checkpoints** - Catch stuck loops early - COMPLETED (Option 1)
+2. ✅ **Error root-cause analysis** - Smarter retry strategies - COMPLETED (Option 1)
+3. ✅ **Structured reflection tool** - Capture reasoning programmatically - COMPLETED (Option 2)
+4. ✅ **Reasoning monitor service** - Detect concerning patterns - COMPLETED (Option 2)
+5. ⏳ **Plan feasibility re-evaluation** - Prevent wasted work downstream - FUTURE
 
-**Status**: Option 1 (prompt-based) has been implemented. Next step is Option 2 (structured tools) to enforce and capture reflection data programmatically.
+**Status**: Options 1 (prompt-based) and 2 (structured tools) are now complete. The system provides:
+
+- **Proactive self-reflection**: Kobolds report progress, confidence, and blockers via `reflect` tool
+- **Automatic intervention**: Low confidence or stuck patterns trigger Drake intervention
+- **Pattern detection**: ReasoningMonitorService detects declining confidence, stuck loops, stalled progress
+- **Learning context**: Reflections persisted in SharedPlanningContextService for cross-agent insights
+
+**Files Added/Modified**:
+- `ReflectionSignal.cs` - Data models for reflection checkpoints
+- `ReflectionTool.cs` - Structured tool for self-reflection
+- `ReasoningMonitorService.cs` - Background pattern detection service
+- `KoboldImplementationPlan.cs` - Added ReflectionHistory property
+- `SharedPlanningContextService.cs` - Added RecordReflectionAsync method
+- `Kobold.cs` - Tool registration, iteration tracking, prompt updates
+- `KoboldLairConfiguration.cs` - Added ReasoningMonitorConfiguration
+- `Program.cs` - Registered ReasoningMonitorService
+- `appsettings.json` - Added ReasoningMonitor configuration section

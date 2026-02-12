@@ -35,6 +35,11 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Configuration for agent iteration limits
         /// </summary>
         public IterationLimits Iterations { get; set; } = new();
+
+        /// <summary>
+        /// Configuration for the Reasoning Monitor background service
+        /// </summary>
+        public ReasoningMonitorConfiguration ReasoningMonitor { get; set; } = new();
     }
 
     /// <summary>
@@ -186,5 +191,57 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Maximum iterations for sub-agents (Sage, Seeker, Sentinel, Warden) (default: 15)
         /// </summary>
         public int MaxSubAgentIterations { get; set; } = 15;
+    }
+
+    /// <summary>
+    /// Configuration for the Reasoning Monitor background service.
+    /// Detects concerning patterns in Kobold execution and triggers Drake interventions.
+    /// </summary>
+    public class ReasoningMonitorConfiguration
+    {
+        /// <summary>
+        /// Whether the reasoning monitor is enabled (default: true)
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Interval in seconds between monitoring runs (default: 30)
+        /// </summary>
+        public int MonitoringIntervalSeconds { get; set; } = 30;
+
+        /// <summary>
+        /// Number of checkpoints to look back for declining confidence pattern (default: 3)
+        /// </summary>
+        public int DecliningConfidenceCheckpoints { get; set; } = 3;
+
+        /// <summary>
+        /// Number of times the same file can be modified before flagging as stuck loop (default: 5)
+        /// </summary>
+        public int RepeatedFileModificationThreshold { get; set; } = 5;
+
+        /// <summary>
+        /// Number of checkpoints with 0% progress before flagging as stalled (default: 3)
+        /// </summary>
+        public int StalledProgressCheckpoints { get; set; } = 3;
+
+        /// <summary>
+        /// Number of blockers that triggers a high blocker count alert (default: 3)
+        /// </summary>
+        public int HighBlockerThreshold { get; set; } = 3;
+
+        /// <summary>
+        /// Confidence level below which to trigger intervention (default: 30)
+        /// </summary>
+        public int LowConfidenceInterventionThreshold { get; set; } = 30;
+
+        /// <summary>
+        /// Whether to automatically mark Kobolds as stuck when critical patterns detected (default: true)
+        /// </summary>
+        public bool AutoInterventionEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Minimum confidence drop (percentage points) over DecliningConfidenceCheckpoints to trigger (default: 20)
+        /// </summary>
+        public int DecliningConfidenceDropThreshold { get; set; } = 20;
     }
 }

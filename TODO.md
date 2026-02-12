@@ -1,7 +1,7 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-11 - Enhanced Git Commit Messages completed**
+**Last updated: 2026-02-12 - Self-Reasoning Options 1 & 2 (Prompt-Based + Structured Tools) complete**
 
 ---
 
@@ -800,20 +800,39 @@ Agents currently operate in a plan-execution loop. Adding self-reflection could 
    - Configurable via `AgentOptions.CheckpointInterval` (default: 3)
    - Forces agent to pause and reflect mid-step
 
-#### Remaining Work (Option 2 - Structured Tools)
+#### ✅ Completed: Option 2 - Structured Tools (2026-02-12)
 
-- [ ] **ReflectionTool** - Structured tool forcing explicit reasoning output
-  - Capture progress_percent, blockers, confidence, adjustment
-  - Trigger Drake intervention if confidence < 30%
-  - Auto-escalate if progress stalled 3+ checkpoints
-  - Effort: Medium (~1 week)
+- [x] **ReflectionTool** - Structured tool forcing explicit reasoning output ✅ COMPLETED
+  - Location: `DraCode.KoboldLair/Agents/Tools/ReflectionTool.cs`
+  - Input schema: progress_percent, files_done[], blockers[], confidence, decision, notes
+  - Static context registration pattern (same as UpdatePlanStepTool)
+  - Automatic intervention detection:
+    - Confidence < 30% → Signal Drake
+    - Decision = "escalate" → Signal Drake
+    - 20%+ confidence drop over 3 checkpoints → Signal Drake
+    - 3+ blockers → Signal Drake
+  - Guidance generation based on confidence level
+  - Integration with SharedPlanningContextService for persistence
 
-- [ ] **ReasoningMonitorService** - External service analyzing Kobold outputs
-  - Detect repeated error patterns
-  - Identify stuck loops (same files modified repeatedly)
-  - Flag low-progress iterations
-  - Recommend Drake intervention
-  - Effort: Medium (~1 week)
+- [x] **ReasoningMonitorService** - Background service analyzing reflection patterns ✅ COMPLETED
+  - Location: `DraCode.KoboldLair.Server/Services/ReasoningMonitorService.cs`
+  - Pattern detection algorithms:
+    - Declining confidence (3+ checkpoints with decreasing confidence)
+    - Repeated file modifications (same file edited 5+ times - stuck loop)
+    - Stalled progress (0% progress over 3+ checkpoints)
+    - High blocker count (3+ blockers)
+    - Explicit escalation request
+  - Configurable via `ReasoningMonitorConfiguration` in appsettings.json
+  - Auto-intervention: marks Kobolds as stuck for Drake recovery
+  - Severity levels: Info, Warning, Critical
+
+- [x] **Supporting Changes** ✅ COMPLETED
+  - `ReflectionSignal.cs` - Data models for reflection checkpoints
+  - `DrakeInterventionSignal` - Signal model for Drake notifications
+  - `KoboldImplementationPlan.ReflectionHistory` - Stores reflection history
+  - `SharedPlanningContextService.RecordReflectionAsync()` - Persistence
+  - `Kobold.cs` integration - Register/clear tool, track iteration, update prompts
+  - Configuration in `KoboldLairConfiguration.ReasoningMonitor`
 
 #### Expected Benefits (from prompt-based)
 - Stuck loop detection: After max retries → After 3-5 iterations
@@ -883,4 +902,4 @@ Agents currently operate in a plan-execution loop. Adding self-reflection could 
 
 ---
 
-*Last updated: 2026-02-12*
+*Last updated: 2026-02-12 - Self-Reasoning Option 2 (Structured Tools) complete*

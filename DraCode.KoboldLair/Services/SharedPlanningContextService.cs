@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using DraCode.KoboldLair.Models.Agents;
+// Note: ReflectionSignal is in DraCode.KoboldLair.Models.Agents namespace
 
 namespace DraCode.KoboldLair.Services;
 
@@ -512,6 +513,73 @@ public class SharedPlanningContextService
 
     #endregion
 
+    #region Reflection Recording
+
+    /// <summary>
+    /// Records a reflection checkpoint from a Kobold for pattern analysis and learning.
+    /// This data is used by ReasoningMonitorService to detect concerning patterns.
+    /// </summary>
+    public async Task RecordReflectionAsync(string projectId, string taskId, ReflectionSignal reflection)
+    {
+        var projectContext = await GetProjectContextAsync(projectId);
+
+        // Initialize reflection tracking if needed
+        if (!projectContext.ReflectionsByTask.ContainsKey(taskId))
+        {
+            projectContext.ReflectionsByTask[taskId] = new List<ReflectionSignal>();
+        }
+
+        projectContext.ReflectionsByTask[taskId].Add(reflection);
+
+        // Keep only the last 50 reflections per task to prevent unbounded growth
+        if (projectContext.ReflectionsByTask[taskId].Count > 50)
+        {
+            projectContext.ReflectionsByTask[taskId] = projectContext.ReflectionsByTask[taskId]
+                .TakeLast(50)
+                .ToList();
+        }
+
+        _logger?.LogDebug(
+            "Recorded reflection for task {TaskId} in project {ProjectId}: {Progress}% progress, {Confidence}% confidence, {Decision}",
+            taskId[..Math.Min(8, taskId.Length)], projectId, reflection.ProgressPercent, reflection.Confidence, reflection.Decision);
+
+        // Persist changes
+        await PersistProjectContextAsync(projectId);
+    }
+
+    /// <summary>
+    /// Gets all reflections for a specific task
+    /// </summary>
+    public async Task<List<ReflectionSignal>> GetTaskReflectionsAsync(string projectId, string taskId)
+    {
+        var projectContext = await GetProjectContextAsync(projectId);
+
+        if (projectContext.ReflectionsByTask.TryGetValue(taskId, out var reflections))
+        {
+            return reflections.ToList();
+        }
+
+        return new List<ReflectionSignal>();
+    }
+
+    /// <summary>
+    /// Gets recent reflections across all tasks in a project (for monitoring dashboard)
+    /// </summary>
+    public async Task<List<(string TaskId, ReflectionSignal Reflection)>> GetRecentReflectionsAsync(
+        string projectId,
+        int maxResults = 20)
+    {
+        var projectContext = await GetProjectContextAsync(projectId);
+
+        return projectContext.ReflectionsByTask
+            .SelectMany(kvp => kvp.Value.Select(r => (TaskId: kvp.Key, Reflection: r)))
+            .OrderByDescending(x => x.Reflection.Timestamp)
+            .Take(maxResults)
+            .ToList();
+    }
+
+    #endregion
+
     #region Learning & Insights
 
     /// <summary>
@@ -851,6 +919,11 @@ public class ProjectPlanningContext
     public ConcurrentDictionary<string, string> ActiveAgents { get; set; } = new();
     public List<PlanningInsight> Insights { get; set; } = new();
     public ConcurrentDictionary<string, FileMetadata> FileRegistry { get; set; } = new();
+
+    /// <summary>
+    /// Reflection history by task ID for pattern analysis and monitoring
+    /// </summary>
+    public Dictionary<string, List<ReflectionSignal>> ReflectionsByTask { get; set; } = new();
 }
 
 /// <summary>

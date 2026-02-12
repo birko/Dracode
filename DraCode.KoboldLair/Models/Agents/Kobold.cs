@@ -623,6 +623,20 @@ You are working on a task that is part of a larger project. Below is the project
             // Add the tool to the agent
             Agent.AddTool(new UpdatePlanStepTool());
 
+            // Register ReflectionTool context for self-reasoning checkpoints
+            ReflectionTool.RegisterContext(
+                ImplementationPlan,
+                planService,
+                _logger,
+                _sharedPlanningContext,
+                ProjectId,
+                TaskId?.ToString(),
+                Id.ToString(),
+                OnInterventionSignal);
+
+            // Add the reflection tool to the agent
+            Agent.AddTool(new ReflectionTool());
+
             // Phase 4: Add modify_plan tool if enabled
             if (allowPlanModifications)
             {
@@ -748,10 +762,14 @@ You are working on a task that is part of a larger project. Below is the project
             }
             finally
             {
-                // Clean up: remove tool and clear context
+                // Clean up: remove tools and clear contexts
                 Agent.RemoveTool("update_plan_step");
                 UpdatePlanStepTool.ClearContext();
-                
+
+                // Clean up ReflectionTool
+                Agent.RemoveTool("reflect");
+                ReflectionTool.ClearContext();
+
                 // Phase 4: Clean up modify_plan tool if it was added
                 if (allowPlanModifications)
                 {
@@ -802,12 +820,15 @@ You are working on a task that is part of a larger project. Below is the project
             {
                 stepIterationCount++;
 
+                // Update iteration counter for ReflectionTool
+                ReflectionTool.SetCurrentIteration(iteration);
+
                 if (Agent.Options.Verbose)
                 {
                     Agent.Provider.MessageCallback?.Invoke("info", $"ITERATION {iteration} (Step {currentStepIndex + 1}, iter {stepIterationCount})");
                 }
 
-                // Inject checkpoint reminder every N iterations (P1 self-reflection)
+                // Inject checkpoint reminder every N iterations (P2 - structured tool)
                 var checkpointInterval = Agent.Options.CheckpointInterval;
                 if (checkpointInterval > 0 && stepIterationCount > 1 && stepIterationCount % checkpointInterval == 0)
                 {
@@ -818,21 +839,18 @@ You are working on a task that is part of a larger project. Below is the project
 
 You've spent {stepIterationCount} iterations on step {currentStepIndex + 1}: '{currentStep.Title}'
 
-Output a CHECKPOINT block now:
-```
-CHECKPOINT (iteration {iteration}):
-- Progress: [X%] toward '{currentStep.Title}'
-- Files done: [list]
-- Blockers: [any, or 'none']
-- Confidence: [0-100%]
-- Decision: [continue|pivot|escalate]
-```
+You MUST call the `reflect` tool NOW with:
+- `progress_percent`: How far along are you toward completing this step (0-100)?
+- `files_done`: What files have you created/modified?
+- `blockers`: What obstacles are you facing (if any)?
+- `confidence`: How confident are you this approach will succeed (0-100)?
+- `decision`: Are you continuing, pivoting, or escalating?
 
-If step is complete, call `update_plan_step` with status 'completed'.
+If the step is complete, call `update_plan_step` with status 'completed'.
 ---";
 
                     conversation.Add(new Message { Role = "user", Content = checkpointPrompt });
-                    _logger?.LogDebug("Checkpoint reminder injected at iteration {Iteration}", iteration);
+                    _logger?.LogDebug("Checkpoint reminder (reflect tool) injected at iteration {Iteration}", iteration);
                 }
 
                 var systemPrompt = (string?)Agent.GetType().GetProperty("SystemPrompt",
@@ -1067,19 +1085,23 @@ If step is complete, call `update_plan_step` with status 'completed'.
                 sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
                 sb.AppendLine();
 
-                // Self-Reflection Protocol (P1 - Prompt-based)
+                // Self-Reflection Protocol (P2 - Structured Tool)
                 sb.AppendLine("## SELF-REFLECTION PROTOCOL");
                 sb.AppendLine();
-                sb.AppendLine("You MUST output a CHECKPOINT block every 3 iterations. This is mandatory.");
+                sb.AppendLine("You MUST call the `reflect` tool every 3 iterations to report your progress. This is mandatory.");
                 sb.AppendLine();
-                sb.AppendLine("```");
-                sb.AppendLine("CHECKPOINT (iteration N):");
-                sb.AppendLine("- Progress: [X%] toward current step completion");
-                sb.AppendLine("- Files done: [list files created/modified so far]");
-                sb.AppendLine("- Blockers: [any obstacles, or 'none']");
-                sb.AppendLine("- Confidence: [0-100%] this approach will succeed");
-                sb.AppendLine("- Decision: [continue|pivot|escalate]");
-                sb.AppendLine("```");
+                sb.AppendLine("The `reflect` tool takes these parameters:");
+                sb.AppendLine("- `progress_percent` (required): 0-100, how close you are to completing current step");
+                sb.AppendLine("- `files_done` (optional): array of files you've created/modified");
+                sb.AppendLine("- `blockers` (optional): array of obstacles you're facing");
+                sb.AppendLine("- `confidence` (required): 0-100, how confident you are in your approach");
+                sb.AppendLine("- `decision` (required): \"continue\", \"pivot\", or \"escalate\"");
+                sb.AppendLine("- `notes` (optional): additional context");
+                sb.AppendLine();
+                sb.AppendLine("**Decision meanings:**");
+                sb.AppendLine("- `continue` - current approach is working, proceed");
+                sb.AppendLine("- `pivot` - current approach isn't working, switching strategy");
+                sb.AppendLine("- `escalate` - need supervisor help (triggers Drake intervention)");
                 sb.AppendLine();
                 sb.AppendLine("## ERROR HANDLING PROTOCOL");
                 sb.AppendLine();
@@ -1569,6 +1591,18 @@ If step is complete, call `update_plan_step` with status 'completed'.
         /// Gets whether this Kobold was marked as stuck (timed out)
         /// </summary>
         public bool IsStuck { get; private set; }
+
+        /// <summary>
+        /// Gets the pending intervention signal if any (for Drake to check).
+        /// Returns null if no intervention is needed.
+        /// </summary>
+        public DrakeInterventionSignal? PendingInterventionSignal => ReflectionTool.GetPendingInterventionSignal();
+
+        /// <summary>
+        /// Callback invoked when an intervention signal is generated.
+        /// Drake can register this to be notified immediately.
+        /// </summary>
+        public Action<DrakeInterventionSignal>? OnInterventionSignal { get; set; }
 
         /// <summary>
         /// Validates whether a step's file expectations were met.
