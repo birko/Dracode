@@ -420,8 +420,14 @@ You are working on a task that is part of a larger project. Below is the project
             bool toolInjected = false;
             if (ImplementationPlan != null)
             {
-                // Register the plan context for the tool
-                UpdatePlanStepTool.RegisterContext(ImplementationPlan, planService, _logger);
+                // Register the plan context for the tool (including shared planning context for file tracking)
+                UpdatePlanStepTool.RegisterContext(
+                    ImplementationPlan,
+                    planService,
+                    _logger,
+                    _sharedPlanningContext,
+                    ProjectId,
+                    TaskId?.ToString());
 
                 // Add the tool to the agent
                 Agent.AddTool(new UpdatePlanStepTool());
@@ -605,8 +611,14 @@ You are working on a task that is part of a larger project. Below is the project
             Status = KoboldStatus.Working;
             StartedAt = DateTime.UtcNow;
 
-            // Register the plan context for the tool
-            UpdatePlanStepTool.RegisterContext(ImplementationPlan, planService, _logger);
+            // Register the plan context for the tool (including shared planning context for file tracking)
+            UpdatePlanStepTool.RegisterContext(
+                ImplementationPlan,
+                planService,
+                _logger,
+                _sharedPlanningContext,
+                ProjectId,
+                TaskId?.ToString());
 
             // Add the tool to the agent
             Agent.AddTool(new UpdatePlanStepTool());

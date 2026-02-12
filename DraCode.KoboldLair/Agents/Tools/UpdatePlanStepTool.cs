@@ -24,6 +24,9 @@ namespace DraCode.KoboldLair.Agents.Tools
         private static readonly object _lock = new();
         private static KoboldImplementationPlan? _currentPlan;
         private static KoboldPlanService? _planService;
+        private static SharedPlanningContextService? _sharedPlanningContext;
+        private static string? _currentTaskId;
+        private static string? _currentProjectId;
         private static ILogger? _logger;
 
         public override string Name => "update_plan_step";
@@ -229,6 +232,54 @@ Returns: Confirmation of the update with current plan progress.";
                         }
                     }
 
+                    // Update planning context with file metadata and persist after each step completion
+                    if (_sharedPlanningContext != null && !string.IsNullOrEmpty(_currentProjectId) && newStatus == StepStatus.Completed)
+                    {
+                        try
+                        {
+                            // Update file registry for files created in this step
+                            foreach (var filePath in step.FilesToCreate)
+                            {
+                                var purpose = _sharedPlanningContext.GenerateFilePurpose(
+                                    filePath,
+                                    step,
+                                    _currentPlan.TaskDescription,
+                                    isCreation: true);
+                                _sharedPlanningContext.UpdateFileMetadataAsync(
+                                    _currentProjectId,
+                                    filePath,
+                                    purpose,
+                                    _currentTaskId ?? _currentPlan.TaskId,
+                                    isCreation: true).GetAwaiter().GetResult();
+                            }
+
+                            // Update file registry for files modified in this step
+                            foreach (var filePath in step.FilesToModify)
+                            {
+                                var purpose = _sharedPlanningContext.GenerateFilePurpose(
+                                    filePath,
+                                    step,
+                                    _currentPlan.TaskDescription,
+                                    isCreation: false);
+                                _sharedPlanningContext.UpdateFileMetadataAsync(
+                                    _currentProjectId,
+                                    filePath,
+                                    purpose,
+                                    _currentTaskId ?? _currentPlan.TaskId,
+                                    isCreation: false).GetAwaiter().GetResult();
+                            }
+
+                            _logger?.LogDebug(
+                                "Planning context updated after step {StepIndex} completion (created: {CreatedCount}, modified: {ModifiedCount})",
+                                stepIndex, step.FilesToCreate.Count, step.FilesToModify.Count);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log but don't fail - the main plan update succeeded
+                            _logger?.LogWarning(ex, "Failed to update planning context after step {StepIndex} at {Timestamp:o}", stepIndex, DateTime.UtcNow);
+                        }
+                    }
+
                     // Build response
                     var completedCount = _currentPlan.CompletedStepsCount;
                     var totalSteps = _currentPlan.Steps.Count;
@@ -321,13 +372,22 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
         /// Registers the current plan and service for use by this tool.
         /// Call this before the Kobold starts working with a plan.
         /// </summary>
-        public static void RegisterContext(KoboldImplementationPlan plan, KoboldPlanService? service, ILogger? logger = null)
+        public static void RegisterContext(
+            KoboldImplementationPlan plan,
+            KoboldPlanService? service,
+            ILogger? logger = null,
+            SharedPlanningContextService? sharedPlanningContext = null,
+            string? projectId = null,
+            string? taskId = null)
         {
             lock (_lock)
             {
                 _currentPlan = plan;
                 _planService = service;
                 _logger = logger;
+                _sharedPlanningContext = sharedPlanningContext;
+                _currentProjectId = projectId ?? plan.ProjectId;
+                _currentTaskId = taskId ?? plan.TaskId;
             }
         }
 
@@ -342,6 +402,9 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
                 _currentPlan = null;
                 _planService = null;
                 _logger = null;
+                _sharedPlanningContext = null;
+                _currentProjectId = null;
+                _currentTaskId = null;
             }
         }
 
