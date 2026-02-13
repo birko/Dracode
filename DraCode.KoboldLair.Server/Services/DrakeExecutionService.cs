@@ -17,6 +17,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ILogger<DrakeExecutionService> _logger;
         private readonly ProjectService _projectService;
         private readonly DrakeFactory _drakeFactory;
+        private readonly GracefulShutdownCoordinator _shutdownCoordinator;
         private readonly TimeSpan _executionInterval;
         private readonly int _maxKoboldIterations;
         private bool _isRunning;
@@ -32,18 +33,21 @@ namespace DraCode.KoboldLair.Server.Services
         /// <param name="logger">Logger instance</param>
         /// <param name="projectService">Project service for accessing projects</param>
         /// <param name="drakeFactory">Factory for creating Drakes</param>
+        /// <param name="shutdownCoordinator">Coordinator for graceful shutdown signaling</param>
         /// <param name="executionIntervalSeconds">Interval in seconds between execution cycles (default: 30)</param>
         /// <param name="maxKoboldIterations">Maximum iterations for Kobold execution (default: 100)</param>
         public DrakeExecutionService(
             ILogger<DrakeExecutionService> logger,
             ProjectService projectService,
             DrakeFactory drakeFactory,
+            GracefulShutdownCoordinator shutdownCoordinator,
             int executionIntervalSeconds = 30,
             int maxKoboldIterations = 100)
         {
             _logger = logger;
             _projectService = projectService;
             _drakeFactory = drakeFactory;
+            _shutdownCoordinator = shutdownCoordinator;
             _executionInterval = TimeSpan.FromSeconds(executionIntervalSeconds);
             _maxKoboldIterations = maxKoboldIterations;
             _isRunning = false;
@@ -402,7 +406,8 @@ namespace DraCode.KoboldLair.Server.Services
                         task,
                         agentType,
                         maxIterations: _maxKoboldIterations,
-                        messageCallback: (level, msg) => _logger.LogInformation("[{Level}] {Message}", level, msg)
+                        messageCallback: (level, msg) => _logger.LogInformation("[{Level}] {Message}", level, msg),
+                        cancellationToken: _shutdownCoordinator.ShutdownToken
                     );
 
                     if (result == null)

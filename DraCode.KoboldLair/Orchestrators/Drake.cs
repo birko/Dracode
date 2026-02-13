@@ -1015,7 +1015,8 @@ namespace DraCode.KoboldLair.Orchestrators
             string agentType,
             int maxIterations = 30,
             string? provider = null,
-            Action<string, string>? messageCallback = null)
+            Action<string, string>? messageCallback = null,
+            CancellationToken cancellationToken = default)
         {
             // Summon Kobold (may return null if resource limit reached)
             var kobold = SummonKobold(task, agentType, provider);
@@ -1082,14 +1083,15 @@ namespace DraCode.KoboldLair.Orchestrators
                     if (_useEnhancedExecution)
                     {
                         messages = await kobold.StartWorkingWithPlanEnhancedAsync(
-                            _planService, 
+                            _planService,
                             maxIterations,
                             _allowPlanModifications,
-                            _autoApproveModifications);
+                            _autoApproveModifications,
+                            cancellationToken);
                     }
                     else
                     {
-                        messages = await kobold.StartWorkingWithPlanAsync(_planService, maxIterations);
+                        messages = await kobold.StartWorkingWithPlanAsync(_planService, maxIterations, cancellationToken);
                     }
                 }
                 else
@@ -1461,6 +1463,32 @@ namespace DraCode.KoboldLair.Orchestrators
         public async Task UpdateTasksFileAsync()
         {
             await SaveTasksToFileAsync();
+        }
+
+        /// <summary>
+        /// Flushes all pending saves and closes the save channel.
+        /// Called during graceful shutdown to ensure no task state is lost.
+        /// </summary>
+        public async Task FlushAndCloseAsync()
+        {
+            try
+            {
+                // Complete channel writer (signals ProcessSaveQueueAsync to exit)
+                _saveChannel.Writer.TryComplete();
+
+                // Wait for the background save task to finish processing (5s timeout)
+                await Task.WhenAny(_saveTask, Task.Delay(5000));
+
+                // One final immediate save to capture any last state changes
+                await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
+                await _wal.CheckpointAsync();
+
+                _logger?.LogInformation("Drake flushed and closed successfully for {Path}", _outputMarkdownPath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Error during Drake flush for {Path}", _outputMarkdownPath);
+            }
         }
 
         /// <summary>

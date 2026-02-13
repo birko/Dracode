@@ -140,6 +140,13 @@ builder.Services.AddSingleton<DragonService>(sp =>
     return new DragonService(logger, providerConfigService, projectConfigService, projectService, gitService, config, koboldFactory, drakeFactory);
 });
 
+// Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)
+builder.Services.AddSingleton<GracefulShutdownCoordinator>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<GracefulShutdownCoordinator>>();
+    return new GracefulShutdownCoordinator(logger, gracePeriod: TimeSpan.FromSeconds(10));
+});
+
 // Register background monitoring service
 builder.Services.AddHostedService<DrakeMonitoringService>(sp =>
 {
@@ -160,12 +167,14 @@ builder.Services.AddHostedService<DrakeExecutionService>(sp =>
     var logger = sp.GetRequiredService<ILogger<DrakeExecutionService>>();
     var projectService = sp.GetRequiredService<ProjectService>();
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    var shutdownCoordinator = sp.GetRequiredService<GracefulShutdownCoordinator>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var maxIterations = config.Iterations?.MaxKoboldIterations ?? 100;
     return new DrakeExecutionService(
         logger,
         projectService,
         drakeFactory,
+        shutdownCoordinator,
         executionIntervalSeconds: 30,
         maxKoboldIterations: maxIterations);
 });
@@ -236,23 +245,45 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Register shutdown hook to persist shared planning contexts
+// Register shutdown hook for graceful shutdown
 var appLifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 appLifetime.ApplicationStopping.Register(() =>
 {
     using var scope = app.Services.CreateScope();
-    var sharedPlanningContext = scope.ServiceProvider.GetRequiredService<SharedPlanningContextService>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    
+
     try
     {
+        // 1. Signal all active Kobolds to save state and stop
+        var shutdownCoordinator = scope.ServiceProvider.GetRequiredService<GracefulShutdownCoordinator>();
+        shutdownCoordinator.InitiateShutdown();
+
+        // 2. Wait for grace period to let active LLM calls complete
+        logger.LogInformation("Waiting {GracePeriod}s for active Kobolds to save state...", shutdownCoordinator.GracePeriod.TotalSeconds);
+        Thread.Sleep(shutdownCoordinator.GracePeriod);
+
+        // 3. Flush all Drake save channels to ensure no task state is lost
+        logger.LogInformation("Flushing all Drake save channels...");
+        var drakeFactory = scope.ServiceProvider.GetRequiredService<DrakeFactory>();
+        var allDrakes = drakeFactory.GetAllDrakes();
+        if (allDrakes.Count > 0)
+        {
+            var flushTasks = allDrakes.Select(d => d.FlushAndCloseAsync()).ToArray();
+            Task.WhenAll(flushTasks).GetAwaiter().GetResult();
+            logger.LogInformation("Flushed {Count} Drake(s) successfully", allDrakes.Count);
+        }
+
+        // 4. Persist shared planning contexts
         logger.LogInformation("Persisting shared planning contexts on shutdown...");
+        var sharedPlanningContext = scope.ServiceProvider.GetRequiredService<SharedPlanningContextService>();
         sharedPlanningContext.PersistAllContextsAsync().GetAwaiter().GetResult();
         logger.LogInformation("Shared planning contexts persisted successfully");
+
+        logger.LogInformation("Graceful shutdown complete");
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Failed to persist shared planning contexts on shutdown");
+        logger.LogError(ex, "Error during graceful shutdown");
     }
 });
 

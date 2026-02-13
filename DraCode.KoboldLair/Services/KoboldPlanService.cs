@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using DraCode.Agent;
 using DraCode.KoboldLair.Models.Agents;
 
 namespace DraCode.KoboldLair.Services
@@ -560,5 +562,120 @@ namespace DraCode.KoboldLair.Services
             StepStatus.Failed => "❌",
             _ => "❓"
         };
+
+        /// <summary>
+        /// Gets the conversation checkpoint file path for a plan
+        /// </summary>
+        private string GetCheckpointPath(string projectId, string planFilename)
+        {
+            return Path.Combine(GetPlansDirectory(projectId), $"{planFilename}-context.json");
+        }
+
+        /// <summary>
+        /// Saves a conversation checkpoint for a plan. Trims to last 50 messages
+        /// and serializes all content to JsonElement for safe round-tripping.
+        /// Stored separately from plan JSON to keep plan files lean.
+        /// </summary>
+        public async Task SaveConversationCheckpointAsync(
+            KoboldImplementationPlan plan,
+            List<Message> conversation)
+        {
+            if (string.IsNullOrEmpty(plan.ProjectId) || string.IsNullOrEmpty(plan.TaskId) || string.IsNullOrEmpty(plan.PlanFilename))
+            {
+                _logger?.LogWarning("Cannot save conversation checkpoint: plan missing ProjectId, TaskId, or PlanFilename");
+                return;
+            }
+
+            try
+            {
+                var plansDir = GetPlansDirectory(plan.ProjectId);
+                Directory.CreateDirectory(plansDir);
+
+                // Trim to last 50 messages to keep checkpoint manageable
+                const int maxMessages = 50;
+                var trimmedConversation = conversation.Count > maxMessages
+                    ? conversation.Skip(conversation.Count - maxMessages).ToList()
+                    : conversation;
+
+                var checkpoint = new ConversationCheckpoint
+                {
+                    TaskId = plan.TaskId,
+                    ProjectId = plan.ProjectId,
+                    StepIndex = plan.CurrentStepIndex,
+                    SavedAt = DateTime.UtcNow,
+                    Messages = trimmedConversation.Select(m => new CheckpointMessage
+                    {
+                        Role = m.Role,
+                        Content = m.Content != null
+                            ? JsonSerializer.SerializeToElement(m.Content, _jsonOptions)
+                            : null
+                    }).ToList()
+                };
+
+                var checkpointPath = GetCheckpointPath(plan.ProjectId, plan.PlanFilename);
+                var json = JsonSerializer.Serialize(checkpoint, _jsonOptions);
+                await File.WriteAllTextAsync(checkpointPath, json);
+
+                _logger?.LogDebug(
+                    "Saved conversation checkpoint for task {TaskId} at step {StepIndex} ({MessageCount} messages)",
+                    plan.TaskId[..Math.Min(8, plan.TaskId.Length)], plan.CurrentStepIndex, checkpoint.Messages.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to save conversation checkpoint for task {TaskId}", plan.TaskId);
+            }
+        }
+
+        /// <summary>
+        /// Loads a conversation checkpoint for a plan.
+        /// Returns null if no checkpoint exists or if loading fails.
+        /// </summary>
+        public async Task<ConversationCheckpoint?> LoadConversationCheckpointAsync(string projectId, string taskId)
+        {
+            try
+            {
+                // Look up plan filename from index
+                var index = await LoadPlanIndexAsync(projectId);
+                if (!index.TryGetValue(taskId, out var planFilename))
+                {
+                    return null;
+                }
+
+                var checkpointPath = GetCheckpointPath(projectId, planFilename);
+                if (!File.Exists(checkpointPath))
+                {
+                    return null;
+                }
+
+                var json = await File.ReadAllTextAsync(checkpointPath);
+                var checkpoint = JsonSerializer.Deserialize<ConversationCheckpoint>(json, _jsonOptions);
+
+                if (checkpoint != null)
+                {
+                    _logger?.LogDebug(
+                        "Loaded conversation checkpoint for task {TaskId} at step {StepIndex} ({MessageCount} messages)",
+                        taskId[..Math.Min(8, taskId.Length)], checkpoint.StepIndex, checkpoint.Messages.Count);
+                }
+
+                return checkpoint;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to load conversation checkpoint for task {TaskId}", taskId);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Restores a conversation from a checkpoint, converting CheckpointMessages back to Messages.
+        /// </summary>
+        public static List<Message> RestoreConversation(ConversationCheckpoint checkpoint)
+        {
+            return checkpoint.Messages.Select(m => new Message
+            {
+                Role = m.Role,
+                Content = m.Content.HasValue ? (object)m.Content.Value : null
+            }).ToList();
+        }
     }
 }

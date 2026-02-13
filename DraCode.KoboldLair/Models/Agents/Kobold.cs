@@ -401,7 +401,8 @@ You are working on a task that is part of a larger project. Below is the project
         /// <returns>Messages from agent execution</returns>
         public async Task<List<Message>> StartWorkingWithPlanAsync(
             KoboldPlanService? planService,
-            int maxIterations = 30)
+            int maxIterations = 30,
+            CancellationToken cancellationToken = default)
         {
             if (Status != KoboldStatus.Assigned)
             {
@@ -590,7 +591,8 @@ You are working on a task that is part of a larger project. Below is the project
             KoboldPlanService? planService,
             int maxIterations = 30,
             bool allowPlanModifications = false,
-            bool autoApproveModifications = false)
+            bool autoApproveModifications = false,
+            CancellationToken cancellationToken = default)
         {
             if (Status != KoboldStatus.Assigned)
             {
@@ -654,7 +656,7 @@ You are working on a task that is part of a larger project. Below is the project
                     Id.ToString()[..8], perStepBudget, totalSteps, effectiveMaxIterations);
 
                 // Execute with custom loop for step completion detection
-                var messages = await RunWithStepDetectionAsync(fullTaskPrompt, effectiveMaxIterations, planService);
+                var messages = await RunWithStepDetectionAsync(fullTaskPrompt, effectiveMaxIterations, planService, cancellationToken);
 
                 // Check if execution encountered errors
                 if (HasErrorInMessages(messages))
@@ -768,27 +770,53 @@ You are working on a task that is part of a larger project. Below is the project
         private async Task<List<Message>> RunWithStepDetectionAsync(
             string initialPrompt,
             int maxIterations,
-            KoboldPlanService? planService)
+            KoboldPlanService? planService,
+            CancellationToken cancellationToken = default)
         {
             if (ImplementationPlan == null)
             {
                 throw new InvalidOperationException("RunWithStepDetectionAsync requires a plan");
             }
 
-            var conversation = new List<Message>
-            {
-                new() { Role = "user", Content = initialPrompt }
-            };
-
             var currentStepIndex = ImplementationPlan.CurrentStepIndex;
             var stepIterationCount = 0;
+
+            // Try to restore conversation from checkpoint if resuming
+            List<Message> conversation;
+            if (currentStepIndex > 0 && planService != null && !string.IsNullOrEmpty(ProjectId) && TaskId.HasValue)
+            {
+                var checkpoint = await planService.LoadConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
+                if (checkpoint != null)
+                {
+                    conversation = KoboldPlanService.RestoreConversation(checkpoint);
+                    // Append a resumption message so the LLM knows what happened
+                    conversation.Add(new Message
+                    {
+                        Role = "user",
+                        Content = $"You were previously working on this task and completed steps up to step {checkpoint.StepIndex + 1}. " +
+                                  $"The server was restarted. Continue from step {currentStepIndex + 1} of {ImplementationPlan.Steps.Count}. " +
+                                  "Do NOT redo already-completed steps."
+                    });
+                    _logger?.LogInformation(
+                        "Kobold {KoboldId} resumed with conversation checkpoint ({MessageCount} messages, step {StepIndex})",
+                        Id.ToString()[..8], checkpoint.Messages.Count, checkpoint.StepIndex);
+                }
+                else
+                {
+                    conversation = new List<Message> { new() { Role = "user", Content = initialPrompt } };
+                }
+            }
+            else
+            {
+                conversation = new List<Message> { new() { Role = "user", Content = initialPrompt } };
+            }
 
             // Enhanced logging: Step start
             if (currentStepIndex < ImplementationPlan.Steps.Count)
             {
                 var step = ImplementationPlan.Steps[currentStepIndex];
                 step.Start();
-                
+
                 _logger?.LogInformation(
                     "🔷 Kobold {KoboldId} starting step {StepIndex}/{TotalSteps}: {StepTitle}\n" +
                     "  Files to create: {FilesToCreate}\n" +
@@ -800,6 +828,29 @@ You are working on a task that is part of a larger project. Below is the project
 
             for (int iteration = 1; iteration <= maxIterations; iteration++)
             {
+                // Graceful shutdown check: save state and return without throwing
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    _logger?.LogInformation(
+                        "Graceful shutdown requested for Kobold {KoboldId} at iteration {Iteration}, step {StepIndex}/{TotalSteps}",
+                        Id.ToString()[..8], iteration, currentStepIndex + 1, ImplementationPlan.Steps.Count);
+
+                    // Save plan state and conversation checkpoint
+                    if (planService != null && !string.IsNullOrEmpty(ProjectId))
+                    {
+                        ImplementationPlan.AddLogEntry($"Graceful shutdown at iteration {iteration}, step {currentStepIndex + 1}");
+                        await planService.SavePlanAsync(ImplementationPlan);
+                        await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
+                        _logger?.LogInformation(
+                            "Plan and conversation saved for Kobold {KoboldId} (step {StepIndex}/{TotalSteps})",
+                            Id.ToString()[..8], currentStepIndex + 1, ImplementationPlan.Steps.Count);
+                    }
+
+                    // Return gracefully - this flows to the "not all steps complete" path
+                    // keeping Kobold in Working state and plan in InProgress for resumption
+                    return conversation;
+                }
+
                 stepIterationCount++;
 
                 if (Agent.Options.Verbose)
@@ -898,7 +949,7 @@ If step is complete, call `update_plan_step` with status 'completed'.
                                     {
                                         var nextStep = ImplementationPlan.Steps[currentStepIndex];
                                         nextStep.Start();
-                                        
+
                                         _logger?.LogInformation(
                                             "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}\n" +
                                             "  Files to create: {FilesToCreate}\n" +
@@ -906,6 +957,12 @@ If step is complete, call `update_plan_step` with status 'completed'.
                                             nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title,
                                             nextStep.FilesToCreate.Count > 0 ? string.Join(", ", nextStep.FilesToCreate) : "none",
                                             nextStep.FilesToModify.Count > 0 ? string.Join(", ", nextStep.FilesToModify) : "none");
+                                    }
+
+                                    // Save conversation checkpoint after step completion
+                                    if (planService != null && !string.IsNullOrEmpty(ProjectId))
+                                    {
+                                        await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
                                     }
                                 }
                             }
@@ -955,22 +1012,23 @@ If step is complete, call `update_plan_step` with status 'completed'.
                                     if (planService != null && !string.IsNullOrEmpty(ProjectId))
                                     {
                                         await planService.SavePlanAsync(ImplementationPlan);
+                                        await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
                                     }
-                                    
+
                                     // Enhanced logging: Step auto-completion
                                     _logger?.LogInformation(
                                         "✅ Step {StepIndex} auto-completed: {StepTitle} ({IterationCount} iterations)",
                                         currentStep.Index, currentStep.Title, stepIterationCount);
-                                    
+
                                     // Reset and start next step
                                     stepIterationCount = 0;
                                     currentStepIndex = ImplementationPlan.CurrentStepIndex;
-                                    
+
                                     if (currentStepIndex < ImplementationPlan.Steps.Count)
                                     {
                                         var nextStep = ImplementationPlan.Steps[currentStepIndex];
                                         nextStep.Start();
-                                        
+
                                         _logger?.LogInformation(
                                             "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}",
                                             nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title);
