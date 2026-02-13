@@ -311,9 +311,10 @@ namespace DraCode.KoboldLair.Server.Services
                         }
                         else if (type == "assistant_final")
                         {
-                            // Stream completed - send final message and mark as sent
+                            // Mark that streaming occurred - final message will be sent by HandleMessageAsync
+                            // to avoid fire-and-forget race conditions where SendStreamCompleteAsync fails
+                            // after the fallback check has already been skipped
                             session.StreamingResponseSent = true;
-                            _ = SendStreamCompleteAsync(webSocket, session, content);
                         }
                     };
 
@@ -344,21 +345,17 @@ namespace DraCode.KoboldLair.Server.Services
                         var welcomeResponse = await session.Dragon.StartSessionAsync();
                         _logger.LogInformation("[Dragon] Welcome: {Response}", welcomeResponse);
 
-                        // Brief yield to allow any pending fire-and-forget streaming sends to complete/fail
-                        await Task.Delay(50);
-
-                        // Send message if streaming callback didn't send it (or if streaming send failed)
-                        if (!session.StreamingResponseSent)
+                        // Always send the final message through the reliable awaited path
+                        // The isStreamed flag tells the client whether streaming chunks were sent
+                        _logger.LogDebug("[Dragon] Sending welcome (isStreamed={IsStreamed})", session.StreamingResponseSent);
+                        await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
                         {
-                            _logger.LogDebug("[Dragon] Sending non-streamed welcome (StreamingResponseSent={Sent})", session.StreamingResponseSent);
-                            await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
-                            {
-                                type = "dragon_message",
-                                sessionId = currentSessionId,
-                                message = welcomeResponse,
-                                timestamp = DateTime.UtcNow
-                            });
-                        }
+                            type = "dragon_message",
+                            sessionId = currentSessionId,
+                            message = welcomeResponse,
+                            timestamp = DateTime.UtcNow,
+                            isStreamed = session.StreamingResponseSent
+                        });
                     }
                     catch (HttpRequestException ex)
                     {
@@ -616,23 +613,18 @@ namespace DraCode.KoboldLair.Server.Services
                 var response = await session.Dragon!.ContinueSessionAsync(message.Message);
                 _logger.LogInformation("[Dragon] Response: {Response}", response);
 
-                // Brief yield to allow any pending fire-and-forget streaming sends to complete/fail
-                // This handles the race condition where streaming callback sets StreamingResponseSent
-                // but the async send hasn't completed yet
-                await Task.Delay(50);
-
-                // Send message if streaming callback didn't send it (or if streaming send failed)
-                if (!session.StreamingResponseSent)
+                // Always send the final message through the reliable awaited path
+                // The isStreamed flag tells the client whether streaming chunks were sent
+                // (so it can finalize the streaming element instead of creating a new one)
+                _logger.LogDebug("[Dragon] Sending response (isStreamed={IsStreamed})", session.StreamingResponseSent);
+                await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
                 {
-                    _logger.LogDebug("[Dragon] Sending non-streamed response (StreamingResponseSent={Sent})", session.StreamingResponseSent);
-                    await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
-                    {
-                        type = "dragon_message",
-                        sessionId,
-                        message = response,
-                        timestamp = DateTime.UtcNow
-                    });
-                }
+                    type = "dragon_message",
+                    sessionId,
+                    message = response,
+                    timestamp = DateTime.UtcNow,
+                    isStreamed = session.StreamingResponseSent
+                });
 
                 // Check for new specifications
                 await CheckForNewSpecifications(webSocket, session);
@@ -812,35 +804,6 @@ namespace DraCode.KoboldLair.Server.Services
             catch { }
         }
 
-        private async Task SendStreamCompleteAsync(WebSocket webSocket, DragonSession session, string finalMessage)
-        {
-            try
-            {
-                if (webSocket.State != WebSocketState.Open)
-                {
-                    _logger.LogWarning("[Dragon] Cannot send stream complete - WebSocket not open (state: {State})", webSocket.State);
-                    session.StreamingResponseSent = false; // Allow fallback to non-streaming send
-                    return;
-                }
-
-                _logger.LogDebug("[Dragon] Sending stream complete message to session {SessionId}", session.SessionId);
-                await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
-                {
-                    type = "dragon_message",
-                    sessionId = session.SessionId,
-                    message = finalMessage,
-                    timestamp = DateTime.UtcNow,
-                    isStreamed = true  // Flag to indicate this was a streamed response
-                });
-                _logger.LogDebug("[Dragon] Stream complete message sent successfully to session {SessionId}", session.SessionId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "[Dragon] Failed to send stream complete message");
-                session.StreamingResponseSent = false; // Allow fallback to non-streaming send
-            }
-        }
-
         private async Task SendMessageAsync(WebSocket webSocket, object data)
         {
             var json = JsonSerializer.Serialize(data, s_writeOptions);
@@ -926,8 +889,8 @@ namespace DraCode.KoboldLair.Server.Services
                         _ = SendStreamingChunkAsync(webSocket, sessionId, content);
                     else if (type == "assistant_final")
                     {
+                        // Mark that streaming occurred - final message sent by awaited path below
                         session.StreamingResponseSent = true;
-                        _ = SendStreamCompleteAsync(webSocket, session, content);
                     }
                 };
 
@@ -950,21 +913,16 @@ namespace DraCode.KoboldLair.Server.Services
                 session.StreamingResponseSent = false;
                 var welcomeResponse = await session.Dragon.StartSessionAsync();
 
-                // Brief yield to allow any pending fire-and-forget streaming sends to complete/fail
-                await Task.Delay(50);
-
-                // Send message if streaming callback didn't send it (or if streaming send failed)
-                if (!session.StreamingResponseSent)
+                // Always send through the reliable awaited path
+                _logger.LogDebug("[Dragon] Sending reload welcome (isStreamed={IsStreamed})", session.StreamingResponseSent);
+                await SendTrackedMessageAsync(webSocket, session, "dragon_reloaded", new
                 {
-                    _logger.LogDebug("[Dragon] Sending non-streamed reload welcome (StreamingResponseSent={Sent})", session.StreamingResponseSent);
-                    await SendTrackedMessageAsync(webSocket, session, "dragon_reloaded", new
-                    {
-                        type = "dragon_reloaded",
-                        sessionId,
-                        message = $"Dragon Council reloaded.\n\n{welcomeResponse}",
-                        timestamp = DateTime.UtcNow
-                    });
-                }
+                    type = "dragon_reloaded",
+                    sessionId,
+                    message = $"Dragon Council reloaded.\n\n{welcomeResponse}",
+                    timestamp = DateTime.UtcNow,
+                    isStreamed = session.StreamingResponseSent
+                });
             }
             catch (Exception ex)
             {
