@@ -453,6 +453,15 @@ body {
     background: var(--bg-hover);
 }
 
+.btn-danger {
+    background: var(--accent-error);
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #d32f2f;
+}
+
 .btn-tertiary {
     background: transparent;
     color: var(--text-secondary);

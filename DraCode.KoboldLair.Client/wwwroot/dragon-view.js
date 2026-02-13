@@ -73,23 +73,31 @@ class DragonSession {
     }
 
     handleMessage(data) {
-        console.log(`[Session ${this.id}] Received message:`, data.type, data.messageId || '(no id)');
+        console.log(`[Session ${this.id}] Received message:`, {
+            type: data.type,
+            messageId: data.messageId || '(no id)',
+            hasContent: !!(data.message || data.content),
+            isReplay: data.isReplay || false,
+            sessionId: data.sessionId,
+            currentSessionId: this.sessionId
+        });
 
         // Track sessionId from server
         if (data.sessionId && data.sessionId !== this.sessionId) {
+            console.log(`[Session ${this.id}] Session ID changed from ${this.sessionId} to ${data.sessionId}`);
             this.sessionId = data.sessionId;
             this.ws.setSessionId(this.sessionId);
             this.view.saveAllSessions();
-            console.log(`[Session ${this.id}] Session ID updated:`, this.sessionId);
         }
 
         // Deduplicate by messageId - this handles both replay and regular duplicate messages
         if (data.messageId && this.receivedMessageIds.has(data.messageId)) {
-            console.log(`[Session ${this.id}] Skipping duplicate message:`, data.messageId, data.isReplay ? '(replay)' : '');
+            console.log(`[Session ${this.id}] ⚠️ Skipping duplicate message:`, data.messageId, data.isReplay ? '(replay)' : '');
             return;
         }
         if (data.messageId) {
             this.receivedMessageIds.add(data.messageId);
+            console.log(`[Session ${this.id}] ✓ Tracking new messageId:`, data.messageId, `(total: ${this.receivedMessageIds.size})`);
         }
 
         // Log replay messages that were accepted (not already in local state)
@@ -166,6 +174,7 @@ class DragonSession {
             this.ws.clearMessageHistory();
             this.addMessage('system', data.message, data.messageId);
             this.view.saveAllSessions();
+            console.log(`[Session ${this.id}] ✓ Agent reloaded, session reset, receivedMessageIds cleared`);
         } else if (data.type === 'dragon_typing') {
             // Show initial thinking indicator and disable input
             this.isProcessing = true;
@@ -231,6 +240,7 @@ class DragonSession {
     }
 
     clearMessages() {
+        console.log(`[Session ${this.id}] Clearing messages and receivedMessageIds (had ${this.messages.length} messages, ${this.receivedMessageIds.size} IDs)`);
         this.messages = [];
         this.receivedMessageIds.clear();
     }
@@ -469,6 +479,9 @@ export class DragonView {
                         <button class="btn btn-secondary" id="dragonReloadBtn" title="Reload agent (clear context and reload provider)">
                             <span>🔄 Reload Agent</span>
                         </button>
+                        <button class="btn btn-danger" id="dragonClearStorageBtn" title="Clear all stored sessions and message history">
+                            <span>🗑️ Clear Storage</span>
+                        </button>
                     </div>
                 </div>
                 <div class="dragon-tabs-container">
@@ -623,6 +636,7 @@ export class DragonView {
         const reloadBtn = document.getElementById('dragonReloadBtn');
         const clearBtn = document.getElementById('dragonClearBtn');
         const downloadBtn = document.getElementById('dragonDownloadBtn');
+        const clearStorageBtn = document.getElementById('dragonClearStorageBtn');
         const providerSelect = document.getElementById('dragonProviderSelect');
         const addTabBtn = document.getElementById('dragonAddTab');
 
@@ -636,6 +650,7 @@ export class DragonView {
         reloadBtn?.addEventListener('click', () => this.reloadAgent());
         clearBtn?.addEventListener('click', () => this.clearContext());
         downloadBtn?.addEventListener('click', () => this.downloadConversation());
+        clearStorageBtn?.addEventListener('click', () => this.clearAllStorage());
         providerSelect?.addEventListener('change', (e) => {
             this.selectedProvider = e.target.value;
             this.reloadAgent();
@@ -712,6 +727,40 @@ export class DragonView {
             this.renderActiveSessionMessages();
             this.showNotification('Context cleared', 'info');
         }
+    }
+
+    /**
+     * Clear all stored sessions and message history
+     */
+    clearAllStorage() {
+        if (!confirm('This will delete all stored sessions and message history. Continue?')) {
+            return;
+        }
+
+        // Clear localStorage
+        localStorage.removeItem(DRAGON_SESSIONS_KEY);
+        console.log('[DragonView] Cleared all localStorage data');
+
+        // Disconnect all current sessions
+        this.sessions.forEach(session => {
+            session.disconnect();
+        });
+
+        // Clear in-memory sessions
+        this.sessions.clear();
+
+        // Create a fresh session
+        this.nextSessionId = 1;
+        this.activeSessionId = 1;
+        const newSession = this.createNewSession();
+        newSession.connect();
+
+        // Re-render UI
+        this.renderTabs();
+        this.renderActiveSessionMessages();
+
+        this.showNotification('Storage cleared - starting fresh', 'success');
+        console.log('[DragonView] All sessions cleared, created fresh session');
     }
 
     /**
