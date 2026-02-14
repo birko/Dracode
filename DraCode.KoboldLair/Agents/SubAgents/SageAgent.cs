@@ -18,6 +18,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<string, bool>? _approveProject;
         private readonly Func<string, string>? _getProjectFolder;
+        private readonly Func<string, string?>? _onProjectLoaded;
 
         protected override string SystemPrompt => GetSageSystemPrompt();
 
@@ -28,7 +29,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Action<string>? onSpecificationUpdated = null,
             Func<string, bool>? approveProject = null,
             Func<string, string>? getProjectFolder = null,
-            string projectsPath = "./projects")
+            string projectsPath = "./projects",
+            Func<string, string?>? onProjectLoaded = null)
             : base(provider, options)
         {
             _projectsPath = projectsPath ?? "./projects";
@@ -36,6 +38,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _onSpecificationUpdated = onSpecificationUpdated;
             _approveProject = approveProject;
             _getProjectFolder = getProjectFolder;
+            _onProjectLoaded = onProjectLoaded;
             RebuildTools();
         }
 
@@ -43,7 +46,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         {
             var tools = new List<Tool>
             {
-                new SpecificationManagementTool(_specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath),
+                new SpecificationManagementTool(_specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath, _onProjectLoaded),
                 new FeatureManagementTool(_specifications),
                 new ProjectApprovalTool(_approveProject)
             };

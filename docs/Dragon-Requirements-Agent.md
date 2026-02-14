@@ -94,6 +94,10 @@ WebSocket service for real-time Dragon conversations with multi-session support.
 - **Multi-session management** - Multiple concurrent sessions per WebSocket connection
 - **Session persistence** - Sessions survive disconnects and can be resumed
 - **Message history** - Up to 100 messages stored per session for replay on reconnect
+- **Conversation persistence** - History saved to `dragon-history.json` per project (server-side)
+- **Project context loading** - When user loads a project, previous conversation history is loaded and summarized
+- **Context isolation** - Switching projects resets Dragon's LLM context to prevent cross-project contamination
+- **No client localStorage** - All session data is server-side; client relies on server replay
 - **Automatic cleanup** - Expired sessions cleaned up after 10 minutes of inactivity
 - Bi-directional messaging
 - Typing indicators
@@ -114,6 +118,8 @@ public class DragonSession {
     public DateTime LastActivity { get; set; }
     public List<SessionMessage> MessageHistory { get; }
     public string? LastMessageId { get; set; }
+    public string? CurrentProjectFolder { get; set; }
+    public bool PendingContextReset { get; set; }
 }
 
 // Message tracking for replay
@@ -126,6 +132,24 @@ public record SessionMessage(string MessageId, string Type, object Data, DateTim
 3. **Disconnected**: Session preserved in memory for potential reconnection
 4. **Resumed**: On reconnect with sessionId, agent context restored, message history replayed
 5. **Expired**: Cleaned up after 10 minutes of inactivity by cleanup timer
+
+**Project Switch Flow:**
+1. User asks to "work on project X"
+2. Dragon delegates to Sage → `manage_specification` loads the project
+3. `OnProjectLoaded` callback fires:
+   - Sets `CurrentProjectFolder` on the session
+   - If switching from another project: sets `PendingContextReset` flag, clears old message history
+   - Loads `dragon-history.json` from the project folder
+   - Returns a brief conversation summary (message counts + last 3 user topics)
+4. Summary is appended to tool response → Dragon presents it to the user
+5. After response is sent: Dragon's LLM conversation history is cleared, only the switch exchange is kept
+6. Next user message → Dragon has clean, project-specific context
+
+**Conversation Persistence:**
+- History saved to `{project-folder}/dragon-history.json` after each message (fire-and-forget)
+- Up to 100 messages persisted per project
+- Thread-safe via `_historyLock`
+- Loaded automatically when user loads a project specification
 
 **WebSocket Protocol:**
 
@@ -162,7 +186,8 @@ public record SessionMessage(string MessageId, string Type, object Data, DateTim
 1. Client reconnects with `sessionId` in query string or message
 2. Server sends `session_resumed` with `messageCount` and `lastMessageId`
 3. Server replays message history with `isReplay: true` flag
-4. Client can filter replayed messages to avoid duplicates
+4. Client filters replayed messages via `receivedMessageIds` set to avoid duplicates
+5. If session not found: server creates new session, client can replay in-memory messages
 
 ### 3. Dragon Tools (`Agents/Tools/`)
 
@@ -307,23 +332,26 @@ Use retry_failed_task with action 'retry' and the task_id to retry.
 
 This prevents accidental task generation from incomplete specifications.
 
-### 4. Frontend (`wwwroot/dragon.html`, `dragon.js`, `dragon.css`)
+### 4. Frontend (`wwwroot/dragon.html`, `dragon-view.js`, `dragon.css`)
 
 Interactive chat interface for Dragon conversations.
 
 **Features:**
 - Real-time WebSocket communication
 - Message formatting (markdown-like)
-- Typing indicators
-- Specification tracking sidebar
-- Responsive design
+- Typing indicators and streaming display
+- Multi-tab session support
+- Session recovery modal (for server restarts)
+- Provider selection and agent reload
+- Conversation download (text export)
+- No localStorage dependency - server is source of truth for conversation history
 
 **UI Components:**
 - Chat messages (Dragon 🐉 and User 👤)
 - Input textarea with Send button
-- Connection status indicator
-- Tips and guidelines panel
-- Created specifications list
+- Session tabs with connection status indicators
+- Provider selection dropdown
+- Clear Context / Reload Agent / Download buttons
 
 ## Workflow
 
@@ -524,6 +552,7 @@ Each project gets its own folder with all related files:
 ./projects/{project-name}/
     specification.md              # Project specification
     specification.features.json   # Feature list
+    dragon-history.json           # Dragon conversation history (auto-persisted)
     {area}-tasks.md               # Task files
     analysis.md                   # Wyvern analysis
     workspace/                    # Generated code
@@ -684,6 +713,12 @@ public class DragonSession
     public DateTime LastActivity { get; set; }
     public List<SessionMessage> MessageHistory { get; }
     public string? LastMessageId { get; set; }
+    public string? CurrentProjectFolder { get; set; }
+    public bool PendingContextReset { get; set; }
+
+    // Persistence
+    public Task SaveHistoryToFileAsync(string projectFolder, ILogger? logger = null)
+    public static Task<List<SessionMessage>?> LoadHistoryFromFileAsync(string projectFolder, ILogger? logger = null)
 }
 
 public record SessionMessage(string MessageId, string Type, object Data, DateTime Timestamp);
@@ -849,19 +884,26 @@ fetch('/api/config')
 ```
 DraCode.KoboldLair.Client/
   ├── wwwroot/
-  │   ├── dragon.html        ← UI with project selection
-  │   ├── css/dragon.css     ← Styling
-  │   └── js/
-  │       ├── config.js      ← Static config (fallback)
-  │       └── dragon.js      ← Main logic with project setup
-  └── Program.cs             ← Proxy + /api/config
+  │   ├── index.html         ← Main entry point
+  │   ├── dragon-view.js     ← Dragon chat UI (no localStorage)
+  │   ├── websocket.js       ← WebSocket client with reconnection
+  │   ├── server-manager.js  ← Server connection config (localStorage)
+  │   └── css/styles.css     ← Styling
+  └── Program.cs             ← Static files + proxy
+
+DraCode.KoboldLair/
+  ├── Agents/
+  │   ├── DragonAgent.cs     ← Dragon coordinator agent
+  │   ├── SubAgents/
+  │   │   └── SageAgent.cs   ← Specifications (passes onProjectLoaded)
+  │   └── Tools/
+  │       └── SpecificationManagementTool.cs ← Triggers project load callback
+  └── ...
 
 DraCode.KoboldLair.Server/
-  ├── Agents/
-  │   ├── AgentFactory.cs    ← Creates Dragon, Wyrm, Drake agents
-  │   └── DragonAgent.cs     ← Dragon agent implementation
   ├── Services/
-  │   └── DragonService.cs   ← WebSocket service for Dragon
+  │   └── DragonService.cs   ← WebSocket service, session management,
+  │                              conversation persistence, project switching
   └── Program.cs             ← API endpoints + WebSocket /dragon
 ```
 

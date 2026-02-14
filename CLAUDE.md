@@ -263,6 +263,10 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
 - **Session Management**: `ConcurrentDictionary<string, DragonSession>` tracks sessions
 - **Session Timeout**: 10 minutes of inactivity before cleanup
 - **Message History**: Up to 100 messages stored per session for replay
+- **Conversation Persistence**: History saved to `dragon-history.json` per project (server-side)
+- **Project Switch**: Loading a project loads its conversation history and resets Dragon context
+- **Context Isolation**: Switching projects clears LLM conversation history, keeping only the switch exchange
+- **No Client localStorage**: Client has no persistent storage for sessions; server is source of truth
 - **Cleanup**: Automatic cleanup timer runs every 60 seconds
 - **Reconnection**: Sessions persist across disconnects; message history replayed on reconnect
 - **Message Types**: `session_resumed`, `dragon_message`, `dragon_thinking`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`
@@ -289,6 +293,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
             {plan-filename}-plan.md   # Human-readable plan
             plan-index.json           # Plan lookup index
         planning-context.json         # Shared planning context (NEW - 2026-02-09)
+        dragon-history.json           # Dragon conversation history (server-persisted)
 provider-config.json                  # Provider configuration
 user-settings.json                    # User runtime settings (agent providers)
 ```

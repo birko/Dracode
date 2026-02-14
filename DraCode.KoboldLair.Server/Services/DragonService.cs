@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.SubAgents;
@@ -36,6 +37,12 @@ namespace DraCode.KoboldLair.Server.Services
         public List<SessionMessage> MessageHistory { get; } = new();
         public string? LastMessageId { get; set; }
         public string? CurrentProjectFolder { get; set; }
+
+        /// <summary>
+        /// Tracks whether the Dragon's conversation context should be reset after the current response.
+        /// Set when switching between projects so old project context doesn't leak.
+        /// </summary>
+        public bool PendingContextReset { get; set; }
 
         /// <summary>
         /// Tracks whether a streaming response was sent during the current request.
@@ -433,7 +440,8 @@ namespace DraCode.KoboldLair.Server.Services
                 onSpecificationUpdated: path => _projectService.MarkSpecificationModified(path),
                 approveProject: name => _projectService.ApproveProject(name),
                 getProjectFolder: name => _projectService.CreateProjectFolder(name),
-                projectsPath: _projectsPath);
+                projectsPath: _projectsPath,
+                onProjectLoaded: projectFolder => OnProjectLoaded(session, projectFolder));
 
             session.Seeker = new SeekerAgent(
                 llmProvider,
@@ -501,6 +509,128 @@ namespace DraCode.KoboldLair.Server.Services
                 options,
                 getProjects: GetProjectInfoList,
                 delegateToCouncil: (member, task) => DelegateToCouncilAsync(session, member, task));
+        }
+
+        /// <summary>
+        /// Called when a project specification is loaded. Sets the session's project folder,
+        /// loads conversation history, and returns a brief summary for the Dragon to present.
+        /// </summary>
+        private string? OnProjectLoaded(DragonSession session, string projectFolder)
+        {
+            if (session.CurrentProjectFolder == projectFolder)
+                return null; // Already on this project
+
+            var isProjectSwitch = session.CurrentProjectFolder != null;
+            session.CurrentProjectFolder = projectFolder;
+
+            if (isProjectSwitch)
+            {
+                // Switching between projects - reset Dragon context after response is sent
+                session.PendingContextReset = true;
+
+                // Clear old project's message history
+                lock (session._historyLock)
+                {
+                    session.MessageHistory.Clear();
+                }
+
+                _logger.LogInformation("Session {SessionId} switching from previous project to: {Folder}", session.SessionId, projectFolder);
+            }
+            else
+            {
+                _logger.LogInformation("Session {SessionId} set initial project folder: {Folder}", session.SessionId, projectFolder);
+            }
+
+            try
+            {
+                var history = DragonSession.LoadHistoryFromFileAsync(projectFolder, _logger).GetAwaiter().GetResult();
+                if (history == null || history.Count == 0)
+                    return null;
+
+                // Load history into session for replay/persistence
+                lock (session._historyLock)
+                {
+                    if (session.MessageHistory.Count == 0)
+                    {
+                        session.MessageHistory.AddRange(history);
+                    }
+                }
+
+                // Build a brief summary of the previous conversation
+                var userMessages = history
+                    .Where(m => m.Type == "user_message" || m.Type == "dragon_message")
+                    .ToList();
+
+                var userCount = history.Count(m => m.Type == "user_message");
+                var assistantCount = history.Count(m => m.Type == "dragon_message");
+
+                // Extract last few user topics for context
+                var recentTopics = history
+                    .Where(m => m.Type == "user_message")
+                    .TakeLast(3)
+                    .Select(m => ExtractMessageContent(m.Data))
+                    .Where(c => !string.IsNullOrEmpty(c))
+                    .Select(c => c!.Length > 80 ? c[..80] + "..." : c)
+                    .ToList();
+
+                var summary = $"📜 **Previous conversation found** ({userCount} user messages, {assistantCount} responses).";
+                if (recentTopics.Count > 0)
+                {
+                    summary += "\nLast topics discussed:\n" + string.Join("\n", recentTopics.Select(t => $"- \"{t}\""));
+                }
+                summary += "\n\nPlease give the user a brief summary of what was discussed previously and ask how they'd like to continue.";
+
+                _logger.LogInformation("Loaded conversation history for session {SessionId}: {UserCount} user, {AssistantCount} assistant messages",
+                    session.SessionId, userCount, assistantCount);
+
+                return summary;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load conversation history for project folder: {Folder}", projectFolder);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Extracts the text content from a SessionMessage's Data object.
+        /// </summary>
+        private static string? ExtractMessageContent(object? data)
+        {
+            if (data == null) return null;
+
+            try
+            {
+                if (data is JsonObject jsonObj)
+                {
+                    if (jsonObj.TryGetPropertyValue("content", out var content))
+                        return content?.ToString();
+                    if (jsonObj.TryGetPropertyValue("message", out var message))
+                        return message?.ToString();
+                }
+
+                if (data is JsonElement element && element.ValueKind == JsonValueKind.Object)
+                {
+                    if (element.TryGetProperty("content", out var content))
+                        return content.GetString();
+                    if (element.TryGetProperty("message", out var message))
+                        return message.GetString();
+                }
+
+                if (data is IDictionary<string, object> dict)
+                {
+                    if (dict.TryGetValue("content", out var content))
+                        return content?.ToString();
+                    if (dict.TryGetValue("message", out var message))
+                        return message?.ToString();
+                }
+            }
+            catch
+            {
+                // Ignore extraction errors
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -625,6 +755,20 @@ namespace DraCode.KoboldLair.Server.Services
                     timestamp = DateTime.UtcNow,
                     isStreamed = session.StreamingResponseSent
                 });
+
+                // Reset Dragon context if project was switched
+                if (session.PendingContextReset)
+                {
+                    session.PendingContextReset = false;
+                    session.Dragon!.ClearConversationHistory();
+                    // Keep only the project switch exchange so Dragon has minimal context
+                    session.Dragon!.RestoreContext(new[]
+                    {
+                        ("user", message.Message!),
+                        ("assistant", response)
+                    });
+                    _logger.LogInformation("[Dragon] Context reset after project switch. Kept last exchange only.");
+                }
 
                 // Check for new specifications
                 await CheckForNewSpecifications(webSocket, session);

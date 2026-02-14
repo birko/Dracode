@@ -13,17 +13,20 @@ namespace DraCode.KoboldLair.Agents.Tools
         private readonly object _specificationsLock = new object();
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<string, string>? _getProjectFolder;
+        private readonly Func<string, string?>? _onProjectLoaded;
 
         public SpecificationManagementTool(
             Dictionary<string, Specification> specifications,
             Action<string>? onSpecificationUpdated = null,
             Func<string, string>? getProjectFolder = null,
-            string? projectsPath = "./projects")
+            string? projectsPath = "./projects",
+            Func<string, string?>? onProjectLoaded = null)
         {
             _specifications = specifications;
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjectFolder = getProjectFolder;
             _projectsPath = projectsPath ?? "./projects";
+            _onProjectLoaded = onProjectLoaded;
         }
 
         public override string Name => "manage_specification";
@@ -133,7 +136,14 @@ namespace DraCode.KoboldLair.Agents.Tools
                             FeatureManagementTool.LoadFeatures(existingSpec, projectFolder);
                         }
 
-                        return $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {existingSpec.Features.Count}";
+                        var result = $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {existingSpec.Features.Count}";
+                        if (!string.IsNullOrEmpty(projectFolder))
+                        {
+                            var summary = _onProjectLoaded?.Invoke(projectFolder);
+                            if (!string.IsNullOrEmpty(summary))
+                                result += $"\n\n{summary}";
+                        }
+                        return result;
                     }
                 }
             }
@@ -166,7 +176,11 @@ namespace DraCode.KoboldLair.Agents.Tools
                 // Load features from project folder
                 FeatureManagementTool.LoadFeatures(spec, projectFolder2);
 
-                return $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {spec.Features.Count}";
+                var result = $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {spec.Features.Count}";
+                var summary = _onProjectLoaded?.Invoke(projectFolder2);
+                if (!string.IsNullOrEmpty(summary))
+                    result += $"\n\n{summary}";
+                return result;
             }
             catch (Exception ex)
             {
