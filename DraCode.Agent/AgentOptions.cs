@@ -75,6 +75,12 @@ namespace DraCode.Agent
         public int CheckpointInterval { get; set; } = 3;
 
         /// <summary>
+        /// Optional callback invoked after each successful LLM response.
+        /// Used for tracking activity and preventing false timeout detections.
+        /// </summary>
+        public Action? OnLlmResponseReceived { get; set; }
+
+        /// <summary>
         /// Creates a copy of the current options
         /// </summary>
         public AgentOptions Clone()

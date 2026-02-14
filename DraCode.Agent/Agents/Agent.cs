@@ -257,6 +257,9 @@ Reasoning approach: Balanced
                     // Stream the first response for real-time display
                     var streamingResponse = await _llmProvider.SendMessageStreamingAsync(conversation, _tools, SystemPrompt);
 
+                    // Notify that LLM response was received
+                    _options.OnLlmResponseReceived?.Invoke();
+
                     if (!string.IsNullOrEmpty(streamingResponse.Error))
                     {
                         SendMessage("error", $"Streaming error: {streamingResponse.Error}");
@@ -298,6 +301,10 @@ Reasoning approach: Balanced
                 {
                     // Subsequent iterations use synchronous mode for tool processing
                     response = await _llmProvider.SendMessageAsync(conversation, _tools, SystemPrompt);
+                    
+                    // Notify that LLM response was received
+                    _options.OnLlmResponseReceived?.Invoke();
+                    
                     responseText = string.Join("\n", (response.Content ?? [])
                         .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
                         .Select(b => b.Text));
@@ -450,6 +457,9 @@ Reasoning approach: Balanced
                 }
 
                 var response = await _llmProvider.SendMessageAsync(conversation, _tools, SystemPrompt);
+
+                // Notify that LLM response was received
+                _options.OnLlmResponseReceived?.Invoke();
 
                 if (_options.Verbose)
                 {

@@ -1245,17 +1245,29 @@ namespace DraCode.KoboldLair.Orchestrators
                     : kobold.TaskDescription ?? "unknown";
                 var projectInfo = kobold.ProjectId ?? _projectId ?? "unknown";
                 
+                // Calculate time since start for context
+                var totalTime = kobold.StartedAt.HasValue 
+                    ? DateTime.UtcNow - kobold.StartedAt.Value 
+                    : TimeSpan.Zero;
+                
+                var lastActivityTime = kobold.LastLlmResponseAt ?? kobold.StartedAt;
+                var idleTimeInfo = lastActivityTime.HasValue 
+                    ? $"{workingDuration.TotalMinutes:F1} minutes since last LLM response"
+                    : "unknown idle time";
+                
                 _logger?.LogWarning(
                     "⚠️ Stuck Kobold detected\n" +
                     "  Project: {ProjectId}\n" +
                     "  Kobold ID: {KoboldId}\n" +
                     "  Task ID: {TaskId}\n" +
-                    "  Duration: {Duration:F1} minutes\n" +
+                    "  Total time: {TotalTime:F1} minutes\n" +
+                    "  Idle time: {IdleTime}\n" +
                     "  Task: {TaskDescription}",
                     projectInfo,
                     kobold.Id.ToString()[..8],
                     kobold.TaskId?.ToString()[..8] ?? "unknown",
-                    workingDuration.TotalMinutes,
+                    totalTime.TotalMinutes,
+                    idleTimeInfo,
                     taskPreview);
 
                 // Mark the Kobold as stuck (transitions to Done with error)
@@ -1270,7 +1282,7 @@ namespace DraCode.KoboldLair.Orchestrators
 
                     // Add timeout log entry
                     kobold.ImplementationPlan.AddLogEntry(
-                        $"⏱️ Kobold timed out after {workingDuration.TotalMinutes:F1} minutes. " +
+                        $"⏱️ Kobold timed out after being idle for {workingDuration.TotalMinutes:F1} minutes (no LLM response). " +
                         $"Progress: {completedSteps}/{totalSteps} steps completed. " +
                         $"Plan saved for resumption on retry.");
 

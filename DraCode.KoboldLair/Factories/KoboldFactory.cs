@@ -124,16 +124,23 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
-        /// Gets working Kobolds that have exceeded the specified timeout duration
+        /// Gets working Kobolds that have exceeded the specified timeout duration.
+        /// Uses LastLlmResponseAt for more accurate timeout detection - only considers
+        /// a Kobold stuck if it hasn't received an LLM response within the timeout period.
         /// </summary>
-        /// <param name="timeout">Maximum allowed working duration</param>
-        /// <returns>List of stuck Kobolds with their working duration</returns>
+        /// <param name="timeout">Maximum allowed idle duration (time since last LLM response)</param>
+        /// <returns>List of stuck Kobolds with their idle duration</returns>
         public IReadOnlyCollection<(KoboldModel Kobold, TimeSpan WorkingDuration)> GetStuckKobolds(TimeSpan timeout)
         {
             var now = DateTime.UtcNow;
             return _kobolds.Values
-                .Where(k => k.Status == KoboldStatus.Working && k.StartedAt.HasValue)
-                .Select(k => (Kobold: k, WorkingDuration: now - k.StartedAt!.Value))
+                .Where(k => k.Status == KoboldStatus.Working)
+                .Select(k => {
+                    // Use LastLlmResponseAt if available (more accurate), otherwise fall back to StartedAt
+                    var lastActivity = k.LastLlmResponseAt ?? k.StartedAt;
+                    var idleDuration = lastActivity.HasValue ? now - lastActivity.Value : TimeSpan.Zero;
+                    return (Kobold: k, WorkingDuration: idleDuration);
+                })
                 .Where(x => x.WorkingDuration > timeout)
                 .ToList();
         }

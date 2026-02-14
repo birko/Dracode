@@ -80,6 +80,12 @@ namespace DraCode.KoboldLair.Models.Agents
         public DateTime? StartedAt { get; private set; }
 
         /// <summary>
+        /// Timestamp of the last successful LLM response
+        /// Used for detecting truly stuck agents (no response for extended period)
+        /// </summary>
+        public DateTime? LastLlmResponseAt { get; private set; }
+
+        /// <summary>
         /// Timestamp when the Kobold completed the task
         /// </summary>
         public DateTime? CompletedAt { get; private set; }
@@ -106,6 +112,12 @@ namespace DraCode.KoboldLair.Models.Agents
             CreatedAt = DateTime.UtcNow;
             _logger = logger;
             _validationService = new StepValidationService(logger as ILogger<StepValidationService>);
+            
+            // Set up LLM response callback to track activity and prevent false timeouts
+            Agent.Options.OnLlmResponseReceived = () =>
+            {
+                LastLlmResponseAt = DateTime.UtcNow;
+            };
             
             _logger?.LogInformation("Kobold {KoboldId} created with agent type {AgentType} at {CreatedAt:o}", 
                 Id.ToString()[..8], agentType, CreatedAt);
@@ -177,6 +189,7 @@ namespace DraCode.KoboldLair.Models.Agents
 
             Status = KoboldStatus.Working;
             StartedAt = DateTime.UtcNow;
+            LastLlmResponseAt = DateTime.UtcNow; // Initialize to start time
 
             try
             {
@@ -416,6 +429,7 @@ You are working on a task that is part of a larger project. Below is the project
 
             Status = KoboldStatus.Working;
             StartedAt = DateTime.UtcNow;
+            LastLlmResponseAt = DateTime.UtcNow; // Initialize to start time
 
             // If we have a plan, inject the update_plan_step tool and register context
             bool toolInjected = false;
@@ -1700,6 +1714,7 @@ If step is complete, call `update_plan_step` with status 'completed'.
             Status = KoboldStatus.Unassigned;
             AssignedAt = null;
             StartedAt = null;
+            LastLlmResponseAt = null;
             CompletedAt = null;
             ErrorMessage = null;
             IsStuck = false;
