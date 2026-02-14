@@ -1,7 +1,5 @@
 import { WebSocketClient } from './websocket.js';
 
-const DRAGON_SESSIONS_KEY = 'dragon_sessions';
-
 /**
  * Represents a single Dragon session with its own WebSocket connection
  */
@@ -56,7 +54,6 @@ class DragonSession {
         this.ws.setSessionId(newSessionId);
         this.messages = [];
         this.receivedMessageIds.clear();
-        this.view.saveAllSessions();
         console.log(`[Session ${this.id}] Accepted new session:`, newSessionId);
     }
 
@@ -87,7 +84,6 @@ class DragonSession {
             console.log(`[Session ${this.id}] Session ID changed from ${this.sessionId} to ${data.sessionId}`);
             this.sessionId = data.sessionId;
             this.ws.setSessionId(this.sessionId);
-            this.view.saveAllSessions();
         }
 
         // Deduplicate by messageId - this handles both replay and regular duplicate messages
@@ -145,7 +141,6 @@ class DragonSession {
                     const msg = { role: 'assistant', content };
                     if (data.messageId) msg.messageId = data.messageId;
                     this.messages.push(msg);
-                    this.view.saveAllSessions();
                 } else {
                     // For non-streamed OR streamed without chunks: normal flow with UI update
                     console.log(`[Session ${this.id}] Adding message to UI via addMessage()`);
@@ -173,7 +168,6 @@ class DragonSession {
             this.ws.setSessionId(this.sessionId);
             this.ws.clearMessageHistory();
             this.addMessage('system', data.message, data.messageId);
-            this.view.saveAllSessions();
             console.log(`[Session ${this.id}] ✓ Agent reloaded, session reset, receivedMessageIds cleared`);
         } else if (data.type === 'dragon_typing') {
             // Show initial thinking indicator and disable input
@@ -215,7 +209,6 @@ class DragonSession {
             msg.messageId = messageId;
         }
         this.messages.push(msg);
-        this.view.saveAllSessions();
 
         // Only update UI if this is the active session
         if (this.view.activeSessionId === this.id) {
@@ -232,7 +225,6 @@ class DragonSession {
         const details = errorData.details || '';
 
         this.messages.push({ role: 'error', content: message, details, errorType });
-        this.view.saveAllSessions();
 
         if (this.view.activeSessionId === this.id) {
             this.view.appendErrorToUI(errorData);
@@ -277,7 +269,6 @@ class DragonSession {
         }
         // Clear local messages - server will send context_cleared confirmation
         this.clearMessages();
-        this.view.saveAllSessions();
     }
 
     disconnect() {
@@ -286,26 +277,6 @@ class DragonSession {
         this.isConnected = false;
     }
 
-    toStorageObject() {
-        return {
-            id: this.id,
-            name: this.name,
-            sessionId: this.sessionId,
-            messages: this.messages.slice(-100) // Keep last 100 messages
-        };
-    }
-
-    loadFromStorage(data) {
-        this.name = data.name || `Session ${this.id}`;
-        this.sessionId = data.sessionId;
-        this.messages = data.messages || [];
-        // Rebuild receivedMessageIds
-        this.messages.forEach(msg => {
-            if (msg.messageId) {
-                this.receivedMessageIds.add(msg.messageId);
-            }
-        });
-    }
 }
 
 export class DragonView {
@@ -317,61 +288,8 @@ export class DragonView {
         this.providers = [];
         this.selectedProvider = null;
 
-        // Load sessions from localStorage
-        this.loadAllSessions();
-    }
-
-    /**
-     * Load all sessions from localStorage
-     */
-    loadAllSessions() {
-        try {
-            const stored = localStorage.getItem(DRAGON_SESSIONS_KEY);
-            if (stored) {
-                const data = JSON.parse(stored);
-                this.nextSessionId = data.nextSessionId || 1;
-                this.activeSessionId = data.activeSessionId;
-
-                if (data.sessions && data.sessions.length > 0) {
-                    data.sessions.forEach(sessionData => {
-                        const session = new DragonSession(sessionData.id, this);
-                        session.loadFromStorage(sessionData);
-                        this.sessions.set(session.id, session);
-                    });
-                    console.log('Loaded', this.sessions.size, 'sessions from storage');
-                }
-            }
-
-            // Ensure we have at least one session
-            if (this.sessions.size === 0) {
-                this.createNewSession();
-            }
-
-            // Ensure activeSessionId is valid
-            if (!this.sessions.has(this.activeSessionId)) {
-                this.activeSessionId = this.sessions.keys().next().value;
-            }
-        } catch (error) {
-            console.error('Failed to load sessions from storage:', error);
-            this.sessions.clear();
-            this.createNewSession();
-        }
-    }
-
-    /**
-     * Save all sessions to localStorage
-     */
-    saveAllSessions() {
-        try {
-            const data = {
-                nextSessionId: this.nextSessionId,
-                activeSessionId: this.activeSessionId,
-                sessions: Array.from(this.sessions.values()).map(s => s.toStorageObject())
-            };
-            localStorage.setItem(DRAGON_SESSIONS_KEY, JSON.stringify(data));
-        } catch (error) {
-            console.error('Failed to save sessions to storage:', error);
-        }
+        // Create initial session (server replays history on connect)
+        this.createNewSession();
     }
 
     /**
@@ -382,7 +300,6 @@ export class DragonView {
         const session = new DragonSession(id, this);
         this.sessions.set(id, session);
         this.activeSessionId = id;
-        this.saveAllSessions();
         return session;
     }
 
@@ -406,7 +323,6 @@ export class DragonView {
             }
         }
 
-        this.saveAllSessions();
         this.renderTabs();
         this.renderActiveSessionMessages();
     }
@@ -422,7 +338,6 @@ export class DragonView {
         this.hideThinkingIndicator();
 
         this.activeSessionId = id;
-        this.saveAllSessions();
         this.renderTabs();
         this.renderActiveSessionMessages();
 
@@ -478,9 +393,6 @@ export class DragonView {
                         </button>
                         <button class="btn btn-secondary" id="dragonReloadBtn" title="Reload agent (clear context and reload provider)">
                             <span>🔄 Reload Agent</span>
-                        </button>
-                        <button class="btn btn-danger" id="dragonClearStorageBtn" title="Clear all stored sessions and message history">
-                            <span>🗑️ Clear Storage</span>
                         </button>
                     </div>
                 </div>
@@ -636,7 +548,6 @@ export class DragonView {
         const reloadBtn = document.getElementById('dragonReloadBtn');
         const clearBtn = document.getElementById('dragonClearBtn');
         const downloadBtn = document.getElementById('dragonDownloadBtn');
-        const clearStorageBtn = document.getElementById('dragonClearStorageBtn');
         const providerSelect = document.getElementById('dragonProviderSelect');
         const addTabBtn = document.getElementById('dragonAddTab');
 
@@ -650,7 +561,6 @@ export class DragonView {
         reloadBtn?.addEventListener('click', () => this.reloadAgent());
         clearBtn?.addEventListener('click', () => this.clearContext());
         downloadBtn?.addEventListener('click', () => this.downloadConversation());
-        clearStorageBtn?.addEventListener('click', () => this.clearAllStorage());
         providerSelect?.addEventListener('change', (e) => {
             this.selectedProvider = e.target.value;
             this.reloadAgent();
@@ -687,7 +597,6 @@ export class DragonView {
     }
 
     onUnmount() {
-        this.saveAllSessions();
         this.sessions.forEach(session => {
             session.disconnect();
         });
@@ -727,40 +636,6 @@ export class DragonView {
             this.renderActiveSessionMessages();
             this.showNotification('Context cleared', 'info');
         }
-    }
-
-    /**
-     * Clear all stored sessions and message history
-     */
-    clearAllStorage() {
-        if (!confirm('This will delete all stored sessions and message history. Continue?')) {
-            return;
-        }
-
-        // Clear localStorage
-        localStorage.removeItem(DRAGON_SESSIONS_KEY);
-        console.log('[DragonView] Cleared all localStorage data');
-
-        // Disconnect all current sessions
-        this.sessions.forEach(session => {
-            session.disconnect();
-        });
-
-        // Clear in-memory sessions
-        this.sessions.clear();
-
-        // Create a fresh session
-        this.nextSessionId = 1;
-        this.activeSessionId = 1;
-        const newSession = this.createNewSession();
-        newSession.connect();
-
-        // Re-render UI
-        this.renderTabs();
-        this.renderActiveSessionMessages();
-
-        this.showNotification('Storage cleared - starting fresh', 'success');
-        console.log('[DragonView] All sessions cleared, created fresh session');
     }
 
     /**
@@ -1217,7 +1092,6 @@ export class DragonView {
                     session.sessionId = data.newSessionId;
                     session.ws.setSessionId(data.newSessionId);
                     session.receivedMessageIds.clear();
-                    this.saveAllSessions();
                     this.showNotification('Local history preserved (AI has no memory of it)', 'info');
                     break;
 
@@ -1226,7 +1100,6 @@ export class DragonView {
                     session.sessionId = data.newSessionId;
                     session.ws.setSessionId(data.newSessionId);
                     session.receivedMessageIds.clear();
-                    this.saveAllSessions();
                     break;
             }
         });
@@ -1239,7 +1112,6 @@ export class DragonView {
                 session.sessionId = data.newSessionId;
                 session.ws.setSessionId(data.newSessionId);
                 session.receivedMessageIds.clear();
-                this.saveAllSessions();
             }
         });
     }
