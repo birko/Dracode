@@ -5,7 +5,7 @@ namespace DraCode.Agent.Tools
     public class EditFile : Tool
     {
         public override string Name => "edit_file";
-        public override string Description => "Edit a file by replacing a specific text block. Use this to make surgical changes to existing files without overwriting the entire content.";
+        public override string Description => "Edit a file by replacing a specific text block. IMPORTANT: You MUST read the file with read_file first to see the actual content before using this tool. The old_text must match exactly - do not guess.";
         public override object? InputSchema => new
         {
             type = "object",
@@ -57,12 +57,11 @@ namespace DraCode.Agent.Tools
                 // Check if old_text exists in the file
                 if (!content.Contains(oldText))
                 {
-                    // Try to provide helpful feedback
-                    var lines = content.Split('\n');
-                    var preview = lines.Length > 10 
-                        ? string.Join("\n", lines.Take(10)) + "\n... (truncated)"
+                    // Return the FULL file content so the LLM can see what's actually there and self-correct
+                    var contentPreview = content.Length > 8000
+                        ? content[..8000] + $"\n\n... (truncated, {content.Length} chars total)"
                         : content;
-                    return $"Error: old_text not found in file. Make sure it matches exactly (including whitespace).\n\nFile preview:\n{preview}";
+                    return $"Error: old_text not found in file. The exact text you provided does not match anything in the file.\n\nYou MUST read the actual file content below carefully, find the correct text to match, and retry with the exact text from the file.\n\nFull file content:\n```\n{contentPreview}\n```";
                 }
 
                 // Count occurrences

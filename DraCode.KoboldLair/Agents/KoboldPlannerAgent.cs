@@ -275,6 +275,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 prompt.AppendLine("**CRITICAL**: When creating your plan:");
                 prompt.AppendLine("- Files listed above already EXIST - mark them in `filesToModify`, NOT `filesToCreate`");
                 prompt.AppendLine("- Only put files that DON'T exist in `filesToCreate`");
+                prompt.AppendLine("- For steps that modify existing files, include a note: 'Read file first, then edit'");
                 prompt.AppendLine("- Files marked ⚠️ are being worked on by other agents - avoid if possible");
                 prompt.AppendLine("- Consider each file's purpose when deciding which to modify");
                 prompt.AppendLine();

@@ -1389,8 +1389,10 @@ If step is complete, call `update_plan_step` with status 'completed'.
                         sb.AppendLine();
                     }
 
-                    sb.AppendLine("**IMPORTANT**: ");
-                    sb.AppendLine("- Files listed above ALREADY EXIST - use `edit_file` or check with `read_file` first");
+                    sb.AppendLine("**CRITICAL FILE RULES**: ");
+                    sb.AppendLine("- Files listed above ALREADY EXIST - you MUST use `read_file` first, then `edit_file` to modify them");
+                    sb.AppendLine("- **NEVER use `edit_file` without reading the file first** - you must see the actual content to provide the correct `old_text`");
+                    sb.AppendLine("- **NEVER guess what's in a file** - always `read_file` to see the real content before editing");
                     sb.AppendLine("- Files marked 🔒 are currently being worked on - avoid modifying them to prevent conflicts");
                     sb.AppendLine("- Check the plan's `filesToCreate` vs `filesToModify` to know which operation to use");
                     sb.AppendLine("- Consider each file's purpose when deciding how to modify it");
