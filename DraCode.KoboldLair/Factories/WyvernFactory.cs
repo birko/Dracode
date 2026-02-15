@@ -3,6 +3,7 @@ using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
+using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Factories
 {
@@ -21,13 +22,15 @@ namespace DraCode.KoboldLair.Factories
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly GitService? _gitService;
         private readonly AgentOptions _defaultOptions;
+        private readonly ILoggerFactory? _loggerFactory;
 
         public WyvernFactory(
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
             KoboldLairConfiguration koboldLairConfig,
             AgentOptions? defaultOptions = null,
-            GitService? gitService = null)
+            GitService? gitService = null,
+            ILoggerFactory? loggerFactory = null)
         {
             _Wyverns = new Dictionary<string, Wyvern>(StringComparer.OrdinalIgnoreCase);
             _wyvernProjectIds = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -36,6 +39,7 @@ namespace DraCode.KoboldLair.Factories
             _koboldLairConfig = koboldLairConfig;
             _gitService = gitService;
             _defaultOptions = defaultOptions ?? new AgentOptions { WorkingDirectory = "./workspace", Verbose = false };
+            _loggerFactory = loggerFactory;
         }
 
         /// <summary>
@@ -105,6 +109,8 @@ namespace DraCode.KoboldLair.Factories
 
                 var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, _koboldLairConfig, wyvernOptions, wyvernConfig, "wyvern");
 
+                var logger = _loggerFactory?.CreateLogger<Wyvern>();
+
                 var wyvern = new Wyvern(
                     projectName,
                     specificationPath,
@@ -116,7 +122,8 @@ namespace DraCode.KoboldLair.Factories
                     effectiveWyrmProvider,
                     wyrmConfig,
                     wyrmOptions,
-                    _gitService
+                    _gitService,
+                    logger
                 );
 
                 _Wyverns[projectName] = wyvern;

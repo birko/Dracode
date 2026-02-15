@@ -37,6 +37,7 @@ namespace DraCode.KoboldLair.Server.Services
         public List<SessionMessage> MessageHistory { get; } = new();
         public string? LastMessageId { get; set; }
         public string? CurrentProjectFolder { get; set; }
+        public ReliableWebSocketSender? ReliableSender { get; set; }
 
         /// <summary>
         /// Tracks whether the Dragon's conversation context should be reset after the current response.
@@ -239,10 +240,19 @@ namespace DraCode.KoboldLair.Server.Services
             if (session == null)
             {
                 var sessionId = Guid.NewGuid().ToString();
-                session = new DragonSession { SessionId = sessionId };
+                session = new DragonSession 
+                { 
+                    SessionId = sessionId,
+                    ReliableSender = new ReliableWebSocketSender(webSocket, _logger)
+                };
                 _sessions[sessionId] = session;
                 _sessionWebSockets[sessionId] = webSocket;
                 _logger.LogInformation("Dragon session started: {SessionId}", sessionId);
+            }
+            else if (session.ReliableSender == null || isResuming)
+            {
+                // Create new reliable sender for resumed session
+                session.ReliableSender = new ReliableWebSocketSender(webSocket, _logger);
             }
 
             var currentSessionId = session.SessionId;
@@ -309,12 +319,12 @@ namespace DraCode.KoboldLair.Server.Services
                         _logger.LogInformation("[Dragon] [{Type}] {Content}", type, content);
                         if (type == "tool_call" || type == "tool_result" || type == "info")
                         {
-                            _ = SendThinkingUpdateAsync(webSocket, currentSessionId, type, content);
+                            _ = SendThinkingUpdateAsync(webSocket, session, currentSessionId, type, content);
                         }
                         else if (type == "assistant_stream")
                         {
                             // Forward streaming chunks to client in real-time
-                            _ = SendStreamingChunkAsync(webSocket, currentSessionId, content);
+                            _ = SendStreamingChunkAsync(webSocket, session, currentSessionId, content);
                         }
                         else if (type == "assistant_final")
                         {
@@ -332,7 +342,7 @@ namespace DraCode.KoboldLair.Server.Services
                         _logger.LogDebug("[Dragon Council] [{Type}] {Content}", type, content);
                         if (type == "tool_call" || type == "tool_result" || type == "info")
                         {
-                            _ = SendThinkingUpdateAsync(webSocket, currentSessionId, type, content);
+                            _ = SendThinkingUpdateAsync(webSocket, session, currentSessionId, type, content);
                         }
                         // Note: assistant_stream and assistant_final are intentionally not forwarded
                         // Council responses are returned to Dragon which sends the final response
@@ -403,6 +413,25 @@ namespace DraCode.KoboldLair.Server.Services
 
                     var messageText = Encoding.UTF8.GetString(buffer, 0, result.Count);
                     session.LastActivity = DateTime.UtcNow;
+                    
+                    // Handle message acknowledgments
+                    try
+                    {
+                        var json = JsonDocument.Parse(messageText);
+                        if (json.RootElement.TryGetProperty("type", out var typeElement) && 
+                            typeElement.GetString() == "ack" &&
+                            json.RootElement.TryGetProperty("messageId", out var msgIdElement))
+                        {
+                            var ackMessageId = msgIdElement.GetString();
+                            if (!string.IsNullOrEmpty(ackMessageId))
+                            {
+                                session.ReliableSender?.AcknowledgeMessage(ackMessageId);
+                                continue;
+                            }
+                        }
+                    }
+                    catch { }
+                    
                     await HandleMessageAsync(webSocket, session, messageText);
                 }
             }
@@ -412,6 +441,21 @@ namespace DraCode.KoboldLair.Server.Services
             }
             finally
             {
+                // Flush any remaining messages before disconnect
+                if (session.ReliableSender != null)
+                {
+                    try
+                    {
+                        await session.ReliableSender.FlushAsync(TimeSpan.FromSeconds(2));
+                        session.ReliableSender.Dispose();
+                        session.ReliableSender = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error flushing reliable sender on disconnect");
+                    }
+                }
+                
                 _sessionWebSockets.TryRemove(currentSessionId, out _);
                 _logger.LogInformation("Dragon WebSocket disconnected (session preserved): {SessionId}", currentSessionId);
             }
@@ -893,7 +937,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private async Task SendThinkingUpdateAsync(WebSocket webSocket, string sessionId, string eventType, string content)
+        private async Task SendThinkingUpdateAsync(WebSocket webSocket, DragonSession session, string sessionId, string eventType, string content)
         {
             try
             {
@@ -920,7 +964,8 @@ namespace DraCode.KoboldLair.Server.Services
                     description = content.StartsWith("ITERATION") ? "Thinking..." : content;
                 }
 
-                await SendMessageAsync(webSocket, new
+                var messageId = Guid.NewGuid().ToString();
+                var data = new
                 {
                     type = "dragon_thinking",
                     sessionId,
@@ -928,24 +973,51 @@ namespace DraCode.KoboldLair.Server.Services
                     toolName,
                     description = description ?? "Processing...",
                     timestamp = DateTime.UtcNow
-                });
+                };
+
+                // Use reliable sender with high priority (lower number = higher priority)
+                if (session.ReliableSender != null)
+                {
+                    session.ReliableSender.QueueMessage(messageId, data, priority: 5);
+                }
+                else
+                {
+                    await SendMessageAsync(webSocket, data);
+                }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending thinking update");
+            }
         }
 
-        private async Task SendStreamingChunkAsync(WebSocket webSocket, string sessionId, string chunk)
+        private async Task SendStreamingChunkAsync(WebSocket webSocket, DragonSession session, string sessionId, string chunk)
         {
             try
             {
-                await SendMessageAsync(webSocket, new
+                var messageId = Guid.NewGuid().ToString();
+                var data = new
                 {
                     type = "dragon_stream",
                     sessionId,
                     chunk,
                     timestamp = DateTime.UtcNow
-                });
+                };
+
+                // Use reliable sender with highest priority for streaming
+                if (session.ReliableSender != null)
+                {
+                    session.ReliableSender.QueueMessage(messageId, data, priority: 0);
+                }
+                else
+                {
+                    await SendMessageAsync(webSocket, data);
+                }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending streaming chunk");
+            }
         }
 
         private async Task SendMessageAsync(WebSocket webSocket, object data)
@@ -1028,9 +1100,9 @@ namespace DraCode.KoboldLair.Server.Services
                 Action<string, string> dragonCallback = (type, content) =>
                 {
                     if (type == "tool_call" || type == "tool_result" || type == "info")
-                        _ = SendThinkingUpdateAsync(webSocket, sessionId, type, content);
+                        _ = SendThinkingUpdateAsync(webSocket, session, sessionId, type, content);
                     else if (type == "assistant_stream")
-                        _ = SendStreamingChunkAsync(webSocket, sessionId, content);
+                        _ = SendStreamingChunkAsync(webSocket, session, sessionId, content);
                     else if (type == "assistant_final")
                     {
                         // Mark that streaming occurred - final message sent by awaited path below
@@ -1043,7 +1115,7 @@ namespace DraCode.KoboldLair.Server.Services
                 Action<string, string> councilCallback = (type, content) =>
                 {
                     if (type == "tool_call" || type == "tool_result" || type == "info")
-                        _ = SendThinkingUpdateAsync(webSocket, sessionId, type, content);
+                        _ = SendThinkingUpdateAsync(webSocket, session, sessionId, type, content);
                     // Note: assistant_stream and assistant_final are intentionally not forwarded
                 };
 

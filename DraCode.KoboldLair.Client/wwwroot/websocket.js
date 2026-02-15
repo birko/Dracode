@@ -103,6 +103,18 @@ export class WebSocketClient {
                     const message = JSON.parse(event.data);
                     console.log('[WebSocket] Received raw message:', message.type, message.messageId || '(no id)');
 
+                    // Send acknowledgment for messages with messageId
+                    if (message.messageId && this.ws?.readyState === WebSocket.OPEN) {
+                        try {
+                            this.ws.send(JSON.stringify({ 
+                                type: 'ack', 
+                                messageId: message.messageId 
+                            }));
+                        } catch (ackError) {
+                            console.warn('[WebSocket] Failed to send ack:', ackError);
+                        }
+                    }
+
                     // Handle pong responses
                     if (message.type === 'pong') {
                         // Mark that we received a pong for the current ping sequence

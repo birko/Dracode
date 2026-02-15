@@ -5,6 +5,7 @@ using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
+using Microsoft.Extensions.Logging;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
 namespace DraCode.KoboldLair.Orchestrators
@@ -26,6 +27,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly string _outputPath;
         private Specification? _specification;
         private readonly object _analysisLock = new object();
+        private readonly ILogger<Wyvern>? _logger;
 
         // Wyrm-specific provider settings (separate from Wyvern's own settings)
         private readonly string _wyrmProvider;
@@ -58,6 +60,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="wyrmConfig">Configuration for Wyrm (optional, defaults to Wyvern's config)</param>
         /// <param name="wyrmOptions">Agent options for Wyrm (optional, defaults to Wyvern's options)</param>
         /// <param name="gitService">Git service for branch management (optional)</param>
+        /// <param name="logger">Optional logger for diagnostics</param>
         public Wyvern(
             string projectName,
             string specificationPath,
@@ -69,7 +72,8 @@ namespace DraCode.KoboldLair.Orchestrators
             string? wyrmProvider = null,
             Dictionary<string, string>? wyrmConfig = null,
             AgentOptions? wyrmOptions = null,
-            GitService? gitService = null)
+            GitService? gitService = null,
+            ILogger<Wyvern>? logger = null)
         {
             _projectName = projectName;
             _specificationPath = specificationPath;
@@ -78,6 +82,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _config = config;
             _options = options;
             _outputPath = outputPath;
+            _logger = logger;
 
             // Use Wyrm-specific settings if provided, otherwise fall back to Wyvern's settings
             _wyrmProvider = wyrmProvider ?? provider;
@@ -609,6 +614,9 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                         .ToList();
                 }
 
+                // Validate and fix task dependencies
+                ValidateAndFixTaskDependencies(_analysis);
+
                 // Persist analysis to disk for recovery after restart
                 await SaveAnalysisAsync();
 
@@ -808,6 +816,53 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 "low" => TaskPriority.Low,
                 _ => TaskPriority.Normal
             };
+        }
+
+        /// <summary>
+        /// Validates task dependencies exist and removes invalid ones.
+        /// Logs warnings for tasks with non-existent dependencies.
+        /// </summary>
+        private void ValidateAndFixTaskDependencies(WyvernAnalysis analysis)
+        {
+            // Build a set of all valid task IDs across all areas
+            var validTaskIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var area in analysis.Areas)
+            {
+                foreach (var task in area.Tasks)
+                {
+                    validTaskIds.Add(task.Id);
+                }
+            }
+
+            // Check each task's dependencies
+            foreach (var area in analysis.Areas)
+            {
+                foreach (var task in area.Tasks)
+                {
+                    if (task.Dependencies.Count == 0)
+                        continue;
+
+                    var invalidDeps = new List<string>();
+                    foreach (var dep in task.Dependencies)
+                    {
+                        if (!validTaskIds.Contains(dep))
+                        {
+                            invalidDeps.Add(dep);
+                        }
+                    }
+
+                    if (invalidDeps.Count > 0)
+                    {
+                        _logger?.LogWarning(
+                            "Task [{TaskId}] has invalid dependencies: {InvalidDeps}. These will be removed.",
+                            task.Id,
+                            string.Join(", ", invalidDeps));
+
+                        // Remove invalid dependencies
+                        task.Dependencies.RemoveAll(d => invalidDeps.Contains(d, StringComparer.OrdinalIgnoreCase));
+                    }
+                }
+            }
         }
 
         public string ProjectName => _projectName;
