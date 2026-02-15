@@ -173,7 +173,7 @@ namespace DraCode.KoboldLair.Factories
                     "kobold-planner");
             }
 
-            // Create the Drake with all dependencies including plan service
+            // Create the Drake with all dependencies including plan service and project repository
             var drake = new Drake(
                 _koboldFactory,
                 taskTracker,
@@ -186,6 +186,7 @@ namespace DraCode.KoboldLair.Factories
                 logger,
                 _providerConfigService,
                 _projectConfigService,
+                _projectRepository,
                 _gitService,
                 planService,
                 plannerAgent,

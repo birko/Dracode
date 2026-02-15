@@ -28,6 +28,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly ILogger<Drake>? _logger;
         private readonly ProviderConfigurationService? _providerConfigService;
         private readonly ProjectConfigurationService? _projectConfigService;
+        private readonly ProjectRepository? _projectRepository;
         private readonly GitService? _gitService;
         private readonly KoboldPlanService? _planService;
         private readonly KoboldPlannerAgent? _plannerAgent;
@@ -67,6 +68,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="logger">Optional logger for diagnostics</param>
         /// <param name="providerConfigService">Optional provider configuration service for agent-type-specific providers</param>
         /// <param name="projectConfigService">Optional project configuration service for external path access</param>
+        /// <param name="projectRepository">Optional project repository for accessing project-level timeout configuration</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         /// <param name="planService">Optional plan service for implementation plan persistence</param>
         /// <param name="plannerAgent">Optional planner agent for creating implementation plans</param>
@@ -89,6 +91,7 @@ namespace DraCode.KoboldLair.Orchestrators
             ILogger<Drake>? logger = null,
             ProviderConfigurationService? providerConfigService = null,
             ProjectConfigurationService? projectConfigService = null,
+            ProjectRepository? projectRepository = null,
             GitService? gitService = null,
             KoboldPlanService? planService = null,
             KoboldPlannerAgent? plannerAgent = null,
@@ -111,6 +114,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _logger = logger;
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
+            _projectRepository = projectRepository;
             _gitService = gitService;
             _planService = planService;
             _plannerAgent = plannerAgent;
@@ -1246,20 +1250,20 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <returns>List of stuck Kobold info (ID, task ID, working duration)</returns>
         public async Task<List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)>> HandleStuckKoboldsAsync(TimeSpan globalTimeout)
         {
-            // Get per-project timeout from configuration (in seconds), falls back to global timeout
+            // Get per-project timeout from projects.json (in seconds), falls back to global timeout
             TimeSpan effectiveTimeout = globalTimeout;
             
-            if (_projectConfigService != null && !string.IsNullOrEmpty(_projectId))
+            if (_projectRepository != null && !string.IsNullOrEmpty(_projectId))
             {
                 try
                 {
-                    var projectConfig = await _projectConfigService.GetProjectAgentConfigAsync(_projectId);
-                    if (projectConfig?.Kobold?.Timeout > 0)
+                    var project = _projectRepository.GetById(_projectId);
+                    if (project?.Agents?.Kobold?.Timeout > 0)
                     {
-                        effectiveTimeout = TimeSpan.FromSeconds(projectConfig.Kobold.Timeout);
+                        effectiveTimeout = TimeSpan.FromSeconds(project.Agents.Kobold.Timeout);
                         _logger?.LogDebug(
                             "Using per-project Kobold timeout: {ProjectTimeout} seconds ({Minutes:F1} minutes) for project {ProjectId}",
-                            projectConfig.Kobold.Timeout, effectiveTimeout.TotalMinutes, _projectId);
+                            project.Agents.Kobold.Timeout, effectiveTimeout.TotalMinutes, _projectId);
                     }
                 }
                 catch (Exception ex)
