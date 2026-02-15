@@ -710,6 +710,16 @@ namespace DraCode.KoboldLair.Orchestrators
                     kobold.ErrorMessage);
             }
 
+            // Clean up conversation checkpoint when task reaches terminal state
+            if ((taskStatus == TaskStatus.Done || taskStatus == TaskStatus.Failed) && 
+                !string.IsNullOrEmpty(_projectId) && _planService != null)
+            {
+                _ = _planService.DeleteConversationCheckpointAsync(_projectId, task.Id);
+                _logger?.LogDebug(
+                    "Cleaned up conversation checkpoint for completed task {TaskId} (status: {Status})",
+                    task.Id[..Math.Min(8, task.Id.Length)], taskStatus);
+            }
+
             // Report failure to circuit breaker
             if (taskStatus == TaskStatus.Failed && !string.IsNullOrWhiteSpace(task.Provider))
             {
