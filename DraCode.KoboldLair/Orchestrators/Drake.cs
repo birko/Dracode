@@ -1240,12 +1240,35 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <summary>
         /// Detects and handles Kobolds that have been working longer than the specified timeout (async version).
         /// Stuck Kobolds are marked as failed and their tasks are updated accordingly.
+        /// Uses per-project timeout from configuration if available, otherwise falls back to provided global timeout.
         /// </summary>
-        /// <param name="timeout">Maximum allowed working duration before a Kobold is considered stuck</param>
+        /// <param name="globalTimeout">Global maximum allowed working duration before a Kobold is considered stuck</param>
         /// <returns>List of stuck Kobold info (ID, task ID, working duration)</returns>
-        public async Task<List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)>> HandleStuckKoboldsAsync(TimeSpan timeout)
+        public async Task<List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)>> HandleStuckKoboldsAsync(TimeSpan globalTimeout)
         {
-            var stuckKobolds = _koboldFactory.GetStuckKobolds(timeout);
+            // Get per-project timeout from configuration (in seconds), falls back to global timeout
+            TimeSpan effectiveTimeout = globalTimeout;
+            
+            if (_projectConfigService != null && !string.IsNullOrEmpty(_projectId))
+            {
+                try
+                {
+                    var projectConfig = await _projectConfigService.GetProjectAgentConfigAsync(_projectId);
+                    if (projectConfig?.Kobold?.Timeout > 0)
+                    {
+                        effectiveTimeout = TimeSpan.FromSeconds(projectConfig.Kobold.Timeout);
+                        _logger?.LogDebug(
+                            "Using per-project Kobold timeout: {ProjectTimeout} seconds ({Minutes:F1} minutes) for project {ProjectId}",
+                            projectConfig.Kobold.Timeout, effectiveTimeout.TotalMinutes, _projectId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to load per-project timeout for {ProjectId}, using global timeout", _projectId);
+                }
+            }
+            
+            var stuckKobolds = _koboldFactory.GetStuckKobolds(effectiveTimeout);
             var result = new List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)>();
 
             foreach (var (kobold, workingDuration) in stuckKobolds)
@@ -1281,7 +1304,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     taskPreview);
 
                 // Mark the Kobold as stuck (transitions to Done with error)
-                kobold.MarkAsStuck(workingDuration, timeout);
+                kobold.MarkAsStuck(workingDuration, effectiveTimeout);
 
                 // Save plan progress so it can be resumed on retry
                 // IMPORTANT: Don't mark plan as Failed if there's partial progress - keep it InProgress for resumption
@@ -1332,15 +1355,14 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Detects and handles Kobolds that have been working longer than the specified timeout.
-        /// Stuck Kobolds are marked as failed and their tasks are updated accordingly.
+        /// Detects and handles Kobolds that have been working longer than the specified timeout (synchronous version).
         /// Note: Prefer HandleStuckKoboldsAsync() for non-blocking operation.
         /// </summary>
-        /// <param name="timeout">Maximum allowed working duration before a Kobold is considered stuck</param>
+        /// <param name="globalTimeout">Global maximum allowed working duration before a Kobold is considered stuck</param>
         /// <returns>List of stuck Kobold info (ID, task ID, working duration)</returns>
-        public List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)> HandleStuckKobolds(TimeSpan timeout)
+        public List<(Guid KoboldId, string? TaskId, TimeSpan WorkingDuration)> HandleStuckKobolds(TimeSpan globalTimeout)
         {
-            return HandleStuckKoboldsAsync(timeout).ConfigureAwait(false).GetAwaiter().GetResult();
+            return HandleStuckKoboldsAsync(globalTimeout).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
