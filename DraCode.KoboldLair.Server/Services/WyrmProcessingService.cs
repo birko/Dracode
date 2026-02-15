@@ -86,6 +86,7 @@ Provide JSON with:
 - SuggestedAreas[]: Work areas like ""Backend"", ""Frontend"", ""Database""
 - Complexity: ""Low"", ""Medium"", or ""High""
 - AnalysisSummary: Brief analysis
+- VerificationSteps[]: Array of verification checks to run after implementation
 
 IMPORTANT: For RecommendedAgentTypes, use ONLY these valid agent type values:
 - Systems: csharp, cpp, assembler, php, python
@@ -94,7 +95,25 @@ IMPORTANT: For RecommendedAgentTypes, use ONLY these valid agent type values:
 - Other: diagramming, coding (general fallback), documentation
 
 Example RecommendedAgentTypes: {{""backend"": ""csharp"", ""frontend"": ""react"", ""styling"": ""css""}}
-Do NOT use area names like ""frontend"" or ""backend"" as agent types - map them to specific agents.";
+Do NOT use area names like ""frontend"" or ""backend"" as agent types - map them to specific agents.
+
+VerificationSteps Format:
+Each verification step should be an object with:
+- checkType: Type of check (""build"", ""test"", ""lint"", ""syntax"")
+- command: Shell command to execute
+- successCriteria: ""exit_code_0"" or ""contains:expected text""
+- priority: ""Critical"" (builds), ""High"" (tests), ""Medium"" (lint), ""Low"" (docs)
+- timeoutSeconds: Command timeout (default: 300)
+- workingDirectory: Relative path from project workspace (optional)
+- description: What this check validates
+
+Tech Stack Verification Examples:
+- .NET: {{checkType:""build"", command:""dotnet build"", priority:""Critical""}}, {{checkType:""test"", command:""dotnet test"", priority:""High""}}
+- Node.js: {{checkType:""build"", command:""npm run build"", priority:""Critical""}}, {{checkType:""test"", command:""npm test"", priority:""High""}}
+- Python: {{checkType:""test"", command:""pytest"", priority:""High""}}, {{checkType:""lint"", command:""pylint ."", priority:""Medium""}}
+- React: {{checkType:""build"", command:""npm run build"", priority:""Critical""}}, {{checkType:""lint"", command:""npm run lint"", priority:""Medium""}}
+
+Include verification steps appropriate for the detected tech stack.";
                 
                 var messages = await wyrm.RunAsync(prompt);
                 var lastMessage = messages.LastOrDefault();

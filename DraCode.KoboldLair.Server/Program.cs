@@ -196,6 +196,15 @@ builder.Services.AddHostedService<WyvernProcessingService>(sp =>
     return new WyvernProcessingService(logger, projectService, checkIntervalSeconds: 60);
 });
 
+// Register Wyvern Verification Service (AwaitingVerification → Verified, checks every 30 seconds)
+builder.Services.AddHostedService<WyvernVerificationService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<WyvernVerificationService>>();
+    var projectService = sp.GetRequiredService<ProjectService>();
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    return new WyvernVerificationService(logger, projectService, configuration, checkIntervalSeconds: 30);
+});
+
 // Register Failure Recovery Service (auto-retries transient failures, checks every 5 minutes)
 builder.Services.AddHostedService<FailureRecoveryService>(sp =>
 {

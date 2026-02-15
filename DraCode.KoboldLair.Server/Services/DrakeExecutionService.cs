@@ -493,9 +493,10 @@ namespace DraCode.KoboldLair.Server.Services
             // Check if entire project is complete
             if (totalTasks > 0 && doneTasks == totalTasks)
             {
-                _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Completed);
+                // Transition to AwaitingVerification instead of Completed
+                _projectService.UpdateProjectStatus(project.Id, ProjectStatus.AwaitingVerification);
                 _logger.LogInformation(
-                    "✅ Project completed!\n" +
+                    "✅ All tasks completed - project awaiting verification!\n" +
                     "  Project: {ProjectName}\n" +
                     "  Project ID: {ProjectId}\n" +
                     "  Total Tasks: {Count}",

@@ -545,7 +545,12 @@ namespace DraCode.KoboldLair.Server.Services
                 getGlobalKoboldStats: () => _koboldFactory?.GetStatistics() ?? new KoboldStatistics(),
                 retryFailedTaskTool: _drakeFactory != null ? new RetryFailedTaskTool(_drakeFactory, _projectService) : null,
                 setTaskPriorityTool: _drakeFactory != null ? new SetTaskPriorityTool(_drakeFactory, _projectService) : null,
-                setExecutionState: (projectId, state) => _projectService.SetExecutionState(projectId, state));
+                setExecutionState: (projectId, state) => _projectService.SetExecutionState(projectId, state),
+                getProjectsNeedingVerification: GetProjectsNeedingVerification,
+                retryVerification: RetryVerification,
+                getVerificationStatus: GetVerificationStatus,
+                getVerificationReport: GetVerificationReport,
+                skipVerification: SkipVerification);
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(
@@ -1470,6 +1475,93 @@ namespace DraCode.KoboldLair.Server.Services
                 JsonValueKind.Object => element.EnumerateObject().ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
                 _ => element.ToString()
             };
+        }
+
+        /// <summary>
+        /// Gets projects needing verification (AwaitingVerification or Failed verification)
+        /// </summary>
+        private List<(string Id, string Name, string Status, string? VerificationStatus)> GetProjectsNeedingVerification()
+        {
+            return _projectService.GetAllProjects()
+                .Where(p => p.Status == ProjectStatus.AwaitingVerification || p.VerificationStatus == VerificationStatus.Failed)
+                .Select(p => (p.Id, p.Name, p.Status.ToString(), p.VerificationStatus.ToString()))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Resets verification state to trigger re-verification
+        /// </summary>
+        private bool RetryVerification(string projectIdOrName)
+        {
+            var project = _projectService.GetAllProjects().FirstOrDefault(p =>
+                p.Name.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase) ||
+                p.Id.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null || project.Status != ProjectStatus.AwaitingVerification)
+                return false;
+
+            project.VerificationStatus = VerificationStatus.NotStarted;
+            project.VerificationStartedAt = null;
+            project.VerificationCompletedAt = null;
+            project.VerificationReport = null;
+            project.VerificationChecks.Clear();
+            _projectService.UpdateProject(project);
+            _logger.LogInformation("Verification reset for project: {Project}", projectIdOrName);
+            return true;
+        }
+
+        /// <summary>
+        /// Gets verification status summary for a project
+        /// </summary>
+        private (bool Success, string? VerificationStatus, DateTime? LastVerified, string? Summary) GetVerificationStatus(string projectIdOrName)
+        {
+            var project = _projectService.GetAllProjects().FirstOrDefault(p =>
+                p.Name.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase) ||
+                p.Id.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                return (false, null, null, null);
+
+            var summary = project.VerificationReport != null && project.VerificationReport.Length > 500 
+                ? project.VerificationReport.Substring(0, 500) + "..." 
+                : project.VerificationReport;
+
+            return (true, project.VerificationStatus.ToString(), project.VerificationCompletedAt, summary);
+        }
+
+        /// <summary>
+        /// Gets full verification report for a project
+        /// </summary>
+        private (bool Success, string? Report) GetVerificationReport(string projectIdOrName)
+        {
+            var project = _projectService.GetAllProjects().FirstOrDefault(p =>
+                p.Name.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase) ||
+                p.Id.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                return (false, null);
+
+            return (true, project.VerificationReport);
+        }
+
+        /// <summary>
+        /// Skips verification and marks project as Verified
+        /// </summary>
+        private bool SkipVerification(string projectIdOrName)
+        {
+            var project = _projectService.GetAllProjects().FirstOrDefault(p =>
+                p.Name.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase) ||
+                p.Id.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null || project.Status != ProjectStatus.AwaitingVerification)
+                return false;
+
+            project.VerificationStatus = VerificationStatus.Skipped;
+            project.VerificationCompletedAt = DateTime.UtcNow;
+            project.VerificationReport = "Verification skipped by user.";
+            _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Verified);
+            _logger.LogInformation("Verification skipped for project: {Project}", projectIdOrName);
+            return true;
         }
     }
 }
