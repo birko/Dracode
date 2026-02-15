@@ -128,17 +128,24 @@ export class WebSocketClient {
                     }
 
                     // Deduplicate messages using messageId
+                    // BUT: allow dragon_message duplicates through for UI state cleanup
                     if (message.messageId) {
                         if (this.receivedMessageIds.has(message.messageId)) {
-                            console.log('[WebSocket] Skipping duplicate message:', message.messageId);
-                            return;
-                        }
-                        this.receivedMessageIds.add(message.messageId);
+                            // Allow dragon_message duplicates to reach session handler
+                            // This ensures thinking indicators get properly cleared
+                            if (message.type !== 'dragon_message') {
+                                console.log('[WebSocket] Skipping duplicate message:', message.messageId);
+                                return;
+                            }
+                            console.log('[WebSocket] Allowing duplicate dragon_message for UI cleanup:', message.messageId);
+                        } else {
+                            this.receivedMessageIds.add(message.messageId);
 
-                        // Limit set size to prevent memory bloat
-                        if (this.receivedMessageIds.size > 1000) {
-                            const entries = Array.from(this.receivedMessageIds);
-                            this.receivedMessageIds = new Set(entries.slice(-500));
+                            // Limit set size to prevent memory bloat
+                            if (this.receivedMessageIds.size > 1000) {
+                                const entries = Array.from(this.receivedMessageIds);
+                                this.receivedMessageIds = new Set(entries.slice(-500));
+                            }
                         }
                     }
 
