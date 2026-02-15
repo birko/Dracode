@@ -12,6 +12,13 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 
 ## Latest Updates (v2.6.0)
 
+- **Project Verification System**: Automatic validation after task completion (NEW - 2026-02-15)
+  - Background service runs verification checks (build, test, lint)
+  - Tech-stack auto-detection (or uses Wyrm recommendations)
+  - Creates fix tasks automatically if checks fail
+  - Dragon tools for manual control (retry, view report, skip)
+  - Configurable timeouts and strictness levels
+  - Documentation: [Verification-System.md](Verification-System.md)
 - **Shared Planning Context Service**: Cross-agent coordination and learning from past executions
   - File conflict detection prevents parallel work on same files
   - Historical insights from similar tasks improve planning
@@ -51,6 +58,7 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 | **Drake** | Task supervision & Kobold management | Automatic | [Drake-Monitoring-System.md](Drake-Monitoring-System.md) |
 | **Kobold Planner** | Implementation planning before execution | Automatic | [Kobold-Planner-Agent.md](Kobold-Planner-Agent.md) |
 | **Kobold** | Code generation workers | Automatic | [Kobold-System.md](Kobold-System.md) |
+| **Verification** | Validation after completion | Automatic | [Verification-System.md](Verification-System.md) |
 
 ### How It Works
 
@@ -62,6 +70,8 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 6. **Drake monitors** → assigns tasks to Kobolds (via Wyrm for final agent selection)
 7. **Kobold Planner** → creates implementation plan with atomic steps
 8. **Kobolds execute plan** → generates code step-by-step (resumable, with shared context coordination)
+9. **Verification runs** → validates build, tests, linting after all tasks complete
+10. **Fix tasks created** → if verification fails, Drake assigns fixes automatically
 
 Only Dragon requires interaction - everything else is automatic!
 
@@ -99,6 +109,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
 - **[New Agent Types](NEW_AGENT_TYPES.md)** - PHP, Python, SVG, Bitmap, and Media agents
 - **[Plan Status Tracking](Plan-Status-Tracking.md)** - Implementation plan status management
 - **[Shared Planning Context Service](SharedPlanningContextService.md)** - Cross-agent coordination and learning (NEW - 2026-02-09)
+- **[Verification System](Verification-System.md)** - Automatic project validation system (NEW - 2026-02-15)
 - **[Background Services](Background-Services.md)** - Overview of all background services and their intervals
 
 ### Architecture

@@ -54,6 +54,11 @@ namespace DraCode.KoboldLair.Models.Agents
         public string Complexity { get; set; } = "Medium";
 
         /// <summary>
+        /// Recommended verification steps for project validation
+        /// </summary>
+        public List<VerificationStepDefinition> VerificationSteps { get; set; } = new();
+
+        /// <summary>
         /// Additional notes from Wyrm's analysis
         /// </summary>
         public string Notes { get; set; } = "";

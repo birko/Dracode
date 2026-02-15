@@ -55,6 +55,31 @@ namespace DraCode.KoboldLair.Models.Projects
         public SecurityConfig Security { get; set; } = new();
 
         /// <summary>
+        /// Verification status of the project
+        /// </summary>
+        public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.NotStarted;
+
+        /// <summary>
+        /// When verification was started
+        /// </summary>
+        public DateTime? VerificationStartedAt { get; set; }
+
+        /// <summary>
+        /// When verification was completed
+        /// </summary>
+        public DateTime? VerificationCompletedAt { get; set; }
+
+        /// <summary>
+        /// Markdown summary of verification results
+        /// </summary>
+        public string? VerificationReport { get; set; }
+
+        /// <summary>
+        /// List of verification checks that were executed
+        /// </summary>
+        public List<VerificationCheck> VerificationChecks { get; set; } = new();
+
+        /// <summary>
         /// Additional metadata
         /// </summary>
         public Dictionary<string, string> Metadata { get; set; } = new();

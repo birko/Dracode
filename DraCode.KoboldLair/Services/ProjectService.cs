@@ -75,13 +75,6 @@ namespace DraCode.KoboldLair.Services
                 _logger.LogInformation("Created project folder: {Path}", folder);
             }
 
-            // Also create the workspace subfolder for generated code
-            var workspaceFolder = Path.Combine(folder, "workspace");
-            if (!Directory.Exists(workspaceFolder))
-            {
-                Directory.CreateDirectory(workspaceFolder);
-            }
-
             // Initialize git repository if git is available
             await InitializeGitRepositoryAsync(folder);
 
@@ -150,13 +143,7 @@ namespace DraCode.KoboldLair.Services
             var projectFolder = Path.GetDirectoryName(specificationPath) ?? CreateProjectFolder(projectName);
 
             // Output path is the project folder itself (task files go here)
-            // Workspace for generated code is a subfolder
-            var workspacePath = Path.Combine(projectFolder, "workspace");
-            if (!Directory.Exists(workspacePath))
-            {
-                Directory.CreateDirectory(workspacePath);
-                _logger.LogInformation("Created workspace directory: {Path}", workspacePath);
-            }
+            // Workspace for generated code is a subfolder (created lazily when first file is written)
 
             var project = new Project
             {

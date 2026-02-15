@@ -30,6 +30,11 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly RetryFailedTaskTool? _retryFailedTaskTool;
         private readonly SetTaskPriorityTool? _setTaskPriorityTool;
         private readonly Func<string, ProjectExecutionState, bool>? _setExecutionState;
+        private readonly Func<List<(string Id, string Name, string Status, string? VerificationStatus)>>? _getProjectsNeedingVerification;
+        private readonly Func<string, bool>? _retryVerification;
+        private readonly Func<string, (bool Success, string? VerificationStatus, DateTime? LastVerified, string? Summary)>? _getVerificationStatus;
+        private readonly Func<string, (bool Success, string? Report)>? _getVerificationReport;
+        private readonly Func<string, bool>? _skipVerification;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -51,7 +56,12 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<KoboldStatistics>? getGlobalKoboldStats = null,
             RetryFailedTaskTool? retryFailedTaskTool = null,
             SetTaskPriorityTool? setTaskPriorityTool = null,
-            Func<string, ProjectExecutionState, bool>? setExecutionState = null)
+            Func<string, ProjectExecutionState, bool>? setExecutionState = null,
+            Func<List<(string Id, string Name, string Status, string? VerificationStatus)>>? getProjectsNeedingVerification = null,
+            Func<string, bool>? retryVerification = null,
+            Func<string, (bool Success, string? VerificationStatus, DateTime? LastVerified, string? Summary)>? getVerificationStatus = null,
+            Func<string, (bool Success, string? Report)>? getVerificationReport = null,
+            Func<string, bool>? skipVerification = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -70,6 +80,11 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _retryFailedTaskTool = retryFailedTaskTool;
             _setTaskPriorityTool = setTaskPriorityTool;
             _setExecutionState = setExecutionState;
+            _getProjectsNeedingVerification = getProjectsNeedingVerification;
+            _retryVerification = retryVerification;
+            _getVerificationStatus = getVerificationStatus;
+            _getVerificationReport = getVerificationReport;
+            _skipVerification = skipVerification;
             RebuildTools();
         }
 
@@ -84,7 +99,10 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 new PauseProjectTool(_setExecutionState),
                 new ResumeProjectTool(_setExecutionState),
                 new SuspendProjectTool(_setExecutionState),
-                new CancelProjectTool(_setExecutionState)
+                new CancelProjectTool(_setExecutionState),
+                new RetryVerificationTool(_getProjectsNeedingVerification, _retryVerification, _getVerificationStatus),
+                new ViewVerificationReportTool(_getVerificationReport),
+                new SkipVerificationTool(_skipVerification)
             };
             
             // Add retry failed task tool if available

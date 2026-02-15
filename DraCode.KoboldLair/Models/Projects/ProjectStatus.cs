@@ -37,6 +37,16 @@ namespace DraCode.KoboldLair.Models.Projects
         InProgress,
 
         /// <summary>
+        /// All tasks completed, awaiting verification
+        /// </summary>
+        AwaitingVerification,
+
+        /// <summary>
+        /// Verification completed successfully
+        /// </summary>
+        Verified,
+
+        /// <summary>
         /// All tasks completed
         /// </summary>
         Completed,
