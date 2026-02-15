@@ -677,5 +677,42 @@ namespace DraCode.KoboldLair.Services
                 Content = m.Content.HasValue ? (object)m.Content.Value : null
             }).ToList();
         }
+
+        /// <summary>
+        /// Deletes the conversation checkpoint file for a task.
+        /// Called when a task reaches a terminal state (Done/Failed) to prevent stale context files.
+        /// </summary>
+        public async Task<bool> DeleteConversationCheckpointAsync(string projectId, string taskId)
+        {
+            try
+            {
+                // Look up plan filename from index
+                var index = await LoadPlanIndexAsync(projectId);
+                if (!index.TryGetValue(taskId, out var planFilename))
+                {
+                    // No plan/checkpoint exists for this task
+                    return false;
+                }
+
+                var checkpointPath = GetCheckpointPath(projectId, planFilename);
+                if (!File.Exists(checkpointPath))
+                {
+                    return false;
+                }
+
+                File.Delete(checkpointPath);
+                
+                _logger?.LogDebug(
+                    "Deleted conversation checkpoint for task {TaskId} (file: {Filename})",
+                    taskId[..Math.Min(8, taskId.Length)], Path.GetFileName(checkpointPath));
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to delete conversation checkpoint for task {TaskId}", taskId);
+                return false;
+            }
+        }
     }
 }
