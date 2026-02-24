@@ -61,7 +61,8 @@ namespace DraCode.KoboldLair.Factories
             string? wyvernModel = null,
             string? wyrmProvider = null,
             string? wyrmModel = null,
-            string? projectId = null)
+            string? projectId = null,
+            string? workspaceScanPath = null)
         {
             lock (_lock)
             {
@@ -123,7 +124,8 @@ namespace DraCode.KoboldLair.Factories
                     wyrmConfig,
                     wyrmOptions,
                     _gitService,
-                    logger
+                    logger,
+                    workspaceScanPath
                 );
 
                 _Wyverns[projectName] = wyvern;

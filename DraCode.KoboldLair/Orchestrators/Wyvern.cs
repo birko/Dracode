@@ -37,6 +37,9 @@ namespace DraCode.KoboldLair.Orchestrators
         // Git integration
         private readonly GitService? _gitService;
 
+        // For existing projects: scan the actual source directory instead of workspace
+        private readonly string? _workspaceScanPath;
+
         private WyvernAnalysis? _analysis;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -73,7 +76,8 @@ namespace DraCode.KoboldLair.Orchestrators
             Dictionary<string, string>? wyrmConfig = null,
             AgentOptions? wyrmOptions = null,
             GitService? gitService = null,
-            ILogger<Wyvern>? logger = null)
+            ILogger<Wyvern>? logger = null,
+            string? workspaceScanPath = null)
         {
             _projectName = projectName;
             _specificationPath = specificationPath;
@@ -83,6 +87,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _options = options;
             _outputPath = outputPath;
             _logger = logger;
+            _workspaceScanPath = workspaceScanPath;
 
             // Use Wyrm-specific settings if provided, otherwise fall back to Wyvern's settings
             _wyrmProvider = wyrmProvider ?? provider;
@@ -399,16 +404,19 @@ namespace DraCode.KoboldLair.Orchestrators
             var structure = new ProjectStructure();
             var excludedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                ".git", "node_modules", "bin", "obj", ".vs", ".vscode", 
+                ".git", "node_modules", "bin", "obj", ".vs", ".vscode",
                 "dist", "build", "target", "__pycache__", ".next", ".nuxt"
             };
 
+            // Use workspace scan path if set (existing projects), otherwise default to output path
+            var scanPath = _workspaceScanPath ?? _outputPath;
+
             try
             {
-                if (Directory.Exists(_outputPath))
+                if (Directory.Exists(scanPath))
                 {
-                    var files = Directory.GetFiles(_outputPath, "*.*", SearchOption.AllDirectories)
-                        .Select(f => Path.GetRelativePath(_outputPath, f))
+                    var files = Directory.GetFiles(scanPath, "*.*", SearchOption.AllDirectories)
+                        .Select(f => Path.GetRelativePath(scanPath, f))
                         .Where(f => !excludedDirs.Any(d => f.Split(Path.DirectorySeparatorChar).Contains(d)))
                         .OrderBy(f => f)
                         .ToList();

@@ -78,8 +78,9 @@ builder.Services.AddSingleton<ProjectService>(sp =>
     var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
     var gitService = sp.GetRequiredService<GitService>();
+    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    return new ProjectService(repository, wyvernFactory, logger, gitService, config);
+    return new ProjectService(repository, wyvernFactory, logger, gitService, config, projectConfigService);
 });
 
 // Register factories as singletons

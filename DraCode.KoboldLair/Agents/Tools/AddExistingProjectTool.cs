@@ -1,5 +1,6 @@
 using System.Text;
 using DraCode.Agent.Tools;
+using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -207,6 +208,47 @@ namespace DraCode.KoboldLair.Agents.Tools
             {
                 var structure = string.Join(", ", topDirs.Select(d => $"📁{d}").Concat(topFiles.Select(f => $"📄{f}")));
                 result.AppendLine($"**Structure:** {structure}");
+            }
+
+            // Discover project references
+            try
+            {
+                var discovery = ProjectReferenceDiscoverer.DiscoverReferences(path);
+                if (discovery.References.Count > 0)
+                {
+                    result.AppendLine();
+                    result.AppendLine($"**Project References** ({discovery.ProjectType}, from `{Path.GetFileName(discovery.PrimaryProjectFile ?? "")}`):");
+                    result.AppendLine();
+                    result.AppendLine("| Project | Location | Status | Format |");
+                    result.AppendLine("|---------|----------|--------|--------|");
+                    foreach (var refProject in discovery.References.Take(20))
+                    {
+                        var status = refProject.IsExternal ? "External" : "Internal";
+                        var displayPath = refProject.IsExternal
+                            ? refProject.DirectoryPath
+                            : Path.GetRelativePath(path, refProject.DirectoryPath);
+                        result.AppendLine($"| {refProject.Name} | `{displayPath}` | {status} | {refProject.SourceFormat} |");
+                    }
+                    if (discovery.References.Count > 20)
+                    {
+                        result.AppendLine($"*+{discovery.References.Count - 20} more references*");
+                    }
+
+                    if (discovery.ExternalDirectories.Count > 0)
+                    {
+                        result.AppendLine();
+                        result.AppendLine($"**External directories ({discovery.ExternalDirectories.Count})** - will be auto-added as allowed paths on registration:");
+                        foreach (var extDir in discovery.ExternalDirectories)
+                        {
+                            result.AppendLine($"  - `{extDir}`");
+                        }
+                    }
+                    result.AppendLine();
+                }
+            }
+            catch
+            {
+                // Reference discovery is best-effort
             }
 
             result.AppendLine("\n*Use 'register' action to add this project.*");

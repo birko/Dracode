@@ -155,14 +155,11 @@ namespace DraCode.KoboldLair.Factories
                 var (plannerProvider, plannerConfig, plannerOptions) =
                     _providerConfigService.GetProviderSettingsForAgent("kobold");
 
-                // Set working directory to project workspace folder
-                // Derive from task file path: ./projects/my-project/tasks/backend-tasks.md -> ./projects/my-project/workspace
-                var taskFolder = Path.GetDirectoryName(taskFilePath);
-                var projectFolder = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
-                if (!string.IsNullOrEmpty(projectFolder))
+                // Set working directory: existing projects use source path, new projects use workspace subfolder
+                var resolvedWorkspace = ResolveWorkspaceForProject(projectId, taskFilePath);
+                if (!string.IsNullOrEmpty(resolvedWorkspace))
                 {
-                    var workspacePath = Path.Combine(projectFolder, "workspace");
-                    plannerOptions.WorkingDirectory = workspacePath;
+                    plannerOptions.WorkingDirectory = resolvedWorkspace;
                 }
 
                 plannerAgent = (KoboldPlannerAgent)KoboldLairAgentFactory.Create(
@@ -314,6 +311,31 @@ namespace DraCode.KoboldLair.Factories
                     return _drakes.Count;
                 }
             }
+        }
+
+        /// <summary>
+        /// Resolves the workspace path for a project.
+        /// For existing projects, uses the original source path.
+        /// For new projects, derives workspace from task file path.
+        /// </summary>
+        private string? ResolveWorkspaceForProject(string? projectId, string taskFilePath)
+        {
+            if (_projectRepository != null && !string.IsNullOrEmpty(projectId))
+            {
+                var project = _projectRepository.GetById(projectId);
+                if (project?.Metadata.TryGetValue("IsExistingProject", out var isExisting) == true &&
+                    isExisting == "true" &&
+                    project.Metadata.TryGetValue("SourcePath", out var sourcePath) == true &&
+                    Directory.Exists(sourcePath))
+                {
+                    return sourcePath;
+                }
+            }
+
+            // Default: derive workspace from task file path
+            var taskFolder = Path.GetDirectoryName(taskFilePath);
+            var projectFolder = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
+            return !string.IsNullOrEmpty(projectFolder) ? Path.Combine(projectFolder, "workspace") : null;
         }
 
         /// <summary>

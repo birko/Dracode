@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
@@ -16,6 +17,7 @@ namespace DraCode.KoboldLair.Services
         private readonly WyvernFactory _wyvernFactory;
         private readonly ILogger<ProjectService> _logger;
         private readonly GitService _gitService;
+        private readonly ProjectConfigurationService? _projectConfigService;
         private readonly string _projectsPath;
 
         public ProjectService(
@@ -23,12 +25,14 @@ namespace DraCode.KoboldLair.Services
             WyvernFactory wyvernFactory,
             ILogger<ProjectService> logger,
             GitService gitService,
-            KoboldLairConfiguration config)
+            KoboldLairConfiguration config,
+            ProjectConfigurationService? projectConfigService = null)
         {
             _repository = repository;
             _wyvernFactory = wyvernFactory;
             _logger = logger;
             _gitService = gitService;
+            _projectConfigService = projectConfigService;
             _projectsPath = config.ProjectsPath ?? "./projects";
         }
 
@@ -197,6 +201,14 @@ namespace DraCode.KoboldLair.Services
                 _logger.LogDebug("Creating Wyvern for project {ProjectName} with Wyvern provider={WyvernProvider}, Wyrm provider={WyrmProvider}",
                     project.Name, wyvernProvider ?? "default", wyrmProvider ?? "default");
 
+                // For existing projects, pass the source path so Wyvern scans the actual codebase
+                string? workspaceScanPath = null;
+                if (project.Metadata.TryGetValue("IsExistingProject", out var isExisting) && isExisting == "true" &&
+                    project.Metadata.TryGetValue("SourcePath", out var srcPath) && Directory.Exists(srcPath))
+                {
+                    workspaceScanPath = srcPath;
+                }
+
                 // Create wyvern for this project with project-specific settings
                 var wyvern = _wyvernFactory.CreateWyvern(
                     project.Name,
@@ -205,7 +217,8 @@ namespace DraCode.KoboldLair.Services
                     wyvernProvider,
                     wyvernModel,
                     wyrmProvider,
-                    wyrmModel
+                    wyrmModel,
+                    workspaceScanPath: workspaceScanPath
                 );
 
                 // Update project
@@ -371,6 +384,14 @@ namespace DraCode.KoboldLair.Services
                 _repository.Update(project);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Updates a project in the repository (persists changes to disk).
+        /// </summary>
+        public void UpdateProject(Project project)
+        {
+            _repository.Update(project);
         }
 
         /// <summary>
@@ -625,10 +646,77 @@ namespace DraCode.KoboldLair.Services
             };
 
             _repository.Add(project);
+
+            // Auto-configure external paths from project references
+            AutoConfigureExternalPaths(project, sourcePath);
+
             _logger.LogInformation("✨ Registered existing project: {ProjectName} (ID: {ProjectId}) from {SourcePath}",
                 projectName, project.Id, sourcePath);
 
             return project.Id;
+        }
+
+        /// <summary>
+        /// Auto-discovers project references and configures external paths and metadata.
+        /// Non-fatal if discovery fails.
+        /// </summary>
+        private void AutoConfigureExternalPaths(Project project, string sourcePath)
+        {
+            if (_projectConfigService == null)
+                return;
+
+            try
+            {
+                // Add the source path itself as an allowed external path
+                _projectConfigService.AddAllowedExternalPath(project.Id, sourcePath);
+
+                // Discover project references
+                var discovery = ProjectReferenceDiscoverer.DiscoverReferences(sourcePath);
+
+                // Add each external directory as an allowed path
+                foreach (var extDir in discovery.ExternalDirectories)
+                {
+                    _projectConfigService.AddAllowedExternalPath(project.Id, extDir);
+                }
+
+                // Store discovery metadata on the project
+                if (discovery.PrimaryProjectFile != null)
+                {
+                    project.Metadata["ProjectFile"] = discovery.PrimaryProjectFile;
+                }
+                if (!string.IsNullOrEmpty(discovery.ProjectType))
+                {
+                    project.Metadata["ProjectType"] = discovery.ProjectType;
+                }
+                project.Metadata["ExternalReferencesCount"] = discovery.ExternalDirectories.Count.ToString();
+
+                // Build external project paths JSON for prompt use
+                if (discovery.References.Any(r => r.IsExternal))
+                {
+                    var externalProjects = discovery.References
+                        .Where(r => r.IsExternal)
+                        .Select(r => new
+                        {
+                            name = r.Name,
+                            path = r.DirectoryPath,
+                            relativePath = Path.GetRelativePath(sourcePath, r.DirectoryPath).Replace('\\', '/')
+                        })
+                        .ToList();
+
+                    project.Metadata["ExternalProjectPaths"] = JsonSerializer.Serialize(externalProjects,
+                        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                }
+
+                _repository.Update(project);
+
+                _logger.LogInformation(
+                    "📦 Auto-configured {ExtCount} external path(s) for project {ProjectName} (type: {ProjectType})",
+                    discovery.ExternalDirectories.Count, project.Name, discovery.ProjectType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to auto-configure external paths for project {ProjectName}", project.Name);
+            }
         }
 
         /// <summary>

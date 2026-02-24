@@ -275,15 +275,12 @@ namespace DraCode.KoboldLair.Orchestrators
             // Create options with workspace path and external paths
             var effectiveOptions = _defaultOptions?.Clone() ?? new AgentOptions();
 
-            // Set working directory to project workspace folder
-            // Derive from task file path: ./projects/my-project/tasks/backend-tasks.md -> ./projects/my-project/workspace
-            var taskFolder = Path.GetDirectoryName(_outputMarkdownPath);
-            var projectFolder = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
-            if (!string.IsNullOrEmpty(projectFolder))
+            // Set working directory: existing projects use source path, new projects use workspace subfolder
+            var resolvedWorkspace = ResolveWorkspacePath();
+            if (!string.IsNullOrEmpty(resolvedWorkspace))
             {
-                var workspacePath = Path.Combine(projectFolder, "workspace");
-                effectiveOptions.WorkingDirectory = workspacePath;
-                _logger?.LogDebug("Kobold workspace set to {WorkspacePath}", workspacePath);
+                effectiveOptions.WorkingDirectory = resolvedWorkspace;
+                _logger?.LogDebug("Kobold workspace set to {WorkspacePath}", resolvedWorkspace);
             }
 
             // Add external paths if available
@@ -467,6 +464,56 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
             }
 
+            // Add external project context for existing projects
+            if (_projectRepository != null && !string.IsNullOrEmpty(projectId))
+            {
+                var project = _projectRepository.GetById(projectId);
+                if (project?.Metadata.TryGetValue("IsExistingProject", out var isExistingProject) == true &&
+                    isExistingProject == "true")
+                {
+                    var extInfo = new System.Text.StringBuilder();
+                    extInfo.AppendLine();
+                    extInfo.AppendLine("---");
+                    extInfo.AppendLine();
+                    extInfo.AppendLine("## External Referenced Projects");
+                    extInfo.AppendLine();
+
+                    if (project.Metadata.TryGetValue("SourcePath", out var srcPath))
+                    {
+                        extInfo.AppendLine($"Working directory: `{srcPath}`");
+                    }
+                    if (project.Metadata.TryGetValue("ProjectType", out var projType))
+                    {
+                        extInfo.AppendLine($"Project type: {projType}");
+                    }
+                    extInfo.AppendLine();
+
+                    if (project.Metadata.TryGetValue("ExternalProjectPaths", out var extPathsJson))
+                    {
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument.Parse(extPathsJson);
+                            extInfo.AppendLine("Referenced projects (accessible via relative paths):");
+                            foreach (var item in doc.RootElement.EnumerateArray())
+                            {
+                                var relPath = item.GetProperty("relativePath").GetString() ?? "";
+                                var name = item.GetProperty("name").GetString() ?? "";
+                                extInfo.AppendLine($"  `{relPath}/` - {name}");
+                            }
+                            extInfo.AppendLine();
+                        }
+                        catch { }
+                    }
+
+                    extInfo.AppendLine("IMPORTANT: If a task requires creating a NEW project or directory outside");
+                    extInfo.AppendLine("the workspace and referenced projects, use the ask_user tool to confirm");
+                    extInfo.AppendLine("the location with the user before creating files there.");
+                    extInfo.AppendLine();
+
+                    specificationContext = (specificationContext ?? "") + extInfo.ToString();
+                }
+            }
+
             // Extract project structure from Wyvern analysis if available
             var projectStructure = _wyvern?.Analysis?.Structure;
 
@@ -497,6 +544,31 @@ namespace DraCode.KoboldLair.Orchestrators
             SaveTasksToFile();
 
             return kobold;
+        }
+
+        /// <summary>
+        /// Resolves the workspace path for Kobold execution.
+        /// For existing projects, uses the original source path.
+        /// For new projects, derives workspace from task file path.
+        /// </summary>
+        private string? ResolveWorkspacePath()
+        {
+            if (_projectRepository != null && !string.IsNullOrEmpty(_projectId))
+            {
+                var project = _projectRepository.GetById(_projectId);
+                if (project?.Metadata.TryGetValue("IsExistingProject", out var isExisting) == true &&
+                    isExisting == "true" &&
+                    project.Metadata.TryGetValue("SourcePath", out var sourcePath) == true &&
+                    Directory.Exists(sourcePath))
+                {
+                    return sourcePath;
+                }
+            }
+
+            // Default: derive workspace from task file path
+            var taskFolder = Path.GetDirectoryName(_outputMarkdownPath);
+            var projectFolder = !string.IsNullOrEmpty(taskFolder) ? Path.GetDirectoryName(taskFolder) : null;
+            return !string.IsNullOrEmpty(projectFolder) ? Path.Combine(projectFolder, "workspace") : null;
         }
 
         /// <summary>
