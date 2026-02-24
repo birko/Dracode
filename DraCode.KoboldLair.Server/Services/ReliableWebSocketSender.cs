@@ -73,6 +73,25 @@ public class ReliableWebSocketSender : IDisposable
     }
 
     /// <summary>
+    /// Send raw bytes safely using the internal semaphore to prevent concurrent WebSocket writes.
+    /// Does NOT track for acknowledgment/retry - use for messages managed externally.
+    /// </summary>
+    public async Task SendSafeAsync(byte[] data, CancellationToken cancellationToken = default)
+    {
+        if (_disposed || _webSocket.State != WebSocketState.Open) return;
+
+        await _sendSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            await _webSocket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Text, true, cancellationToken);
+        }
+        finally
+        {
+            _sendSemaphore.Release();
+        }
+    }
+
+    /// <summary>
     /// Acknowledge receipt of a message (called when client sends ack).
     /// </summary>
     public void AcknowledgeMessage(string messageId)

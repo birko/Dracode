@@ -266,7 +266,7 @@ namespace DraCode.KoboldLair.Server.Services
                     newSessionId = currentSessionId,
                     reason = sessionNotFoundReason,
                     timestamp = DateTime.UtcNow
-                });
+                }, session.ReliableSender);
             }
 
             try
@@ -305,7 +305,7 @@ namespace DraCode.KoboldLair.Server.Services
                         // Extract properties from the stored data (handles both JsonNode and dictionary)
                         ExtractMessageProperties(msg.Data, replayData);
 
-                        await SendMessageAsync(webSocket, replayData);
+                        await SendMessageAsync(webSocket, replayData, session.ReliableSender);
                     }
                 }
                 else
@@ -765,7 +765,7 @@ namespace DraCode.KoboldLair.Server.Services
                 var messageType = message.Type ?? message.Action;
                 if (messageType?.Equals("ping", StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    await SendMessageAsync(webSocket, new { type = "pong" });
+                    await SendMessageAsync(webSocket, new { type = "pong" }, session.ReliableSender);
                     return;
                 }
 
@@ -784,7 +784,7 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogInformation("Dragon received: {Message}", message.Message);
                 TrackMessage(session, "user_message", new { role = "user", content = message.Message });
 
-                await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId });
+                await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId }, session.ReliableSender);
 
                 // Reset streaming flag before processing
                 session.StreamingResponseSent = false;
@@ -1025,11 +1025,20 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private async Task SendMessageAsync(WebSocket webSocket, object data)
+        private async Task SendMessageAsync(WebSocket webSocket, object data, ReliableWebSocketSender? reliableSender = null)
         {
             var json = JsonSerializer.Serialize(data, s_writeOptions);
             var bytes = Encoding.UTF8.GetBytes(json);
-            await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+
+            // Route through reliable sender's semaphore to prevent concurrent WebSocket writes
+            if (reliableSender != null)
+            {
+                await reliableSender.SendSafeAsync(bytes);
+            }
+            else
+            {
+                await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
         }
 
         private async Task SendTrackedMessageAsync(WebSocket webSocket, DragonSession session, string messageType, object data)
@@ -1049,7 +1058,18 @@ namespace DraCode.KoboldLair.Server.Services
             // Serialize directly to bytes for WebSocket send
             var json = jsonNode?.ToJsonString(s_writeOptions) ?? JsonSerializer.Serialize(data, s_writeOptions);
             var bytes = Encoding.UTF8.GetBytes(json);
-            await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+
+            // Route through reliable sender's semaphore to prevent concurrent WebSocket writes
+            // The ReliableWebSocketSender's background loop also writes to this WebSocket,
+            // and .NET WebSocket does not support concurrent SendAsync calls.
+            if (session.ReliableSender != null)
+            {
+                await session.ReliableSender.SendSafeAsync(bytes);
+            }
+            else
+            {
+                await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
         }
 
         private void TrackMessage(DragonSession session, string messageType, object data, string? messageId = null)
