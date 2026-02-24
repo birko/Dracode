@@ -84,7 +84,7 @@ namespace DraCode.Agent.Agents
                 "githubcopilot" => new GitHubCopilotProvider(C("clientId"), C("model", "gpt-4o"), C("baseUrl", "https://api.githubcopilot.com/chat/completions")),
                 "zai" or "zhipu" or "zhipuai" => new ZAiProvider(
                     C("apiKey"),
-                    C("model", "glm-4.5-flash"),
+                    C("model", ZAiProvider.DefaultModel),
                     config.TryGetValue("baseUrl", out var zaiUrl) && !string.IsNullOrWhiteSpace(zaiUrl) ? zaiUrl : null, // null = let ZAiProvider choose based on useCodingEndpoint
                     C("deepThinking", "false").Equals("true", StringComparison.OrdinalIgnoreCase),
                     useCodingEndpoint),

@@ -6,7 +6,7 @@ namespace DraCode.Agent.LLMs.Providers
 {
     /// <summary>
     /// Provider for Z.AI (formerly Zhipu AI) GLM models.
-    /// Z.AI offers OpenAI-compatible API with GLM-4.5, GLM-4.6, GLM-4.7 models.
+    /// Z.AI offers OpenAI-compatible API with GLM-4.5, GLM-4.6, GLM-4.7, GLM-4.8 models.
     /// API endpoint: https://api.z.ai/api/paas/v4/chat/completions
     /// China endpoint: https://open.bigmodel.cn/api/paas/v4/chat/completions
     /// </summary>
@@ -33,25 +33,33 @@ namespace DraCode.Agent.LLMs.Providers
         /// </summary>
         public const string ChinaEndpoint = "https://open.bigmodel.cn/api/paas/v4";
 
+        /// <summary>
+        /// Default recommended model (latest stable)
+        /// </summary>
+        public const string DefaultModel = Models.Glm47;
+
         public override string Name => $"Z.AI ({_model})";
 
         /// <summary>
         /// Creates a new Z.AI provider
         /// </summary>
         /// <param name="apiKey">Z.AI API key (ZHIPU_API_KEY)</param>
-        /// <param name="model">Model name (glm-4.5-flash, glm-4.6-flash, glm-4.7, etc.)</param>
+        /// <param name="model">Model name (defaults to latest recommended model)</param>
         /// <param name="baseUrl">API base URL (defaults to international endpoint)</param>
         /// <param name="enableDeepThinking">Enable Deep Thinking mode for supported models</param>
         /// <param name="useCodingEndpoint">Use coding-optimized endpoint for code generation tasks</param>
         public ZAiProvider(
             string apiKey,
-            string model = "glm-4.5-flash",
+            string? model = null,
             string? baseUrl = null,
             bool enableDeepThinking = false,
             bool useCodingEndpoint = false)
         {
             _apiKey = apiKey;
-            _model = model;
+            _model = model ?? DefaultModel;
+
+            // Validate model
+            ValidateModel(_model);
 
             // Select appropriate base URL based on coding endpoint flag
             if (baseUrl != null)
@@ -132,7 +140,7 @@ namespace DraCode.Agent.LLMs.Providers
                 ["model"] = _model,
                 ["messages"] = openAiMessages,
                 ["stream"] = false,
-                ["max_tokens"] = 8192,  // GLM models max output tokens
+                ["max_tokens"] = GetMaxTokensForModel(_model),
                 ["temperature"] = 0.7
             };
 
@@ -142,13 +150,31 @@ namespace DraCode.Agent.LLMs.Providers
                 payload["tools"] = openAiTools;
             }
 
-            // Add Deep Thinking mode if enabled (for supported models like GLM-4.5)
+            // Add Deep Thinking mode if enabled (for supported models like GLM-4.5+)
             if (_enableDeepThinking)
             {
-                payload["thinking"] = new { type = "enabled" };
+                payload["thinking"] = new Dictionary<string, object>
+                {
+                    ["type"] = "enabled"
+                };
             }
 
             return payload;
+        }
+
+        /// <summary>
+        /// Get appropriate max_tokens based on model
+        /// </summary>
+        private static int GetMaxTokensForModel(string model)
+        {
+            return model switch
+            {
+                Models.Glm47 => 8192,       // GLM-4.7 supports up to 8K output
+                Models.Glm48 => 8192,       // GLM-4.8 supports up to 8K output
+                Models.Glm4VPlus => 4096,   // Vision models typically have lower output limits
+                Models.Glm4V => 4096,
+                _ => 4096                   // Default for other models
+            };
         }
 
         private LlmResponse ParseResponse(string responseJson)
@@ -201,13 +227,18 @@ namespace DraCode.Agent.LLMs.Providers
                     // Regular text response
                     llmResponse.StopReason = "end_turn";
 
-                    // Check for thinking content (Deep Thinking mode)
-                    if (message.TryGetProperty("thinking_content", out var thinkingContent))
+                    // Check for thinking/reasoning content (multiple possible field names for compatibility)
+                    var thinkingFields = new[] { "thinking_content", "reasoning_content", "thinking" };
+                    foreach (var fieldName in thinkingFields)
                     {
-                        var thinking = thinkingContent.GetString();
-                        if (!string.IsNullOrEmpty(thinking))
+                        if (message.TryGetProperty(fieldName, out var thinkingContent))
                         {
-                            SendMessage("thinking", thinking);
+                            var thinking = thinkingContent.GetString();
+                            if (!string.IsNullOrEmpty(thinking))
+                            {
+                                SendMessage("thinking", thinking);
+                            }
+                            break;
                         }
                     }
 
@@ -240,7 +271,34 @@ namespace DraCode.Agent.LLMs.Providers
         }
 
         /// <summary>
-        /// Available Z.AI models
+        /// Validate model name and warn if unknown
+        /// </summary>
+        private void ValidateModel(string model)
+        {
+            if (!ValidModels.Contains(model))
+            {
+                SendMessage("warning", $"Model '{model}' may not be recognized. Known models: {string.Join(", ", ValidModels.Take(5))}...");
+            }
+        }
+
+        private static readonly HashSet<string> ValidModels = new()
+        {
+            // GLM-4.5 series
+            Models.Glm45Flash, Models.Glm45Air, Models.Glm45,
+            // GLM-4.6 series
+            Models.Glm46Flash,
+            // GLM-4.7 & GLM-4.8 series (latest)
+            Models.Glm47, Models.Glm48, Models.Glm48Flash,
+            // Vision models
+            Models.Glm4VPlus, Models.Glm4V,
+            // Code models
+            Models.CodeGeeX4,
+            // Legacy models
+            Models.Glm4Plus, Models.Glm4, Models.Glm4Air, Models.Glm4Flash
+        };
+
+        /// <summary>
+        /// Available Z.AI models (updated for latest versions)
         /// </summary>
         public static class Models
         {
@@ -252,8 +310,12 @@ namespace DraCode.Agent.LLMs.Providers
             // GLM-4.6 series
             public const string Glm46Flash = "glm-4.6-flash";
 
-            // GLM-4.7 series (200K context)
+            // GLM-4.7 series (200K context) - Current flagship
             public const string Glm47 = "glm-4.7";
+
+            // GLM-4.8 series (latest)
+            public const string Glm48 = "glm-4.8";
+            public const string Glm48Flash = "glm-4.8-flash";
 
             // Vision models
             public const string Glm4VPlus = "glm-4v-plus";
@@ -287,7 +349,8 @@ namespace DraCode.Agent.LLMs.Providers
                 {
                     ["model"] = _model,
                     ["messages"] = BuildOpenAiStyleMessages(messages, systemPrompt),
-                    ["stream"] = true
+                    ["stream"] = true,
+                    ["max_tokens"] = GetMaxTokensForModel(_model)
                 };
 
                 if (tools != null && tools.Count > 0)
@@ -295,7 +358,15 @@ namespace DraCode.Agent.LLMs.Providers
                     payload["tools"] = BuildOpenAiStyleTools(tools);
                 }
 
-                var json = JsonSerializer.Serialize(payload);
+                if (_enableDeepThinking)
+                {
+                    payload["thinking"] = new Dictionary<string, object> { ["type"] = "enabled" };
+                }
+
+                var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+                {
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                });
                 var url = $"{_baseUrl}/chat/completions";
 
                 var response = await SendStreamingWithRetryAsync(
