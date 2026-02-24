@@ -48,11 +48,19 @@ namespace DraCode.KoboldLair.Services
                         var json = File.ReadAllTextAsync(_projectsFilePath).GetAwaiter().GetResult();
                         _projects = JsonSerializer.Deserialize<List<Project>>(json) ?? new List<Project>();
 
-                        // Resolve all relative paths to absolute paths and ensure timestamps are set
+                        // Resolve all relative paths to absolute paths, ensure timestamps, and reconcile external paths
+                        bool needsSave = false;
                         foreach (var project in _projects)
                         {
                             ResolveProjectPaths(project);
                             EnsureTimestamps(project);
+                            if (ReconcileExternalPaths(project))
+                                needsSave = true;
+                        }
+                        if (needsSave)
+                        {
+                            SaveProjects();
+                            _logger?.LogInformation("Reconciled external paths for existing projects");
                         }
 
                         _logger?.LogInformation("Loaded {Count} project(s) from storage", _projects.Count);
@@ -137,6 +145,87 @@ namespace DraCode.KoboldLair.Services
             {
                 project.Timestamps.UpdatedAt = project.Timestamps.CreatedAt.Value;
             }
+        }
+
+        /// <summary>
+        /// Reconciles legacy projects: migrates ExternalProjectPaths from Metadata string
+        /// to the structured ExternalProjectReferences field, and populates AllowedExternalPaths.
+        /// Returns true if changes were made.
+        /// </summary>
+        private bool ReconcileExternalPaths(Project project)
+        {
+            bool changed = false;
+
+            // Migrate legacy ExternalProjectPaths from Metadata to structured field
+            if (project.ExternalProjectReferences.Count == 0
+                && project.Metadata.TryGetValue("ExternalProjectPaths", out var extPathsJson)
+                && !string.IsNullOrEmpty(extPathsJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(extPathsJson);
+                    foreach (var item in doc.RootElement.EnumerateArray())
+                    {
+                        project.ExternalProjectReferences.Add(new ExternalProjectReference
+                        {
+                            Name = item.GetProperty("name").GetString() ?? "",
+                            Path = item.GetProperty("path").GetString() ?? "",
+                            RelativePath = item.GetProperty("relativePath").GetString() ?? ""
+                        });
+                    }
+                    // Remove legacy metadata keys
+                    project.Metadata.Remove("ExternalProjectPaths");
+                    project.Metadata.Remove("ExternalReferencesCount");
+                    changed = true;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to migrate ExternalProjectPaths for project {ProjectName}", project.Name);
+                }
+            }
+
+            // Reconcile AllowedExternalPaths from SourcePath + ExternalProjectReferences
+            if (project.Security.AllowedExternalPaths.Count == 0)
+            {
+                if (project.Metadata.TryGetValue("SourcePath", out var sourcePath) && !string.IsNullOrEmpty(sourcePath))
+                {
+                    try
+                    {
+                        var normalized = Path.GetFullPath(sourcePath);
+                        if (!project.Security.AllowedExternalPaths.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                        {
+                            project.Security.AllowedExternalPaths.Add(normalized);
+                            changed = true;
+                        }
+                    }
+                    catch { }
+                }
+
+                foreach (var extRef in project.ExternalProjectReferences)
+                {
+                    if (!string.IsNullOrEmpty(extRef.Path))
+                    {
+                        try
+                        {
+                            var normalized = Path.GetFullPath(extRef.Path);
+                            if (!project.Security.AllowedExternalPaths.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                            {
+                                project.Security.AllowedExternalPaths.Add(normalized);
+                                changed = true;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            if (changed)
+            {
+                _logger?.LogInformation("Reconciled external paths for project {ProjectName}: {RefCount} references, {PathCount} allowed paths",
+                    project.Name, project.ExternalProjectReferences.Count, project.Security.AllowedExternalPaths.Count);
+            }
+
+            return changed;
         }
 
         /// <summary>
@@ -283,6 +372,7 @@ namespace DraCode.KoboldLair.Services
                 },
                 Agents = project.Agents,
                 Security = project.Security,
+                ExternalProjectReferences = new List<ExternalProjectReference>(project.ExternalProjectReferences),
                 Metadata = new Dictionary<string, string>(project.Metadata)
             };
         }

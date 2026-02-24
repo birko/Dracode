@@ -569,6 +569,63 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Finds a project by name with fuzzy matching.
+        /// First tries exact/sanitized match via repository, then tries containment matching
+        /// (e.g., "birko.framework-master-specification" contains "birko.framework").
+        /// </summary>
+        /// <param name="name">The project name to search for</param>
+        /// <returns>The matching project, or null if no match found</returns>
+        public Project? FindProjectByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return null;
+
+            // First try exact/sanitized match
+            var exact = _repository.GetByName(name);
+            if (exact != null)
+                return exact;
+
+            // Try containment matching - check if any existing project name is contained
+            // in the search name, or vice versa. Minimum 3 chars to avoid false positives.
+            var allProjects = _repository.GetAll();
+            var searchLower = name.ToLowerInvariant();
+
+            foreach (var project in allProjects)
+            {
+                var projectNameLower = project.Name.ToLowerInvariant();
+                if (projectNameLower.Length < 3)
+                    continue;
+
+                // Check if search name contains an existing project name
+                // e.g., "birko.framework-master-specification" contains "birko.framework"
+                if (searchLower.Contains(projectNameLower))
+                    return project;
+
+                // Check if existing project name contains search name
+                // e.g., project "birko.framework" contains search "birko"
+                if (searchLower.Length >= 3 && projectNameLower.Contains(searchLower))
+                    return project;
+            }
+
+            // Also try matching by output folder name
+            var sanitizedSearch = SanitizeProjectName(name);
+            if (sanitizedSearch.Length >= 3)
+            {
+                foreach (var project in allProjects)
+                {
+                    if (string.IsNullOrEmpty(project.Paths.Output))
+                        continue;
+
+                    var folderName = Path.GetFileName(project.Paths.Output)?.ToLowerInvariant() ?? "";
+                    if (folderName.Length >= 3 && (sanitizedSearch.Contains(folderName) || folderName.Contains(sanitizedSearch)))
+                        return project;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Gets statistics about projects
         /// </summary>
         public ProjectStatistics GetStatistics()
@@ -662,13 +719,12 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         private void AutoConfigureExternalPaths(Project project, string sourcePath)
         {
-            if (_projectConfigService == null)
-                return;
-
             try
             {
                 // Add the source path itself as an allowed external path
-                _projectConfigService.AddAllowedExternalPath(project.Id, sourcePath);
+                var normalizedSourcePath = Path.GetFullPath(sourcePath);
+                AddExternalPathToProject(project, normalizedSourcePath);
+                _projectConfigService?.AddAllowedExternalPath(project.Id, sourcePath);
 
                 // Discover project references
                 var discovery = ProjectReferenceDiscoverer.DiscoverReferences(sourcePath);
@@ -676,7 +732,9 @@ namespace DraCode.KoboldLair.Services
                 // Add each external directory as an allowed path
                 foreach (var extDir in discovery.ExternalDirectories)
                 {
-                    _projectConfigService.AddAllowedExternalPath(project.Id, extDir);
+                    var normalizedExtDir = Path.GetFullPath(extDir);
+                    AddExternalPathToProject(project, normalizedExtDir);
+                    _projectConfigService?.AddAllowedExternalPath(project.Id, extDir);
                 }
 
                 // Store discovery metadata on the project
@@ -688,23 +746,18 @@ namespace DraCode.KoboldLair.Services
                 {
                     project.Metadata["ProjectType"] = discovery.ProjectType;
                 }
-                project.Metadata["ExternalReferencesCount"] = discovery.ExternalDirectories.Count.ToString();
-
-                // Build external project paths JSON for prompt use
+                // Store external project references as structured data
                 if (discovery.References.Any(r => r.IsExternal))
                 {
-                    var externalProjects = discovery.References
+                    project.ExternalProjectReferences = discovery.References
                         .Where(r => r.IsExternal)
-                        .Select(r => new
+                        .Select(r => new ExternalProjectReference
                         {
-                            name = r.Name,
-                            path = r.DirectoryPath,
-                            relativePath = Path.GetRelativePath(sourcePath, r.DirectoryPath).Replace('\\', '/')
+                            Name = r.Name,
+                            Path = r.DirectoryPath,
+                            RelativePath = Path.GetRelativePath(sourcePath, r.DirectoryPath).Replace('\\', '/')
                         })
                         .ToList();
-
-                    project.Metadata["ExternalProjectPaths"] = JsonSerializer.Serialize(externalProjects,
-                        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
                 }
 
                 _repository.Update(project);
@@ -716,6 +769,17 @@ namespace DraCode.KoboldLair.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to auto-configure external paths for project {ProjectName}", project.Name);
+            }
+        }
+
+        /// <summary>
+        /// Adds an external path directly to the project's Security.AllowedExternalPaths list.
+        /// </summary>
+        private static void AddExternalPathToProject(Project project, string normalizedPath)
+        {
+            if (!project.Security.AllowedExternalPaths.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
+            {
+                project.Security.AllowedExternalPaths.Add(normalizedPath);
             }
         }
 

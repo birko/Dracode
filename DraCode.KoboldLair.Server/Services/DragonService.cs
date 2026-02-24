@@ -449,14 +449,25 @@ namespace DraCode.KoboldLair.Server.Services
                 specifications,
                 onSpecificationUpdated: path => _projectService.MarkSpecificationModified(path),
                 approveProject: name => _projectService.ApproveProject(name),
-                getProjectFolder: name => _projectService.CreateProjectFolder(name),
+                getProjectFolder: name => ResolveProjectFolder(session, name),
                 projectsPath: _projectsPath,
-                onProjectLoaded: projectFolder => OnProjectLoaded(session, projectFolder));
+                onProjectLoaded: projectFolder => OnProjectLoaded(session, projectFolder),
+                getActiveProjectName: () => GetActiveProjectName(session));
 
             session.Seeker = new SeekerAgent(
                 llmProvider,
                 options,
-                registerExistingProject: (name, path) => _projectService.RegisterExistingProject(name, path));
+                registerExistingProject: (name, path) =>
+                {
+                    var projectId = _projectService.RegisterExistingProject(name, path);
+                    if (projectId != null)
+                    {
+                        var project = _projectService.GetProject(projectId);
+                        if (project != null && !string.IsNullOrEmpty(project.Paths.Output))
+                            session.CurrentProjectFolder = project.Paths.Output;
+                    }
+                    return projectId;
+                });
 
             session.Sentinel = new SentinelAgent(
                 llmProvider,
@@ -524,6 +535,49 @@ namespace DraCode.KoboldLair.Server.Services
                 options,
                 getProjects: GetProjectInfoList,
                 delegateToCouncil: (member, task) => DelegateToCouncilAsync(session, member, task));
+        }
+
+        /// <summary>
+        /// Resolves the project folder for a given name, preferring the current session's project
+        /// or an existing project with a matching name before creating a new folder.
+        /// </summary>
+        private string ResolveProjectFolder(DragonSession session, string name)
+        {
+            // If session already has a project folder set (e.g., from import), use it
+            if (!string.IsNullOrEmpty(session.CurrentProjectFolder) && Directory.Exists(session.CurrentProjectFolder))
+            {
+                _logger.LogInformation("Using session's current project folder: {Folder}", session.CurrentProjectFolder);
+                return session.CurrentProjectFolder;
+            }
+
+            // Check if an existing project matches this name (fuzzy)
+            var existing = _projectService.FindProjectByName(name);
+            if (existing != null && !string.IsNullOrEmpty(existing.Paths.Output) && Directory.Exists(existing.Paths.Output))
+            {
+                _logger.LogInformation("Found existing project '{Name}' for folder resolution, using: {Folder}", existing.Name, existing.Paths.Output);
+                session.CurrentProjectFolder = existing.Paths.Output;
+                return existing.Paths.Output;
+            }
+
+            // No existing project found - create a new folder (original behavior)
+            return _projectService.CreateProjectFolder(name);
+        }
+
+        /// <summary>
+        /// Gets the active project name from the session's current project folder.
+        /// </summary>
+        private string? GetActiveProjectName(DragonSession session)
+        {
+            if (string.IsNullOrEmpty(session.CurrentProjectFolder))
+                return null;
+
+            // Try to find the project by its output folder
+            var allProjects = _projectService.GetAllProjects();
+            var project = allProjects.FirstOrDefault(p =>
+                !string.IsNullOrEmpty(p.Paths.Output) &&
+                string.Equals(p.Paths.Output, session.CurrentProjectFolder, StringComparison.OrdinalIgnoreCase));
+
+            return project?.Name;
         }
 
         /// <summary>
@@ -833,8 +887,22 @@ namespace DraCode.KoboldLair.Server.Services
 
                     try
                     {
-                        var project = _projectService.RegisterProject(projectName, latestSpec);
-                        _logger.LogInformation("Auto-registered project: {Name} ({Id})", projectName, project.Id);
+                        // Check if this folder already belongs to an existing project (e.g., imported project)
+                        var existingProject = _projectService.GetAllProjects()
+                            .FirstOrDefault(p => !string.IsNullOrEmpty(p.Paths.Output) &&
+                                string.Equals(Path.GetFullPath(p.Paths.Output), Path.GetFullPath(projectFolder), StringComparison.OrdinalIgnoreCase));
+
+                        if (existingProject != null)
+                        {
+                            // Link specification to existing project instead of creating a new one
+                            _projectService.UpdateSpecificationPath(existingProject.Id, latestSpec);
+                            _logger.LogInformation("Linked specification to existing project: {Name} ({Id})", existingProject.Name, existingProject.Id);
+                        }
+                        else
+                        {
+                            var project = _projectService.RegisterProject(projectName, latestSpec);
+                            _logger.LogInformation("Auto-registered project: {Name} ({Id})", projectName, project.Id);
+                        }
                     }
                     catch (Exception ex)
                     {

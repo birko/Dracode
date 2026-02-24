@@ -80,8 +80,23 @@ namespace DraCode.KoboldLair.Models.Projects
         public List<VerificationCheck> VerificationChecks { get; set; } = new();
 
         /// <summary>
+        /// External project references discovered during import (e.g., sibling project dependencies)
+        /// </summary>
+        public List<ExternalProjectReference> ExternalProjectReferences { get; set; } = new();
+
+        /// <summary>
         /// Additional metadata
         /// </summary>
         public Dictionary<string, string> Metadata { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Represents an external project reference discovered during import
+    /// </summary>
+    public class ExternalProjectReference
+    {
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
+        public string RelativePath { get; set; } = "";
     }
 }

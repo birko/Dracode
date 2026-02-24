@@ -19,6 +19,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<string, bool>? _approveProject;
         private readonly Func<string, string>? _getProjectFolder;
         private readonly Func<string, string?>? _onProjectLoaded;
+        private readonly Func<string?>? _getActiveProjectName;
 
         protected override string SystemPrompt => GetSageSystemPrompt();
 
@@ -30,7 +31,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<string, bool>? approveProject = null,
             Func<string, string>? getProjectFolder = null,
             string projectsPath = "./projects",
-            Func<string, string?>? onProjectLoaded = null)
+            Func<string, string?>? onProjectLoaded = null,
+            Func<string?>? getActiveProjectName = null)
             : base(provider, options)
         {
             _projectsPath = projectsPath ?? "./projects";
@@ -39,6 +41,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _approveProject = approveProject;
             _getProjectFolder = getProjectFolder;
             _onProjectLoaded = onProjectLoaded;
+            _getActiveProjectName = getActiveProjectName;
             RebuildTools();
         }
 
@@ -55,7 +58,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
 
         private string GetSageSystemPrompt()
         {
-            return @"You are Sage 📜, the Lore Keeper of the Dragon Council.
+            var prompt = @"You are Sage 📜, the Lore Keeper of the Dragon Council.
 
 Your role is to manage project specifications and features. You are a specialist in documentation and requirements.
 
@@ -100,6 +103,20 @@ Your role is to manage project specifications and features. You are a specialist
 - Be thorough and detail-oriented
 - Always confirm before approving
 - Ask clarifying questions about requirements";
+
+            // Add active project context if available
+            var activeProjectName = _getActiveProjectName?.Invoke();
+            if (!string.IsNullOrEmpty(activeProjectName))
+            {
+                prompt += $@"
+
+## ACTIVE PROJECT CONTEXT
+There is an active project: **{activeProjectName}**
+When creating a specification for this project, you MUST use the exact name ""{activeProjectName}"" as the project name.
+Do NOT invent a new name or variation - use the existing project name exactly as shown above.";
+            }
+
+            return prompt;
         }
 
         /// <summary>

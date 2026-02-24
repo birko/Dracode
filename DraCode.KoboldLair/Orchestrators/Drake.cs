@@ -283,11 +283,15 @@ namespace DraCode.KoboldLair.Orchestrators
                 _logger?.LogDebug("Kobold workspace set to {WorkspacePath}", resolvedWorkspace);
             }
 
-            // Add external paths if available
-            if (!string.IsNullOrEmpty(projectId) && _projectConfigService != null)
+            // Add external paths if available (try ProjectConfigurationService first, fall back to project entity)
+            if (!string.IsNullOrEmpty(projectId))
             {
-                var externalPaths = _projectConfigService.GetAllowedExternalPaths(projectId);
-                if (externalPaths.Count > 0)
+                var externalPaths = _projectConfigService?.GetAllowedExternalPaths(projectId);
+                if (externalPaths == null || externalPaths.Count == 0)
+                {
+                    externalPaths = _projectRepository?.GetAllowedExternalPaths(projectId);
+                }
+                if (externalPaths != null && externalPaths.Count > 0)
                 {
                     effectiveOptions.AllowedExternalPaths = externalPaths.ToList();
                     _logger?.LogDebug("Kobold for project {ProjectId} has {Count} allowed external paths",
@@ -488,8 +492,18 @@ namespace DraCode.KoboldLair.Orchestrators
                     }
                     extInfo.AppendLine();
 
-                    if (project.Metadata.TryGetValue("ExternalProjectPaths", out var extPathsJson))
+                    if (project.ExternalProjectReferences.Count > 0)
                     {
+                        extInfo.AppendLine("Referenced projects (accessible via relative paths):");
+                        foreach (var extRef in project.ExternalProjectReferences)
+                        {
+                            extInfo.AppendLine($"  `{extRef.RelativePath}/` - {extRef.Name}");
+                        }
+                        extInfo.AppendLine();
+                    }
+                    else if (project.Metadata.TryGetValue("ExternalProjectPaths", out var extPathsJson))
+                    {
+                        // Fallback for legacy projects with data still in metadata
                         try
                         {
                             using var doc = System.Text.Json.JsonDocument.Parse(extPathsJson);
