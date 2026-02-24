@@ -118,15 +118,23 @@ namespace DraCode.Agent.LLMs.Providers
                     // Check if we should retry based on status code
                     if (!IsRetryableStatusCode(response.StatusCode))
                     {
-                        // Non-retryable error (4xx except 429)
-                        SendMessage("error", $"{providerName} API Error: {response.StatusCode}");
+                        // Non-retryable error (4xx except 429) - include response detail
+                        var errorDetail = ExtractErrorFromResponseBody(responseBody);
+                        var errorMsg = errorDetail != null
+                            ? $"{providerName} API Error ({response.StatusCode}): {errorDetail}"
+                            : $"{providerName} API Error: {response.StatusCode}";
+                        SendMessage("error", errorMsg);
                         return (response, responseBody);
                     }
 
                     // Retryable error - check if we have retries left
                     if (attempt >= policy.MaxRetries)
                     {
-                        SendMessage("error", $"{providerName} API Error after {attempt + 1} attempts: {response.StatusCode}");
+                        var errorDetail = ExtractErrorFromResponseBody(responseBody);
+                        var errorMsg = errorDetail != null
+                            ? $"{providerName} API Error after {attempt + 1} attempts ({response.StatusCode}): {errorDetail}"
+                            : $"{providerName} API Error after {attempt + 1} attempts: {response.StatusCode}";
+                        SendMessage("error", errorMsg);
                         return (response, responseBody);
                     }
 
@@ -250,6 +258,54 @@ namespace DraCode.Agent.LLMs.Providers
             return Math.Min(nextDelay, policy.MaxDelayMs);
         }
 
+        /// <summary>
+        /// Attempts to extract a human-readable error message from an API response body.
+        /// Handles common patterns: { "error": { "message": "..." } }, { "error": "..." }, { "message": "..." }
+        /// </summary>
+        protected static string? ExtractErrorFromResponseBody(string? responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody)) return null;
+
+            try
+            {
+                var doc = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(responseBody);
+
+                // Pattern: { "error": { "message": "..." } }
+                if (doc.TryGetProperty("error", out var errorProp))
+                {
+                    if (errorProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        if (errorProp.TryGetProperty("message", out var msg))
+                            return msg.GetString();
+                        if (errorProp.TryGetProperty("msg", out var msg2))
+                            return msg2.GetString();
+                    }
+                    else if (errorProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        return errorProp.GetString();
+                    }
+                }
+
+                // Pattern: { "message": "..." }
+                if (doc.TryGetProperty("message", out var topMsg))
+                    return topMsg.GetString();
+
+                // Pattern: { "detail": "..." }
+                if (doc.TryGetProperty("detail", out var detail))
+                {
+                    if (detail.ValueKind == System.Text.Json.JsonValueKind.String)
+                        return detail.GetString();
+                }
+            }
+            catch
+            {
+                // Not valid JSON - return truncated raw body
+                return responseBody.Length > 200 ? responseBody[..200] + "..." : responseBody;
+            }
+
+            return null;
+        }
+
         protected static List<object> BuildOpenAiStyleMessages(IEnumerable<Message> messages, string systemPrompt)
         {
             var list = new List<object> { new { role = "system", content = systemPrompt } };
@@ -348,8 +404,9 @@ namespace DraCode.Agent.LLMs.Providers
                 {
                     var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
                     var errorType = error.TryGetProperty("type", out var type) ? type.GetString() : "unknown";
-                    messageCallback?.Invoke("error", $"API returned error: {errorType} - {errorMessage}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorMsg = $"API returned error: {errorType} - {errorMessage}";
+                    messageCallback?.Invoke("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
                 
                 var choice = result.GetProperty("choices")[0];
@@ -387,13 +444,13 @@ namespace DraCode.Agent.LLMs.Providers
             }
             catch (Exception ex)
             {
-                messageCallback?.Invoke("error", $"Error parsing OpenAI-style response: {ex.Message}");
-                messageCallback?.Invoke("error", $"Response: {responseJson}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error parsing OpenAI-style response: {ex.Message}";
+                messageCallback?.Invoke("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 
-        protected static LlmResponse NotConfigured() => new() { StopReason = "NotConfigured", Content = [] };
+        protected static LlmResponse NotConfigured() => new() { StopReason = "NotConfigured", Content = [], ErrorMessage = "Provider is not properly configured. Check API keys and settings." };
 
         /// <summary>
         /// Sends a streaming HTTP request with retry logic for initial connection failures.

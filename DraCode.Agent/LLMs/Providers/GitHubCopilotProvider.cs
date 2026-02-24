@@ -74,7 +74,7 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (response == null || responseJson == null)
                 {
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    return LlmResponse.Error("GitHub Copilot: No response received");
                 }
 
                 // Handle 401 separately - refresh token and retry once
@@ -92,19 +92,19 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (response == null || responseJson == null || !response.IsSuccessStatusCode)
                 {
-                    if (responseJson != null)
-                    {
-                        SendMessage("error", $"Response: {responseJson}");
-                    }
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorDetail = responseJson != null ? (ExtractErrorFromResponseBody(responseJson) ?? responseJson) : "No response";
+                    var errorMsg = $"GitHub Copilot API Error ({response?.StatusCode}): {errorDetail}";
+                    SendMessage("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 return ParseOpenAiStyleResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)
             {
-                SendMessage("error", $"Error calling GitHub Copilot API: {ex.Message}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error calling GitHub Copilot API: {ex.Message}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 

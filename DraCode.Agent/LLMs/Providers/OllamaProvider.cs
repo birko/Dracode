@@ -52,21 +52,24 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (response == null || responseJson == null)
                 {
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    return LlmResponse.Error("Ollama: No response received");
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"Response: {responseJson}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorDetail = ExtractErrorFromResponseBody(responseJson) ?? responseJson;
+                    var errorMsg = $"Ollama API Error ({response.StatusCode}): {errorDetail}";
+                    SendMessage("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 return ParseResponse(responseJson);
             }
             catch (Exception ex)
             {
-                SendMessage("error", $"Error calling Ollama API: {ex.Message}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error calling Ollama API: {ex.Message}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 

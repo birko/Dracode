@@ -76,21 +76,24 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (response == null || responseJson == null)
                 {
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    return LlmResponse.Error($"{ProviderName}: No response received");
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"Response: {responseJson}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorDetail = ExtractErrorFromResponseBody(responseJson) ?? responseJson;
+                    var errorMsg = $"{ProviderName} API Error ({response.StatusCode}): {errorDetail}";
+                    SendMessage("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 return ParseResponse(responseJson);
             }
             catch (Exception ex)
             {
-                SendMessage("error", $"Error calling {ProviderName} API: {ex.Message}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error calling {ProviderName} API: {ex.Message}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 
@@ -124,15 +127,17 @@ namespace DraCode.Agent.LLMs.Providers
             if (result.TryGetProperty("error", out var error))
             {
                 var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
-                SendMessage("error", $"{ProviderName} returned error: {errorMessage}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"{ProviderName} returned error: {errorMessage}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
 
             // OpenAI-compatible format uses choices array
             if (!result.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
             {
-                SendMessage("error", "Invalid response format: missing choices array");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"{ProviderName}: Invalid response format - missing choices array";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
 
             var choice = choices[0];

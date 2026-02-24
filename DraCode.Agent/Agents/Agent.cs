@@ -402,8 +402,9 @@ Reasoning approach: Balanced
                         return conversation;
 
                     case "error":
-                        // Error occurred - stop immediately
-                        SendMessage("error", "Error occurred during LLM request. Stopping.");
+                        // Error occurred - stop immediately, preserving the actual error detail
+                        var actualError = response.ErrorMessage ?? "Unknown LLM error";
+                        SendMessage("error", $"LLM request failed: {actualError}");
                         if (response.Content == null || response.Content.Count == 0 || !response.Content.Any(b => b.Type == "text"))
                         {
                             if (response.Content == null)
@@ -413,7 +414,7 @@ Reasoning approach: Balanced
                             response.Content.Add(new ContentBlock
                             {
                                 Type = "text",
-                                Text = "Error: An error occurred during LLM request."
+                                Text = $"Error: LLM request failed: {actualError}"
                             });
                             conversation[^1] = new Message
                             {

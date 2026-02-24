@@ -50,21 +50,24 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (response == null || responseJson == null)
                 {
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    return LlmResponse.Error("OpenAI: No response received");
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"Response: {responseJson}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorDetail = ExtractErrorFromResponseBody(responseJson) ?? responseJson;
+                    var errorMsg = $"OpenAI API Error ({response.StatusCode}): {errorDetail}";
+                    SendMessage("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 return ParseOpenAiStyleResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)
             {
-                SendMessage("error", $"Error calling OpenAI API: {ex.Message}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error calling OpenAI API: {ex.Message}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 

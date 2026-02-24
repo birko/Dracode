@@ -219,21 +219,23 @@ You are working on a task that is part of a larger project. Below is the project
                 var messages = await Agent.RunAsync(fullTaskPrompt, maxIterations);
 
                 // Check if execution encountered errors
-                if (HasErrorInMessages(messages))
+                var executionError = ExtractErrorFromMessages(messages);
+                if (executionError != null)
                 {
-                    ErrorMessage = "Agent encountered errors during execution. Check logs for details.";
+                    ErrorMessage = executionError;
                     Status = KoboldStatus.Failed;
                     CompletedAt = DateTime.UtcNow;
-                    
-                    var taskPreview = TaskDescription?.Length > 60 
-                        ? TaskDescription.Substring(0, 60) + "..." 
+
+                    var taskPreview = TaskDescription?.Length > 60
+                        ? TaskDescription.Substring(0, 60) + "..."
                         : TaskDescription ?? "unknown";
                     _logger?.LogWarning(
                         "Kobold {KoboldId} failed with errors\n" +
                         "  Project: {ProjectId}\n" +
                         "  Task ID: {TaskId}\n" +
-                        "  Task: {TaskDescription}",
-                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
+                        "  Task: {TaskDescription}\n" +
+                        "  Error: {ErrorMessage}",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview, executionError);
                     return messages;
                 }
 
@@ -486,24 +488,26 @@ You are working on a task that is part of a larger project. Below is the project
                 var messages = await Agent.RunAsync(fullTaskPrompt, effectiveMaxIterations);
 
                 // Check if execution encountered errors
-                if (HasErrorInMessages(messages))
+                var planExecutionError = ExtractErrorFromMessages(messages);
+                if (planExecutionError != null)
                 {
-                    ErrorMessage = "Agent encountered errors during execution. Check logs for details.";
+                    ErrorMessage = planExecutionError;
                     Status = KoboldStatus.Failed;
                     CompletedAt = DateTime.UtcNow;
-                    
+
                     // Update plan status on failure
                     await UpdatePlanStatusAsync(planService, success: false, ErrorMessage);
-                    
-                    var taskPreview = TaskDescription?.Length > 60 
-                        ? TaskDescription.Substring(0, 60) + "..." 
+
+                    var taskPreview = TaskDescription?.Length > 60
+                        ? TaskDescription.Substring(0, 60) + "..."
                         : TaskDescription ?? "unknown";
                     _logger?.LogWarning(
                         "Kobold {KoboldId} failed with errors\n" +
                         "  Project: {ProjectId}\n" +
                         "  Task ID: {TaskId}\n" +
-                        "  Task: {TaskDescription}",
-                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
+                        "  Task: {TaskDescription}\n" +
+                        "  Error: {ErrorMessage}",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview, planExecutionError);
                     return messages;
                 }
 
@@ -673,9 +677,10 @@ You are working on a task that is part of a larger project. Below is the project
                 var messages = await RunWithStepDetectionAsync(fullTaskPrompt, effectiveMaxIterations, planService, cancellationToken);
 
                 // Check if execution encountered errors
-                if (HasErrorInMessages(messages))
+                var enhancedExecutionError = ExtractErrorFromMessages(messages);
+                if (enhancedExecutionError != null)
                 {
-                    ErrorMessage = "Agent encountered errors during execution. Check logs for details.";
+                    ErrorMessage = enhancedExecutionError;
                     Status = KoboldStatus.Failed;
                     CompletedAt = DateTime.UtcNow;
 
@@ -689,8 +694,9 @@ You are working on a task that is part of a larger project. Below is the project
                         "Kobold {KoboldId} failed with errors\n" +
                         "  Project: {ProjectId}\n" +
                         "  Task ID: {TaskId}\n" +
-                        "  Task: {TaskDescription}",
-                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
+                        "  Task: {TaskDescription}\n" +
+                        "  Error: {ErrorMessage}",
+                        Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview, enhancedExecutionError);
                     return messages;
                 }
 
@@ -1591,16 +1597,16 @@ If step is complete, call `update_plan_step` with status 'completed'.
         }
 
         /// <summary>
-        /// Checks if the agent's message history contains errors (stop reason "error" or "NotConfigured")
+        /// Checks if the agent's message history contains errors (stop reason "error" or "NotConfigured").
+        /// Returns the actual error message if found, null otherwise.
         /// </summary>
-        private bool HasErrorInMessages(List<Message> messages)
+        private string? ExtractErrorFromMessages(List<Message> messages)
         {
             // Check the last assistant message for error indicators
             var lastAssistantMsg = messages.LastOrDefault(m => m.Role == "assistant");
-            if (lastAssistantMsg == null) return false;
+            if (lastAssistantMsg == null) return null;
 
             // Check if the conversation ended with an error stop reason
-            // This is inferred from the agent stopping without completing the task
             // Look for error messages in the message content
             if (lastAssistantMsg.Content is IEnumerable<ContentBlock> blocks)
             {
@@ -1610,18 +1616,28 @@ If step is complete, call `update_plan_step` with status 'completed'.
                     {
                         var text = block.Text.ToLowerInvariant();
                         // Check for common error indicators
-                        if (text.Contains("error occurred during llm request") ||
+                        if (text.Contains("error: llm request failed:") ||
+                            text.Contains("error occurred during llm request") ||
                             text.Contains("error:") && text.Contains("llm request") ||
                             text.Contains("provider") && text.Contains("not properly configured") ||
                             text.Contains("error:") && text.Contains("provider"))
                         {
-                            return true;
+                            // Return the actual error text (not lowercased) for display
+                            return block.Text;
                         }
                     }
                 }
             }
 
-            return false;
+            return null;
+        }
+
+        /// <summary>
+        /// Checks if the agent's message history contains errors (stop reason "error" or "NotConfigured")
+        /// </summary>
+        private bool HasErrorInMessages(List<Message> messages)
+        {
+            return ExtractErrorFromMessages(messages) != null;
         }
 
         /// <summary>

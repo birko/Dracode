@@ -44,21 +44,24 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (response == null || responseJson == null)
                 {
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    return LlmResponse.Error("Gemini: No response received");
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"Response: {responseJson}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorDetail = ExtractErrorFromResponseBody(responseJson) ?? responseJson;
+                    var errorMsg = $"Gemini API Error ({response.StatusCode}): {errorDetail}";
+                    SendMessage("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 return ParseResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)
             {
-                SendMessage("error", $"Error calling Gemini API: {ex.Message}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error calling Gemini API: {ex.Message}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 
@@ -220,9 +223,9 @@ namespace DraCode.Agent.LLMs.Providers
                 if (result.TryGetProperty("error", out var error))
                 {
                     var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
-                    messageCallback?.Invoke("error", $"Gemini API returned error: {errorMessage}");
-                    llmResponse.StopReason = "error";
-                    return llmResponse;
+                    var errorMsg = $"Gemini API returned error: {errorMessage}";
+                    messageCallback?.Invoke("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 if (result.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
@@ -235,9 +238,9 @@ namespace DraCode.Agent.LLMs.Providers
                         var reason = finishReason.GetString();
                         if (reason == "SAFETY" || reason == "RECITATION")
                         {
-                            llmResponse.StopReason = "error";
-                            messageCallback?.Invoke("error", $"Gemini blocked response: {reason}");
-                            return llmResponse;
+                            var errorMsg = $"Gemini blocked response: {reason}";
+                            messageCallback?.Invoke("error", errorMsg);
+                            return LlmResponse.Error(errorMsg);
                         }
                     }
 
@@ -286,8 +289,9 @@ namespace DraCode.Agent.LLMs.Providers
             }
             catch (Exception ex)
             {
-                messageCallback?.Invoke("error", $"Error parsing Gemini response: {ex.Message}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error parsing Gemini response: {ex.Message}";
+                messageCallback?.Invoke("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 

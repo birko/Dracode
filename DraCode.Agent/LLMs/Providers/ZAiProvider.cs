@@ -36,7 +36,7 @@ namespace DraCode.Agent.LLMs.Providers
         /// <summary>
         /// Default recommended model (latest stable)
         /// </summary>
-        public const string DefaultModel = Models.Glm47;
+        public const string DefaultModel = Models.Glm5;
 
         public override string Name => $"Z.AI ({_model})";
 
@@ -109,21 +109,24 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (response == null || responseJson == null)
                 {
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    return LlmResponse.Error("Z.AI: No response received");
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"Response: {responseJson}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorDetail = ExtractErrorFromResponseBody(responseJson) ?? responseJson;
+                    var errorMsg = $"Z.AI API Error ({response.StatusCode}): {errorDetail}";
+                    SendMessage("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 return ParseResponse(responseJson);
             }
             catch (Exception ex)
             {
-                SendMessage("error", $"Error calling Z.AI API: {ex.Message}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error calling Z.AI API: {ex.Message}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 
@@ -188,15 +191,16 @@ namespace DraCode.Agent.LLMs.Providers
                 if (result.TryGetProperty("error", out var error))
                 {
                     var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
-                    SendMessage("error", $"Z.AI returned error: {errorMessage}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorMsg = $"Z.AI returned error: {errorMessage}";
+                    SendMessage("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 // Standard OpenAI-compatible format
                 if (!result.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
                 {
                     SendMessage("error", "Invalid response format: missing choices array");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    return LlmResponse.Error("Z.AI: Invalid response format - missing choices array");
                 }
 
                 var choice = choices[0];
@@ -264,9 +268,9 @@ namespace DraCode.Agent.LLMs.Providers
             }
             catch (Exception ex)
             {
-                SendMessage("error", $"Error parsing Z.AI response: {ex.Message}");
-                SendMessage("error", $"Response: {responseJson}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error parsing Z.AI response: {ex.Message}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 
@@ -283,6 +287,8 @@ namespace DraCode.Agent.LLMs.Providers
 
         private static readonly HashSet<string> ValidModels = new()
         {
+            // GLM-5 series
+            Models.Glm5,
             // GLM-4.5 series
             Models.Glm45Flash, Models.Glm45Air, Models.Glm45,
             // GLM-4.6 series
@@ -302,6 +308,8 @@ namespace DraCode.Agent.LLMs.Providers
         /// </summary>
         public static class Models
         {
+            // GLM-5 series
+            public const string Glm5 = "glm-5";
             // GLM-4.5 series
             public const string Glm45Flash = "glm-4.5-flash";
             public const string Glm45Air = "glm-4.5-air";

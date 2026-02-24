@@ -45,21 +45,24 @@ namespace DraCode.Agent.LLMs.Providers
 
                 if (response == null || responseJson == null)
                 {
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    return LlmResponse.Error("Claude: No response received");
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    SendMessage("error", $"Response: {responseJson}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorDetail = ExtractErrorFromResponseBody(responseJson) ?? responseJson;
+                    var errorMsg = $"Claude API Error ({response.StatusCode}): {errorDetail}";
+                    SendMessage("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
 
                 return ParseResponse(responseJson, MessageCallback);
             }
             catch (Exception ex)
             {
-                SendMessage("error", $"Error calling Claude API: {ex.Message}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error calling Claude API: {ex.Message}";
+                SendMessage("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 
@@ -119,8 +122,9 @@ namespace DraCode.Agent.LLMs.Providers
                 {
                     var errorType = error.TryGetProperty("type", out var type) ? type.GetString() : "unknown";
                     var errorMessage = error.TryGetProperty("message", out var msg) ? msg.GetString() : "Unknown error";
-                    messageCallback?.Invoke("error", $"Claude API returned error: {errorType} - {errorMessage}");
-                    return new LlmResponse { StopReason = "error", Content = [] };
+                    var errorMsg = $"Claude API returned error: {errorType} - {errorMessage}";
+                    messageCallback?.Invoke("error", errorMsg);
+                    return LlmResponse.Error(errorMsg);
                 }
                 
                 var llmResponse = new LlmResponse 
@@ -159,9 +163,9 @@ namespace DraCode.Agent.LLMs.Providers
             }
             catch (Exception ex)
             {
-                messageCallback?.Invoke("error", $"Error parsing Claude response: {ex.Message}");
-                messageCallback?.Invoke("error", $"Response: {responseJson}");
-                return new LlmResponse { StopReason = "error", Content = [] };
+                var errorMsg = $"Error parsing Claude response: {ex.Message}";
+                messageCallback?.Invoke("error", errorMsg);
+                return LlmResponse.Error(errorMsg);
             }
         }
 
