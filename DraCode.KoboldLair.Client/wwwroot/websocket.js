@@ -18,7 +18,6 @@ export class WebSocketClient {
         this.pingSequence = 0;         // Tracks which ping we sent
         this.lastPongSequence = 0;     // Tracks which ping was acknowledged
         this.sessionId = null;
-        this.receivedMessageIds = new Set();
         this.onSessionNotFound = null;
     }
 
@@ -103,18 +102,6 @@ export class WebSocketClient {
                     const message = JSON.parse(event.data);
                     console.log('[WebSocket] Received raw message:', message.type, message.messageId || '(no id)');
 
-                    // Send acknowledgment for messages with messageId
-                    if (message.messageId && this.ws?.readyState === WebSocket.OPEN) {
-                        try {
-                            this.ws.send(JSON.stringify({ 
-                                type: 'ack', 
-                                messageId: message.messageId 
-                            }));
-                        } catch (ackError) {
-                            console.warn('[WebSocket] Failed to send ack:', ackError);
-                        }
-                    }
-
                     // Handle pong responses
                     if (message.type === 'pong') {
                         // Mark that we received a pong for the current ping sequence
@@ -137,28 +124,6 @@ export class WebSocketClient {
                     if (message.sessionId && !this.sessionId) {
                         this.sessionId = message.sessionId;
                         console.log('Session ID received:', this.sessionId);
-                    }
-
-                    // Deduplicate messages using messageId
-                    // BUT: allow dragon_message duplicates through for UI state cleanup
-                    if (message.messageId) {
-                        if (this.receivedMessageIds.has(message.messageId)) {
-                            // Allow dragon_message duplicates to reach session handler
-                            // This ensures thinking indicators get properly cleared
-                            if (message.type !== 'dragon_message') {
-                                console.log('[WebSocket] Skipping duplicate message:', message.messageId);
-                                return;
-                            }
-                            console.log('[WebSocket] Allowing duplicate dragon_message for UI cleanup:', message.messageId);
-                        } else {
-                            this.receivedMessageIds.add(message.messageId);
-
-                            // Limit set size to prevent memory bloat
-                            if (this.receivedMessageIds.size > 1000) {
-                                const entries = Array.from(this.receivedMessageIds);
-                                this.receivedMessageIds = new Set(entries.slice(-500));
-                            }
-                        }
                     }
 
                     console.log('[WebSocket] Dispatching to handlers:', message.type);
@@ -184,13 +149,6 @@ export class WebSocketClient {
      */
     setSessionId(sessionId) {
         this.sessionId = sessionId;
-    }
-
-    /**
-     * Clear received message IDs (for when session is reset)
-     */
-    clearMessageHistory() {
-        this.receivedMessageIds.clear();
     }
 
     disconnect() {

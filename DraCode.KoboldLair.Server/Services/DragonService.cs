@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.SubAgents;
@@ -18,7 +17,7 @@ namespace DraCode.KoboldLair.Server.Services
     /// <summary>
     /// Represents a stored message for session replay on reconnect
     /// </summary>
-    public record SessionMessage(string MessageId, string Type, object Data, DateTime Timestamp);
+    public record SessionMessage(string MessageId, string Type, Dictionary<string, object> Data, DateTime Timestamp);
 
     /// <summary>
     /// Tracks session state including agents and message history
@@ -37,7 +36,7 @@ namespace DraCode.KoboldLair.Server.Services
         public List<SessionMessage> MessageHistory { get; } = new();
         public string? LastMessageId { get; set; }
         public string? CurrentProjectFolder { get; set; }
-        public ReliableWebSocketSender? ReliableSender { get; set; }
+        public WebSocketSender? Sender { get; set; }
 
         /// <summary>
         /// Tracks whether the Dragon's conversation context should be reset after the current response.
@@ -240,19 +239,19 @@ namespace DraCode.KoboldLair.Server.Services
             if (session == null)
             {
                 var sessionId = Guid.NewGuid().ToString();
-                session = new DragonSession 
-                { 
+                session = new DragonSession
+                {
                     SessionId = sessionId,
-                    ReliableSender = new ReliableWebSocketSender(webSocket, _logger)
+                    Sender = new WebSocketSender(webSocket)
                 };
                 _sessions[sessionId] = session;
                 _sessionWebSockets[sessionId] = webSocket;
                 _logger.LogInformation("Dragon session started: {SessionId}", sessionId);
             }
-            else if (session.ReliableSender == null || isResuming)
+            else if (session.Sender == null || isResuming)
             {
-                // Create new reliable sender for resumed session
-                session.ReliableSender = new ReliableWebSocketSender(webSocket, _logger);
+                // Create new sender for resumed session
+                session.Sender = new WebSocketSender(webSocket);
             }
 
             var currentSessionId = session.SessionId;
@@ -266,7 +265,7 @@ namespace DraCode.KoboldLair.Server.Services
                     newSessionId = currentSessionId,
                     reason = sessionNotFoundReason,
                     timestamp = DateTime.UtcNow
-                }, session.ReliableSender);
+                }, session.Sender);
             }
 
             try
@@ -293,7 +292,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                     foreach (var msg in messagesToReplay)
                     {
-                        var replayData = new Dictionary<string, object>
+                        var replayData = new Dictionary<string, object>(msg.Data)
                         {
                             ["type"] = msg.Type,
                             ["messageId"] = msg.MessageId,
@@ -302,10 +301,7 @@ namespace DraCode.KoboldLair.Server.Services
                             ["timestamp"] = msg.Timestamp
                         };
 
-                        // Extract properties from the stored data (handles both JsonNode and dictionary)
-                        ExtractMessageProperties(msg.Data, replayData);
-
-                        await SendMessageAsync(webSocket, replayData, session.ReliableSender);
+                        await SendMessageAsync(webSocket, replayData, session.Sender);
                     }
                 }
                 else
@@ -413,25 +409,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                     var messageText = Encoding.UTF8.GetString(buffer, 0, result.Count);
                     session.LastActivity = DateTime.UtcNow;
-                    
-                    // Handle message acknowledgments
-                    try
-                    {
-                        var json = JsonDocument.Parse(messageText);
-                        if (json.RootElement.TryGetProperty("type", out var typeElement) && 
-                            typeElement.GetString() == "ack" &&
-                            json.RootElement.TryGetProperty("messageId", out var msgIdElement))
-                        {
-                            var ackMessageId = msgIdElement.GetString();
-                            if (!string.IsNullOrEmpty(ackMessageId))
-                            {
-                                session.ReliableSender?.AcknowledgeMessage(ackMessageId);
-                                continue;
-                            }
-                        }
-                    }
-                    catch { }
-                    
+
                     await HandleMessageAsync(webSocket, session, messageText);
                 }
             }
@@ -441,21 +419,9 @@ namespace DraCode.KoboldLair.Server.Services
             }
             finally
             {
-                // Flush any remaining messages before disconnect
-                if (session.ReliableSender != null)
-                {
-                    try
-                    {
-                        await session.ReliableSender.FlushAsync(TimeSpan.FromSeconds(2));
-                        session.ReliableSender.Dispose();
-                        session.ReliableSender = null;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error flushing reliable sender on disconnect");
-                    }
-                }
-                
+                session.Sender?.Dispose();
+                session.Sender = null;
+
                 _sessionWebSockets.TryRemove(currentSessionId, out _);
                 _logger.LogInformation("Dragon WebSocket disconnected (session preserved): {SessionId}", currentSessionId);
             }
@@ -644,40 +610,14 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Extracts the text content from a SessionMessage's Data object.
         /// </summary>
-        private static string? ExtractMessageContent(object? data)
+        private static string? ExtractMessageContent(Dictionary<string, object>? data)
         {
             if (data == null) return null;
 
-            try
-            {
-                if (data is JsonObject jsonObj)
-                {
-                    if (jsonObj.TryGetPropertyValue("content", out var content))
-                        return content?.ToString();
-                    if (jsonObj.TryGetPropertyValue("message", out var message))
-                        return message?.ToString();
-                }
-
-                if (data is JsonElement element && element.ValueKind == JsonValueKind.Object)
-                {
-                    if (element.TryGetProperty("content", out var content))
-                        return content.GetString();
-                    if (element.TryGetProperty("message", out var message))
-                        return message.GetString();
-                }
-
-                if (data is IDictionary<string, object> dict)
-                {
-                    if (dict.TryGetValue("content", out var content))
-                        return content?.ToString();
-                    if (dict.TryGetValue("message", out var message))
-                        return message?.ToString();
-                }
-            }
-            catch
-            {
-                // Ignore extraction errors
-            }
+            if (data.TryGetValue("content", out var content))
+                return content?.ToString();
+            if (data.TryGetValue("message", out var message))
+                return message?.ToString();
 
             return null;
         }
@@ -765,7 +705,7 @@ namespace DraCode.KoboldLair.Server.Services
                 var messageType = message.Type ?? message.Action;
                 if (messageType?.Equals("ping", StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    await SendMessageAsync(webSocket, new { type = "pong" }, session.ReliableSender);
+                    await SendMessageAsync(webSocket, new { type = "pong" }, session.Sender);
                     return;
                 }
 
@@ -782,9 +722,9 @@ namespace DraCode.KoboldLair.Server.Services
                 }
 
                 _logger.LogInformation("Dragon received: {Message}", message.Message);
-                TrackMessage(session, "user_message", new { role = "user", content = message.Message });
+                TrackMessage(session, "user_message", new Dictionary<string, object> { ["role"] = "user", ["content"] = message.Message! });
 
-                await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId }, session.ReliableSender);
+                await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId }, session.Sender);
 
                 // Reset streaming flag before processing
                 session.StreamingResponseSent = false;
@@ -969,8 +909,7 @@ namespace DraCode.KoboldLair.Server.Services
                     description = content.StartsWith("ITERATION") ? "Thinking..." : content;
                 }
 
-                var messageId = Guid.NewGuid().ToString();
-                var data = new
+                await SendMessageAsync(webSocket, new
                 {
                     type = "dragon_thinking",
                     sessionId,
@@ -978,21 +917,16 @@ namespace DraCode.KoboldLair.Server.Services
                     toolName,
                     description = description ?? "Processing...",
                     timestamp = DateTime.UtcNow
-                };
-
-                // Use reliable sender with high priority (lower number = higher priority)
-                if (session.ReliableSender != null)
-                {
-                    session.ReliableSender.QueueMessage(messageId, data, priority: 5);
-                }
-                else
-                {
-                    await SendMessageAsync(webSocket, data);
-                }
+                }, session.Sender);
+            }
+            catch (WebSocketException)
+            {
+                // Client disconnected during processing - not an error
+                _logger.LogDebug("Client disconnected during thinking update send");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending thinking update");
+                _logger.LogWarning(ex, "Error sending thinking update");
             }
         }
 
@@ -1000,44 +934,47 @@ namespace DraCode.KoboldLair.Server.Services
         {
             try
             {
-                var messageId = Guid.NewGuid().ToString();
-                var data = new
+                await SendMessageAsync(webSocket, new
                 {
                     type = "dragon_stream",
                     sessionId,
                     chunk,
                     timestamp = DateTime.UtcNow
-                };
-
-                // Use reliable sender with highest priority for streaming
-                if (session.ReliableSender != null)
-                {
-                    session.ReliableSender.QueueMessage(messageId, data, priority: 0);
-                }
-                else
-                {
-                    await SendMessageAsync(webSocket, data);
-                }
+                }, session.Sender);
+            }
+            catch (WebSocketException)
+            {
+                // Client disconnected during streaming - not an error
+                _logger.LogDebug("Client disconnected during streaming chunk send");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending streaming chunk");
+                _logger.LogWarning(ex, "Error sending streaming chunk");
             }
         }
 
-        private async Task SendMessageAsync(WebSocket webSocket, object data, ReliableWebSocketSender? reliableSender = null)
+        private async Task SendMessageAsync(WebSocket webSocket, object data, WebSocketSender? sender = null)
         {
+            if (webSocket.State != WebSocketState.Open) return;
+
             var json = JsonSerializer.Serialize(data, s_writeOptions);
             var bytes = Encoding.UTF8.GetBytes(json);
 
-            // Route through reliable sender's semaphore to prevent concurrent WebSocket writes
-            if (reliableSender != null)
+            // Route through sender's semaphore to prevent concurrent WebSocket writes
+            if (sender != null)
             {
-                await reliableSender.SendSafeAsync(bytes);
+                await sender.SendAsync(bytes);
             }
             else
             {
-                await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                try
+                {
+                    await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                }
+                catch (WebSocketException)
+                {
+                    // WebSocket closed between state check and send - expected during disconnect
+                }
             }
         }
 
@@ -1045,34 +982,37 @@ namespace DraCode.KoboldLair.Server.Services
         {
             var messageId = Guid.NewGuid().ToString();
 
-            // Use JsonNode for efficient property injection without reflection
-            // Serialize to JsonNode, add messageId, then serialize to bytes
-            var jsonNode = JsonSerializer.SerializeToNode(data, s_writeOptions);
-            if (jsonNode is System.Text.Json.Nodes.JsonObject jsonObject)
+            // Serialize to JSON, parse back as dictionary for uniform storage
+            var json = JsonSerializer.Serialize(data, s_writeOptions);
+            var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(json, s_readOptions)
+                       ?? new Dictionary<string, object>();
+            dict["messageId"] = messageId;
+
+            TrackMessage(session, messageType, dict, messageId);
+
+            // Re-serialize with messageId included
+            var finalJson = JsonSerializer.Serialize(dict, s_writeOptions);
+            var bytes = Encoding.UTF8.GetBytes(finalJson);
+
+            // Route through sender's semaphore to prevent concurrent WebSocket writes
+            if (session.Sender != null)
             {
-                jsonObject["messageId"] = messageId;
+                await session.Sender.SendAsync(bytes);
             }
-
-            TrackMessage(session, messageType, jsonNode ?? data, messageId);
-
-            // Serialize directly to bytes for WebSocket send
-            var json = jsonNode?.ToJsonString(s_writeOptions) ?? JsonSerializer.Serialize(data, s_writeOptions);
-            var bytes = Encoding.UTF8.GetBytes(json);
-
-            // Route through reliable sender's semaphore to prevent concurrent WebSocket writes
-            // The ReliableWebSocketSender's background loop also writes to this WebSocket,
-            // and .NET WebSocket does not support concurrent SendAsync calls.
-            if (session.ReliableSender != null)
+            else if (webSocket.State == WebSocketState.Open)
             {
-                await session.ReliableSender.SendSafeAsync(bytes);
-            }
-            else
-            {
-                await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                try
+                {
+                    await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                }
+                catch (WebSocketException)
+                {
+                    // WebSocket closed between state check and send - expected during disconnect
+                }
             }
         }
 
-        private void TrackMessage(DragonSession session, string messageType, object data, string? messageId = null)
+        private void TrackMessage(DragonSession session, string messageType, Dictionary<string, object> data, string? messageId = null)
         {
             messageId ??= Guid.NewGuid().ToString();
             
@@ -1386,114 +1326,6 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 ActiveSessions = _sessions.Count,
                 TotalSpecifications = totalSpecs
-            };
-        }
-
-        /// <summary>
-        /// Extracts message properties from stored data (handles JsonNode, JsonObject, and dictionary types)
-        /// </summary>
-        private static void ExtractMessageProperties(object data, Dictionary<string, object> targetDict)
-        {
-            var skipKeys = new HashSet<string> { "type", "messageId", "sessionId", "timestamp" };
-
-            if (data is System.Text.Json.Nodes.JsonObject jsonObject)
-            {
-                foreach (var kvp in jsonObject)
-                {
-                    if (!skipKeys.Contains(kvp.Key) && kvp.Value != null)
-                    {
-                        // Convert JsonNode to appropriate .NET type
-                        targetDict[kvp.Key] = ConvertJsonNode(kvp.Value);
-                    }
-                }
-            }
-            else if (data is System.Text.Json.Nodes.JsonNode jsonNode)
-            {
-                // Handle case where it's a JsonNode but not JsonObject
-                if (jsonNode is System.Text.Json.Nodes.JsonObject obj)
-                {
-                    foreach (var kvp in obj)
-                    {
-                        if (!skipKeys.Contains(kvp.Key) && kvp.Value != null)
-                        {
-                            targetDict[kvp.Key] = ConvertJsonNode(kvp.Value);
-                        }
-                    }
-                }
-            }
-            else if (data is IDictionary<string, object> dataDict)
-            {
-                foreach (var kvp in dataDict.Where(k => !skipKeys.Contains(k.Key)))
-                {
-                    targetDict[kvp.Key] = kvp.Value;
-                }
-            }
-            else if (data is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
-            {
-                foreach (var prop in jsonElement.EnumerateObject())
-                {
-                    if (!skipKeys.Contains(prop.Name))
-                    {
-                        targetDict[prop.Name] = ConvertJsonElement(prop.Value);
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Converts a JsonNode to an appropriate .NET type for serialization
-        /// </summary>
-        private static object ConvertJsonNode(System.Text.Json.Nodes.JsonNode? node)
-        {
-            if (node == null) return null!;
-
-            if (node is System.Text.Json.Nodes.JsonValue value)
-            {
-                // Try to get the underlying value
-                if (value.TryGetValue<string>(out var str)) return str;
-                if (value.TryGetValue<bool>(out var b)) return b;
-                if (value.TryGetValue<int>(out var i)) return i;
-                if (value.TryGetValue<long>(out var l)) return l;
-                if (value.TryGetValue<double>(out var d)) return d;
-                if (value.TryGetValue<DateTime>(out var dt)) return dt;
-                return value.ToString();
-            }
-
-            if (node is System.Text.Json.Nodes.JsonArray arr)
-            {
-                return arr.Select(n => ConvertJsonNode(n)).ToList();
-            }
-
-            if (node is System.Text.Json.Nodes.JsonObject obj)
-            {
-                var dict = new Dictionary<string, object>();
-                foreach (var kvp in obj)
-                {
-                    if (kvp.Value != null)
-                    {
-                        dict[kvp.Key] = ConvertJsonNode(kvp.Value);
-                    }
-                }
-                return dict;
-            }
-
-            return node.ToString();
-        }
-
-        /// <summary>
-        /// Converts a JsonElement to an appropriate .NET type
-        /// </summary>
-        private static object ConvertJsonElement(JsonElement element)
-        {
-            return element.ValueKind switch
-            {
-                JsonValueKind.String => element.GetString()!,
-                JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToList(),
-                JsonValueKind.Object => element.EnumerateObject().ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
-                _ => element.ToString()
             };
         }
 

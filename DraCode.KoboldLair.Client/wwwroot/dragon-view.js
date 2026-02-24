@@ -86,36 +86,9 @@ class DragonSession {
             this.ws.setSessionId(this.sessionId);
         }
 
-        // Deduplicate by messageId - but handle special cases for reconnection/replay
+        // Deduplicate by messageId (single dedup layer)
         if (data.messageId && this.receivedMessageIds.has(data.messageId)) {
-            console.log(`[Session ${this.id}] ⚠️ Duplicate messageId detected:`, data.messageId, data.isReplay ? '(replay)' : '');
-            
-            // CRITICAL FIX: For dragon_message duplicates, still process UI state changes
-            // This handles reconnection scenario where message was already received but UI needs updating
-            if (data.type === 'dragon_message') {
-                const hasContent = !!(data.message || data.content);
-                console.log(`[Session ${this.id}] 🔧 Duplicate dragon_message - hasContent:`, hasContent, 'isProcessing:', this.isProcessing);
-                
-                // If there's content and it's not a replay, show it (user may have refreshed during processing)
-                if (hasContent && !data.isReplay) {
-                    const content = data.message ?? data.content ?? '';
-                    console.log(`[Session ${this.id}] 📝 Displaying duplicate message content (${content.length} chars)`);
-                    
-                    // Check if message already exists in local state
-                    const existingMsg = this.messages.find(m => m.messageId === data.messageId);
-                    if (!existingMsg) {
-                        this.addMessage('assistant', content, data.messageId);
-                    }
-                }
-                
-                // Always hide thinking indicator if processing
-                if (this.isProcessing) {
-                    console.log(`[Session ${this.id}] 🔧 Hiding thinking indicator (duplicate dragon_message)`);
-                    this.isProcessing = false;
-                    this.view.hideThinkingIndicator();
-                    this.view.setInputEnabled(true);
-                }
-            }
+            console.log(`[Session ${this.id}] Skipping duplicate:`, data.messageId, data.type);
             return;
         }
         if (data.messageId) {
@@ -193,7 +166,6 @@ class DragonSession {
             this.clearMessages();
             this.sessionId = data.sessionId;
             this.ws.setSessionId(this.sessionId);
-            this.ws.clearMessageHistory();
             this.addMessage('system', data.message, data.messageId);
             console.log(`[Session ${this.id}] ✓ Agent reloaded, session reset, receivedMessageIds cleared`);
         } else if (data.type === 'dragon_typing') {
