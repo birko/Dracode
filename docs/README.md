@@ -12,13 +12,14 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 
 ## Latest Updates (v2.6.0)
 
+- **Specification Version Tracking**: Automatic detection of specification changes (NEW - 2026-02-26)
+  - SHA-256 content hashing for change detection
+  - Version history tracking with timestamps
+  - Kobolds automatically reload updated specifications
+  - Tasks track which spec version they were created for
+  - Dragon tool: `view_specification_history` for audit trail
+  - Prevents specification drift during active execution
 - **Project Verification System**: Automatic validation after task completion (NEW - 2026-02-15)
-  - Background service runs verification checks (build, test, lint)
-  - Tech-stack auto-detection (or uses Wyrm recommendations)
-  - Creates fix tasks automatically if checks fail
-  - Dragon tools for manual control (retry, view report, skip)
-  - Configurable timeouts and strictness levels
-  - Documentation: [Verification-System.md](Verification-System.md)
 - **Shared Planning Context Service**: Cross-agent coordination and learning from past executions
   - File conflict detection prevents parallel work on same files
   - Historical insights from similar tasks improve planning
@@ -84,8 +85,8 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
     projects.json                     # Project registry
     {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
         specification.md              # Project specification
-        specification.features.json   # Feature list
-        wyrm-recommendation.json      # Wyrm pre-analysis (NEW - v2.6.0)
+        specification.features.json   # Features + version metadata (wrapped format)
+        wyrm-recommendation.json      # Wyrm pre-analysis (v2.6.0)
         analysis.md                   # Wyvern analysis report (human-readable)
         analysis.json                 # Wyvern analysis (machine-readable, persisted)
         tasks/                        # Task files subdirectory
@@ -95,7 +96,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
             {plan-filename}-plan.json # Machine-readable plan
             {plan-filename}-plan.md   # Human-readable plan
             plan-index.json           # Plan lookup index
-        planning-context.json         # Shared planning context (NEW - v2.6.0)
+        planning-context.json         # Shared planning context (v2.6.0)
 ```
 
 ---

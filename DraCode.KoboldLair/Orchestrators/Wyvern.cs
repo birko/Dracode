@@ -727,6 +727,13 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                         var priority = ParsePriority(task.Priority);
                         var taskRecord = tracker.AddTask(taskDescription, priority);
 
+                        // Capture specification version for drift detection
+                        if (_specification != null)
+                        {
+                            taskRecord.SpecificationVersion = _specification.Version;
+                            taskRecord.SpecificationContentHash = _specification.ContentHash;
+                        }
+
                         // Set the recommended agent type if available (normalized to valid agent type)
                         if (!string.IsNullOrEmpty(task.AgentType))
                         {

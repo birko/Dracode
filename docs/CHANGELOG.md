@@ -6,6 +6,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### ✨ Added - Specification Version Tracking
+
+**Implemented specification version tracking to prevent drift during execution (2026-02-26):**
+- **Specification Model Enhancements** (`DraCode.KoboldLair/Models/Projects/Specification.cs`):
+  - Added `ContentHash` property - SHA-256 hash of specification content for change detection
+  - Added `VersionHistory` list - Tracks all specification version changes with timestamps
+  - Added `IncrementVersion()` method - Increments version, updates hash, records history entry
+  - Added `ComputeHash()` static method - Computes SHA-256 hash of specification content
+  - Added `SpecificationVersionHistoryEntry` class - Represents single version in history
+- **TaskRecord Enhancement** (`DraCode.KoboldLair/Models/Tasks/TaskRecord.cs`):
+  - Added `SpecificationVersion` property - Version when task was created
+  - Added `SpecificationContentHash` property - Content hash for drift detection
+- **Wyvern Integration** (`DraCode.KoboldLair/Orchestrators/Wyvern.cs`):
+  - Captures specification version when creating tasks
+  - Stores version and hash in TaskRecord for later comparison
+- **Kobold Version Detection** (`DraCode.KoboldLair/Models/Agents/Kobold.cs`):
+  - Added `_assignedSpecificationVersion` and `_specificationPath` private fields
+  - Modified `AssignTask()` to accept version and path parameters
+  - Added `EnsureCurrentSpecificationAsync()` method - Checks for version changes and reloads context
+  - Integrated check into `StartWorkingAsync()` before execution begins
+- **Drake Integration** (`DraCode.KoboldLair/Orchestrators/Drake.cs`):
+  - Reads specification version from `specification.features.json` (wrapped format)
+  - Passes version and path to Kobold during task assignment
+- **Persistence Updates** (`DraCode.KoboldLair/Agents/Tools/FeatureManagementTool.cs`):
+  - Modified `SaveFeatures()` to save wrapped format with `specificationVersion` and `specificationContentHash`
+  - Modified `LoadFeatures()` to read both wrapped and legacy formats
+- **New Dragon Tool** (`DraCode.KoboldLair/Agents/Tools/SpecificationHistoryTool.cs`):
+  - `view_specification_history` tool - View specification version history
+  - Shows current version, content hash, last updated timestamp
+  - Displays version history table with version, timestamp, hash, and description
+- **SageAgent Updates** (`DraCode.KoboldLair/Agents/SubAgents/SageAgent.cs`):
+  - Registered `SpecificationHistoryTool` in `CreateTools()`
+  - Updated system prompt to mention the new tool
+- **Impact**:
+  - Prevents specification drift during active execution
+  - Kobolds automatically detect and reload updated specifications
+  - Tasks track which spec version they were created for
+  - Full audit trail of specification changes
+  - User visibility into version history via Dragon tool
+
+---
+
+## [Unreleased]
+
 ### ✨ Added - Shared Planning Context Service
 
 **Implemented comprehensive cross-agent coordination and learning system (2026-02-09):**

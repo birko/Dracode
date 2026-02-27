@@ -51,6 +51,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             {
                 new SpecificationManagementTool(_specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath, _onProjectLoaded),
                 new FeatureManagementTool(_specifications),
+                new SpecificationHistoryTool(_specifications),
                 new ProjectApprovalTool(_approveProject)
             };
             return tools;
@@ -71,6 +72,7 @@ Your role is to manage project specifications and features. You are a specialist
 ## Tools Available:
 - **manage_specification**: Create/update/load specifications (actions: list, load, create, update)
 - **manage_feature**: Manage features (actions: list, create, update)
+- **view_specification_history**: View specification version history
 - **approve_specification**: Approve a specification (changes Prototype → New)
 
 ## Workflow:

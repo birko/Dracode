@@ -222,7 +222,15 @@ namespace DraCode.KoboldLair.Agents.Tools
                 // Use consolidated naming: specification.features.json (no project name prefix)
                 var featuresPath = Path.Combine(folder, "specification.features.json");
                 var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(spec.Features, options);
+
+                // Create wrapper object with version metadata
+                var featuresData = new
+                {
+                    specificationVersion = spec.Version,
+                    specificationContentHash = spec.ContentHash,
+                    features = spec.Features
+                };
+                var json = JsonSerializer.Serialize(featuresData, options);
                 File.WriteAllTextAsync(featuresPath, json).GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -234,6 +242,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         /// <summary>
         /// Loads features from JSON file if it exists.
         /// Uses consolidated structure: {projectFolder}/specification.features.json
+        /// Handles both wrapped format (with version) and legacy format (features only).
         /// </summary>
         /// <param name="spec">The specification to load features into</param>
         /// <param name="folderPath">The project folder path</param>
@@ -249,10 +258,35 @@ namespace DraCode.KoboldLair.Agents.Tools
                 if (File.Exists(featuresPath))
                 {
                     var json = File.ReadAllTextAsync(featuresPath).GetAwaiter().GetResult();
-                    var features = JsonSerializer.Deserialize<List<Feature>>(json);
-                    if (features != null)
+
+                    // Try new wrapped format first
+                    using var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("features", out var featuresProp))
                     {
-                        spec.Features = features;
+                        var features = JsonSerializer.Deserialize<List<Feature>>(featuresProp.GetRawText());
+                        if (features != null)
+                        {
+                            spec.Features = features;
+                        }
+                        // Also read version if available
+                        if (doc.RootElement.TryGetProperty("specificationVersion", out var versionProp))
+                        {
+                            spec.Version = versionProp.GetInt32();
+                        }
+                        // Also read content hash if available
+                        if (doc.RootElement.TryGetProperty("specificationContentHash", out var hashProp))
+                        {
+                            spec.ContentHash = hashProp.GetString() ?? string.Empty;
+                        }
+                    }
+                    else
+                    {
+                        // Old format - direct array
+                        var features = JsonSerializer.Deserialize<List<Feature>>(json);
+                        if (features != null)
+                        {
+                            spec.Features = features;
+                        }
                     }
                 }
             }

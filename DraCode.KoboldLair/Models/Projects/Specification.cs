@@ -1,3 +1,4 @@
+using System.Text;
 using DraCode.KoboldLair.Models.Tasks;
 
 namespace DraCode.KoboldLair.Models.Projects
@@ -60,6 +61,16 @@ namespace DraCode.KoboldLair.Models.Projects
         public int Version { get; set; } = 1;
 
         /// <summary>
+        /// SHA-256 hash of the specification content for change detection
+        /// </summary>
+        public string ContentHash { get; set; } = string.Empty;
+
+        /// <summary>
+        /// History of specification versions with metadata
+        /// </summary>
+        public List<SpecificationVersionHistoryEntry> VersionHistory { get; set; } = new();
+
+        /// <summary>
         /// Additional metadata
         /// </summary>
         public Dictionary<string, string> Metadata { get; set; } = new();
@@ -96,5 +107,45 @@ namespace DraCode.KoboldLair.Models.Projects
                 return func(Features);
             }
         }
+
+        /// <summary>
+        /// Increments version and updates content hash
+        /// </summary>
+        public void IncrementVersion()
+        {
+            Version++;
+            UpdatedAt = DateTime.UtcNow;
+            ContentHash = ComputeHash(Content);
+
+            // Record history entry
+            VersionHistory.Add(new SpecificationVersionHistoryEntry
+            {
+                Version = Version,
+                Timestamp = UpdatedAt,
+                ContentHash = ContentHash
+            });
+        }
+
+        /// <summary>
+        /// Computes SHA-256 hash of specification content
+        /// </summary>
+        public static string ComputeHash(string content)
+        {
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var bytes = Encoding.UTF8.GetBytes(content);
+            var hash = sha256.ComputeHash(bytes);
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+    }
+
+    /// <summary>
+    /// Represents a single version in specification history
+    /// </summary>
+    public class SpecificationVersionHistoryEntry
+    {
+        public int Version { get; set; }
+        public DateTime Timestamp { get; set; }
+        public string ContentHash { get; set; } = string.Empty;
+        public string? ChangeDescription { get; set; }
     }
 }

@@ -60,6 +60,16 @@ namespace DraCode.KoboldLair.Models.Agents
         public ProjectStructure? ProjectStructure { get; private set; }
 
         /// <summary>
+        /// Specification version when this Kobold was created
+        /// </summary>
+        private int _assignedSpecificationVersion = 1;
+
+        /// <summary>
+        /// Path to specification file for version checking
+        /// </summary>
+        private string? _specificationPath;
+
+        /// <summary>
         /// Current status of this Kobold
         /// </summary>
         public KoboldStatus Status { get; private set; }
@@ -138,7 +148,17 @@ namespace DraCode.KoboldLair.Models.Agents
         /// <param name="taskDescription">Description of the task to execute</param>
         /// <param name="projectId">Project identifier this task belongs to</param>
         /// <param name="specificationContext">Optional specification context for the task</param>
-        public void AssignTask(Guid taskId, string taskDescription, string? projectId = null, string? specificationContext = null, ProjectStructure? projectStructure = null)
+        /// <param name="projectStructure">Project structure guidelines</param>
+        /// <param name="specificationVersion">Specification version when task was created</param>
+        /// <param name="specificationPath">Path to specification file for version checking</param>
+        public void AssignTask(
+            Guid taskId,
+            string taskDescription,
+            string? projectId = null,
+            string? specificationContext = null,
+            ProjectStructure? projectStructure = null,
+            int specificationVersion = 1,
+            string? specificationPath = null)
         {
             if (Status != KoboldStatus.Unassigned)
             {
@@ -150,6 +170,8 @@ namespace DraCode.KoboldLair.Models.Agents
             ProjectId = projectId;
             SpecificationContext = specificationContext;
             ProjectStructure = projectStructure;
+            _assignedSpecificationVersion = specificationVersion;
+            _specificationPath = specificationPath;
             Status = KoboldStatus.Assigned;
             AssignedAt = DateTime.UtcNow;
         }
@@ -167,6 +189,56 @@ namespace DraCode.KoboldLair.Models.Agents
             }
 
             SpecificationContext = specificationContext;
+        }
+
+        /// <summary>
+        /// Checks if specification has changed and reloads if necessary
+        /// </summary>
+        private async Task EnsureCurrentSpecificationAsync()
+        {
+            if (string.IsNullOrEmpty(_specificationPath) || !File.Exists(_specificationPath))
+            {
+                return;
+            }
+
+            try
+            {
+                var currentContent = await File.ReadAllTextAsync(_specificationPath);
+                var currentHash = DraCode.KoboldLair.Models.Projects.Specification.ComputeHash(currentContent);
+
+                // Read persisted version from specification.features.json (wrapped format)
+                var featuresPath = Path.Combine(Path.GetDirectoryName(_specificationPath) ?? "", "specification.features.json");
+                int persistedVersion = _assignedSpecificationVersion;
+
+                if (File.Exists(featuresPath))
+                {
+                    try
+                    {
+                        var featuresJson = await File.ReadAllTextAsync(featuresPath);
+                        using var doc = System.Text.Json.JsonDocument.Parse(featuresJson);
+                        // New format has "specificationVersion" property
+                        if (doc.RootElement.TryGetProperty("specificationVersion", out var versionProp))
+                        {
+                            persistedVersion = versionProp.GetInt32();
+                        }
+                    }
+                    catch { }
+                }
+
+                if (persistedVersion > _assignedSpecificationVersion)
+                {
+                    _logger?.LogWarning(
+                        "Kobold {KoboldId}: Specification version changed: {OldVersion} → {NewVersion}. Reloading context.",
+                        Id.ToString()[..8], _assignedSpecificationVersion, persistedVersion);
+
+                    SpecificationContext = currentContent;
+                    _assignedSpecificationVersion = persistedVersion;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Kobold {KoboldId}: Failed to check specification version", Id.ToString()[..8]);
+            }
         }
 
         /// <summary>
@@ -190,6 +262,12 @@ namespace DraCode.KoboldLair.Models.Agents
             Status = KoboldStatus.Working;
             StartedAt = DateTime.UtcNow;
             LastLlmResponseAt = DateTime.UtcNow; // Initialize to start time
+
+            // Check if specification version changed before starting work
+            if (!string.IsNullOrEmpty(_specificationPath))
+            {
+                await EnsureCurrentSpecificationAsync();
+            }
 
             try
             {

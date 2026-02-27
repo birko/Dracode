@@ -1,7 +1,7 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-11 - Enhanced Git Commit Messages completed**
+**Last updated: 2026-02-26 - Database Migration Plan added**
 
 ---
 
@@ -507,6 +507,17 @@ Nice to have. Can be deferred without impacting core functionality.
   - **Impact**: Preserves "why" behind requirements decisions across restarts
   - **Details**: Documented in "COMPLETED - Data Integrity & Context Loss Fixes" section (lines 90-149)
 
+- [x] **Specification Version Tracking** ✅ COMPLETED (2026-02-26)
+  - Added `ContentHash` (SHA-256) and `VersionHistory` to Specification model
+  - Added `SpecificationVersion` and `SpecificationContentHash` to TaskRecord
+  - Kobolds detect specification changes and reload context automatically
+  - New `view_specification_history` Dragon tool for viewing version history
+  - Wyvern captures spec version when creating tasks
+  - Drake passes version to Kobold on summon
+  - Features file now stores version metadata in wrapped format
+  - **Impact**: Prevents specification drift, keeps work consistent during execution
+  - **Details**: Specification.cs, TaskRecord.cs, Wyvern.cs, Kobold.cs, Drake.cs, FeatureManagementTool.cs, SpecificationHistoryTool.cs
+
 - [x] **Write-Ahead Log for Task State** ✅ COMPLETED (Already implemented)
   - Drake uses `TaskStateWal` to log state transitions before updates
   - Prevents data loss during 2-second debounce window
@@ -659,58 +670,19 @@ Important for reliability but workarounds exist. Improves system quality.
 
 ### From Phase I - Context Preservation
 
-- [ ] **Specification Version Tracking** 🟡 MEDIUM PRIORITY
+- [x] **Specification Version Tracking** 🟡 MEDIUM PRIORITY ✅ COMPLETED (2026-02-26)
   - **Issue**: Specification updated mid-execution, old Kobolds use stale context
-  - Example: Spec changes from SQLite → PostgreSQL, active Kobold still implements SQLite
-  - No version checking during execution
-  - **Location**: `DraCode.KoboldLair/Models/Projects/Specification.cs`
-  - **Implementation**:
-    ```csharp
-    public class Specification
-    {
-        public int Version { get; set; } = 1;
-        public DateTime LastModified { get; set; }
-        public string ContentHash { get; set; } // SHA256 of specification.md
-        
-        public void IncrementVersion()
-        {
-            Version++;
-            LastModified = DateTime.UtcNow;
-            ContentHash = ComputeHash(Content);
-        }
-    }
-    
-    public class TaskRecord
-    {
-        public int SpecificationVersion { get; set; } // Version when task was created
-    }
-    
-    // In Kobold.StartWorking():
-    public async Task<List<Message>> StartWorkingAsync()
-    {
-        // Check if specification changed
-        var currentSpec = LoadCurrentSpecification();
-        if (currentSpec.Version > _assignedSpecVersion)
-        {
-            _logger.LogWarning(
-                "Specification version changed: {Old} → {New}. Reloading context.",
-                _assignedSpecVersion, currentSpec.Version);
-            
-            // Reload specification context
-            SpecificationContext = File.ReadAllText(_specificationPath);
-        }
-        
-        // Continue with execution...
-    }
-    ```
-  - **Changes needed**:
-    - Add Version and ContentHash to Specification model
-    - Track version in TaskRecord at creation time
-    - Kobolds check version before execution, reload if changed
-    - Log version mismatches in audit trail
-    - Dragon tool: `view_specification_history` (show version changes)
-  - **Impact**: Prevents specification drift, keeps work consistent
-  - **Effort**: Medium (~2 days)
+  - **Solution**: Implemented comprehensive version tracking system
+  - **Files Modified**:
+    - `Specification.cs` - Added ContentHash, VersionHistory, IncrementVersion(), ComputeHash()
+    - `TaskRecord.cs` - Added SpecificationVersion, SpecificationContentHash
+    - `Wyvern.cs` - Captures spec version when creating tasks
+    - `Kobold.cs` - Detects version changes, reloads context via EnsureCurrentSpecificationAsync()
+    - `Drake.cs` - Passes version to Kobold on summon
+    - `FeatureManagementTool.cs` - Persist version in wrapped JSON format
+    - `SpecificationHistoryTool.cs` - NEW Dragon tool for viewing history
+  - **Impact**: Prevents specification drift, keeps work consistent during execution
+  - **Effort**: Completed (~1 day)
 
 ### From Phase H - Workflow Clarity
 
@@ -760,6 +732,295 @@ Important for reliability but workarounds exist. Improves system quality.
   - Extracted via `_gitService.GetFilesFromCommitAsync()` ✓
   - **Location**: `TaskRecord.cs` lines 21-26, `Drake.cs` lines 687-696
   - **Effort**: Already complete
+
+---
+
+## 🗄️ DATABASE MIGRATION - Birko.Framework Integration (2026-02-26)
+
+**Based on analysis of current JSON storage and Birko.Framework capabilities**
+**Reference**: Analysis of Birko.Data at `C:/Source/Birko.framework/`
+
+### Overview
+
+Migrate from file-based JSON storage to a hybrid database approach using Birko.Framework's mature data access layer.
+
+| Current JSON Storage | Target Database | Priority |
+|---------------------|-----------------|----------|
+| `projects.json` | PostgreSQL (via Birko.Data.SQL) | P0 - High |
+| `planning-context.json` | MongoDB or JSON (keep as-is) | P1 - Medium |
+| `{area}-tasks.json` | PostgreSQL (via Birko.Data.SQL) | P0 - High |
+| `kobold-plans/*.json` | PostgreSQL or MongoDB | P1 - Medium |
+| `dragon-history.json` | TimescaleDB (time-series) | P2 - Low |
+| `analysis.json` | PostgreSQL (via Birko.Data.SQL) | P1 - Medium |
+| `wyrm-recommendation.json` | PostgreSQL (via Birko.Data.SQL) | P1 - Medium |
+| `specification.features.json` | PostgreSQL (via Birko.Data.SQL) | P1 - Medium |
+
+---
+
+### Phase 1: Birko.Framework Integration (Foundation)
+
+#### Week 1: Setup & PostgreSQL Connector
+
+- [ ] **Add Birko.Data project references** ⚪ NOT STARTED
+  - Add to `DraCode.KoboldLair.Server`:
+    - `..\..\Birko.Data\Birko.Data.shproj`
+    - `..\..\Birko.Data.SQL\Birko.Data.SQL.shproj`
+    - `..\..\Birko.Data.SQL.MSSql\Birko.Data.SQL.MSSql.shproj`
+    - `..\..\Birko.Data.JSON\Birko.Data.JSON.shproj`
+  - Update `DraCode.slnx` with project references
+  - **Effort**: 2 hours
+
+- [ ] **Create PostgreSQL connector for Birko.Data** ⚪ NOT STARTED
+  - Create new project: `C:/Source/Birko.Data.SQL.PostgreSQL/`
+  - Files:
+    - `Birko.Data.SQL.PostgreSQL.shproj` (shared project)
+    - `Birko.Data.SQL.PostgreSQL.projitems`
+    - `PostgreSqlConnector.cs` (extend `AbstractConnector`)
+  - Add NuGet package: `Npgsql` v8.0.3
+  - PostgreSQL-specific overrides:
+    - Use `SERIAL` for auto-increment (not `IDENTITY`)
+    - Use `$1, $2` for parameters (not `@p1`)
+    - Use `TRUE/FALSE` for boolean (not `1/0`)
+  - **Location**: Follow pattern from `Birko.Data.SQL.MSSql/MSSqlConnector.cs`
+  - **Effort**: 6 hours
+
+- [ ] **Create repository abstraction layer** ⚪ NOT STARTED
+  - Create `DraCode.KoboldLair/Data/Repositories/` directory
+  - Create interfaces:
+    - `IProjectRepository.cs` (abstract current `ProjectRepository`)
+    - `ITaskRepository.cs` (new interface for task storage)
+    - `IPlanningContextRepository.cs` (new interface for planning context)
+  - Create `RepositoryFactory.cs` for backend selection
+  - **Effort**: 4 hours
+
+#### Week 2: Model Updates for Birko.Data
+
+- [ ] **Update Project model to inherit from Birko.Data.Models.AbstractModel** ⚪ NOT STARTED
+  - Add `[Table("projects")]` attribute
+  - Add `[Field]` attributes to properties
+  - Replace `Id` string with `GUID` Guid property
+  - Implement `ILoadable<T>` for ViewModel pattern
+  - **Files to modify**:
+    - `DraCode.KoboldLair/Models/Projects/Project.cs`
+    - `DraCode.KoboldLair/Models/Projects/ProjectPaths.cs`
+    - `DraCode.KoboldLair/Models/Projects/ProjectTimestamps.cs`
+    - `DraCode.KoboldLair/Models/Projects/AgentConfig.cs`
+    - `DraCode.KoboldLair/Models/Projects/ProjectSecurity.cs`
+  - **Effort**: 6 hours
+
+- [ ] **Update TaskRecord model for Birko.Data** ⚪ NOT STARTED
+  - Add `[Table("tasks")]` attribute
+  - Add `[Field]` attributes to properties
+  - Replace `Id` string with `GUID` Guid property
+  - Implement `ILoadable<T>` for ViewModel pattern
+  - **Files to modify**:
+    - `DraCode.KoboldLair/Models/Tasks/TaskRecord.cs`
+    - `DraCode.KoboldLair/Models/Tasks/TaskStatus.cs`
+    - `DraCode.KoboldLair/Models/Tasks/TaskPriority.cs`
+  - **Effort**: 4 hours
+
+- [ ] **Create ViewModel classes** ⚪ NOT STARTED
+  - `ProjectViewModel.cs` (implements `ILoadable<Project>`)
+  - `TaskViewModel.cs` (implements `ILoadable<TaskRecord>`)
+  - Separate ViewModels from domain models (Birko pattern)
+  - **Effort**: 3 hours
+
+---
+
+### Phase 2: SQL Repository Implementation
+
+#### Week 3: Core Repositories
+
+- [ ] **Implement SqlProjectRepository** ⚪ NOT STARTED
+  - Inherit from `DataBaseRepository<ProjectViewModel, Project, PostgreSqlConnector>`
+  - Implement CRUD operations:
+    - `GetByIdAsync(Guid id)`
+    - `GetByNameAsync(string name)`
+    - `GetByStatusesAsync(params ProjectStatus[] statuses)`
+    - `AddAsync(Project project)`
+    - `UpdateAsync(Project project)`
+    - `DeleteAsync(Guid id)`
+  - Implement agent configuration queries:
+    - `GetAgentConfig(string projectId, string agentType)`
+    - `SetAgentLimitAsync(...)`
+    - `GetAllowedExternalPaths(...)`
+  - **Location**: `DraCode.KoboldLair/Data/Repositories/Sql/SqlProjectRepository.cs`
+  - **Effort**: 8 hours
+
+- [ ] **Implement SqlTaskRepository** ⚪ NOT STARTED
+  - Inherit from `DataBaseRepository<TaskViewModel, TaskRecord, PostgreSqlConnector>`
+  - Implement task-specific queries:
+    - `GetTasksByProjectAsync(string projectId)`
+    - `GetTasksByStatusAsync(TaskStatus status)`
+    - `GetUnassignedTasksAsync(string projectId)`
+    - `GetTasksByPriorityAsync(TaskPriority priority)`
+    - `GetTasksWithDependenciesAsync(string taskId)`
+  - Implement bulk operations:
+    - `UpdateTasksAsync(IEnumerable<TaskRecord> tasks)`
+  - **Location**: `DraCode.KoboldLair/Data/Repositories/Sql/SqlTaskRepository.cs`
+  - **Effort**: 8 hours
+
+- [ ] **Implement migration system using IConfigurator** ⚪ NOT STARTED
+  - Create `DraCode.KoboldLair/Data/Migrations/` directory
+  - Implement migrations:
+    - `ProjectMigration.cs` (Version 1)
+    - `TaskMigration.cs` (Version 1)
+    - `AgentConfigMigration.cs` (Version 1)
+  - Use `IConfigurator.PreMigrate/PostMigrate/Seed` methods
+  - Migrate existing JSON data to SQL
+  - **Effort**: 6 hours
+
+#### Week 4: Additional Repositories
+
+- [ ] **Implement SqlPlanningContextRepository** ⚪ NOT STARTED
+  - Store: `ProjectPlanningContext`, `AgentPlanningContext`, `PlanningInsight`
+  - Consider: Keep as JSON (PostgreSQL JSONB column) due to complexity
+  - Tables:
+    - `planning_contexts` (project-level data)
+    - `planning_insights` (task completion metrics)
+    - `file_metadata` (file registry)
+  - **Location**: `DraCode.KoboldLair/Data/Repositories/Sql/SqlPlanningContextRepository.cs`
+  - **Effort**: 6 hours
+
+- [ ] **Implement SqlKoboldPlanRepository** ⚪ NOT STARTED
+  - Store: `KoboldImplementationPlan` with steps
+  - Consider: Store steps as separate table or JSONB
+  - Tables:
+    - `kobold_plans` (plan metadata)
+    - `implementation_steps` (individual steps)
+  - **Location**: `DraCode.KoboldLair/Data/Repositories/Sql/SqlKoboldPlanRepository.cs`
+  - **Effort**: 6 hours
+
+---
+
+### Phase 3: Integration & Testing
+
+#### Week 5: Service Integration
+
+- [ ] **Update ProjectService to use new repository** ⚪ NOT STARTED
+  - Inject `IProjectRepository` via DI
+  - Replace JSON file operations with repository calls
+  - Keep JSON as backup/write-through cache during transition
+  - **Location**: `DraCode.KoboldLair/Services/ProjectService.cs`
+  - **Effort**: 4 hours
+
+- [ ] **Update TaskTracker to use SqlTaskRepository** ⚪ NOT STARTED
+  - Inject `ITaskRepository` via DI
+  - Replace JSON file operations with repository calls
+  - Keep dual-write (JSON + SQL) during transition
+  - **Location**: `DraCode.KoboldLair/Models/Tasks/TaskTracker.cs`
+  - **Effort**: 4 hours
+
+- [ ] **Update SharedPlanningContextService** ⚪ NOT STARTED
+  - Inject `IPlanningContextRepository` via DI
+  - Replace file-based persistence
+  - **Location**: `DraCode.KoboldLair/Services/SharedPlanningContextService.cs`
+  - **Effort**: 3 hours
+
+- [ ] **Update KoboldPlanService** ⚪ NOT STARTED
+  - Inject `IKoboldPlanRepository` via DI
+  - Replace file-based plan storage
+  - **Location**: `DraCode.KoboldLair/Services/KoboldPlanService.cs`
+  - **Effort**: 3 hours
+
+#### Week 6: Configuration & Testing
+
+- [ ] **Add database configuration to appsettings.json** ⚪ NOT STARTED
+  ```json
+  {
+    "KoboldLair": {
+      "Data": {
+        "DefaultBackend": "PostgreSQL",
+        "ConnectionStrings": {
+          "PostgreSQL": "Host=localhost;Port=5432;Database=dracode;Username=dracode;Password=***",
+          "SQLite": "Data Source=./data/dracode.db",
+          "JsonFile": "./projects"
+        },
+        "EntityStorage": {
+          "Projects": "PostgreSQL",
+          "Tasks": "PostgreSQL",
+          "PlanningContext": "JsonFile",
+          "KoboldPlans": "PostgreSQL",
+          "DragonHistory": "JsonFile"
+        }
+      }
+    }
+  }
+  ```
+  - **Effort**: 2 hours
+
+- [ ] **Update DI registration in Program.cs** ⚪ NOT STARTED
+  - Register repository implementations based on configuration
+  - Register PostgreSQL connection string
+  - Add health check for database connectivity
+  - **Location**: `DraCode.KoboldLair.Server/Program.cs`
+  - **Effort**: 3 hours
+
+- [ ] **Create migration tool** ⚪ NOT STARTED
+  - CLI command to migrate existing JSON projects to database
+  - Options: `--dry-run`, `--backup`, `--verify`
+  - Progress reporting and error handling
+  - **Location**: `DraCode.KoboldLair/Data/Migrations/MigrationTool.cs`
+  - **Effort**: 6 hours
+
+- [ ] **Integration testing** ⚪ NOT STARTED
+  - Test CRUD operations for all repositories
+  - Test concurrent access (multiple Drakes/Kobolds)
+  - Test migration from JSON to SQL
+  - Test rollback scenarios
+  - **Effort**: 8 hours
+
+---
+
+### Phase 4: Optional Enhancements
+
+#### Future: Additional Storage Backends
+
+- [ ] **Redis caching layer** ⚪ NOT STARTED
+  - Cache active agent tracking (with TTL)
+  - Cache file locks (auto-expire stale locks)
+  - Cache project statistics
+  - Use `StackExchange.Redis` package
+  - **Effort**: 8 hours
+
+- [ ] **TimescaleDB for Dragon history** ⚪ NOT STARTED
+  - Migrate `dragon-history.json` to time-series database
+  - Enable efficient time-range queries
+  - Add automatic data retention (30-day policy)
+  - **Effort**: 6 hours
+
+- [ ] **MongoDB for Planning Context** ⚪ NOT STARTED
+  - Migrate `planning-context.json` to MongoDB
+  - Native support for nested structures
+  - Better performance for insights aggregation
+  - Use `MongoDB.Driver` package
+  - **Effort**: 8 hours
+
+---
+
+### Success Criteria
+
+| Metric | Target | Status |
+|--------|--------|--------|
+| JSON file I/O reduction | >90% | ⚪ Not started |
+| Query performance (project lookup) | <10ms | ⚪ Not started |
+| Concurrent write handling | No corruption at 50+ Kobolds | ⚪ Not started |
+| Data migration accuracy | 100% (verified) | ⚪ Not started |
+| Rollback capability | <5 minutes | ⚪ Not started |
+
+---
+
+### Notes
+
+- **Birko.Data provides**: Repository pattern, Store pattern, LINQ filtering, bulk operations, migration system
+- **Current JSON files**: Keep as backup during transition, remove after validation period
+- **PostgreSQL chosen**: Open-source, mature, excellent JSONB support for complex data
+- **MongoDB consideration**: Good for planning context (nested insights, file registry)
+- **Redis consideration**: Excellent for ephemeral data (active agents, file locks)
+
+---
+
+*Last updated: 2026-02-26*
 
 ---
 

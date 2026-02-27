@@ -321,7 +321,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                     spec.Content = content;
                     spec.UpdatedAt = DateTime.UtcNow;
-                    spec.Version++;
+                    spec.IncrementVersion();
 
                     _specifications[name] = spec;
                 }

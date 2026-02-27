@@ -16,6 +16,17 @@ namespace DraCode.KoboldLair.Models.Tasks
         public string? ErrorMessage { get; set; }
 
         /// <summary>
+        /// Specification version when this task was created
+        /// Used to detect specification drift during execution
+        /// </summary>
+        public int SpecificationVersion { get; set; } = 1;
+
+        /// <summary>
+        /// Content hash of specification when task was created
+        /// </summary>
+        public string? SpecificationContentHash { get; set; }
+
+        /// <summary>
         /// Task IDs that this task depends on (e.g., ["frontend-1", "frontend-2"])
         /// Stored as structured data to avoid parsing from task description
         /// </summary>

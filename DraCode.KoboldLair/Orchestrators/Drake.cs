@@ -321,11 +321,29 @@ namespace DraCode.KoboldLair.Orchestrators
 
             // Load specification context if available
             string? specificationContext = null;
+            int specificationVersion = 1;
             if (!string.IsNullOrEmpty(_specificationPath) && File.Exists(_specificationPath))
             {
                 try
                 {
                     specificationContext = File.ReadAllTextAsync(_specificationPath).GetAwaiter().GetResult();
+
+                    // Read specification version from features file (wrapped format)
+                    var featuresPath = Path.Combine(Path.GetDirectoryName(_specificationPath) ?? "", "specification.features.json");
+                    if (File.Exists(featuresPath))
+                    {
+                        try
+                        {
+                            var featuresJson = File.ReadAllTextAsync(featuresPath).GetAwaiter().GetResult();
+                            using var doc = System.Text.Json.JsonDocument.Parse(featuresJson);
+                            // New format has "specificationVersion" property at root
+                            if (doc.RootElement.TryGetProperty("specificationVersion", out var versionProp))
+                            {
+                                specificationVersion = versionProp.GetInt32();
+                            }
+                        }
+                        catch { }
+                    }
 
                     // CONTEXT SLIPPING FIX: Prepend Wyrm recommendations at the TOP (not append at bottom)
                     // This ensures architectural guidance is seen first, before the full specification
@@ -552,8 +570,15 @@ namespace DraCode.KoboldLair.Orchestrators
             // Extract project structure from Wyvern analysis if available
             var projectStructure = _wyvern?.Analysis?.Structure;
 
-            // Assign the task with description, project, specification context, and structure
-            kobold.AssignTask(Guid.Parse(task.Id), task.Task, projectId, specificationContext, projectStructure);
+            // Assign the task with description, project, specification context, structure, and version
+            kobold.AssignTask(
+                Guid.Parse(task.Id),
+                task.Task,
+                projectId,
+                specificationContext,
+                projectStructure,
+                specificationVersion,
+                _specificationPath);
 
             // Add dependency context if task has dependencies
             var dependencyContext = await BuildDependencyContextAsync(task.Task);

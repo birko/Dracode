@@ -136,12 +136,13 @@ Located in `DraCode.Agent/Tools/`:
 - `ask_user` - User interaction
 - `display_text` - Output display
 
-### Dragon Tools (15)
+### Dragon Tools (16)
 
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `list_projects` - List all registered projects
 - `manage_specification` - Create, update, load specifications
 - `manage_features` - Manage features within specifications
+- `view_specification_history` - View specification version history (NEW - 2026-02-26)
 - `approve_specification` - Approve projects for processing
 - `add_existing_project` - Register existing projects
 - `git_status` - View branch status and merge readiness
@@ -212,6 +213,21 @@ Located in `DraCode.KoboldLair/Services/`:
     - **Normal**: Standard features and functionality (default)
     - **Low**: Nice-to-have features, polish, documentation (README, etc.)
   - Dependencies always take precedence over priority
+- **Specification Version Tracking** (added 2026-02-26)
+  - Specifications track version number and SHA-256 content hash
+  - Kobolds capture spec version when assigned, detect changes before execution
+  - Automatic reload of specification context when version changes
+  - Tasks record which spec version they were created for
+  - Features file (`specification.features.json`) stores version metadata:
+    ```json
+    {
+      "specificationVersion": 2,
+      "specificationContentHash": "abc123...",
+      "features": [...]
+    }
+    ```
+  - Dragon tool: `view_specification_history` shows version history
+  - Prevents specification drift during active project execution
 
 ### Streaming Configuration
 
@@ -281,18 +297,18 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
     projects.json                     # UNIFIED project registry (includes config + metadata)
     {sanitized-project-name}/         # Per-project folder (e.g., my-todo-app/)
         specification.md              # Project specification
-        specification.features.json   # Feature list
-        wyrm-recommendation.json      # Wyrm pre-analysis recommendations (NEW)
+        specification.features.json   # Features + version metadata (wrapped format)
+        wyrm-recommendation.json      # Wyrm pre-analysis recommendations
         analysis.md                   # Wyvern analysis report (human-readable)
         analysis.json                 # Wyvern analysis (machine-readable, persisted)
         tasks/                        # Task files subdirectory
             {area}-tasks.md           # Task files (e.g., backend-tasks.md)
         workspace/                    # Generated code output
-        kobold-plans/                 # Implementation plans (NEW)
+        kobold-plans/                 # Implementation plans
             {plan-filename}-plan.json # Machine-readable plan
             {plan-filename}-plan.md   # Human-readable plan
             plan-index.json           # Plan lookup index
-        planning-context.json         # Shared planning context (NEW - 2026-02-09)
+        planning-context.json         # Shared planning context
         dragon-history.json           # Dragon conversation history (server-persisted)
 provider-config.json                  # Provider configuration
 user-settings.json                    # User runtime settings (agent providers)

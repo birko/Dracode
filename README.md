@@ -19,7 +19,7 @@ dotnet run --project DraCode.AppHost
 # Open http://localhost:5001 in your browser
 ```
 
-📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md) (v2.6.0)
+📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md) (v2.6.1)
 
 ## 🏰 KoboldLair - Autonomous Multi-Agent Coding System
 
@@ -65,7 +65,7 @@ dotnet run --project DraCode.AppHost
 - **Autonomous Agent System**: Multi-turn conversations with iterative problem solving
 - **Tool System**: 7 built-in tools + 12 Dragon-specific tools + 1 Planner tool
   - **Built-in**: `list_files`, `read_file`, `write_file`, `search_code`, `run_command`, `ask_user`, `display_text`
-  - **Dragon Tools**: `git_status`, `git_merge`, `manage_specification`, `manage_features`, `approve_specification`, `list_projects`, `add_existing_project`, `select_agent`, `manage_external_paths`, `retry_analysis`, `agent_status`, `retry_failed_task`
+  - **Dragon Tools**: `git_status`, `git_merge`, `manage_specification`, `manage_features`, `view_specification_history`, `approve_specification`, `list_projects`, `add_existing_project`, `select_agent`, `manage_external_paths`, `retry_analysis`, `agent_status`, `retry_failed_task`
   - **Planner Tool**: `create_implementation_plan`
 - **Shared Planning Context**: Cross-agent coordination, file conflict detection, learning from past executions (v2.6.0)
 - **GitHub Copilot OAuth**: Integrated device flow authentication
