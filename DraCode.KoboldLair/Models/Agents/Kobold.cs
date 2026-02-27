@@ -1123,6 +1123,9 @@ If step is complete, call `update_plan_step` with status 'completed'.
             // Add workspace state section - CRITICAL for execution context
             await AppendWorkspaceStateAsync(sb, sharedPlanningContext);
 
+            // Add execution insights from similar tasks - helps avoid repeating mistakes
+            await AppendExecutionInsightsAsync(sb, sharedPlanningContext);
+
             // Add specification context if available
             if (!string.IsNullOrEmpty(SpecificationContext))
             {
@@ -1430,6 +1433,185 @@ If step is complete, call `update_plan_step` with status 'completed'.
 
             sb.AppendLine("---");
             sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Appends execution insights from similar tasks to help avoid repeating mistakes
+        /// and benefit from past successes
+        /// </summary>
+        private async Task AppendExecutionInsightsAsync(
+            System.Text.StringBuilder sb,
+            SharedPlanningContextService? sharedPlanningContext)
+        {
+            if (sharedPlanningContext == null || string.IsNullOrEmpty(ProjectId))
+            {
+                return;
+            }
+
+            try
+            {
+                var hasAnyInsights = false;
+                var insights = new System.Text.StringBuilder();
+
+                // Get similar task insights from this project
+                var similarTasks = await sharedPlanningContext.GetSimilarTaskInsightsAsync(
+                    ProjectId, AgentType, maxResults: 5);
+
+                if (similarTasks.Any())
+                {
+                    hasAnyInsights = true;
+                    insights.AppendLine("### Similar Tasks in This Project");
+                    insights.AppendLine();
+                    insights.AppendLine("Recent tasks of your type completed successfully:");
+                    insights.AppendLine();
+
+                    foreach (var task in similarTasks.Take(3))
+                    {
+                        var duration = task.DurationSeconds < 60
+                            ? $"{task.DurationSeconds:F0}s"
+                            : $"{task.DurationSeconds / 60:F1}m";
+                        insights.AppendLine($"- Completed in {duration} ({task.CompletedSteps}/{task.StepCount} steps, {task.TotalIterations} iterations)");
+
+                        // CONTEXT SLIPPING FIX: Include lessons learned from similar tasks
+                        if (task.ResolvedIssues.Any())
+                        {
+                            insights.AppendLine("  - Issues resolved:");
+                            foreach (var issue in task.ResolvedIssues.Take(2))
+                            {
+                                var issueSummary = issue.Length > 80 ? issue.Substring(0, 80) + "..." : issue;
+                                insights.AppendLine($"    • {issueSummary}");
+                            }
+                        }
+
+                        if (task.SuccessfulPatterns.Any())
+                        {
+                            insights.AppendLine("  - What worked:");
+                            foreach (var pattern in task.SuccessfulPatterns.Take(2))
+                            {
+                                var patternSummary = pattern.Length > 80 ? pattern.Substring(0, 80) + "..." : pattern;
+                                insights.AppendLine($"    • {patternSummary}");
+                            }
+                        }
+                    }
+                    insights.AppendLine();
+                }
+
+                // Get cross-project insights
+                var crossProjectInsights = await sharedPlanningContext.GetCrossProjectInsightsAsync(
+                    ProjectId, AgentType, maxResults: 3);
+
+                if (crossProjectInsights.Any())
+                {
+                    hasAnyInsights = true;
+                    insights.AppendLine("### Cross-Project Patterns");
+                    insights.AppendLine();
+                    insights.AppendLine("Approaches that worked in similar projects:");
+                    insights.AppendLine();
+
+                    var avgSteps = crossProjectInsights.Any() ? crossProjectInsights.Average(i => i.StepCount) : 0;
+                    var avgIterations = crossProjectInsights.Any() ? crossProjectInsights.Average(i => i.TotalIterations) : 0;
+
+                    insights.AppendLine($"- Typical complexity: {avgSteps:F1} steps, {avgIterations:F0} iterations");
+
+                    if (crossProjectInsights.Any(i => i.DurationSeconds < 30))
+                    {
+                        insights.AppendLine("- Quick tasks are often solvable in under 30 seconds");
+                    }
+
+                    insights.AppendLine();
+                }
+
+                // Get best practices for this agent type
+                var bestPractices = await sharedPlanningContext.GetBestPracticesAsync(AgentType);
+                if (bestPractices.Any())
+                {
+                    hasAnyInsights = true;
+                    insights.AppendLine("### Best Practices for Your Agent Type");
+                    insights.AppendLine();
+
+                    foreach (var practice in bestPractices)
+                    {
+                        insights.AppendLine($"- **{practice.Key}**: {practice.Value}");
+                    }
+                    insights.AppendLine();
+                }
+
+                // Get related plans that worked on similar files
+                if (ImplementationPlan != null && TaskId.HasValue)
+                {
+                    var relatedFiles = new List<string>();
+                    foreach (var step in ImplementationPlan.Steps)
+                    {
+                        relatedFiles.AddRange(step.FilesToCreate);
+                        relatedFiles.AddRange(step.FilesToModify);
+                    }
+
+                    if (relatedFiles.Any())
+                    {
+                        var relatedPlans = await sharedPlanningContext.GetRelatedPlansAsync(
+                            ProjectId ?? "", TaskId.Value.ToString(), relatedFiles);
+
+                        if (relatedPlans.Any())
+                        {
+                            hasAnyInsights = true;
+                            insights.AppendLine("### Related Completed Tasks");
+                            insights.AppendLine();
+                            insights.AppendLine("These tasks worked on similar files. Review their approaches:");
+
+                            foreach (var plan in relatedPlans.Take(3))
+                            {
+                                var taskDesc = plan.TaskDescription.Length > 50
+                                    ? plan.TaskDescription.Substring(0, 50) + "..."
+                                    : plan.TaskDescription;
+
+                                insights.AppendLine($"- **{taskDesc}**");
+                                insights.AppendLine($"  - Status: {plan.Status}");
+                                insights.AppendLine($"  - Steps: {plan.CompletedStepsCount}/{plan.Steps.Count} completed");
+
+                                // Show shared files
+                                var sharedFiles = new HashSet<string>();
+                                foreach (var step in plan.Steps)
+                                {
+                                    foreach (var file in step.FilesToCreate.Concat(step.FilesToModify))
+                                    {
+                                        if (relatedFiles.Contains(file))
+                                        {
+                                            sharedFiles.Add(file);
+                                        }
+                                    }
+                                }
+
+                                if (sharedFiles.Any())
+                                {
+                                    insights.AppendLine($"  - Shared files: {string.Join(", ", sharedFiles.Take(3))}{(sharedFiles.Count > 3 ? "..." : "")}");
+                                }
+
+                                insights.AppendLine();
+                            }
+                        }
+                    }
+                }
+
+                // Only add the section if we have insights
+                if (hasAnyInsights)
+                {
+                    sb.AppendLine("## Execution Insights");
+                    sb.AppendLine();
+                    sb.AppendLine("This section shows patterns from similar completed tasks. Use this information to:");
+                    sb.AppendLine("- Avoid approaches that have failed before");
+                    sb.AppendLine("- Follow patterns that have worked well");
+                    sb.AppendLine("- Estimate task complexity realistically");
+                    sb.AppendLine();
+                    sb.AppendLine(insights.ToString());
+                    sb.AppendLine("---");
+                    sb.AppendLine();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Don't fail the prompt build if insights can't be loaded
+                _logger?.LogDebug(ex, "Could not load execution insights for Kobold {KoboldId}", Id.ToString()[..8]);
+            }
         }
 
         /// <summary>

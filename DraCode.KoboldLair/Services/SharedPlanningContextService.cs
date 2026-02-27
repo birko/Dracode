@@ -536,7 +536,12 @@ public class SharedPlanningContextService
             TotalIterations = plan.Steps.Sum(s => s.Metrics.IterationsUsed),
             FilesModified = plan.Steps.SelectMany(s => s.FilesToModify).Distinct().Count(),
             FilesCreated = plan.Steps.SelectMany(s => s.FilesToCreate).Distinct().Count(),
-            ErrorMessage = agentContext.ErrorMessage
+            ErrorMessage = agentContext.ErrorMessage,
+
+            // CONTEXT SLIPPING FIX: Capture lessons learned from the plan
+            LessonsLearned = plan.LessonsLearned.ToList(),
+            SuccessfulPatterns = plan.SuccessfulPatterns.ToList(),
+            ResolvedIssues = plan.ResolvedIssues.ToList()
         };
 
         _insights[insight.InsightId] = insight;
@@ -903,6 +908,22 @@ public class PlanningInsight
     public int FilesModified { get; set; }
     public int FilesCreated { get; set; }
     public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// CONTEXT SLIPPING FIX: Lessons learned from this task execution
+    /// Preserves qualitative knowledge for future tasks
+    /// </summary>
+    public List<string> LessonsLearned { get; set; } = new();
+
+    /// <summary>
+    /// Successful patterns that worked well in this task
+    /// </summary>
+    public List<string> SuccessfulPatterns { get; set; } = new();
+
+    /// <summary>
+    /// Issues that were encountered and resolved
+    /// </summary>
+    public List<string> ResolvedIssues { get; set; } = new();
 }
 
 /// <summary>

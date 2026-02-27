@@ -64,6 +64,22 @@ namespace DraCode.KoboldLair.Models.Agents
         public List<PlanLogEntry> ExecutionLog { get; set; } = new();
 
         /// <summary>
+        /// Lessons learned during execution - captured insights that could help future tasks
+        /// CONTEXT SLIPPING FIX: This preserves qualitative knowledge between Kobold executions
+        /// </summary>
+        public List<string> LessonsLearned { get; set; } = new();
+
+        /// <summary>
+        /// Approaches that worked well during execution
+        /// </summary>
+        public List<string> SuccessfulPatterns { get; set; } = new();
+
+        /// <summary>
+        /// Issues encountered and how they were resolved
+        /// </summary>
+        public List<string> ResolvedIssues { get; set; } = new();
+
+        /// <summary>
         /// Gets the current step being executed, or null if all complete
         /// </summary>
         public ImplementationStep? CurrentStep =>
@@ -148,6 +164,62 @@ namespace DraCode.KoboldLair.Models.Agents
             Status = PlanStatus.Completed;
             UpdatedAt = DateTime.UtcNow;
             AddLogEntry("Plan completed successfully");
+
+            // CONTEXT SLIPPING FIX: Capture lessons learned automatically on completion
+            CaptureLessonsLearned();
+        }
+
+        /// <summary>
+        /// Captures lessons learned from the completed execution.
+        /// This preserves qualitative knowledge for future Kobolds.
+        /// </summary>
+        public void CaptureLessonsLearned()
+        {
+            // Capture patterns from steps that required retries but ultimately succeeded
+            var retriedButSucceeded = Steps.Where(s => s.Status == StepStatus.Completed && s.RetryCount > 0);
+            foreach (var step in retriedButSucceeded)
+            {
+                if (!string.IsNullOrEmpty(step.LastErrorMessage))
+                {
+                    var resolvedIssue = $"Step '{step.Title}' encountered: {step.LastErrorMessage}";
+                    if (!ResolvedIssues.Contains(resolvedIssue))
+                    {
+                        ResolvedIssues.Add(resolvedIssue);
+                    }
+                }
+
+                // If it took many iterations, note the pattern
+                if (step.Metrics.IterationsUsed > 10)
+                {
+                    var pattern = $"Step '{step.Title}' required {step.Metrics.IterationsUsed} iterations - consider breaking down similar complex steps";
+                    if (!LessonsLearned.Contains(pattern))
+                    {
+                        LessonsLearned.Add(pattern);
+                    }
+                }
+            }
+
+            // Capture successful patterns from steps that completed quickly
+            var quickSteps = Steps.Where(s => s.Status == StepStatus.Completed && s.Metrics.IterationsUsed > 0 && s.Metrics.IterationsUsed <= 3);
+            if (quickSteps.Count() > 1)
+            {
+                var quickPattern = $"Tasks of this type often complete in {quickSteps.Average(s => s.Metrics.IterationsUsed):F1} iterations per step";
+                if (!SuccessfulPatterns.Contains(quickPattern))
+                {
+                    SuccessfulPatterns.Add(quickPattern);
+                }
+            }
+
+            // Capture file creation patterns
+            var totalFiles = Steps.Sum(s => s.FilesToCreate.Count + s.FilesToModify.Count);
+            if (totalFiles > 0)
+            {
+                var filePattern = $"This task created/modified {totalFiles} files across {Steps.Count} steps";
+                if (!LessonsLearned.Contains(filePattern))
+                {
+                    LessonsLearned.Add(filePattern);
+                }
+            }
         }
 
         /// <summary>
