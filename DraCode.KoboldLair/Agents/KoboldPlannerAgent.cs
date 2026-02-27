@@ -149,6 +149,32 @@ After analyzing the task, use the create_implementation_plan tool to output your
             else
             {
                 plan.TaskDescription = taskDescription;
+
+                // Phase 4: Intelligently reorder steps based on dependencies
+                var analyzer = new Services.StepDependencyAnalyzer();
+
+                // First, check for dependency violations
+                var violations = plan.ValidateStepOrdering(analyzer);
+                if (violations.Count > 0)
+                {
+                    // Log violations to the plan
+                    plan.AddLogEntry($"Found {violations.Count} dependency violation(s):");
+                    foreach (var violation in violations)
+                    {
+                        plan.AddLogEntry($"  - {violation}");
+                    }
+
+                    // Reorder the steps to fix violations
+                    bool wasReordered = plan.ReorderSteps(analyzer, null);
+                    if (wasReordered)
+                    {
+                        plan.AddLogEntry("Steps were intelligently reordered based on file dependencies");
+                    }
+                }
+                else
+                {
+                    plan.AddLogEntry("Plan step ordering validated - no dependency violations found");
+                }
             }
 
             plan.Status = PlanStatus.Ready;

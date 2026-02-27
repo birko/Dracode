@@ -103,6 +103,60 @@ namespace DraCode.KoboldLair.Models.Agents
             Steps.Count > 0 ? (CompletedStepsCount * 100) / Steps.Count : 0;
 
         /// <summary>
+        /// Phase 4: Indices of steps assigned to specific Kobolds for parallel execution.
+        /// Maps Kobold ID to list of step indices (0-based) that the Kobold should execute.
+        /// Example: { "abc123": [0, 1, 5], "def456": [2, 3, 4] }
+        /// </summary>
+        public Dictionary<string, List<int>> AssignedStepIndices { get; set; } = new();
+
+        /// <summary>
+        /// Phase 4: Gets the steps assigned to a specific Kobold.
+        /// Returns all steps if no assignment exists (for backward compatibility).
+        /// </summary>
+        /// <param name="koboldId">The Kobold's unique identifier</param>
+        /// <returns>List of steps assigned to this Kobold</returns>
+        public List<ImplementationStep> GetAssignedSteps(string koboldId)
+        {
+            if (!AssignedStepIndices.TryGetValue(koboldId, out var indices) || indices.Count == 0)
+            {
+                // No assignment - return all steps (backward compatible)
+                return Steps;
+            }
+
+            return indices.Where(i => i >= 0 && i < Steps.Count).Select(i => Steps[i]).ToList();
+        }
+
+        /// <summary>
+        /// Phase 4: Assigns specific steps to a Kobold for parallel execution.
+        /// </summary>
+        /// <param name="koboldId">The Kobold's unique identifier</param>
+        /// <param name="stepIndices">List of 0-based step indices to assign</param>
+        public void AssignStepsToKobold(string koboldId, List<int> stepIndices)
+        {
+            AssignedStepIndices[koboldId] = stepIndices;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Phase 4: Clears step assignments for a specific Kobold.
+        /// </summary>
+        /// <param name="koboldId">The Kobold's unique identifier</param>
+        public void ClearStepAssignments(string koboldId)
+        {
+            AssignedStepIndices.Remove(koboldId);
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Phase 4: Clears all step assignments.
+        /// </summary>
+        public void ClearAllStepAssignments()
+        {
+            AssignedStepIndices.Clear();
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
         /// Phase 3: Gets aggregated metrics for all steps
         /// </summary>
         public PlanExecutionMetrics GetAggregatedMetrics()
@@ -231,6 +285,120 @@ namespace DraCode.KoboldLair.Models.Agents
             ErrorMessage = errorMessage;
             UpdatedAt = DateTime.UtcNow;
             AddLogEntry($"Plan failed: {errorMessage}");
+        }
+
+        /// <summary>
+        /// Phase 4: Intelligently reorders steps based on file dependencies.
+        /// Uses StepDependencyAnalyzer to ensure steps are in optimal order.
+        /// </summary>
+        /// <param name="analyzer">The step dependency analyzer</param>
+        /// <param name="logger">Optional logger for diagnostics</param>
+        /// <returns>True if steps were reordered, false if no changes were needed</returns>
+        public bool ReorderSteps(Services.StepDependencyAnalyzer analyzer, Microsoft.Extensions.Logging.ILogger? logger = null)
+        {
+            if (Steps.Count <= 1)
+            {
+                return false; // No reordering needed for 0 or 1 steps
+            }
+
+            // Store original order for comparison
+            var originalOrder = Steps.Select(s => s.Index).ToList();
+            var originalTitles = Steps.Select(s => (s.Index, s.Title)).ToDictionary(t => t.Index, t => t.Title);
+
+            try
+            {
+                // Get the optimal order from the analyzer
+                var reorderedSteps = analyzer.SuggestOptimalOrder(Steps);
+
+                // Check if the order actually changed
+                bool orderChanged = false;
+                for (int i = 0; i < reorderedSteps.Count; i++)
+                {
+                    if (reorderedSteps[i].Index != Steps[i].Index)
+                    {
+                        orderChanged = true;
+                        break;
+                    }
+                }
+
+                if (!orderChanged)
+                {
+                    // No reordering needed
+                    return false;
+                }
+
+                // Rebuild the steps list with new indices
+                Steps.Clear();
+                for (int i = 0; i < reorderedSteps.Count; i++)
+                {
+                    var step = reorderedSteps[i];
+                    step.Index = i + 1; // Update to new 1-based index
+                    Steps.Add(step);
+                }
+
+                // Log the reordering
+                var reorderingLog = new System.Text.StringBuilder();
+                reorderingLog.AppendLine("Steps reordered for optimal execution:");
+                foreach (var step in Steps)
+                {
+                    var originalIndex = originalOrder.FirstOrDefault(o => originalTitles.ContainsKey(o) && originalTitles[o].Equals(step.Title, StringComparison.OrdinalIgnoreCase));
+                    if (originalIndex != 0 && originalIndex != step.Index)
+                    {
+                        reorderingLog.AppendLine($"  Step {step.Index}: '{step.Title}' (was {originalIndex})");
+                    }
+                    else
+                    {
+                        reorderingLog.AppendLine($"  Step {step.Index}: '{step.Title}'");
+                    }
+                }
+
+                logger?.LogInformation("Plan {PlanFilename}: {Reason}", PlanFilename ?? "unknown", reorderingLog.ToString());
+                AddLogEntry("Steps reordered based on dependencies");
+
+                UpdatedAt = DateTime.UtcNow;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Plan {PlanFilename}: Failed to reorder steps, continuing with original order",
+                    PlanFilename ?? "unknown");
+                AddLogEntry($"Step reordering failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Phase 4: Validates step ordering for dependency violations.
+        /// </summary>
+        /// <param name="analyzer">The step dependency analyzer</param>
+        /// <returns>List of dependency violations found, or empty if valid</returns>
+        public List<string> ValidateStepOrdering(Services.StepDependencyAnalyzer analyzer)
+        {
+            var violations = new List<string>();
+
+            for (int i = 0; i < Steps.Count; i++)
+            {
+                var currentStep = Steps[i];
+
+                // Check if this step depends on any later step (violation)
+                for (int j = i + 1; j < Steps.Count; j++)
+                {
+                    var laterStep = Steps[j];
+                    if (analyzer.HasDependency(currentStep, laterStep))
+                    {
+                        // Current step depends on a step that comes after it
+                        var dependencyFiles = currentStep.FilesToModify
+                            .Where(f => laterStep.FilesToCreate.Contains(f));
+
+                        violations.Add(
+                            $"Step {currentStep.Index} ('{currentStep.Title}') depends on " +
+                            $"Step {laterStep.Index} ('{laterStep.Title}') " +
+                            $"via files: {string.Join(", ", dependencyFiles)}");
+                        }
+                    }
+                }
+
+            return violations;
         }
     }
 

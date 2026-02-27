@@ -20,6 +20,12 @@ namespace DraCode.KoboldLair.Models.Agents
         private SharedPlanningContextService? _sharedPlanningContext;
 
         /// <summary>
+        /// Phase 4: Indices of steps assigned to this Kobold for parallel execution (0-based).
+        /// Null means this Kobold executes all steps (sequential mode).
+        /// </summary>
+        private List<int>? _assignedStepIndices;
+
+        /// <summary>
         /// Unique identifier for this Kobold
         /// </summary>
         public Guid Id { get; }
@@ -108,7 +114,7 @@ namespace DraCode.KoboldLair.Models.Agents
         /// <summary>
         /// Implementation plan for this task (optional, for resumability)
         /// </summary>
-        public KoboldImplementationPlan? ImplementationPlan { get; private set; }
+        public KoboldImplementationPlan? ImplementationPlan { get; internal set; }
 
         /// <summary>
         /// Creates a new Kobold with an agent instance
@@ -189,6 +195,72 @@ namespace DraCode.KoboldLair.Models.Agents
             }
 
             SpecificationContext = specificationContext;
+        }
+
+        /// <summary>
+        /// Phase 4: Sets the indices of steps this Kobold should execute in parallel mode.
+        /// When set, the Kobold will only work on the assigned steps instead of all steps.
+        /// </summary>
+        /// <param name="stepIndices">List of 0-based step indices to execute</param>
+        public void SetAssignedStepIndices(List<int> stepIndices)
+        {
+            _assignedStepIndices = stepIndices;
+
+            // Update the plan with this assignment
+            if (ImplementationPlan != null)
+            {
+                ImplementationPlan.AssignStepsToKobold(Id.ToString(), stepIndices);
+            }
+
+            _logger?.LogDebug(
+                "Kobold {KoboldId} assigned {Count} steps for parallel execution: {StepIndices}",
+                Id.ToString()[..8], stepIndices.Count, string.Join(", ", stepIndices));
+        }
+
+        /// <summary>
+        /// Phase 4: Gets the indices of steps assigned to this Kobold.
+        /// Returns null if this Kobold should execute all steps (sequential mode).
+        /// </summary>
+        public List<int>? GetAssignedStepIndices()
+        {
+            return _assignedStepIndices;
+        }
+
+        /// <summary>
+        /// Phase 4: Clears any step assignment, reverting to sequential execution of all steps.
+        /// </summary>
+        public void ClearAssignedStepIndices()
+        {
+            _assignedStepIndices = null;
+
+            if (ImplementationPlan != null)
+            {
+                ImplementationPlan.ClearStepAssignments(Id.ToString());
+            }
+
+            _logger?.LogDebug("Kobold {KoboldId} step assignment cleared", Id.ToString()[..8]);
+        }
+
+        /// <summary>
+        /// Phase 4: Filters steps based on assigned step indices.
+        /// When _assignedStepIndices is set, returns only the assigned steps.
+        /// Otherwise, returns all steps for backward compatibility.
+        /// </summary>
+        /// <param name="allSteps">All steps in the plan</param>
+        /// <returns>Filtered list of steps to display/execute</returns>
+        private List<ImplementationStep> FilterAssignedSteps(List<ImplementationStep> allSteps)
+        {
+            if (_assignedStepIndices == null || _assignedStepIndices.Count == 0)
+            {
+                // No assignment - return all steps (backward compatible)
+                return allSteps;
+            }
+
+            // Return only assigned steps
+            return _assignedStepIndices
+                .Where(i => i >= 0 && i < allSteps.Count)
+                .Select(i => allSteps[i])
+                .ToList();
         }
 
         /// <summary>
@@ -1179,6 +1251,7 @@ If step is complete, call `update_plan_step` with status 'completed'.
         /// <summary>
         /// Builds the full task prompt including plan context if available.
         /// Phase 3: Supports progressive detail reveal to reduce token usage.
+        /// Phase 4: Filters steps based on assigned step indices for parallel execution.
         /// </summary>
         /// <param name="useProgressiveReveal">Whether to use progressive detail reveal (default: true)</param>
         /// <param name="mediumDetailCount">Number of upcoming steps to show medium details for (default: 2)</param>
@@ -1189,6 +1262,9 @@ If step is complete, call `update_plan_step` with status 'completed'.
             SharedPlanningContextService? sharedPlanningContext = null)
         {
             var sb = new System.Text.StringBuilder();
+
+            // Phase 4: Filter steps based on assigned step indices
+            var stepsToDisplay = FilterAssignedSteps(ImplementationPlan?.Steps ?? new List<ImplementationStep>());
 
             sb.AppendLine("# Task Context");
             sb.AppendLine();
@@ -1218,165 +1294,252 @@ If step is complete, call `update_plan_step` with status 'completed'.
             // Add plan context if available
             if (ImplementationPlan != null && ImplementationPlan.Steps.Count > 0)
             {
-                sb.AppendLine("## Implementation Plan");
-                sb.AppendLine();
-                sb.AppendLine("You have an implementation plan to follow. Execute each step in order.");
-                sb.AppendLine();
-                sb.AppendLine("**CRITICAL**: After completing each step, you MUST call the `update_plan_step` tool to mark it as completed.");
-                sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
-                sb.AppendLine();
+                // Phase 4: Check if this is parallel execution mode (assigned steps subset)
+                bool isParallelMode = _assignedStepIndices != null && _assignedStepIndices.Count > 0
+                    && _assignedStepIndices.Count < ImplementationPlan.Steps.Count;
 
-                // Self-Reflection Protocol (P1 - Prompt-based)
-                sb.AppendLine("## SELF-REFLECTION PROTOCOL");
-                sb.AppendLine();
-                sb.AppendLine("You MUST output a CHECKPOINT block every 3 iterations. This is mandatory.");
-                sb.AppendLine();
-                sb.AppendLine("```");
-                sb.AppendLine("CHECKPOINT (iteration N):");
-                sb.AppendLine("- Progress: [X%] toward current step completion");
-                sb.AppendLine("- Files done: [list files created/modified so far]");
-                sb.AppendLine("- Blockers: [any obstacles, or 'none']");
-                sb.AppendLine("- Confidence: [0-100%] this approach will succeed");
-                sb.AppendLine("- Decision: [continue|pivot|escalate]");
-                sb.AppendLine("```");
-                sb.AppendLine();
-                sb.AppendLine("## ERROR HANDLING PROTOCOL");
-                sb.AppendLine();
-                sb.AppendLine("When encountering errors, output an ERROR ANALYSIS block:");
-                sb.AppendLine();
-                sb.AppendLine("```");
-                sb.AppendLine("ERROR ANALYSIS:");
-                sb.AppendLine("- What happened: [specific error]");
-                sb.AppendLine("- Root cause: [code issue|external service|config|missing dependency]");
-                sb.AppendLine("- Strategy adjustment: [what to change before retry]");
-                sb.AppendLine("```");
-                sb.AppendLine();
-                sb.AppendLine("**CRITICAL**: After completing each step, call `update_plan_step` immediately.");
-                sb.AppendLine("Before marking complete, verify:");
-                sb.AppendLine("1. Did I create/modify the files specified?");
-                sb.AppendLine("2. Does the code actually work (no obvious errors)?");
-                sb.AppendLine("3. Is the step truly complete?");
-                sb.AppendLine();
-
-                // Show plan summary
-                foreach (var step in ImplementationPlan.Steps)
+                if (isParallelMode)
                 {
-                    var statusIcon = step.Status switch
-                    {
-                        StepStatus.Completed => "[x]",
-                        StepStatus.InProgress => "[>]",
-                        StepStatus.Failed => "[!]",
-                        StepStatus.Skipped => "[-]",
-                        _ => "[ ]"
-                    };
-                    sb.AppendLine($"{statusIcon} Step {step.Index}: {step.Title}");
-                }
-                sb.AppendLine();
-
-                // Show current step details if resuming
-                if (ImplementationPlan.CurrentStepIndex > 0)
-                {
-                    sb.AppendLine($"**Resume from Step {ImplementationPlan.CurrentStepIndex + 1}**");
+                    // Parallel execution mode - show only assigned steps
+                    sb.AppendLine("## Implementation Plan (Parallel Execution Mode)");
                     sb.AppendLine();
-                }
-
-                // Phase 3: Progressive detail reveal
-                if (useProgressiveReveal && ImplementationPlan.Steps.Count > 3)
-                {
-                    sb.AppendLine("### Step Details (Progressive)");
+                    sb.AppendLine($"You are executing a SUBSET of steps from a larger implementation plan.");
+                    sb.AppendLine($"Your assigned steps: {_assignedStepIndices.Count} out of {ImplementationPlan.Steps.Count} total steps.");
+                    sb.AppendLine();
+                    sb.AppendLine("**CRITICAL**: After completing each step, you MUST call the `update_plan_step` tool to mark it as completed.");
+                    sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
                     sb.AppendLine();
 
-                    var currentIndex = ImplementationPlan.CurrentStepIndex;
-                    
-                    // Full details for current step
-                    if (currentIndex < ImplementationPlan.Steps.Count)
+                    // Show only assigned steps in summary
+                    sb.AppendLine("**Your Assigned Steps:**");
+                    foreach (var step in stepsToDisplay)
                     {
-                        var currentStep = ImplementationPlan.Steps[currentIndex];
-                        sb.AppendLine($"**CURRENT STEP {currentStep.Index}: {currentStep.Title}** ⭐");
-                        sb.AppendLine();
-                        sb.AppendLine(currentStep.Description);
-                        sb.AppendLine();
-
-                        if (currentStep.FilesToCreate.Count > 0)
+                        var statusIcon = step.Status switch
                         {
-                            sb.AppendLine("Files to create:");
-                            foreach (var file in currentStep.FilesToCreate)
-                            {
-                                sb.AppendLine($"- {file}");
-                            }
-                            sb.AppendLine();
-                        }
-
-                        if (currentStep.FilesToModify.Count > 0)
-                        {
-                            sb.AppendLine("Files to modify:");
-                            foreach (var file in currentStep.FilesToModify)
-                            {
-                                sb.AppendLine($"- {file}");
-                            }
-                            sb.AppendLine();
-                        }
+                            StepStatus.Completed => "[x]",
+                            StepStatus.InProgress => "[>]",
+                            StepStatus.Failed => "[!]",
+                            StepStatus.Skipped => "[-]",
+                            _ => "[ ]"
+                        };
+                        sb.AppendLine($"{statusIcon} Step {step.Index}: {step.Title}");
                     }
-
-                    // Medium details for next N steps
-                    for (int i = currentIndex + 1; i < Math.Min(currentIndex + 1 + mediumDetailCount, ImplementationPlan.Steps.Count); i++)
-                    {
-                        var step = ImplementationPlan.Steps[i];
-                        sb.AppendLine($"**Upcoming Step {step.Index}: {step.Title}**");
-                        sb.AppendLine();
-                        sb.AppendLine(step.Description);
-                        sb.AppendLine();
-                    }
-
-                    // Summary only for remaining steps
-                    if (currentIndex + 1 + mediumDetailCount < ImplementationPlan.Steps.Count)
-                    {
-                        sb.AppendLine("**Later Steps (Summary):**");
-                        for (int i = currentIndex + 1 + mediumDetailCount; i < ImplementationPlan.Steps.Count; i++)
-                        {
-                            var step = ImplementationPlan.Steps[i];
-                            var statusIcon = step.Status switch
-                            {
-                                StepStatus.Completed => "[x]",
-                                StepStatus.Failed => "[!]",
-                                StepStatus.Skipped => "[-]",
-                                _ => "[ ]"
-                            };
-                            sb.AppendLine($"{statusIcon} Step {step.Index}: {step.Title}");
-                        }
-                        sb.AppendLine();
-                    }
+                    sb.AppendLine();
                 }
                 else
                 {
-                    // Original behavior: Show full details for all pending/in-progress steps
-                    sb.AppendLine("### Step Details");
+                    // Sequential mode - show full plan
+                    sb.AppendLine("## Implementation Plan");
                     sb.AppendLine();
-                    foreach (var step in ImplementationPlan.Steps.Where(s => s.Status == StepStatus.Pending || s.Status == StepStatus.InProgress))
+                    sb.AppendLine("You have an implementation plan to follow. Execute each step in order.");
+                    sb.AppendLine();
+                    sb.AppendLine("**CRITICAL**: After completing each step, you MUST call the `update_plan_step` tool to mark it as completed.");
+                    sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
+                    sb.AppendLine();
+
+                    // Self-Reflection Protocol (P1 - Prompt-based)
+                    sb.AppendLine("## SELF-REFLECTION PROTOCOL");
+                    sb.AppendLine();
+                    sb.AppendLine("You MUST output a CHECKPOINT block every 3 iterations. This is mandatory.");
+                    sb.AppendLine();
+                    sb.AppendLine("```");
+                    sb.AppendLine("CHECKPOINT (iteration N):");
+                    sb.AppendLine("- Progress: [X%] toward current step completion");
+                    sb.AppendLine("- Files done: [list files created/modified so far]");
+                    sb.AppendLine("- Blockers: [any obstacles, or 'none']");
+                    sb.AppendLine("- Confidence: [0-100%] this approach will succeed");
+                    sb.AppendLine("- Decision: [continue|pivot|escalate]");
+                    sb.AppendLine("```");
+                    sb.AppendLine();
+                    sb.AppendLine("## ERROR HANDLING PROTOCOL");
+                    sb.AppendLine();
+                    sb.AppendLine("When encountering errors, output an ERROR ANALYSIS block:");
+                    sb.AppendLine();
+                    sb.AppendLine("```");
+                    sb.AppendLine("ERROR ANALYSIS:");
+                    sb.AppendLine("- What happened: [specific error]");
+                    sb.AppendLine("- Root cause: [code issue|external service|config|missing dependency]");
+                    sb.AppendLine("- Strategy adjustment: [what to change before retry]");
+                    sb.AppendLine("```");
+                    sb.AppendLine();
+                    sb.AppendLine("**CRITICAL**: After completing each step, call `update_plan_step` immediately.");
+                    sb.AppendLine("Before marking complete, verify:");
+                    sb.AppendLine("1. Did I create/modify the files specified?");
+                    sb.AppendLine("2. Does the code actually work (no obvious errors)?");
+                    sb.AppendLine("3. Is the step truly complete?");
+                    sb.AppendLine();
+
+                    // Show plan summary
+                    foreach (var step in ImplementationPlan.Steps)
                     {
-                        sb.AppendLine($"**Step {step.Index}: {step.Title}**");
+                        var statusIcon = step.Status switch
+                        {
+                            StepStatus.Completed => "[x]",
+                            StepStatus.InProgress => "[>]",
+                            StepStatus.Failed => "[!]",
+                            StepStatus.Skipped => "[-]",
+                            _ => "[ ]"
+                        };
+                        sb.AppendLine($"{statusIcon} Step {step.Index}: {step.Title}");
+                    }
+                    sb.AppendLine();
+
+                    // Show current step details if resuming
+                    if (ImplementationPlan.CurrentStepIndex > 0)
+                    {
+                        sb.AppendLine($"**Resume from Step {ImplementationPlan.CurrentStepIndex + 1}**");
                         sb.AppendLine();
-                        sb.AppendLine(step.Description);
+                    }
+
+                    // Phase 3: Progressive detail reveal
+                    if (useProgressiveReveal && ImplementationPlan.Steps.Count > 3)
+                    {
+                        sb.AppendLine("### Step Details (Progressive)");
                         sb.AppendLine();
 
-                        if (step.FilesToCreate.Count > 0)
+                        var currentIndex = ImplementationPlan.CurrentStepIndex;
+
+                        // Full details for current step
+                        if (currentIndex < ImplementationPlan.Steps.Count)
+                        {
+                            var currentStep = ImplementationPlan.Steps[currentIndex];
+                            sb.AppendLine($"**CURRENT STEP {currentStep.Index}: {currentStep.Title}** ⭐");
+                            sb.AppendLine();
+                            sb.AppendLine(currentStep.Description);
+                            sb.AppendLine();
+
+                            if (currentStep.FilesToCreate.Count > 0)
+                            {
+                                sb.AppendLine("Files to create:");
+                                foreach (var file in currentStep.FilesToCreate)
+                                {
+                                    sb.AppendLine($"- {file}");
+                                }
+                                sb.AppendLine();
+                            }
+
+                            if (currentStep.FilesToModify.Count > 0)
+                            {
+                                sb.AppendLine("Files to modify:");
+                                foreach (var file in currentStep.FilesToModify)
+                                {
+                                    sb.AppendLine($"- {file}");
+                                }
+                                sb.AppendLine();
+                            }
+                        }
+
+                        // Medium details for next N steps
+                        for (int i = currentIndex + 1; i < Math.Min(currentIndex + 1 + mediumDetailCount, ImplementationPlan.Steps.Count); i++)
+                        {
+                            var step = ImplementationPlan.Steps[i];
+                            sb.AppendLine($"**Upcoming Step {step.Index}: {step.Title}**");
+                            sb.AppendLine();
+                            sb.AppendLine(step.Description);
+                            sb.AppendLine();
+                        }
+
+                        // Summary only for remaining steps
+                        if (currentIndex + 1 + mediumDetailCount < ImplementationPlan.Steps.Count)
+                        {
+                            sb.AppendLine("**Later Steps (Summary):**");
+                            for (int i = currentIndex + 1 + mediumDetailCount; i < ImplementationPlan.Steps.Count; i++)
+                            {
+                                var step = ImplementationPlan.Steps[i];
+                                var statusIcon = step.Status switch
+                                {
+                                    StepStatus.Completed => "[x]",
+                                    StepStatus.Failed => "[!]",
+                                    StepStatus.Skipped => "[-]",
+                                    _ => "[ ]"
+                                };
+                                sb.AppendLine($"{statusIcon} Step {step.Index}: {step.Title}");
+                            }
+                            sb.AppendLine();
+                        }
+                    }
+                    else
+                    {
+                        // Original behavior: Show full details for all pending/in-progress steps
+                        sb.AppendLine("### Step Details");
+                        sb.AppendLine();
+                        foreach (var step in ImplementationPlan.Steps.Where(s => s.Status == StepStatus.Pending || s.Status == StepStatus.InProgress))
+                        {
+                            sb.AppendLine($"**Step {step.Index}: {step.Title}**");
+                            sb.AppendLine();
+                            sb.AppendLine(step.Description);
+                            sb.AppendLine();
+
+                            if (step.FilesToCreate.Count > 0)
+                            {
+                                sb.AppendLine("Files to create:");
+                                foreach (var file in step.FilesToCreate)
+                                {
+                                    sb.AppendLine($"- {file}");
+                                }
+                                sb.AppendLine();
+                            }
+
+                            if (step.FilesToModify.Count > 0)
+                            {
+                                sb.AppendLine("Files to modify:");
+                                foreach (var file in step.FilesToModify)
+                                {
+                                    sb.AppendLine($"- {file}");
+                                }
+                                sb.AppendLine();
+                            }
+                        }
+                    }
+                }
+
+                // Phase 4: For parallel mode, show details of assigned steps
+                if (IsParallelMode())
+                {
+                    sb.AppendLine("### Your Assigned Step Details");
+                    sb.AppendLine();
+                    sb.AppendLine("Execute the following steps in order. Each step is independent and can be worked on separately.");
+                    sb.AppendLine();
+
+                    var firstPending = stepsToDisplay.FirstOrDefault(s => s.Status == StepStatus.Pending);
+                    if (firstPending != null)
+                    {
+                        sb.AppendLine($"**START WITH: Step {firstPending.Index}: {firstPending.Title}** ⭐");
+                        sb.AppendLine();
+                        sb.AppendLine(firstPending.Description);
+                        sb.AppendLine();
+
+                        if (firstPending.FilesToCreate.Count > 0)
                         {
                             sb.AppendLine("Files to create:");
-                            foreach (var file in step.FilesToCreate)
+                            foreach (var file in firstPending.FilesToCreate)
                             {
                                 sb.AppendLine($"- {file}");
                             }
                             sb.AppendLine();
                         }
 
-                        if (step.FilesToModify.Count > 0)
+                        if (firstPending.FilesToModify.Count > 0)
                         {
                             sb.AppendLine("Files to modify:");
-                            foreach (var file in step.FilesToModify)
+                            foreach (var file in firstPending.FilesToModify)
                             {
                                 sb.AppendLine($"- {file}");
                             }
                             sb.AppendLine();
+                        }
+
+                        // Show remaining assigned steps
+                        var remainingSteps = stepsToDisplay.Where(s => s != firstPending && (s.Status == StepStatus.Pending || s.Status == StepStatus.InProgress)).ToList();
+                        if (remainingSteps.Count > 0)
+                        {
+                            sb.AppendLine("**Remaining Steps:**");
+                            foreach (var step in remainingSteps)
+                            {
+                                sb.AppendLine($"- Step {step.Index}: {step.Title}");
+                                sb.AppendLine($"  {step.Description}");
+                                sb.AppendLine();
+                            }
                         }
                     }
                 }
@@ -1388,19 +1551,32 @@ If step is complete, call `update_plan_step` with status 'completed'.
             // Add task description
             sb.AppendLine("## Your Task");
             sb.AppendLine();
-            sb.AppendLine(TaskDescription);
+            sb.AppendLine(TaskDescription ?? "");
             sb.AppendLine();
 
             if (ImplementationPlan != null)
             {
-                sb.AppendLine("**Important**: Follow the implementation plan above. For each step:");
-                sb.AppendLine("1. Complete the step's work (create/modify files as specified)");
-                sb.AppendLine("2. Verify your work is correct");
-                sb.AppendLine("3. Call `update_plan_step` with the step number and status \"completed\"");
-                sb.AppendLine("4. Move to the next step");
-                sb.AppendLine();
-                sb.AppendLine("If a step fails, call `update_plan_step` with status \"failed\" and explain why.");
-                sb.AppendLine("If a step should be skipped, call `update_plan_step` with status \"skipped\" and explain why.");
+                if (IsParallelMode())
+                {
+                    // Instructions for parallel mode
+                    sb.AppendLine("**Important**: You are executing in PARALLEL MODE.");
+                    sb.AppendLine("1. Work ONLY on your assigned steps listed above");
+                    sb.AppendLine("2. Complete each step and call `update_plan_step` with status \"completed\"");
+                    sb.AppendLine("3. If a step fails, call `update_plan_step` with status \"failed\" and explain why");
+                    sb.AppendLine("4. Other Kobolds are working on different steps - do NOT modify files outside your assigned steps");
+                }
+                else
+                {
+                    // Instructions for sequential mode
+                    sb.AppendLine("**Important**: Follow the implementation plan above. For each step:");
+                    sb.AppendLine("1. Complete the step's work (create/modify files as specified)");
+                    sb.AppendLine("2. Verify your work is correct");
+                    sb.AppendLine("3. Call `update_plan_step` with the step number and status \"completed\"");
+                    sb.AppendLine("4. Move to the next step");
+                    sb.AppendLine();
+                    sb.AppendLine("If a step fails, call `update_plan_step` with status \"failed\" and explain why.");
+                    sb.AppendLine("If a step should be skipped, call `update_plan_step` with status \"skipped\" and explain why.");
+                }
             }
             else if (!string.IsNullOrEmpty(SpecificationContext))
             {
@@ -1408,6 +1584,15 @@ If step is complete, call `update_plan_step` with status 'completed'.
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Phase 4: Checks if this Kobold is in parallel execution mode
+        /// </summary>
+        private bool IsParallelMode()
+        {
+            return _assignedStepIndices != null && _assignedStepIndices.Count > 0
+                && ImplementationPlan != null && _assignedStepIndices.Count < ImplementationPlan.Steps.Count;
         }
 
         /// <summary>

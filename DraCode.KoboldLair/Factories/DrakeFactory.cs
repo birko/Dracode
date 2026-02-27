@@ -193,7 +193,8 @@ namespace DraCode.KoboldLair.Factories
                 _allowPlanModifications,
                 _autoApproveModifications,
                 _filterFilesByPlan,
-                _sharedPlanningContext
+                _sharedPlanningContext,
+                _koboldLairConfig.Planning
             );
 
             // Lock only for dictionary insertion, with race condition check

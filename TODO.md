@@ -292,16 +292,19 @@ All critical blocking operations and race conditions have been resolved as of 20
 
 ### Future Enhancements (Deferred)
 
-- [ ] **Parallel Step Execution** - From Phase G
-  - `StepDependencyAnalyzer` created but not integrated
-  - Execute independent steps in parallel with separate Kobold instances
+- [x] **Parallel Step Execution** - From Phase G *(Completed 2026-02-27)*
+  - Integrated `StepDependencyAnalyzer` into Drake orchestration
+  - Added `ExecuteTaskParallelAsync()` method
+  - Added step assignment tracking to `KoboldImplementationPlan`
+  - Supports configurable `MaxParallelSteps` limit
   - Potential speedup: 2-3x for large plans
-  - Effort: High (~2 weeks)
 
-- [ ] **Intelligent Step Reordering** - From Phase G
-  - Use `StepDependencyAnalyanalyzer.SuggestOptimalOrder()`
-  - Suggest optimal execution order to planner
-  - Effort: High (~2 weeks)
+- [x] **Intelligent Step Reordering** - From Phase G *(Completed 2026-02-27)*
+  - Integrated `StepDependencyAnalyzer.SuggestOptimalOrder()` into planner
+  - Added `ReorderSteps()` method to `KoboldImplementationPlan`
+  - Added `ValidateStepOrdering()` method for dependency violation detection
+  - Automatic reordering when LLM generates steps with wrong dependencies
+  - Logged to plan execution log
 
 ---
 

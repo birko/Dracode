@@ -40,6 +40,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly bool _autoApproveModifications;
         private readonly bool _filterFilesByPlan;
         private readonly PlanFileFilterService _fileFilterService;
+        private readonly Models.Configuration.PlanningConfiguration? _planningConfig;
         private Wyvern? _wyvern;
         private WyrmRecommendation? _wyrmRecommendation;
 
@@ -79,6 +80,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="autoApproveModifications">Whether to auto-approve plan modifications (default: false)</param>
         /// <param name="filterFilesByPlan">Whether to filter file structure by plan requirements (default: true)</param>
         /// <param name="sharedPlanningContext">Optional shared planning context service for cross-agent coordination</param>
+        /// <param name="planningConfig">Optional planning configuration for parallel execution settings</param>
         public Drake(
             KoboldFactory koboldFactory,
             TaskTracker taskTracker,
@@ -101,7 +103,8 @@ namespace DraCode.KoboldLair.Orchestrators
             bool allowPlanModifications = false,
             bool autoApproveModifications = false,
             bool filterFilesByPlan = true,
-            SharedPlanningContextService? sharedPlanningContext = null)
+            SharedPlanningContextService? sharedPlanningContext = null,
+            Models.Configuration.PlanningConfiguration? planningConfig = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -120,6 +123,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _plannerAgent = plannerAgent;
             _circuitBreaker = circuitBreaker;
             _sharedPlanningContext = sharedPlanningContext;
+            _planningConfig = planningConfig;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
@@ -1225,9 +1229,40 @@ namespace DraCode.KoboldLair.Orchestrators
                 // Use plan-aware execution if we have a plan
                 if (kobold.ImplementationPlan != null)
                 {
-                    // Use enhanced execution if enabled (Phase 2 auto-detection)
-                    if (_useEnhancedExecution)
+                    // Phase 4: Check if parallel execution mode is enabled
+                    bool useParallelExecution = _planningConfig?.ExecutionMode == "parallel" && _useEnhancedExecution;
+
+                    if (useParallelExecution)
                     {
+                        // Parallel execution: Remove the initial Kobold and use parallel orchestration
+                        messageCallback?.Invoke("info", "🔄 Parallel execution mode enabled");
+
+                        // Sync current state from the initial Kobold
+                        await SyncTaskFromKoboldAsync(kobold);
+
+                        // Get the plan before removing the Kobold
+                        var plan = kobold.ImplementationPlan;
+                        var taskIdStr = task.Id; // TaskId is used to load plans
+
+                        // Remove the initial Kobold (we'll create new ones for each batch)
+                        _koboldFactory.RemoveKobold(kobold.Id);
+
+                        // Use parallel execution
+                        var analyzer = new Services.StepDependencyAnalyzer();
+                        messages = await ExecuteTaskParallelAsync(
+                            task, plan, analyzer, agentType, maxIterations, provider,
+                            messageCallback, cancellationToken) ?? new List<Message>();
+
+                        // Sync final task state
+                        SaveTasksToFile();
+                        UpdateFeatureStatus();
+
+                        // Return null for Kobold since parallel execution manages its own Kobolds
+                        return (messages, kobold); // Kobold reference is stale but kept for API compatibility
+                    }
+                    else if (_useEnhancedExecution)
+                    {
+                        // Sequential enhanced execution (existing behavior)
                         messages = await kobold.StartWorkingWithPlanEnhancedAsync(
                             _planService,
                             maxIterations,
@@ -1237,6 +1272,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     }
                     else
                     {
+                        // Basic plan execution
                         messages = await kobold.StartWorkingWithPlanAsync(_planService, maxIterations, cancellationToken);
                     }
                 }
@@ -1288,6 +1324,189 @@ namespace DraCode.KoboldLair.Orchestrators
 
             // Update feature status if Wyvern is available
             UpdateFeatureStatus();
+
+            return (messages, kobold);
+        }
+
+        /// <summary>
+        /// Phase 4: Executes a task using parallel step execution.
+        /// Spawns multiple Kobolds to execute independent steps concurrently.
+        /// </summary>
+        /// <param name="task">Task to execute</param>
+        /// <param name="plan">Implementation plan with steps to execute</param>
+        /// <param name="analyzer">Step dependency analyzer for grouping steps</param>
+        /// <param name="agentType">Type of agent to use</param>
+        /// <param name="maxIterations">Maximum iterations per Kobold</param>
+        /// <param name="provider">LLM provider (optional)</param>
+        /// <param name="messageCallback">Callback for progress messages</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>All messages from parallel execution, or null if setup failed</returns>
+        private async Task<List<Message>?> ExecuteTaskParallelAsync(
+            TaskRecord task,
+            KoboldImplementationPlan plan,
+            Services.StepDependencyAnalyzer analyzer,
+            string agentType,
+            int maxIterations,
+            string? provider,
+            Action<string, string>? messageCallback,
+            CancellationToken cancellationToken)
+        {
+            var allMessages = new List<Message>();
+            var parallelGroups = analyzer.AnalyzeParallelGroups(plan);
+            var maxParallel = _planningConfig?.MaxParallelSteps ?? 3;
+
+            messageCallback?.Invoke("info", $"📊 Plan analyzed into {parallelGroups.Count} parallel group(s)");
+
+            for (int groupIndex = 0; groupIndex < parallelGroups.Count; groupIndex++)
+            {
+                var group = parallelGroups[groupIndex];
+                var pendingSteps = group.Where(s => s.Status == StepStatus.Pending).ToList();
+
+                if (pendingSteps.Count == 0)
+                {
+                    messageCallback?.Invoke("info", $"Group {groupIndex + 1}: All steps already completed");
+                    continue;
+                }
+
+                messageCallback?.Invoke("info",
+                    $"Group {groupIndex + 1}/{parallelGroups.Count}: " +
+                    $"Executing {pendingSteps.Count} step(s)" +
+                    (pendingSteps.Count > 1 ? " in parallel" : ""));
+
+                // Split steps across available Kobolds
+                var stepBatches = SplitStepsForParallelExecution(pendingSteps, maxParallel);
+
+                // Create Kobolds for each batch
+                var koboldTasks = new List<Task<(List<Message> messages, Kobold kobold)?>>();
+                var semaphore = new SemaphoreSlim(maxParallel);
+
+                foreach (var batch in stepBatches)
+                {
+                    await semaphore.WaitAsync(cancellationToken);
+                    koboldTasks.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            return await ExecuteStepBatchAsync(
+                                task, batch, agentType, maxIterations, provider,
+                                messageCallback, cancellationToken);
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }, cancellationToken));
+                }
+
+                // Wait for all batches in this group to complete
+                var batchResults = await Task.WhenAll(koboldTasks);
+
+                // Collect messages and check for failures
+                var groupFailed = false;
+                foreach (var result in batchResults)
+                {
+                    if (result.HasValue)
+                    {
+                        allMessages.AddRange(result.Value.messages);
+                        if (result.Value.kobold.HasError)
+                        {
+                            groupFailed = true;
+                        }
+                    }
+                }
+
+                // Reload plan to get updated step statuses
+                if (_planService != null && !string.IsNullOrEmpty(plan.ProjectId) && !string.IsNullOrEmpty(plan.PlanFilename))
+                {
+                    plan = await _planService.LoadPlanAsync(plan.PlanFilename, plan.ProjectId);
+                }
+
+                // If any step failed, skip remaining groups
+                if (groupFailed)
+                {
+                    messageCallback?.Invoke("error", "Group failed - stopping parallel execution");
+                    break;
+                }
+            }
+
+            return allMessages;
+        }
+
+        /// <summary>
+        /// Phase 4: Splits steps into batches for parallel execution.
+        /// </summary>
+        /// <param name="steps">Steps to split</param>
+        /// <param name="maxParallel">Maximum number of parallel batches</param>
+        /// <returns>List of step batches</returns>
+        private List<List<ImplementationStep>> SplitStepsForParallelExecution(
+            List<ImplementationStep> steps, int maxParallel)
+        {
+            var batches = new List<List<ImplementationStep>>();
+            var batchSize = Math.Max(1, (int)Math.Ceiling((double)steps.Count / maxParallel));
+
+            for (int i = 0; i < steps.Count; i += batchSize)
+            {
+                var batch = steps.Skip(i).Take(batchSize).ToList();
+                batches.Add(batch);
+            }
+
+            return batches;
+        }
+
+        /// <summary>
+        /// Phase 4: Executes a batch of steps using a dedicated Kobold.
+        /// </summary>
+        /// <param name="task">Parent task</param>
+        /// <param name="batch">Steps to execute in this batch</param>
+        /// <param name="agentType">Type of agent to use</param>
+        /// <param name="maxIterations">Maximum iterations</param>
+        /// <param name="provider">LLM provider (optional)</param>
+        /// <param name="messageCallback">Callback for progress messages</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Messages from execution and the Kobold</returns>
+        private async Task<(List<Message> messages, Kobold kobold)?> ExecuteStepBatchAsync(
+            TaskRecord task,
+            List<ImplementationStep> batch,
+            string agentType,
+            int maxIterations,
+            string? provider,
+            Action<string, string>? messageCallback,
+            CancellationToken cancellationToken)
+        {
+            // Summon Kobold
+            var kobold = await SummonKoboldAsync(task, agentType, provider);
+            if (kobold == null) return null;
+
+            // Set assigned step indices (convert to 0-based)
+            var indices = batch.Select(s => s.Index - 1).ToList();
+            kobold.SetAssignedStepIndices(indices);
+
+            // Load shared plan using task ID
+            if (_planService != null && _plannerAgent != null)
+            {
+                var projectId = task.ProjectId ?? _projectId ?? string.Empty;
+                var loadedPlan = await _planService.LoadPlanAsync(projectId, task.Id);
+                if (loadedPlan != null)
+                {
+                    // Use EnsurePlanAsync to properly set the plan on the Kobold
+                    kobold.ImplementationPlan = loadedPlan;
+                }
+            }
+
+            // Set message callback on agent
+            if (messageCallback != null)
+            {
+                kobold.Agent.SetMessageCallback(messageCallback);
+            }
+
+            messageCallback?.Invoke("info",
+                $"  → Kobold {kobold.Id.ToString()[..8]} assigned {batch.Count} step(s): " +
+                string.Join(", ", batch.Select(s => $"Step {s.Index}")));
+
+            // Execute
+            var messages = await kobold.StartWorkingWithPlanEnhancedAsync(
+                _planService, maxIterations, _allowPlanModifications,
+                _autoApproveModifications, cancellationToken);
 
             return (messages, kobold);
         }
