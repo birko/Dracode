@@ -180,7 +180,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             if (drakesWithNames.Count == 0)
             {
-                _logger.LogWarning("No Drakes created for project {ProjectName} - no task files found", project.Name);
+                _logger.LogWarning("No Drakes created for project {ProjectName} - no task files found or all areas complete/blocked", project.Name);
                 return;
             }
 
@@ -553,11 +553,12 @@ namespace DraCode.KoboldLair.Server.Services
 
                 var tasks = tracker.GetAllTasks();
 
-                // If any tasks are NotInitialized or Working, a Drake is needed to either:
+                // If any tasks are NotInitialized, Working, or Failed, a Drake is needed to either:
                 // - Continue work with existing Kobolds, or
                 // - Recover orphaned tasks (NotInitialized/Working with no active Kobold)
+                // - Detect and report failed tasks (halting execution until resolved)
                 // So don't skip Drake creation
-                if (tasks.Any(t => t.Status == TaskStatus.NotInitialized || t.Status == TaskStatus.Working))
+                if (tasks.Any(t => t.Status == TaskStatus.NotInitialized || t.Status == TaskStatus.Working || t.Status == TaskStatus.Failed))
                 {
                     return false;
                 }

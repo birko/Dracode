@@ -311,13 +311,16 @@ namespace DraCode.KoboldLair.Models.Agents
                 var reorderedSteps = analyzer.SuggestOptimalOrder(Steps);
 
                 // Check if the order actually changed
-                bool orderChanged = false;
-                for (int i = 0; i < reorderedSteps.Count; i++)
+                bool orderChanged = reorderedSteps.Count != Steps.Count;
+                if (!orderChanged)
                 {
-                    if (reorderedSteps[i].Index != Steps[i].Index)
+                    for (int i = 0; i < reorderedSteps.Count; i++)
                     {
-                        orderChanged = true;
-                        break;
+                        if (reorderedSteps[i].Index != Steps[i].Index)
+                        {
+                            orderChanged = true;
+                            break;
+                        }
                     }
                 }
 

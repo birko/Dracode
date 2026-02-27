@@ -1030,7 +1030,8 @@ You are working on a task that is part of a larger project. Below is the project
 
                 // Inject checkpoint reminder every N iterations (P1 self-reflection)
                 var checkpointInterval = Agent.Options.CheckpointInterval;
-                if (checkpointInterval > 0 && stepIterationCount > 1 && stepIterationCount % checkpointInterval == 0)
+                if (checkpointInterval > 0 && stepIterationCount > 1 && stepIterationCount % checkpointInterval == 0
+                    && currentStepIndex < ImplementationPlan.Steps.Count)
                 {
                     var currentStep = ImplementationPlan.Steps[currentStepIndex];
                     var checkpointPrompt = $@"
@@ -1114,26 +1115,32 @@ If step is complete, call `update_plan_step` with status 'completed'.
                                     // Reset counter and start next step
                                     stepIterationCount = 0;
                                     currentStepIndex = newStepIndex;
-                                    
-                                    if (currentStepIndex < ImplementationPlan.Steps.Count)
-                                    {
-                                        var nextStep = ImplementationPlan.Steps[currentStepIndex];
-                                        nextStep.Start();
-
-                                        _logger?.LogInformation(
-                                            "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}\n" +
-                                            "  Files to create: {FilesToCreate}\n" +
-                                            "  Files to modify: {FilesToModify}",
-                                            nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title,
-                                            nextStep.FilesToCreate.Count > 0 ? string.Join(", ", nextStep.FilesToCreate) : "none",
-                                            nextStep.FilesToModify.Count > 0 ? string.Join(", ", nextStep.FilesToModify) : "none");
-                                    }
 
                                     // Save conversation checkpoint after step completion
                                     if (planService != null && !string.IsNullOrEmpty(ProjectId))
                                     {
                                         await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
                                     }
+
+                                    if (currentStepIndex >= ImplementationPlan.Steps.Count)
+                                    {
+                                        // All steps complete - exit the loop
+                                        _logger?.LogInformation(
+                                            "✅ All {TotalSteps} steps completed for Kobold {KoboldId}",
+                                            ImplementationPlan.Steps.Count, Id.ToString()[..8]);
+                                        return conversation;
+                                    }
+
+                                    var nextStep = ImplementationPlan.Steps[currentStepIndex];
+                                    nextStep.Start();
+
+                                    _logger?.LogInformation(
+                                        "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}\n" +
+                                        "  Files to create: {FilesToCreate}\n" +
+                                        "  Files to modify: {FilesToModify}",
+                                        nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title,
+                                        nextStep.FilesToCreate.Count > 0 ? string.Join(", ", nextStep.FilesToCreate) : "none",
+                                        nextStep.FilesToModify.Count > 0 ? string.Join(", ", nextStep.FilesToModify) : "none");
                                 }
                             }
 
@@ -1194,15 +1201,21 @@ If step is complete, call `update_plan_step` with status 'completed'.
                                     stepIterationCount = 0;
                                     currentStepIndex = ImplementationPlan.CurrentStepIndex;
 
-                                    if (currentStepIndex < ImplementationPlan.Steps.Count)
+                                    if (currentStepIndex >= ImplementationPlan.Steps.Count)
                                     {
-                                        var nextStep = ImplementationPlan.Steps[currentStepIndex];
-                                        nextStep.Start();
-
+                                        // All steps complete - exit the loop
                                         _logger?.LogInformation(
-                                            "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}",
-                                            nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title);
+                                            "✅ All {TotalSteps} steps completed for Kobold {KoboldId}",
+                                            ImplementationPlan.Steps.Count, Id.ToString()[..8]);
+                                        return conversation;
                                     }
+
+                                    var nextStep = ImplementationPlan.Steps[currentStepIndex];
+                                    nextStep.Start();
+
+                                    _logger?.LogInformation(
+                                        "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}",
+                                        nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title);
                                 }
                             }
                         }
