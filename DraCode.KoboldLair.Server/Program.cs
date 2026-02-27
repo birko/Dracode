@@ -50,7 +50,8 @@ builder.Services.AddSingleton<KoboldPlanService>(sp =>
     var logger = sp.GetRequiredService<ILogger<KoboldPlanService>>();
     var projectRepository = sp.GetRequiredService<ProjectRepository>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    return new KoboldPlanService(config.ProjectsPath ?? "./projects", logger, projectRepository);
+    var debounceIntervalMs = config.Planning?.PlanSaveDebounceIntervalMs ?? 2500;
+    return new KoboldPlanService(config.ProjectsPath ?? "./projects", logger, projectRepository, debounceIntervalMs);
 });
 
 // Register shared planning context service for cross-agent coordination

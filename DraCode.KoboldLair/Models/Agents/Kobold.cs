@@ -541,7 +541,7 @@ You are working on a task that is part of a larger project. Below is the project
                     ImplementationPlan.AddLogEntry($"Kobold {Id.ToString()[..8]} started working");
                     if (planService != null && !string.IsNullOrEmpty(ProjectId))
                     {
-                        await planService.SavePlanAsync(ImplementationPlan);
+                        await planService.SavePlanDebouncedAsync(ImplementationPlan);
                     }
                 }
 
@@ -738,7 +738,7 @@ You are working on a task that is part of a larger project. Below is the project
                 ImplementationPlan.AddLogEntry($"Kobold {Id.ToString()[..8]} started working (enhanced mode)");
                 if (planService != null && !string.IsNullOrEmpty(ProjectId))
                 {
-                    await planService.SavePlanAsync(ImplementationPlan);
+                    await planService.SavePlanDebouncedAsync(ImplementationPlan);
                 }
 
                 // Calculate step-aware max iterations
@@ -937,7 +937,7 @@ You are working on a task that is part of a larger project. Below is the project
                     if (planService != null && !string.IsNullOrEmpty(ProjectId))
                     {
                         ImplementationPlan.AddLogEntry($"Graceful shutdown at iteration {iteration}, step {currentStepIndex + 1}");
-                        await planService.SavePlanAsync(ImplementationPlan);
+                        await planService.SavePlanDebouncedAsync(ImplementationPlan);
                         await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
                         _logger?.LogInformation(
                             "Plan and conversation saved for Kobold {KoboldId} (step {StepIndex}/{TotalSteps})",
@@ -1106,10 +1106,10 @@ If step is complete, call `update_plan_step` with status 'completed'.
                                     
                                     ImplementationPlan.CurrentStepIndex++;
                                     ImplementationPlan.AddLogEntry($"Auto-advanced from step {currentStep.Index} after validation passed");
-                                    
+
                                     if (planService != null && !string.IsNullOrEmpty(ProjectId))
                                     {
-                                        await planService.SavePlanAsync(ImplementationPlan);
+                                        await planService.SavePlanDebouncedAsync(ImplementationPlan);
                                         await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
                                     }
 
@@ -1852,7 +1852,8 @@ If step is complete, call `update_plan_step` with status 'completed'.
 
             if (planService != null && !string.IsNullOrEmpty(ProjectId))
             {
-                await planService.SavePlanAsync(ImplementationPlan);
+                // Flush to ensure final state is saved immediately (bypasses debouncing)
+                await planService.FlushPlanAsync(ProjectId, ImplementationPlan.TaskId);
             }
         }
 

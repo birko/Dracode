@@ -704,13 +704,28 @@ Important for reliability but workarounds exist. Improves system quality.
 
 ### From Phase F - Performance Optimizations
 
-- [ ] **Debounced Plan Step Writes** - `UpdatePlanStepTool.cs`
-  - Apply Drake's debouncing pattern to Kobold plan updates
-  - Add Channel-based write queue with configurable delay (2-3 seconds)
-  - Coalesce rapid plan step updates from parallel Kobolds
-  - Expected impact: Reduce filesystem writes during active Kobold execution
+- [x] **Debounced Plan Step Writes** - `UpdatePlanStepTool.cs` ✅ COMPLETED (2026-02-27)
+  - Applied Drake's debouncing pattern to Kobold plan updates
+  - Added Channel-based write queue with configurable delay (default: 2.5 seconds)
+  - Coalesces rapid plan step updates from parallel Kobolds
+  - Expected impact: Significant reduction in filesystem writes during active Kobold execution
   - Similar to Drake optimization that achieved 50x I/O reduction
-  - **Effort**: Medium (~2-3 days)
+  - **Implementation Details**:
+    - Added `PlanSaveQueue` nested class to `KoboldPlanService` for per-plan debouncing
+    - `SavePlanDebouncedAsync()` method for non-blocking plan saves
+    - `FlushPlanAsync()` for immediate save when plan completes
+    - Configuration via `Planning:PlanSaveDebounceIntervalMs` in appsettings.json
+    - `KoboldPlanService` now implements `IDisposable` for cleanup
+    - Updated `UpdatePlanStepTool` to use debounced saves
+    - Updated `Kobold.cs` to use debounced saves and flush on completion
+  - **Files Modified**:
+    - `DraCode.KoboldLair/Services/KoboldPlanService.cs` - Core debouncing logic
+    - `DraCode.KoboldLair/Agents/Tools/UpdatePlanStepTool.cs` - Use debounced saves
+    - `DraCode.KoboldLair/Models/Agents/Kobold.cs` - Use debounced saves + flush
+    - `DraCode.KoboldLair/Models/Configuration/KoboldLairConfiguration.cs` - Config property
+    - `DraCode.KoboldLair.Server/appsettings.json` - Default config value
+    - `DraCode.KoboldLair.Server/Program.cs` - DI registration with config
+  - **Effort**: Completed (~4 hours)
 
 ### From Phase I - Tracking & Visibility
 

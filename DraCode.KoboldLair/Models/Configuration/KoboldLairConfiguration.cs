@@ -148,6 +148,14 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// (default: true)
         /// </summary>
         public bool FilterFilesByPlan { get; set; } = true;
+
+        /// <summary>
+        /// Debounce interval in milliseconds for saving plan updates.
+        /// Rapid plan updates within this window are coalesced into a single write operation.
+        /// This significantly reduces I/O during parallel Kobold execution.
+        /// (default: 2500ms = 2.5 seconds)
+        /// </summary>
+        public int PlanSaveDebounceIntervalMs { get; set; } = 2500;
     }
 
     /// <summary>

@@ -3,8 +3,10 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using DraCode.Agent;
 using DraCode.KoboldLair.Models.Agents;
+using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Services
 {
@@ -12,8 +14,9 @@ namespace DraCode.KoboldLair.Services
     /// Service for managing Kobold implementation plans.
     /// Handles persistence of plans to both JSON (for machine reading) and Markdown (for human reading).
     /// Plans are stored in {ProjectOutputPath}/kobold-plans/ with human-readable filenames.
+    /// Features debounced writes to reduce I/O during parallel Kobold execution.
     /// </summary>
-    public class KoboldPlanService
+    public class KoboldPlanService : IDisposable
     {
         private readonly string _projectsPath;
         private readonly ProjectRepository? _projectRepository;
@@ -21,14 +24,25 @@ namespace DraCode.KoboldLair.Services
         private readonly JsonSerializerOptions _jsonOptions;
         private readonly SemaphoreSlim _indexLock = new SemaphoreSlim(1, 1);
 
+        // Debouncing state: keyed by plan identifier (projectId_taskId)
+        private readonly Dictionary<string, PlanSaveQueue> _saveQueues = new();
+        private readonly object _saveQueuesLock = new();
+
         private const string IndexFileName = "plan-index.json";
         private const int MaxFilenameDescriptionLength = 40;
+        private const int DefaultDebounceIntervalMs = 2500; // 2.5 seconds to coalesce rapid updates
+        private readonly int _debounceIntervalMs;
 
-        public KoboldPlanService(string projectsPath, ILogger<KoboldPlanService>? logger = null, ProjectRepository? projectRepository = null)
+        public KoboldPlanService(
+            string projectsPath,
+            ILogger<KoboldPlanService>? logger = null,
+            ProjectRepository? projectRepository = null,
+            int debounceIntervalMs = DefaultDebounceIntervalMs)
         {
             _projectsPath = projectsPath;
             _projectRepository = projectRepository;
             _logger = logger;
+            _debounceIntervalMs = debounceIntervalMs;
             _jsonOptions = new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -701,17 +715,241 @@ namespace DraCode.KoboldLair.Services
                 }
 
                 File.Delete(checkpointPath);
-                
+
                 _logger?.LogDebug(
                     "Deleted conversation checkpoint for task {TaskId} (file: {Filename})",
                     taskId[..Math.Min(8, taskId.Length)], Path.GetFileName(checkpointPath));
-                
+
                 return true;
             }
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "Failed to delete conversation checkpoint for task {TaskId}", taskId);
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Saves a plan with debouncing to coalesce rapid writes.
+        /// This is the preferred method for saving plans during Kobold execution.
+        /// </summary>
+        public async Task SavePlanDebouncedAsync(KoboldImplementationPlan plan)
+        {
+            if (string.IsNullOrEmpty(plan.ProjectId) || string.IsNullOrEmpty(plan.TaskId))
+            {
+                throw new ArgumentException("Plan must have ProjectId and TaskId set");
+            }
+
+            var planKey = GetPlanKey(plan.ProjectId, plan.TaskId);
+
+            // Get or create save queue for this plan
+            PlanSaveQueue queue;
+            lock (_saveQueuesLock)
+            {
+                if (!_saveQueues.TryGetValue(planKey, out queue!))
+                {
+                    queue = new PlanSaveQueue(planKey, this, _logger, _debounceIntervalMs);
+                    _saveQueues[planKey] = queue;
+                }
+            }
+
+            // Queue the save (non-blocking, drops if already queued)
+            queue.EnqueueSave(plan);
+        }
+
+        /// <summary>
+        /// Immediately flushes any pending saves for a specific plan.
+        /// Call this when a plan completes or when you need to ensure persistence.
+        /// </summary>
+        public async Task FlushPlanAsync(string projectId, string taskId)
+        {
+            var planKey = GetPlanKey(projectId, taskId);
+
+            PlanSaveQueue? queue;
+            lock (_saveQueuesLock)
+            {
+                _saveQueues.TryGetValue(planKey, out queue);
+            }
+
+            if (queue != null)
+            {
+                await queue.FlushAsync();
+            }
+        }
+
+        /// <summary>
+        /// Internal method to perform the actual save operation.
+        /// Called by PlanSaveQueue after debouncing.
+        /// </summary>
+        internal async Task PerformSaveAsync(KoboldImplementationPlan plan)
+        {
+            await SavePlanAsync(plan);
+        }
+
+        private static string GetPlanKey(string projectId, string taskId) => $"{projectId}_{taskId}";
+
+        /// <summary>
+        /// Disposes resources used by the service, flushing any pending saves.
+        /// </summary>
+        public void Dispose()
+        {
+            List<PlanSaveQueue> queuesToDispose;
+            lock (_saveQueuesLock)
+            {
+                queuesToDispose = _saveQueues.Values.ToList();
+                _saveQueues.Clear();
+            }
+
+            // Flush all pending saves before disposal
+            foreach (var queue in queuesToDispose)
+            {
+                queue.Dispose();
+            }
+
+            _indexLock.Dispose();
+        }
+
+        /// <summary>
+        /// Manages a debounced save queue for a single plan.
+        /// Coalesces rapid save requests into a single write operation.
+        /// Similar to Drake's debouncing pattern for task files.
+        /// </summary>
+        private class PlanSaveQueue : IDisposable
+        {
+            private readonly string _planKey;
+            private readonly KoboldPlanService _service;
+            private readonly ILogger? _logger;
+            private readonly int _debounceIntervalMs;
+            private readonly Channel<KoboldImplementationPlan> _saveChannel;
+            private readonly CancellationTokenSource _cts;
+            private Task? _processingTask;
+            private KoboldImplementationPlan? _latestPlan;
+
+            public PlanSaveQueue(
+                string planKey,
+                KoboldPlanService service,
+                ILogger? logger,
+                int debounceIntervalMs)
+            {
+                _planKey = planKey;
+                _service = service;
+                _logger = logger;
+                _debounceIntervalMs = debounceIntervalMs;
+                _saveChannel = Channel.CreateBounded<KoboldImplementationPlan>(new BoundedChannelOptions(1)
+                {
+                    FullMode = BoundedChannelFullMode.DropWrite // Drop if already queued (coalesce)
+                });
+                _cts = new CancellationTokenSource();
+                _processingTask = ProcessSaveQueueAsync(_cts.Token);
+            }
+
+            /// <summary>
+            /// Queues a plan for saving (non-blocking, coalesces with pending saves).
+            /// </summary>
+            public void EnqueueSave(KoboldImplementationPlan plan)
+            {
+                // Store the latest plan state
+                _latestPlan = plan;
+
+                // Try to queue a save (non-blocking, drops if already queued)
+                _saveChannel.Writer.TryWrite(plan);
+            }
+
+            /// <summary>
+            /// Background task that processes save requests with debouncing.
+            /// </summary>
+            private async Task ProcessSaveQueueAsync(CancellationToken cancellationToken)
+            {
+                try
+                {
+                    while (!cancellationToken.IsCancellationRequested &&
+                           await _saveChannel.Reader.WaitToReadAsync(cancellationToken))
+                    {
+                        // Drain any pending requests (coalesce)
+                        while (_saveChannel.Reader.TryRead(out var plan))
+                        {
+                            _latestPlan = plan;
+                        }
+
+                        // Wait for debounce interval to allow more writes to coalesce
+                        await Task.Delay(_debounceIntervalMs, cancellationToken);
+
+                        // Drain again in case more came in during the delay
+                        while (_saveChannel.Reader.TryRead(out var plan))
+                        {
+                            _latestPlan = plan;
+                        }
+
+                        // Perform the actual save with the latest plan state
+                        if (_latestPlan != null && !cancellationToken.IsCancellationRequested)
+                        {
+                            try
+                            {
+                                await _service.PerformSaveAsync(_latestPlan);
+                                _logger?.LogDebug(
+                                    "Debounced save completed for plan {PlanKey} (task {TaskId})",
+                                    _planKey[..Math.Min(20, _planKey.Length)],
+                                    _latestPlan.TaskId[..Math.Min(8, _latestPlan.TaskId.Length)]);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogWarning(ex, "Failed to save plan {PlanKey}", _planKey[..Math.Min(20, _planKey.Length)]);
+                            }
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected during disposal
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Error processing save queue for plan {PlanKey}", _planKey[..Math.Min(20, _planKey.Length)]);
+                }
+            }
+
+            /// <summary>
+            /// Immediately flushes any pending save for this plan.
+            /// </summary>
+            public async Task FlushAsync()
+            {
+                // Cancel the background task
+                _cts.Cancel();
+
+                // Wait for processing to complete (with timeout)
+                if (_processingTask != null)
+                {
+                    var completedTask = await Task.WhenAny(_processingTask, Task.Delay(5000));
+                    if (completedTask != _processingTask)
+                    {
+                        _logger?.LogWarning("Timeout waiting for save queue to complete for plan {PlanKey}", _planKey[..Math.Min(20, _planKey.Length)]);
+                    }
+                }
+
+                // Perform final save if there's a pending plan
+                if (_latestPlan != null)
+                {
+                    try
+                    {
+                        await _service.PerformSaveAsync(_latestPlan);
+                        _logger?.LogDebug(
+                            "Flush completed for plan {PlanKey} (task {TaskId})",
+                            _planKey[..Math.Min(20, _planKey.Length)],
+                            _latestPlan.TaskId[..Math.Min(8, _latestPlan.TaskId.Length)]);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to flush save for plan {PlanKey}", _planKey[..Math.Min(20, _planKey.Length)]);
+                    }
+                }
+            }
+
+            public void Dispose()
+            {
+                _cts.Cancel();
+                _processingTask?.Wait(1000); // Wait up to 1 second for graceful shutdown
+                _cts.Dispose();
+                _saveChannel.Writer.TryComplete();
             }
         }
     }

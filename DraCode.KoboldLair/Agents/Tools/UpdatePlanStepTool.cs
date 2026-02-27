@@ -218,17 +218,28 @@ Returns: Confirmation of the update with current plan progress.";
                             _currentPlan.CurrentStepIndex + 1, _currentPlan.Steps.Count, DateTime.UtcNow);
                     }
 
-                    // Save the plan (using async internally for non-blocking I/O)
+                    // Save the plan using debounced write to coalesce rapid updates from parallel Kobolds
                     if (_planService != null && !string.IsNullOrEmpty(_currentPlan.ProjectId))
                     {
                         try
                         {
-                            _planService.SavePlanAsync(_currentPlan).GetAwaiter().GetResult();
+                            // Use debounced save (non-blocking, coalesces writes)
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    await _planService.SavePlanDebouncedAsync(_currentPlan);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger?.LogWarning(ex, "Failed to enqueue plan save at {Timestamp:o}", DateTime.UtcNow);
+                                }
+                            });
                         }
                         catch (Exception ex)
                         {
                             // Log but don't fail - the in-memory state is still updated
-                            _logger?.LogWarning(ex, "Failed to save plan update at {Timestamp:o}", DateTime.UtcNow);
+                            _logger?.LogWarning(ex, "Failed to enqueue plan save at {Timestamp:o}", DateTime.UtcNow);
                         }
                     }
 
