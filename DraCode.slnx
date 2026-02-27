@@ -8,4 +8,5 @@
   <Project Path="DraCode.Web/DraCode.Web.csproj" />
   <Project Path="DraCode.WebSocket/DraCode.WebSocket.csproj" />
   <Project Path="DraCode/DraCode.csproj" />
+  <Project Path="DraCode.Agent.Tests/DraCode.Agent.Tests.csproj" />
 </Solution>

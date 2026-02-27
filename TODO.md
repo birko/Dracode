@@ -1,7 +1,7 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-26 - Database Migration Plan added**
+**Last updated: 2026-02-27 - Unit Tests for All Tools completed**
 
 ---
 
@@ -220,10 +220,18 @@ All critical blocking operations and race conditions have been resolved as of 20
 
 ### From Phase B - Testing & Quality
 
-- [ ] **Unit Tests for All Tools** - `DraCode.Agent/Tools/`
-  - Add tests for all 7 built-in tools
-  - Mock file system and command execution
-  - Effort: Medium (~1 week)
+- [x] **Unit Tests for All Tools** - `DraCode.Agent/Tools/` ✅ COMPLETED (2026-02-27)
+  - Created test project `DraCode.Agent.Tests` with xUnit + FluentAssertions
+  - 144 passing tests covering all 10 built-in tools:
+    - ListFiles, ReadFile, WriteFile, AppendToFile, EditFile
+    - SearchCode, RunCommand, AskUser, DisplayText
+    - PathHelper (security tests)
+  - Mock file system with temp workspaces
+  - Cross-platform compatible (Windows/Unix paths)
+  - Tests added to solution: `DraCode.slnx`
+  - **Location**: `DraCode.Agent.Tests/`
+  - **Coverage**: Name/Description validation, Execute behavior, error handling, edge cases
+  - **Effort**: Completed
 
 - [ ] **Rate Limiting** - Agent/Providers
   - Per-provider quota enforcement
