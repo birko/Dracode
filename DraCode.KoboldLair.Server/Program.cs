@@ -311,19 +311,19 @@ app.UseWebSockets(webSocketOptions);
 
 // WebSocket endpoint for Wyvern (project analysis) with authentication using Birko.Communication
 app.MapWebSocket("/wyvern", async (webSocket, context) =>
-        {
-        var wyrmService = context.RequestServices.GetRequiredService<WyrmService>();
-        await wyrmService.HandleWebSocketAsync(webSocket);
+{
+    var wyrmService = context.RequestServices.GetRequiredService<WyrmService>();
+    await wyrmService.HandleWebSocketAsync(webSocket);
 }, requireAuthentication: true);
 
 // WebSocket endpoint for Dragon (requirements gathering) with authentication using Birko.Communication
 app.MapWebSocket("/dragon", async (webSocket, context) =>
 {
-        // Extract sessionId from query string for session resumption
-        var sessionId = context.Request.Query["sessionId"].FirstOrDefault();
+    // Extract sessionId from query string for session resumption
+    var sessionId = context.Request.Query["sessionId"].FirstOrDefault();
 
-        var dragonService = context.RequestServices.GetRequiredService<DragonService>();
-        await dragonService.HandleWebSocketAsync(webSocket, sessionId);
+    var dragonService = context.RequestServices.GetRequiredService<DragonService>();
+    await dragonService.HandleWebSocketAsync(webSocket, sessionId);
 }, requireAuthentication: true);
 
 // Health check endpoint

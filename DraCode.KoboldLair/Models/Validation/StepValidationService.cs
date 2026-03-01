@@ -19,7 +19,8 @@ namespace DraCode.KoboldLair.Models.Validation
             _validators = new List<IStepValidator>
             {
                 new FileCreationValidator(),
-                new FileModificationValidator()
+                new FileModificationValidator(),
+                new ContentExpectationValidator()
             };
             _logger = logger;
         }

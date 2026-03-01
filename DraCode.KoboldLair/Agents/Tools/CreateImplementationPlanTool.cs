@@ -64,6 +64,12 @@ Returns: Confirmation of the created plan with summary.";
                                 type = "array",
                                 items = new { type = "string" },
                                 description = "File paths that will be modified in this step"
+                            },
+                            expected_content = new
+                            {
+                                type = "array",
+                                items = new { type = "string" },
+                                description = "Key identifiers/strings that must appear in the output files after this step (e.g. function names, class names, CSS selectors)"
                             }
                         },
                         required = new[] { "title", "description" }
@@ -141,7 +147,8 @@ The plan is ready for execution. Each step will be processed in order.";
                             Title = GetStringProperty(stepElement, "title") ?? $"Step {index - 1}",
                             Description = GetStringProperty(stepElement, "description") ?? "",
                             FilesToCreate = GetStringArrayProperty(stepElement, "files_to_create"),
-                            FilesToModify = GetStringArrayProperty(stepElement, "files_to_modify")
+                            FilesToModify = GetStringArrayProperty(stepElement, "files_to_modify"),
+                            ExpectedContent = GetStringArrayProperty(stepElement, "expected_content")
                         };
                         steps.Add(step);
                     }
@@ -161,7 +168,8 @@ The plan is ready for execution. Each step will be processed in order.";
                             Title = dict.TryGetValue("title", out var t) ? t?.ToString() ?? "" : "",
                             Description = dict.TryGetValue("description", out var d) ? d?.ToString() ?? "" : "",
                             FilesToCreate = ParseStringList(dict, "files_to_create"),
-                            FilesToModify = ParseStringList(dict, "files_to_modify")
+                            FilesToModify = ParseStringList(dict, "files_to_modify"),
+                            ExpectedContent = ParseStringList(dict, "expected_content")
                         };
                         steps.Add(step);
                     }

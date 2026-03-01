@@ -1,5 +1,6 @@
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Factories;
+using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
 using System.Text.Json;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
@@ -91,10 +92,11 @@ Examples:
         {
             var allProjects = _projectService.GetAllProjects();
             var failedTasks = new List<(string ProjectName, string ProjectId, string TaskId, string Description, string? ErrorMessage)>();
+            var seenTaskIds = new HashSet<string>();
 
             foreach (var project in allProjects)
             {
-                // Get all Drakes for this project
+                // Try Drakes first (in-memory, available when server has been running)
                 var drakes = _drakeFactory.GetDrakesForProject(project.Id);
 
                 foreach (var (drake, drakeName) in drakes)
@@ -103,9 +105,9 @@ Examples:
 
                     foreach (var task in tasks)
                     {
-                        // Try to get Kobold error message
+                        seenTaskIds.Add(task.Id);
                         var kobold = drake.GetKoboldForTask(task.Id);
-                        var errorMsg = kobold?.ErrorMessage ?? task.Task;
+                        var errorMsg = kobold?.ErrorMessage ?? task.ErrorMessage;
 
                         failedTasks.Add((
                             project.Name,
@@ -114,6 +116,30 @@ Examples:
                             task.Task,
                             errorMsg
                         ));
+                    }
+                }
+
+                // Fall back to file access if no Drakes found (e.g., after server restart)
+                if (drakes.Count == 0)
+                {
+                    foreach (var (area, filePath) in project.Paths.TaskFiles)
+                    {
+                        var tracker = new TaskTracker();
+                        tracker.LoadFromFile(filePath);
+
+                        foreach (var task in tracker.GetAllTasks().Where(t => t.Status == TaskStatus.Failed))
+                        {
+                            if (seenTaskIds.Add(task.Id))
+                            {
+                                failedTasks.Add((
+                                    project.Name,
+                                    project.Id,
+                                    task.Id,
+                                    task.Task,
+                                    task.ErrorMessage
+                                ));
+                            }
+                        }
                     }
                 }
             }
@@ -169,6 +195,7 @@ Examples:
 
             foreach (var project in allProjects)
             {
+                // Try Drakes first (in-memory)
                 var drakes = _drakeFactory.GetDrakesForProject(project.Id);
 
                 foreach (var (drake, drakeName) in drakes)
@@ -201,9 +228,54 @@ Examples:
                                $"Task: {task.Task}";
                     }
                 }
+
+                // Fall back to file access if no Drakes found
+                if (drakes.Count == 0)
+                {
+                    var result = RetryTaskFromFile(project, taskId);
+                    if (result != null)
+                    {
+                        return result;
+                    }
+                }
             }
 
             return $"❌ Task {taskId[..Math.Min(8, taskId.Length)]} not found in any project";
+        }
+
+        /// <summary>
+        /// Attempts to retry a task by loading it directly from task files on disk.
+        /// Used as fallback when no Drakes are in memory (e.g., after server restart).
+        /// </summary>
+        private string? RetryTaskFromFile(Models.Projects.Project project, string taskId)
+        {
+            foreach (var (area, filePath) in project.Paths.TaskFiles)
+            {
+                var tracker = new TaskTracker();
+                tracker.LoadFromFile(filePath);
+
+                var task = tracker.GetTaskById(taskId);
+                if (task == null) continue;
+
+                if (task.Status != TaskStatus.Failed)
+                {
+                    return $"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is not in Failed status (current: {task.Status})";
+                }
+
+                // Reset task to Unassigned and clear error state
+                tracker.UpdateTask(task, TaskStatus.Unassigned);
+                tracker.ClearError(task);
+
+                // Save both JSON and markdown
+                tracker.SaveToFile(filePath);
+
+                return $"✅ Task {taskId[..Math.Min(8, taskId.Length)]} has been reset to Unassigned status and will be retried.\n" +
+                       $"Project: {project.Name}\n" +
+                       $"Task: {task.Task}\n" +
+                       $"(Reset via file - task will be picked up when Drake starts)";
+            }
+
+            return null;
         }
 
         private string RetryAllProjectTasks(Dictionary<string, object> arguments)
@@ -226,36 +298,53 @@ Examples:
             }
 
             var drakes = _drakeFactory.GetDrakesForProject(projectId);
-            if (drakes.Count == 0)
-            {
-                return $"⚠️ No Drakes found for project {project.Name}";
-            }
-
             var retriedCount = 0;
 
-            foreach (var (drake, drakeName) in drakes)
+            if (drakes.Count > 0)
             {
-                var failedTasks = drake.GetAllTasks().Where(t => t.Status == TaskStatus.Failed).ToList();
-
-                foreach (var task in failedTasks)
+                // Use in-memory Drakes
+                foreach (var (drake, drakeName) in drakes)
                 {
-                    // Reset task to Unassigned
-                    drake.UpdateTask(task, TaskStatus.Unassigned);
+                    var failedTasks = drake.GetAllTasks().Where(t => t.Status == TaskStatus.Failed).ToList();
 
-                    // Unsummon the failed kobold
-                    var kobold = drake.GetKoboldForTask(task.Id);
-                    if (kobold != null)
+                    foreach (var task in failedTasks)
                     {
-                        drake.UnsummonKobold(kobold.Id);
+                        drake.UpdateTask(task, TaskStatus.Unassigned);
+
+                        var kobold = drake.GetKoboldForTask(task.Id);
+                        if (kobold != null)
+                        {
+                            drake.UnsummonKobold(kobold.Id);
+                        }
+
+                        retriedCount++;
                     }
 
-                    retriedCount++;
+                    if (failedTasks.Count > 0)
+                    {
+                        drake.UpdateTasksFile();
+                    }
                 }
-
-                // Save tasks to file if any were retried
-                if (failedTasks.Count > 0)
+            }
+            else
+            {
+                // Fall back to file access (e.g., after server restart)
+                foreach (var (area, filePath) in project.Paths.TaskFiles)
                 {
-                    drake.UpdateTasksFile();
+                    var tracker = new TaskTracker();
+                    tracker.LoadFromFile(filePath);
+
+                    var failedTasks = tracker.GetAllTasks().Where(t => t.Status == TaskStatus.Failed).ToList();
+                    if (failedTasks.Count == 0) continue;
+
+                    foreach (var task in failedTasks)
+                    {
+                        tracker.UpdateTask(task, TaskStatus.Unassigned);
+                        tracker.ClearError(task);
+                        retriedCount++;
+                    }
+
+                    tracker.SaveToFile(filePath);
                 }
             }
 
@@ -264,8 +353,11 @@ Examples:
                 return $"✅ No failed tasks found in project {project.Name}";
             }
 
-            return $"✅ Reset {retriedCount} failed task(s) to Unassigned status in project {project.Name}.\n" +
-                   $"Tasks will be retried on the next Drake execution cycle.";
+            var suffix = drakes.Count == 0
+                ? "Tasks will be picked up when Drake starts."
+                : "Tasks will be retried on the next Drake execution cycle.";
+
+            return $"✅ Reset {retriedCount} failed task(s) to Unassigned status in project {project.Name}.\n{suffix}";
         }
     }
 }

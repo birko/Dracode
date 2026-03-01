@@ -478,6 +478,14 @@ namespace DraCode.KoboldLair.Models.Agents
         public string? ErrorCategory { get; set; }
 
         /// <summary>
+        /// Key identifiers/strings expected in output files after this step completes.
+        /// Used by ContentExpectationValidator during auto-advancement to verify
+        /// the step's work was actually done (not just that files were touched).
+        /// Populated by KoboldPlannerAgent. Example: ["GetUserById", "async Task&lt;User&gt;"]
+        /// </summary>
+        public List<string> ExpectedContent { get; set; } = new();
+
+        /// <summary>
         /// Phase 3: Step execution metrics for telemetry
         /// </summary>
         public StepExecutionMetrics Metrics { get; set; } = new();

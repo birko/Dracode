@@ -106,6 +106,7 @@ complete, regardless of priority.";
 
                 foreach (var project in allProjects)
                 {
+                    // Try Drakes first (in-memory)
                     var drakes = _drakeFactory.GetDrakesForProject(project.Id);
 
                     foreach (var (drake, drakeName) in drakes)
@@ -114,7 +115,6 @@ complete, regardless of priority.";
 
                         if (task != null)
                         {
-                            // Check if task is already complete
                             if (task.Status == TaskStatus.Done)
                             {
                                 return $"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is already completed. Cannot change priority.";
@@ -123,25 +123,19 @@ complete, regardless of priority.";
                             var oldPriority = task.Priority;
                             task.Priority = priority.Value;
 
-                            // Save tasks to file to persist the change
                             drake.UpdateTasksFile();
 
-                            var priorityIcon = priority.Value switch
-                            {
-                                TaskPriority.Critical => "🔴",
-                                TaskPriority.High => "🟠",
-                                TaskPriority.Normal => "🟡",
-                                TaskPriority.Low => "🟢",
-                                _ => "⚪"
-                            };
+                            return FormatSuccess(project.Name, taskId, task.Task, oldPriority, priority.Value, task.Status);
+                        }
+                    }
 
-                            return $"✅ Task priority updated successfully\n" +
-                                   $"Project: {project.Name}\n" +
-                                   $"Task ID: {taskId[..Math.Min(8, taskId.Length)]}\n" +
-                                   $"Task: {task.Task}\n" +
-                                   $"Priority: {oldPriority} → {priorityIcon} {priority.Value}\n" +
-                                   $"Status: {task.Status}\n\n" +
-                                   $"The task will be scheduled according to its new priority on the next execution cycle.";
+                    // Fall back to file access if no Drakes found (e.g., after server restart)
+                    if (drakes.Count == 0)
+                    {
+                        var result = SetPriorityFromFile(project, taskId, priority.Value);
+                        if (result != null)
+                        {
+                            return result;
                         }
                     }
                 }
@@ -152,6 +146,60 @@ complete, regardless of priority.";
             {
                 return $"Error: {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// Sets task priority by loading directly from task files on disk.
+        /// Used as fallback when no Drakes are in memory (e.g., after server restart).
+        /// </summary>
+        private string? SetPriorityFromFile(Models.Projects.Project project, string taskId, TaskPriority priority)
+        {
+            foreach (var (area, filePath) in project.Paths.TaskFiles)
+            {
+                var tracker = new TaskTracker();
+                tracker.LoadFromFile(filePath);
+
+                var task = tracker.GetTaskById(taskId);
+                if (task == null) continue;
+
+                if (task.Status == TaskStatus.Done)
+                {
+                    return $"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is already completed. Cannot change priority.";
+                }
+
+                var oldPriority = task.Priority;
+                task.Priority = priority;
+
+                tracker.SaveToFile(filePath);
+
+                return FormatSuccess(project.Name, taskId, task.Task, oldPriority, priority, task.Status,
+                    "(Updated via file - change will take effect when Drake starts)");
+            }
+
+            return null;
+        }
+
+        private static string FormatSuccess(string projectName, string taskId, string taskDescription,
+            TaskPriority oldPriority, TaskPriority newPriority, TaskStatus status, string? suffix = null)
+        {
+            var priorityIcon = newPriority switch
+            {
+                TaskPriority.Critical => "🔴",
+                TaskPriority.High => "🟠",
+                TaskPriority.Normal => "🟡",
+                TaskPriority.Low => "🟢",
+                _ => "⚪"
+            };
+
+            var result = $"✅ Task priority updated successfully\n" +
+                         $"Project: {projectName}\n" +
+                         $"Task ID: {taskId[..Math.Min(8, taskId.Length)]}\n" +
+                         $"Task: {taskDescription}\n" +
+                         $"Priority: {oldPriority} → {priorityIcon} {newPriority}\n" +
+                         $"Status: {status}\n\n" +
+                         (suffix ?? "The task will be scheduled according to its new priority on the next execution cycle.");
+
+            return result;
         }
     }
 }

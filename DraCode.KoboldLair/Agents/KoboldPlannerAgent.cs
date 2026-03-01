@@ -63,6 +63,15 @@ Planning guidelines:
 - If step B depends on step A, A must come before B
 - Consider compile-time and runtime dependencies
 
+**Expected Content (for validation):**
+- Include `expected_content` for each step: key identifiers that MUST appear in the output files
+- These verify the step was actually completed, not just that files were touched
+- Include: function/method names, class names, key HTML elements, CSS selectors, import statements
+- Example: Step ""Add GetUserById method"" → expected_content: [""GetUserById"", ""async Task<User>""]
+- Example: Step ""Create navigation bar"" → expected_content: [""<nav"", ""navbar""]
+- Keep entries short (identifiers, not full code lines)
+- 2-5 entries per step is ideal
+
 **Naming:**
 - Use clear, descriptive step titles
 - Titles should be action-oriented (""Create"", ""Implement"", ""Add"", ""Configure"")
