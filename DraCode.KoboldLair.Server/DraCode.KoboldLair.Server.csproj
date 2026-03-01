@@ -11,4 +11,8 @@
     <ProjectReference Include="..\DraCode.ServiceDefaults\DraCode.ServiceDefaults.csproj" />
   </ItemGroup>
 
+  <Import Project="..\..\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
+
+  <Import Project="..\..\Birko.Communication\Birko.Communication.projitems" Label="Shared" />
+
 </Project>

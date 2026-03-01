@@ -1,8 +1,9 @@
+using Birko.Communication.WebSocket.Middleware;
+using Birko.Communication.WebSocket.Services;
 using DraCode.Agent;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Services;
-using DraCode.KoboldLair.Server.Models.Configuration;
 using DraCode.KoboldLair.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,11 +14,9 @@ builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, relo
 // Add services
 builder.AddServiceDefaults();
 
-// Bind Authentication configuration
-builder.Services.Configure<AuthenticationConfiguration>(
+// Register Birko.Communication authentication service
+builder.Services.Configure<WebSocketAuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication"));
-
-// Register authentication service
 builder.Services.AddSingleton<WebSocketAuthenticationService>();
 
 // Configure KoboldLair settings (providers, defaults, limits - all in one place)
@@ -310,66 +309,22 @@ var webSocketOptions = new WebSocketOptions
 };
 app.UseWebSockets(webSocketOptions);
 
-// WebSocket endpoint for Wyvern (project analysis) with authentication
-app.Map("/wyvern", async context =>
-{
-    if (context.WebSockets.IsWebSocketRequest)
-    {
-        var authService = context.RequestServices.GetRequiredService<WebSocketAuthenticationService>();
-
-        // Extract token and client IP
-        var token = authService.ExtractTokenFromQuery(context);
-        var clientIp = authService.GetClientIpAddress(context);
-
-        // Validate authentication token with IP binding
-        if (!authService.ValidateToken(token, clientIp))
+// WebSocket endpoint for Wyvern (project analysis) with authentication using Birko.Communication
+app.MapWebSocket("/wyvern", async (webSocket, context) =>
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsync("Unauthorized: Invalid or missing authentication token, or IP address not allowed");
-            return;
-        }
-
         var wyrmService = context.RequestServices.GetRequiredService<WyrmService>();
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         await wyrmService.HandleWebSocketAsync(webSocket);
-    }
-    else
-    {
-        context.Response.StatusCode = 400;
-    }
-});
+}, requireAuthentication: true);
 
-// WebSocket endpoint for Dragon (requirements gathering) with authentication
-app.Map("/dragon", async context =>
+// WebSocket endpoint for Dragon (requirements gathering) with authentication using Birko.Communication
+app.MapWebSocket("/dragon", async (webSocket, context) =>
 {
-    if (context.WebSockets.IsWebSocketRequest)
-    {
-        var authService = context.RequestServices.GetRequiredService<WebSocketAuthenticationService>();
-
-        // Extract token and client IP
-        var token = authService.ExtractTokenFromQuery(context);
-        var clientIp = authService.GetClientIpAddress(context);
-
-        // Validate authentication token with IP binding
-        if (!authService.ValidateToken(token, clientIp))
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsync("Unauthorized: Invalid or missing authentication token, or IP address not allowed");
-            return;
-        }
-
         // Extract sessionId from query string for session resumption
         var sessionId = context.Request.Query["sessionId"].FirstOrDefault();
 
         var dragonService = context.RequestServices.GetRequiredService<DragonService>();
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         await dragonService.HandleWebSocketAsync(webSocket, sessionId);
-    }
-    else
-    {
-        context.Response.StatusCode = 400;
-    }
-});
+}, requireAuthentication: true);
 
 // Health check endpoint
 app.MapGet("/", () => new { status = "running", endpoints = new[] { "/wyvern", "/dragon" } });

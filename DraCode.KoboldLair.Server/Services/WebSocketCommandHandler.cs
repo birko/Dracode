@@ -1,13 +1,11 @@
-using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
 using DraCode.KoboldLair.Factories;
-using DraCode.KoboldLair.Server.Models.Configuration;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Server.Models.WebSocket;
-using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -513,7 +511,7 @@ namespace DraCode.KoboldLair.Server.Services
             if (data == null) throw new ArgumentNullException(nameof(data));
 
             var projectId = data.Value.GetProperty("projectId").GetString();
-            
+
             // Note: We don't delete the project, just reset its configuration to defaults
             var project = _projectRepository.GetById(projectId!);
             if (project == null)
@@ -543,7 +541,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             var projectId = data.Value.GetProperty("projectId").GetString();
             var agentType = data.Value.GetProperty("agentType").GetString();
-            
+
             var agentConfig = _projectRepository.GetAgentConfig(projectId!, agentType!);
             if (agentConfig == null)
             {

@@ -1,3 +1,5 @@
+using Birko.Communication.WebSocket.Middleware;
+using Birko.Communication.WebSocket.Services;
 using DraCode.WebSocket.Models;
 using DraCode.WebSocket.Services;
 
@@ -10,12 +12,12 @@ builder.AddServiceDefaults();
 builder.Services.Configure<AgentConfiguration>(
     builder.Configuration.GetSection("Agent"));
 
-// Bind Authentication configuration from appsettings.json
-builder.Services.Configure<AuthenticationConfiguration>(
-    builder.Configuration.GetSection("Authentication"));
-
 // Add services to the container
 builder.Services.AddSingleton<AgentConnectionManager>();
+
+// Use Birko.Communication WebSocket authentication service
+builder.Services.Configure<WebSocketAuthenticationConfiguration>(
+    builder.Configuration.GetSection("Authentication"));
 builder.Services.AddSingleton<WebSocketAuthenticationService>();
 
 // Add CORS for web client
@@ -40,36 +42,13 @@ app.UseCors();
 // Enable WebSockets
 app.UseWebSockets();
 
-// WebSocket endpoint
-app.Map("/ws", async context =>
+// WebSocket endpoint using Birko.Communication middleware
+app.MapWebSocket("/ws", async (webSocket, context) =>
 {
-    if (context.WebSockets.IsWebSocketRequest)
-    {
-        var authService = context.RequestServices.GetRequiredService<WebSocketAuthenticationService>();
-        
-        // Extract token and client IP
-        var token = authService.ExtractTokenFromQuery(context);
-        var clientIp = authService.GetClientIpAddress(context);
-        
-        // Validate authentication token with IP binding
-        if (!authService.ValidateToken(token, clientIp))
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsync("Unauthorized: Invalid or missing authentication token, or IP address not allowed");
-            return;
-        }
-        
-        var connectionId = Guid.NewGuid().ToString();
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-        
-        var manager = context.RequestServices.GetRequiredService<AgentConnectionManager>();
-        await manager.HandleWebSocketAsync(webSocket, connectionId);
-    }
-    else
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-    }
-});
+    var connectionId = Guid.NewGuid().ToString();
+    var manager = context.RequestServices.GetRequiredService<AgentConnectionManager>();
+    await manager.HandleWebSocketAsync(webSocket, connectionId);
+}, requireAuthentication: true);
 
 // Health check endpoint
 app.MapGet("/", () => new { status = "running", endpoint = "/ws" });
