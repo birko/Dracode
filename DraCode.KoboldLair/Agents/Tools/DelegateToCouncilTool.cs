@@ -8,6 +8,7 @@ namespace DraCode.KoboldLair.Agents.Tools
     public class DelegateToCouncilTool : Tool
     {
         private readonly Func<string, string, Task<string>>? _delegateToSubAgent;
+        private Action<string, string>? _statusCallback;
 
         /// <summary>
         /// Creates a new DelegateToCouncilTool
@@ -16,6 +17,22 @@ namespace DraCode.KoboldLair.Agents.Tools
         public DelegateToCouncilTool(Func<string, string, Task<string>>? delegateToSubAgent)
         {
             _delegateToSubAgent = delegateToSubAgent;
+        }
+
+        /// <summary>
+        /// Sets a callback for status updates during delegation
+        /// </summary>
+        public void SetStatusCallback(Action<string, string>? callback)
+        {
+            _statusCallback = callback;
+        }
+
+        /// <summary>
+        /// Sends a status update if callback is set
+        /// </summary>
+        private void SendStatus(string councilMember, string statusType)
+        {
+            _statusCallback?.Invoke(councilMember, statusType);
         }
 
         public override string Name => "delegate_to_council";
@@ -71,14 +88,22 @@ namespace DraCode.KoboldLair.Agents.Tools
                 return "Error: Delegation service not available.";
             }
 
+            // Send status update before delegating
+            SendStatus(councilMember!, "delegating");
+
             // Execute async delegation (using async internally for non-blocking I/O)
             try
             {
                 var result = _delegateToSubAgent(councilMember, task).GetAwaiter().GetResult();
+
+                // Send status update after completion
+                SendStatus(councilMember!, "complete");
+
                 return result;
             }
             catch (Exception ex)
             {
+                SendStatus(councilMember!, "error");
                 return $"Error delegating to {councilMember}: {ex.Message}";
             }
         }

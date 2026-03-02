@@ -16,6 +16,7 @@ namespace DraCode.KoboldLair.Agents
         private List<Message> _conversationHistory = new();
         private readonly Func<List<ProjectInfo>>? _getProjects;
         private readonly Func<string, string, Task<string>>? _delegateToCouncil;
+        private Action<string, string>? _statusCallback;
 
         protected override string SystemPrompt => GetDragonSystemPrompt();
 
@@ -37,6 +38,22 @@ namespace DraCode.KoboldLair.Agents
             _delegateToCouncil = delegateToCouncil;
             // Rebuild tools now that our fields are set (base constructor called CreateTools before these were assigned)
             RebuildTools();
+        }
+
+        /// <summary>
+        /// Sets a callback for status updates during processing
+        /// </summary>
+        public void SetStatusCallback(Action<string, string>? callback)
+        {
+            _statusCallback = callback;
+        }
+
+        /// <summary>
+        /// Sends a status update if callback is set
+        /// </summary>
+        private void SendStatus(string statusType, string message)
+        {
+            _statusCallback?.Invoke(statusType, message);
         }
 
         /// <summary>
@@ -152,18 +169,37 @@ Remember: You're the conductor of an orchestra. Each council member is a special
         /// <summary>
         /// Continues the conversation with user input
         /// </summary>
-        public async Task<string> ContinueSessionAsync(string userMessage)
+        public async Task<string> ContinueSessionAsync(string userMessage, Action<string, string>? statusCallback = null)
         {
-            var messages = await ContinueAsync(_conversationHistory, userMessage, maxIterations: 25);
-            _conversationHistory = messages;
-
-            var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
-            if (lastMessage?.Content == null)
+            // Set temporary status callback for this request
+            if (statusCallback != null)
             {
-                return "I understand. Please continue...";
+                _statusCallback = statusCallback;
             }
 
-            return ExtractTextFromContent(lastMessage.Content);
+            try
+            {
+                SendStatus("thinking", "Processing your request...");
+
+                var messages = await ContinueAsync(_conversationHistory, userMessage, maxIterations: 25);
+                _conversationHistory = messages;
+
+                var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
+                if (lastMessage?.Content == null)
+                {
+                    return "I understand. Please continue...";
+                }
+
+                return ExtractTextFromContent(lastMessage.Content);
+            }
+            finally
+            {
+                // Clear temporary callback
+                if (statusCallback != null)
+                {
+                    _statusCallback = null;
+                }
+            }
         }
 
         /// <summary>

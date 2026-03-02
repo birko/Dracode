@@ -149,6 +149,9 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
         private readonly int _maxMessageHistory = 100;
 
+        // Request queue for non-blocking Dragon execution
+        private readonly DragonRequestQueue _requestQueue;
+
         // Cache for specification file enumeration to avoid frequent filesystem calls
         private List<string>? _specFilesCache;
         private DateTime _specFilesCacheTime = DateTime.MinValue;
@@ -164,7 +167,8 @@ namespace DraCode.KoboldLair.Server.Services
             GitService gitService,
             KoboldLairConfiguration config,
             KoboldFactory? koboldFactory = null,
-            DrakeFactory? drakeFactory = null)
+            DrakeFactory? drakeFactory = null,
+            int maxConcurrentDragonRequests = 5)
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
@@ -177,7 +181,31 @@ namespace DraCode.KoboldLair.Server.Services
             _drakeFactory = drakeFactory;
             _projectsPath = config.ProjectsPath ?? "./projects";
 
+            // Initialize the request queue for non-blocking execution
+            _requestQueue = new DragonRequestQueue(logger, maxConcurrentDragonRequests);
+
             _cleanupTimer = new Timer(CleanupExpiredSessions, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+        }
+
+        /// <summary>
+        /// Gets statistics about the Dragon service and request queue
+        /// </summary>
+        public DragonServiceStatistics GetStatistics()
+        {
+            return new DragonServiceStatistics
+            {
+                ActiveSessions = _sessions.Count,
+                QueueStatistics = _requestQueue.GetStatistics()
+            };
+        }
+
+        /// <summary>
+        /// Statistics for the Dragon service
+        /// </summary>
+        public class DragonServiceStatistics
+        {
+            public int ActiveSessions { get; init; }
+            public QueueStatistics QueueStatistics { get; init; } = new();
         }
 
         private void CleanupExpiredSessions(object? state)
@@ -202,6 +230,7 @@ namespace DraCode.KoboldLair.Server.Services
             if (!_disposed)
             {
                 _cleanupTimer.Dispose();
+                _requestQueue?.Dispose();
                 _disposed = true;
             }
         }
@@ -780,53 +809,43 @@ namespace DraCode.KoboldLair.Server.Services
 
                 await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId }, session.Sender);
 
-                // Reset streaming flag before processing
-                session.StreamingResponseSent = false;
+                // Create a request for non-blocking processing
+                var requestId = Guid.NewGuid().ToString();
+                var cts = new CancellationTokenSource();
 
-                var response = await session.Dragon!.ContinueSessionAsync(message.Message);
-                _logger.LogInformation("[Dragon] Response: {Response}", response);
-
-                // Always send the final message through the reliable awaited path
-                // The isStreamed flag tells the client whether streaming chunks were sent
-                // (so it can finalize the streaming element instead of creating a new one)
-                _logger.LogDebug("[Dragon] Sending response (isStreamed={IsStreamed})", session.StreamingResponseSent);
-                await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                var dragonRequest = new DraCode.KoboldLair.Server.Models.Dragon.DragonRequest
                 {
-                    type = "dragon_message",
-                    sessionId,
-                    message = response,
-                    timestamp = DateTime.UtcNow,
-                    isStreamed = session.StreamingResponseSent
-                });
+                    RequestId = requestId,
+                    SessionId = sessionId,
+                    Message = message.Message!,
+                    WebSocket = webSocket,
+                    Sender = session.Sender!,
+                    CancellationTokenSource = cts,
+                    QueuedAt = DateTime.UtcNow,
+                    Dragon = session.Dragon!
+                };
 
-                // Reset Dragon context if project was switched
-                if (session.PendingContextReset)
+                // Set up status callback to send progress updates via WebSocket
+                dragonRequest.StatusCallback = async (statusType, statusMessage) =>
                 {
-                    session.PendingContextReset = false;
-                    session.Dragon!.ClearConversationHistory();
-                    // Keep only the project switch exchange so Dragon has minimal context
-                    session.Dragon!.RestoreContext(new[]
-                    {
-                        ("user", message.Message!),
-                        ("assistant", response)
-                    });
-                    _logger.LogInformation("[Dragon] Context reset after project switch. Kept last exchange only.");
-                }
-
-                // Check for new specifications
-                await CheckForNewSpecifications(webSocket, session);
-            }
-            catch (HttpRequestException ex)
+                    if (webSocket.State == WebSocketState.Open)
             {
-                _logger.LogError(ex, "HTTP error communicating with LLM provider");
-                await SendTrackedMessageAsync(webSocket, session, "error", new
+                        await SendMessageAsync(webSocket, new
                 {
-                    type = "error",
-                    errorType = "llm_connection",
+                            type = "dragon_status",
+                            requestId,
                     sessionId,
-                    message = $"Failed to connect to LLM provider: {ex.Message}",
+                            statusType,
+                            message = statusMessage,
                     timestamp = DateTime.UtcNow
-                });
+                        }, session.Sender);
+                    }
+                };
+
+                // Enqueue for async processing (non-blocking)
+                await _requestQueue.EnqueueAsync(dragonRequest);
+
+                _logger.LogDebug("Dragon request enqueued: {RequestId}", requestId);
             }
             catch (Exception ex)
             {

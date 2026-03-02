@@ -39,6 +39,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProjectRepository _projectRepository;
         private readonly DrakeFactory _drakeFactory;
         private readonly WyvernFactory _wyvernFactory;
+        private readonly DragonRequestQueue _dragonRequestQueue;
 
         public WebSocketCommandHandler(
             ILogger<WebSocketCommandHandler> logger,
@@ -47,7 +48,8 @@ namespace DraCode.KoboldLair.Server.Services
             ProviderConfigurationService providerConfigService,
             ProjectRepository projectRepository,
             DrakeFactory drakeFactory,
-            WyvernFactory wyvernFactory)
+            WyvernFactory wyvernFactory,
+            DragonRequestQueue? dragonRequestQueue = null)
         {
             _logger = logger;
             _projectService = projectService;
@@ -56,6 +58,7 @@ namespace DraCode.KoboldLair.Server.Services
             _projectRepository = projectRepository;
             _drakeFactory = drakeFactory;
             _wyvernFactory = wyvernFactory;
+            _dragonRequestQueue = dragonRequestQueue ?? throw new ArgumentNullException(nameof(dragonRequestQueue));
         }
 
         public async Task HandleCommandAsync(WebSocket webSocket, string messageText)
@@ -95,6 +98,7 @@ namespace DraCode.KoboldLair.Server.Services
                     "get_agent_config" => await GetAgentConfigAsync(message.Data),
                     "update_agent_config" => await UpdateAgentConfigAsync(message.Data),
                     "retry_analysis" => await RetryAnalysisAsync(message.Data),
+                    "cancel_dragon_request" => await CancelDragonRequestAsync(message.Data),
                     _ => throw new InvalidOperationException($"Unknown command: {message.Command}")
                 };
 
@@ -107,14 +111,55 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
+        /// <summary>
+        /// Gets multiple data sources in parallel for better performance
+        /// </summary>
+        private async Task<object> GetMultipleParallelAsync(params Func<Task<object>>[] tasks)
+        {
+            var results = await Task.WhenAll(tasks.Select(f => f()));
+            return new { results };
+        }
+
         private async Task<object> GetHierarchyAsync()
         {
-            var projects = _projectService.GetAllProjects();
-            var stats = _projectService.GetStatistics();
-            var dragonStats = _dragonService.GetStatistics();
+            // Parallel execution of independent data fetches
+            var projectsTask = Task.Run(() => _projectService.GetAllProjects());
+            var statsTask = Task.Run(() => _projectService.GetStatistics());
+            var dragonStatsTask = Task.Run(() => _dragonService.GetStatistics());
+            await Task.WhenAll(projectsTask, statsTask, dragonStatsTask);
+            var projects = projectsTask.Result;
+            var stats = statsTask.Result;
+            var dragonStats = dragonStatsTask.Result;
+
             var drakes = _drakeFactory.GetAllDrakes();
             var totalKobolds = drakes.Sum(d => d.GetStatistics().WorkingKobolds);
             var TotalWyverns = _wyvernFactory.TotalWyverns;
+
+            // Parallel project hierarchy processing
+            var projectTasks = projects
+                .Where(p => p.Tracking.WyvernId != null)
+                .Select(p => Task.Run(() =>
+                {
+                    var wyvern = _wyvernFactory.GetWyvern(p.Name);
+                    return new
+                    {
+                        id = p.Id,
+                        name = p.Name,
+                        icon = "📁",
+                        status = p.Status.ToString().ToLower(),
+                        wyvern = wyvern != null ? new
+                        {
+                            id = p.Tracking.WyvernId,
+                            name = $"wyvern ({p.Name})",
+                            icon = "🐲",
+                            status = p.Status == ProjectStatus.Analyzed ? "active" : "working",
+                            analyzed = p.Status >= ProjectStatus.Analyzed,
+                            totalTasks = wyvern.Analysis?.TotalTasks ?? 0
+                        } : (object?)null
+                    };
+                }));
+
+            var projectHierarchies = await Task.WhenAll(projectTasks);
 
             return new
             {
@@ -148,26 +193,7 @@ namespace DraCode.KoboldLair.Server.Services
                         status = dragonStats.ActiveSessions > 0 ? "active" : "idle",
                         activeSessions = dragonStats.ActiveSessions
                     },
-                    projects = projects.Where(p => p.Tracking.WyvernId != null).Select(p =>
-                    {
-                        var wyvern = _wyvernFactory.GetWyvern(p.Name);
-                        return new
-                        {
-                            id = p.Id,
-                            name = p.Name,
-                            icon = "📁",
-                            status = p.Status.ToString().ToLower(),
-                            wyvern = wyvern != null ? new
-                            {
-                                id = p.Tracking.WyvernId,
-                                name = $"wyvern ({p.Name})",
-                                icon = "🐲",
-                                status = p.Status == ProjectStatus.Analyzed ? "active" : "working",
-                                analyzed = p.Status >= ProjectStatus.Analyzed,
-                                totalTasks = wyvern.Analysis?.TotalTasks ?? 0
-                            } : null
-                        };
-                    }).ToList()
+                    projects = projectHierarchies
                 }
             };
         }
@@ -599,6 +625,35 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             return new { success = true, message = "Analysis retry initiated. Project will be reprocessed shortly." };
+        }
+
+        /// <summary>
+        /// Cancels an active Dragon request for a session
+        /// </summary>
+        private async Task<object> CancelDragonRequestAsync(JsonElement? data)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+
+            var sessionId = data.Value.TryGetProperty("sessionId", out var sessionIdElement)
+                ? sessionIdElement.GetString()
+                : null;
+
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                throw new InvalidOperationException("sessionId is required for cancel_dragon_request");
+            }
+
+            var cancelled = await _dragonRequestQueue.CancelSessionRequestAsync(sessionId!);
+
+            return new
+            {
+                success = cancelled,
+                message = cancelled
+                    ? $"Dragon request for session {sessionId} has been cancelled"
+                    : $"No active request found for session {sessionId}",
+                sessionId,
+                timestamp = DateTime.UtcNow
+            };
         }
 
         private async Task SendResponseAsync(WebSocket webSocket, string? requestId, object? data)

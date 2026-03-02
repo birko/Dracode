@@ -118,8 +118,19 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext);
 });
 
-// Register services
-builder.Services.AddSingleton<WebSocketCommandHandler>();
+// Register services (DragonRequestQueue must be registered first)
+builder.Services.AddSingleton<WebSocketCommandHandler>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<WebSocketCommandHandler>>();
+    var projectService = sp.GetRequiredService<ProjectService>();
+    var dragonService = sp.GetRequiredService<DragonService>();
+    var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
+    var dragonRequestQueue = sp.GetRequiredService<DragonRequestQueue>();
+    return new WebSocketCommandHandler(logger, projectService, dragonService, providerConfigService, projectRepository, drakeFactory, wyvernFactory, dragonRequestQueue);
+});
 builder.Services.AddSingleton<WyrmService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<WyrmService>>();
@@ -128,6 +139,17 @@ builder.Services.AddSingleton<WyrmService>(sp =>
     var commandHandler = sp.GetRequiredService<WebSocketCommandHandler>();
     return new WyrmService(logger, providerConfigService, config, commandHandler);
 });
+
+// Register Dragon request queue before DragonService
+builder.Services.AddSingleton<DragonRequestQueue>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<DragonRequestQueue>>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var maxConcurrent = config.Limits?.MaxConcurrentDragonRequests ?? 5;
+    var timeout = config.Limits?.DragonRequestTimeoutSeconds ?? 300;
+    return new DragonRequestQueue(logger, maxConcurrent, timeout);
+});
+
 builder.Services.AddSingleton<DragonService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<DragonService>>();
@@ -138,7 +160,8 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var koboldFactory = sp.GetRequiredService<KoboldFactory>();
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    return new DragonService(logger, providerConfigService, projectConfigService, projectService, gitService, config, koboldFactory, drakeFactory);
+    var maxConcurrent = config.Limits?.MaxConcurrentDragonRequests ?? 5;
+    return new DragonService(logger, providerConfigService, projectConfigService, projectService, gitService, config, koboldFactory, drakeFactory, maxConcurrent);
 });
 
 // Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)

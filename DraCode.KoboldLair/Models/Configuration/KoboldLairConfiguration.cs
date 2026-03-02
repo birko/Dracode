@@ -57,6 +57,16 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Timeout in minutes before a working Kobold is considered stuck (default: 30)
         /// </summary>
         public int StuckKoboldTimeoutMinutes { get; set; } = 30;
+
+        /// <summary>
+        /// Maximum concurrent Dragon requests to process (default: 5)
+        /// </summary>
+        public int MaxConcurrentDragonRequests { get; set; } = 5;
+
+        /// <summary>
+        /// Timeout in seconds for Dragon request processing (default: 300 = 5 minutes)
+        /// </summary>
+        public int DragonRequestTimeoutSeconds { get; set; } = 300;
     }
 
     /// <summary>
