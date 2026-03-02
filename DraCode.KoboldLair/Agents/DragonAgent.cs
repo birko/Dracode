@@ -64,7 +64,9 @@ namespace DraCode.KoboldLair.Agents
             var tools = new List<Tool>
             {
                 new ListProjectsTool(_getProjects),
-                new DelegateToCouncilTool(_delegateToCouncil)
+                new DelegateToCouncilTool(_delegateToCouncil),
+                new ReadFile(),
+                new ListFiles()
             };
             return tools;
         }
@@ -93,6 +95,8 @@ When a project is approved, background agents take over:
   - Projects with 📁 indicator have external paths configured (shown at bottom)
   - External paths allow agents to access source code outside the workspace
 - **delegate_to_council**: Route specialized tasks to council members
+- **read_file**: Read the contents of a file in the workspace
+- **list_files**: List files and directories in the workspace
 
 ## External Paths 📁:
 - Projects can have external paths configured for accessing source code outside the workspace
@@ -243,6 +247,26 @@ Remember: You're the conductor of an orchestra. Each council member is a special
             {
                 _conversationHistory.Add(new Message { Role = role, Content = content });
             }
+        }
+
+        /// <summary>
+        /// Updates the project context (working directory and allowed external paths) for the current session.
+        /// This allows Dragon to access files in the project's workspace and any configured external paths.
+        /// </summary>
+        public void UpdateProjectContext(string? workingDirectory, List<string>? allowedExternalPaths = null)
+        {
+            if (!string.IsNullOrEmpty(workingDirectory))
+            {
+                Options.WorkingDirectory = workingDirectory;
+            }
+
+            if (allowedExternalPaths != null && allowedExternalPaths.Count > 0)
+            {
+                Options.AllowedExternalPaths = new List<string>(allowedExternalPaths);
+            }
+
+            // Rebuild tools to propagate the updated options
+            RebuildTools();
         }
     }
 }

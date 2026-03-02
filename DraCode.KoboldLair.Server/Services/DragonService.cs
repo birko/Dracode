@@ -528,12 +528,20 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     _projectConfigService.AddAllowedExternalPath(id, path);
                     _logger.LogInformation("External path added for {Project}: {Path}", id, path);
+
+                    // Update Dragon's context if this is the current session's project
+                    RefreshDragonContextForProject(session, id);
                 },
                 removeExternalPath: (id, path) =>
                 {
                     var removed = _projectConfigService.RemoveAllowedExternalPath(id, path);
                     if (removed)
+                    {
                         _logger.LogInformation("External path removed for {Project}: {Path}", id, path);
+
+                        // Update Dragon's context if this is the current session's project
+                        RefreshDragonContextForProject(session, id);
+                    }
                     return removed;
                 },
                 getExternalPaths: (id) => _projectConfigService.GetAllowedExternalPaths(id),
@@ -621,6 +629,28 @@ namespace DraCode.KoboldLair.Server.Services
             var isProjectSwitch = session.CurrentProjectFolder != null;
             session.CurrentProjectFolder = projectFolder;
 
+            // Update Dragon's context with project-specific paths
+            if (session.Dragon != null)
+            {
+                // Find the project to get its allowed external paths
+                var allProjects = _projectService.GetAllProjects();
+                var currentProject = allProjects.FirstOrDefault(p =>
+                    !string.IsNullOrEmpty(p.Paths.Output) &&
+                    string.Equals(p.Paths.Output, projectFolder, StringComparison.OrdinalIgnoreCase));
+
+                List<string>? allowedPaths = null;
+                if (currentProject != null)
+                {
+                    var config = _projectConfigService.GetProjectConfig(currentProject.Id);
+                    allowedPaths = config?.Security.AllowedExternalPaths.ToList();
+                }
+
+                // Update Dragon's working directory and allowed external paths
+                session.Dragon.UpdateProjectContext(projectFolder, allowedPaths);
+                _logger.LogDebug("Updated Dragon context: WorkingDir={Folder}, ExternalPaths={Count}",
+                    projectFolder, allowedPaths?.Count ?? 0);
+            }
+
             if (isProjectSwitch)
             {
                 // Switching between projects - reset Dragon context after response is sent
@@ -703,6 +733,41 @@ namespace DraCode.KoboldLair.Server.Services
                 return message?.ToString();
 
             return null;
+        }
+
+        /// <summary>
+        /// Refreshes Dragon's context when a project's external paths change.
+        /// Only updates if the modified project is the current session's project.
+        /// </summary>
+        private void RefreshDragonContextForProject(DragonSession session, string projectIdOrName)
+        {
+            if (session.Dragon == null || string.IsNullOrEmpty(session.CurrentProjectFolder))
+                return;
+
+            // Check if the modified project is the current session's project
+            var allProjects = _projectService.GetAllProjects();
+            var currentProject = allProjects.FirstOrDefault(p =>
+                !string.IsNullOrEmpty(p.Paths.Output) &&
+                string.Equals(p.Paths.Output, session.CurrentProjectFolder, StringComparison.OrdinalIgnoreCase));
+
+            if (currentProject == null)
+                return;
+
+            // Check if this update is for the current project (by ID or name)
+            var isCurrentProject = string.Equals(currentProject.Id, projectIdOrName, StringComparison.OrdinalIgnoreCase) ||
+                                  string.Equals(currentProject.Name, projectIdOrName, StringComparison.OrdinalIgnoreCase);
+
+            if (!isCurrentProject)
+                return;
+
+            // Get updated external paths
+            var config = _projectConfigService.GetProjectConfig(currentProject.Id);
+            var allowedPaths = config?.Security.AllowedExternalPaths.ToList();
+
+            // Update Dragon's context
+            session.Dragon.UpdateProjectContext(session.CurrentProjectFolder, allowedPaths);
+            _logger.LogDebug("Refreshed Dragon context for {Project}: {Count} external paths",
+                currentProject.Name, allowedPaths?.Count ?? 0);
         }
 
         /// <summary>
