@@ -1182,6 +1182,7 @@ namespace DraCode.KoboldLair.Orchestrators
             messageCallback?.Invoke("info", $"🐉 Drake summoned Kobold {kobold.Id.ToString()[..8]} for task {task.Id.ToString()[..8]}");
 
             List<Message> messages;
+            bool koboldRemovedByParallel = false;
 
             try
             {
@@ -1217,10 +1218,10 @@ namespace DraCode.KoboldLair.Orchestrators
 
                 // Start work (Kobold automatically manages its state transitions)
                 var projectInfo = kobold.ProjectId ?? _projectId ?? "unknown";
-                var taskPreview = kobold.TaskDescription?.Length > 80 
-                    ? kobold.TaskDescription.Substring(0, 80) + "..." 
+                var taskPreview = kobold.TaskDescription?.Length > 80
+                    ? kobold.TaskDescription.Substring(0, 80) + "..."
                     : kobold.TaskDescription ?? "unknown task";
-                messageCallback?.Invoke("info", 
+                messageCallback?.Invoke("info",
                     $"⚡ Kobold {kobold.Id.ToString()[..8]} started working\n" +
                     $"  Project: {projectInfo}\n" +
                     $"  Task ID: {task.Id.ToString()[..8]}\n" +
@@ -1246,6 +1247,7 @@ namespace DraCode.KoboldLair.Orchestrators
 
                         // Remove the initial Kobold (we'll create new ones for each batch)
                         _koboldFactory.RemoveKobold(kobold.Id);
+                        koboldRemovedByParallel = true;
 
                         // Use parallel execution
                         var analyzer = new Services.StepDependencyAnalyzer();
@@ -1284,7 +1286,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 // Check Kobold's final state
                 if (kobold.IsSuccess)
                 {
-                    messageCallback?.Invoke("success", 
+                    messageCallback?.Invoke("success",
                         $"✓ Kobold {kobold.Id.ToString()[..8]} completed task successfully\n" +
                         $"  Project: {projectInfo}\n" +
                         $"  Task ID: {task.Id.ToString()[..8]}\n" +
@@ -1292,7 +1294,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
                 else if (kobold.HasError)
                 {
-                    messageCallback?.Invoke("error", 
+                    messageCallback?.Invoke("error",
                         $"✗ Kobold {kobold.Id.ToString()[..8]} failed: {kobold.ErrorMessage}\n" +
                         $"  Project: {projectInfo}\n" +
                         $"  Task ID: {task.Id.ToString()[..8]}\n" +
@@ -1302,7 +1304,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 {
                     var completedCount = kobold.ImplementationPlan.CompletedStepsCount;
                     var totalCount = kobold.ImplementationPlan.Steps.Count;
-                    messageCallback?.Invoke("warning", 
+                    messageCallback?.Invoke("warning",
                         $"⚠ Kobold {kobold.Id.ToString()[..8]} reached iteration limit - work incomplete ({completedCount}/{totalCount} steps done)\n" +
                         $"  Project: {projectInfo}\n" +
                         $"  Task ID: {task.Id.ToString()[..8]}\n" +
@@ -1317,6 +1319,17 @@ namespace DraCode.KoboldLair.Orchestrators
                 // Sync status from Kobold (it should have captured the error)
                 await SyncTaskFromKoboldAsync(kobold);
                 throw;
+            }
+            finally
+            {
+                // Always unsummon the Kobold after execution completes (success, failure, or exception).
+                // This frees the parallel slot immediately instead of waiting for monitoring cleanup.
+                if (!koboldRemovedByParallel)
+                {
+                    UnsummonKobold(kobold.Id);
+                    _logger?.LogDebug("Unsummoned Kobold {KoboldId} after task {TaskId} execution",
+                        kobold.Id.ToString()[..8], task.Id.ToString()[..8]);
+                }
             }
 
             // Final sync of task status from Kobold

@@ -949,7 +949,9 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             var currentStepIndex = ImplementationPlan.CurrentStepIndex;
+            var resumeStepIndex = currentStepIndex; // Track where we started for stale checkpoint detection
             var stepIterationCount = 0;
+            var resumedFromCheckpoint = false;
 
             // Try to restore conversation from checkpoint if resuming
             List<Message> conversation;
@@ -959,6 +961,7 @@ You are working on a task that is part of a larger project. Below is the project
                 if (checkpoint != null)
                 {
                     conversation = KoboldPlanService.RestoreConversation(checkpoint);
+                    resumedFromCheckpoint = true;
                     // Append a resumption message so the LLM knows what happened
                     conversation.Add(new Message
                     {
@@ -1240,6 +1243,20 @@ If step is complete, call `update_plan_step` with status 'completed'.
                     case "NotConfigured":
                         // Error occurred - stop immediately
                         Agent.Provider.MessageCallback?.Invoke("error", "Error occurred during LLM request. Stopping.");
+
+                        // If we resumed from a checkpoint and made no progress, the checkpoint
+                        // content is likely causing the error (e.g., message format incompatible
+                        // with the provider). Delete the stale checkpoint so the next retry
+                        // starts fresh on this step instead of replaying the same bad conversation.
+                        if (resumedFromCheckpoint && currentStepIndex == resumeStepIndex
+                            && planService != null && !string.IsNullOrEmpty(ProjectId) && TaskId.HasValue)
+                        {
+                            _logger?.LogWarning(
+                                "Deleting stale conversation checkpoint for Kobold {KoboldId} - LLM error on resume with no progress (step {StepIndex})",
+                                Id.ToString()[..8], currentStepIndex + 1);
+                            await planService.DeleteConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
+                        }
+
                         return conversation;
 
                     default:

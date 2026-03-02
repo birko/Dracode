@@ -312,21 +312,21 @@ namespace DraCode.Agent.LLMs.Providers
             foreach (var m in messages)
             {
                 object? content = m.Content ?? "";
-                
+
                 // If content is a list of ContentBlocks, convert to OpenAI format
                 if (m.Content is IEnumerable<ContentBlock> blocks)
                 {
                     var blocksList = blocks.ToList();
                     var textBlocks = blocksList.Where(b => b.Type?.ToLowerInvariant() == "text").ToList();
                     var toolUseBlocks = blocksList.Where(b => b.Type?.ToLowerInvariant() == "tool_use").ToList();
-                    
+
                     // For assistant messages with tool_use blocks, convert to OpenAI tool_calls format
                     if (m.Role == "assistant" && toolUseBlocks.Any())
                     {
-                        var textContent = textBlocks.Any() && !string.IsNullOrEmpty(textBlocks[0].Text) 
-                            ? textBlocks[0].Text 
+                        var textContent = textBlocks.Any() && !string.IsNullOrEmpty(textBlocks[0].Text)
+                            ? textBlocks[0].Text
                             : null;
-                        
+
                         var toolCalls = toolUseBlocks.Select(b => new
                         {
                             id = b.Id,
@@ -337,15 +337,15 @@ namespace DraCode.Agent.LLMs.Providers
                                 arguments = System.Text.Json.JsonSerializer.Serialize(b.Input ?? new Dictionary<string, object>())
                             }
                         }).ToList();
-                        
+
                         list.Add(new { role = m.Role, content = textContent, tool_calls = toolCalls });
                         continue;
                     }
-                    
+
                     // For text-only blocks, extract text
                     if (textBlocks.Any())
                     {
-                        content = textBlocks.Count == 1 ? textBlocks[0].Text : 
+                        content = textBlocks.Count == 1 ? textBlocks[0].Text :
                             string.Join("\n", textBlocks.Select(b => b.Text));
                     }
                     else
@@ -359,7 +359,7 @@ namespace DraCode.Agent.LLMs.Providers
                     var objsList = objs.ToList();
                     var firstObj = objsList.First();
                     var firstObjType = firstObj.GetType();
-                    
+
                     // Check if these are tool_result objects
                     if (firstObjType.GetProperty("type") != null)
                     {
@@ -369,22 +369,123 @@ namespace DraCode.Agent.LLMs.Providers
                             var objType = obj.GetType();
                             var toolCallIdProp = objType.GetProperty("tool_use_id");
                             var contentProp = objType.GetProperty("content");
-                            
+
                             if (toolCallIdProp != null && contentProp != null)
                             {
                                 var toolCallId = toolCallIdProp.GetValue(obj)?.ToString();
                                 var toolContent = contentProp.GetValue(obj)?.ToString() ?? "";
-                                
+
                                 list.Add(new { role = "tool", tool_call_id = toolCallId, content = toolContent });
                             }
                         }
                         continue;
                     }
                 }
-                
+                // Handle JsonElement content (from restored conversation checkpoints).
+                // Checkpoints serialize Content as JsonElement which doesn't match the typed checks above.
+                else if (m.Content is JsonElement jsonContent)
+                {
+                    if (ConvertJsonElementMessage(list, m.Role ?? "user", jsonContent))
+                        continue;
+                    // If conversion handled everything (tool_results added as individual messages), skip default add
+                    // Otherwise fall through to add as simple content
+                    content = jsonContent.ValueKind == JsonValueKind.String
+                        ? jsonContent.GetString() ?? ""
+                        : (object)jsonContent.GetRawText();
+                }
+
                 list.Add(new { role = m.Role, content });
             }
             return list;
+        }
+
+        /// <summary>
+        /// Converts a JsonElement message content (from checkpoint restore) to OpenAI-compatible format.
+        /// Returns true if the message was fully handled (added to list), false if caller should add it.
+        /// </summary>
+        private static bool ConvertJsonElementMessage(List<object> list, string role, JsonElement jsonContent)
+        {
+            if (jsonContent.ValueKind != JsonValueKind.Array)
+                return false;
+
+            var textParts = new List<string>();
+            var toolCalls = new List<object>();
+            var toolResults = new List<(string? toolCallId, string content)>();
+
+            foreach (var element in jsonContent.EnumerateArray())
+            {
+                if (!element.TryGetProperty("type", out var typeProp))
+                    continue;
+
+                var type = typeProp.GetString()?.ToLowerInvariant();
+                switch (type)
+                {
+                    case "text":
+                        if (element.TryGetProperty("text", out var textProp))
+                            textParts.Add(textProp.GetString() ?? "");
+                        break;
+
+                    case "tool_use":
+                        var id = element.TryGetProperty("id", out var idProp)
+                            ? idProp.GetString() ?? $"call_{Guid.NewGuid():N}"
+                            : $"call_{Guid.NewGuid():N}";
+                        var name = element.TryGetProperty("name", out var nameProp)
+                            ? nameProp.GetString() ?? ""
+                            : "";
+                        var arguments = element.TryGetProperty("input", out var inputProp)
+                            ? inputProp.GetRawText()
+                            : "{}";
+                        toolCalls.Add(new
+                        {
+                            id,
+                            type = "function",
+                            function = new { name, arguments }
+                        });
+                        break;
+
+                    case "tool_result":
+                        var toolCallId = element.TryGetProperty("tool_use_id", out var toolIdProp)
+                            ? toolIdProp.GetString()
+                            : null;
+                        // tool_result content can be a string or an array of content blocks
+                        var resultContent = "";
+                        if (element.TryGetProperty("content", out var contentProp))
+                        {
+                            resultContent = contentProp.ValueKind == JsonValueKind.String
+                                ? contentProp.GetString() ?? ""
+                                : contentProp.GetRawText();
+                        }
+                        toolResults.Add((toolCallId, resultContent));
+                        break;
+                }
+            }
+
+            // Handle tool_result messages → each becomes a separate role="tool" message
+            if (toolResults.Count > 0)
+            {
+                foreach (var (toolCallId, resultContent) in toolResults)
+                {
+                    list.Add(new { role = "tool", tool_call_id = toolCallId, content = resultContent });
+                }
+                return true;
+            }
+
+            // Handle assistant messages with tool_use → OpenAI tool_calls format
+            if (toolCalls.Count > 0 && role == "assistant")
+            {
+                var textContent = textParts.Count > 0 ? string.Join("\n", textParts) : (string?)null;
+                list.Add(new { role, content = textContent, tool_calls = toolCalls });
+                return true;
+            }
+
+            // Handle text-only array content → flatten to string
+            if (textParts.Count > 0)
+            {
+                list.Add(new { role, content = string.Join("\n", textParts) });
+                return true;
+            }
+
+            return false;
         }
 
         protected static object BuildOpenAiStyleTools(IEnumerable<Tool> tools) => tools.Select(t => new

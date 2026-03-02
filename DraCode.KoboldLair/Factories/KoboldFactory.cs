@@ -186,6 +186,21 @@ namespace DraCode.KoboldLair.Factories
             var currentCount = GetActiveKoboldCountForProject(projectId);
             var maxAllowed = _getProjectMaxParallelKobolds(projectId);
 
+            if (currentCount >= maxAllowed)
+            {
+                var activeKobolds = _kobolds.Values
+                    .Where(k => k.ProjectId == projectId &&
+                               (k.Status == KoboldStatus.Assigned || k.Status == KoboldStatus.Working))
+                    .Select(k => $"{k.Id.ToString()[..8]}({k.Status},{k.AgentType})")
+                    .ToList();
+                var logger = _loggerFactory.CreateLogger<KoboldFactory>();
+                logger.LogWarning(
+                    "Kobold parallel limit reached for project {ProjectId}: {Current}/{Max} active. Kobolds: [{ActiveList}]. Total in registry: {Total}",
+                    projectId, currentCount, maxAllowed,
+                    activeKobolds.Count > 0 ? string.Join(", ", activeKobolds) : "none",
+                    _kobolds.Count);
+            }
+
             return currentCount < maxAllowed;
         }
 
