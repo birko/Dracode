@@ -82,7 +82,24 @@ namespace DraCode.KoboldLair.Agents.Tools
                             : $"{project.FeatureCount}")
                         : "0";
 
-                    result.AppendLine($"| {statusIcon} {project.Status} | {project.Name} | {execIcon} {project.ExecutionState} | {featuresDisplay} | {gitIcon} | {project.UpdatedAt:MM-dd HH:mm} |");
+                    // Show external paths indicator
+                    var pathsIndicator = project.AllowedExternalPaths.Count > 0 ? $" 📁{project.AllowedExternalPaths.Count}" : "";
+
+                    result.AppendLine($"| {statusIcon} {project.Status} | {project.Name}{pathsIndicator} | {execIcon} {project.ExecutionState} | {featuresDisplay} | {gitIcon} | {project.UpdatedAt:MM-dd HH:mm} |");
+                }
+
+                // Add notification if any projects have allowed external paths
+                var projectsWithExternalPaths = projects.Where(p => p.AllowedExternalPaths.Count > 0).ToList();
+                if (projectsWithExternalPaths.Any())
+                {
+                    result.AppendLine();
+                    result.AppendLine("**📁 External Paths Configured:**");
+                    result.AppendLine("The following projects have access to external directories:");
+                    foreach (var p in projectsWithExternalPaths)
+                    {
+                        var pathsList = string.Join(", ", p.AllowedExternalPaths.Select(path => $"`{path}`"));
+                        result.AppendLine($"- **{p.Name}**: {pathsList}");
+                    }
                 }
 
                 // Add notification if any projects have pending features

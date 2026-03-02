@@ -14,5 +14,9 @@ namespace DraCode.KoboldLair.Models.Projects
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public bool HasGitRepository { get; set; }
+        /// <summary>
+        /// External paths (outside workspace) that are accessible for this project
+        /// </summary>
+        public List<string> AllowedExternalPaths { get; set; } = new();
     }
 }

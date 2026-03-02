@@ -714,12 +714,41 @@ namespace DraCode.KoboldLair.Server.Services
 
             try
             {
+                // For Seeker, prepend current project context including allowed external paths
+                var enhancedTask = task;
+                if (councilMember.ToLowerInvariant() == "seeker" && !string.IsNullOrEmpty(session.CurrentProjectFolder))
+                {
+                    // Find the current project to get its allowed external paths
+                    var allProjects = _projectService.GetAllProjects();
+                    var currentProject = allProjects.FirstOrDefault(p =>
+                        !string.IsNullOrEmpty(p.Paths.Output) &&
+                        string.Equals(p.Paths.Output, session.CurrentProjectFolder, StringComparison.OrdinalIgnoreCase));
+
+                    if (currentProject != null)
+                    {
+                        var config = _projectConfigService.GetProjectConfig(currentProject.Id);
+                        var allowedPaths = config?.Security.AllowedExternalPaths.ToList() ?? new List<string>();
+
+                        if (allowedPaths.Count > 0)
+                        {
+                            var pathsList = string.Join("\n  - ", allowedPaths);
+                            enhancedTask = $"**Current Project Context:**\n" +
+                                $"Project: {currentProject.Name}\n" +
+                                $"Workspace: {session.CurrentProjectFolder}\n" +
+                                $"**Allowed External Paths** (you can scan these directories):\n" +
+                                $"  - {pathsList}\n\n" +
+                                $"**User Request:**\n{task}";
+                            _logger.LogDebug("[Dragon Council] Enhanced Seeker task with project context for {Project}", currentProject.Name);
+                        }
+                    }
+                }
+
                 return councilMember.ToLowerInvariant() switch
                 {
-                    "sage" => await session.Sage!.ProcessTaskAsync(task),
-                    "seeker" => await session.Seeker!.ProcessTaskAsync(task),
-                    "sentinel" => await session.Sentinel!.ProcessTaskAsync(task),
-                    "warden" => await session.Warden!.ProcessTaskAsync(task),
+                    "sage" => await session.Sage!.ProcessTaskAsync(enhancedTask),
+                    "seeker" => await session.Seeker!.ProcessTaskAsync(enhancedTask),
+                    "sentinel" => await session.Sentinel!.ProcessTaskAsync(enhancedTask),
+                    "warden" => await session.Warden!.ProcessTaskAsync(enhancedTask),
                     _ => $"Unknown council member: {councilMember}"
                 };
             }
@@ -1228,18 +1257,23 @@ namespace DraCode.KoboldLair.Server.Services
 
         private List<ProjectInfo> GetProjectInfoList()
         {
-            return _projectService.GetAllProjects().Select(p => new ProjectInfo
+            return _projectService.GetAllProjects().Select(p =>
             {
-                Id = p.Id,
-                Name = p.Name,
-                Status = p.Status.ToString(),
-                ExecutionState = p.ExecutionState.ToString(),
-                FeatureCount = GetFeatureCountForProject(p),
-                PendingFeatureCount = GetPendingFeatureCountForProject(p),
-                CreatedAt = p.Timestamps.CreatedAt,
-                UpdatedAt = p.Timestamps.UpdatedAt,
-                HasGitRepository = !string.IsNullOrEmpty(p.Paths.Output) &&
-                    _gitService.IsRepositoryAsync(p.Paths.Output).GetAwaiter().GetResult() // Sync wrapper for projection
+                var config = _projectConfigService.GetProjectConfig(p.Id);
+                return new ProjectInfo
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Status = p.Status.ToString(),
+                    ExecutionState = p.ExecutionState.ToString(),
+                    FeatureCount = GetFeatureCountForProject(p),
+                    PendingFeatureCount = GetPendingFeatureCountForProject(p),
+                    CreatedAt = p.Timestamps.CreatedAt,
+                    UpdatedAt = p.Timestamps.UpdatedAt,
+                    HasGitRepository = !string.IsNullOrEmpty(p.Paths.Output) &&
+                        _gitService.IsRepositoryAsync(p.Paths.Output).GetAwaiter().GetResult(), // Sync wrapper for projection
+                    AllowedExternalPaths = config?.Security.AllowedExternalPaths.ToList() ?? new List<string>()
+                };
             }).ToList();
         }
 
