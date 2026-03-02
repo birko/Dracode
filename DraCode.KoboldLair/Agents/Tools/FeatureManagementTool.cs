@@ -20,7 +20,8 @@ namespace DraCode.KoboldLair.Agents.Tools
         public override string Name => "manage_feature";
 
         public override string Description =>
-            "Manages features within specifications: create, update (only if status is New), or list features.";
+            "Manages features within specifications: create, update (only if status is Draft), or list features. " +
+            "Features are created as 'Draft' and must be marked as 'Ready' using process_features before Wyvern will process them.";
 
         public override object? InputSchema => new
         {
@@ -102,7 +103,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 Description = description,
                 Priority = priority,
                 SpecificationId = spec.Id,
-                Status = FeatureStatus.New
+                Status = FeatureStatus.Draft
             };
 
             spec.WithFeatures(features =>
@@ -110,11 +111,13 @@ namespace DraCode.KoboldLair.Agents.Tools
                 features.Add(feature);
                 spec.UpdatedAt = DateTime.UtcNow;
             });
-            
+
             SaveFeatures(spec);
 
             SendMessage("success", $"Feature created: {name}");
-            return $"✅ Feature '{name}' created with status 'New'\nID: {feature.Id}\nPriority: {priority}";
+            return $"✅ Feature '{name}' created with status 'Draft'\nID: {feature.Id}\nPriority: {priority}\n\n" +
+                   $"**⚠️ Next Step:** Use `process_features` to mark this feature as 'Ready' when you want it to be processed. " +
+                   $"Only 'Ready' features will be included when you update the specification.";
         }
 
         private string UpdateFeature(Specification spec, Dictionary<string, object> input)
@@ -125,7 +128,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
 
             var name = nameObj.ToString() ?? "";
-            
+
             string? result = null;
             spec.WithFeatures(features =>
             {
@@ -137,11 +140,18 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return;
                 }
 
-                if (feature.Status != FeatureStatus.New)
+                // Allow updating Draft and legacy New status features
+                if (feature.Status != FeatureStatus.Draft && feature.Status != FeatureStatus.New)
                 {
-                    result = $"❌ Cannot update feature '{name}': Status is '{feature.Status}'. Only features with status 'New' can be updated.\n" +
+                    result = $"❌ Cannot update feature '{name}': Status is '{feature.Status}'. Only features with status 'Draft' can be updated.\n" +
                            $"Create a new feature instead if you need to add more functionality.";
                     return;
+                }
+
+                // Migrate legacy New status to Draft
+                if (feature.Status == FeatureStatus.New)
+                {
+                    feature.Status = FeatureStatus.Draft;
                 }
 
                 if (input.TryGetValue("description", out var descObj))
@@ -170,7 +180,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         private string ListFeatures(Specification spec)
         {
             var features = spec.GetFeaturesCopy();
-            
+
             if (features.Count == 0)
             {
                 return $"No features in '{spec.Name}'";
@@ -183,16 +193,20 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             foreach (var feature in features.OrderBy(f => f.Status).ThenBy(f => f.Priority))
             {
-                var statusIcon = feature.Status switch
+                // Handle legacy New status as Draft for display
+                var displayStatus = feature.Status == Models.Tasks.FeatureStatus.New ? Models.Tasks.FeatureStatus.Draft : feature.Status;
+
+                var statusIcon = displayStatus switch
                 {
-                    Models.Tasks.FeatureStatus.New => "🆕",
+                    Models.Tasks.FeatureStatus.Draft => "📝",
+                    Models.Tasks.FeatureStatus.Ready => "✅",
                     Models.Tasks.FeatureStatus.AssignedToWyvern => "📋",
                     Models.Tasks.FeatureStatus.InProgress => "🔨",
-                    Models.Tasks.FeatureStatus.Completed => "✅",
+                    Models.Tasks.FeatureStatus.Completed => "🎉",
                     _ => "❓"
                 };
                 var desc = feature.Description.Length > 50 ? feature.Description[..47] + "..." : feature.Description;
-                result.AppendLine($"| {statusIcon} {feature.Status} | {feature.Priority} | {feature.Name} | {desc} |");
+                result.AppendLine($"| {statusIcon} {displayStatus} | {feature.Priority} | {feature.Name} | {desc} |");
             }
 
             return result.ToString();

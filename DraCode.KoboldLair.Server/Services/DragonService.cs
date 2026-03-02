@@ -829,15 +829,15 @@ namespace DraCode.KoboldLair.Server.Services
                 dragonRequest.StatusCallback = async (statusType, statusMessage) =>
                 {
                     if (webSocket.State == WebSocketState.Open)
-            {
+                    {
                         await SendMessageAsync(webSocket, new
-                {
+                        {
                             type = "dragon_status",
                             requestId,
-                    sessionId,
+                            sessionId,
                             statusType,
                             message = statusMessage,
-                    timestamp = DateTime.UtcNow
+                            timestamp = DateTime.UtcNow
                         }, session.Sender);
                     }
                 };
@@ -1235,6 +1235,7 @@ namespace DraCode.KoboldLair.Server.Services
                 Status = p.Status.ToString(),
                 ExecutionState = p.ExecutionState.ToString(),
                 FeatureCount = GetFeatureCountForProject(p),
+                PendingFeatureCount = GetPendingFeatureCountForProject(p),
                 CreatedAt = p.Timestamps.CreatedAt,
                 UpdatedAt = p.Timestamps.UpdatedAt,
                 HasGitRepository = !string.IsNullOrEmpty(p.Paths.Output) &&
@@ -1259,6 +1260,55 @@ namespace DraCode.KoboldLair.Server.Services
                 var json = File.ReadAllText(featuresPath);
                 var features = System.Text.Json.JsonSerializer.Deserialize<List<object>>(json);
                 return features?.Count ?? 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Gets the count of pending features (status: Draft or legacy New) for a project.
+        /// These are features that have been added but not yet marked Ready for Wyvern processing.
+        /// </summary>
+        private int GetPendingFeatureCountForProject(Project project)
+        {
+            if (string.IsNullOrEmpty(project.Paths.Output))
+                return 0;
+
+            try
+            {
+                var featuresPath = Path.Combine(project.Paths.Output, "specification.features.json");
+                if (!File.Exists(featuresPath))
+                    return 0;
+
+                var json = File.ReadAllText(featuresPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+                // Handle both wrapped format (with "features" property) and legacy format (direct array)
+                var featuresElement = doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && doc.RootElement.TryGetProperty("features", out var featsProp)
+                    ? featsProp
+                    : doc.RootElement;
+
+                if (featuresElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+                    return 0;
+
+                int pendingCount = 0;
+                foreach (var feature in featuresElement.EnumerateArray())
+                {
+                    if (feature.TryGetProperty("Status", out var statusProp) &&
+                        statusProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var status = statusProp.GetString();
+                        // Count Draft and legacy New as pending
+                        if (status == "Draft" || status == "New")
+                        {
+                            pendingCount++;
+                        }
+                    }
+                }
+
+                return pendingCount;
             }
             catch
             {
@@ -1400,21 +1450,6 @@ namespace DraCode.KoboldLair.Server.Services
             return info;
         }
 
-        public DragonStatistics GetStatistics()
-        {
-            var totalSpecs = 0;
-            if (Directory.Exists(_projectsPath))
-            {
-                totalSpecs = Directory.GetDirectories(_projectsPath)
-                    .Count(dir => File.Exists(Path.Combine(dir, "specification.md")));
-            }
-
-            return new DragonStatistics
-            {
-                ActiveSessions = _sessions.Count,
-                TotalSpecifications = totalSpecs
-            };
-        }
 
         /// <summary>
         /// Gets projects needing verification (AwaitingVerification or Failed verification)

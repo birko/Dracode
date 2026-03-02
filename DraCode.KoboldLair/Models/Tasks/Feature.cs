@@ -23,7 +23,7 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// <summary>
         /// Current status of the feature
         /// </summary>
-        public FeatureStatus Status { get; set; } = FeatureStatus.New;
+        public FeatureStatus Status { get; set; } = FeatureStatus.Draft;
 
         /// <summary>
         /// ID of the specification this feature belongs to

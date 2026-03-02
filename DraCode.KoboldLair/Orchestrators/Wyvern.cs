@@ -191,7 +191,8 @@ namespace DraCode.KoboldLair.Orchestrators
         public async Task<List<Feature>> GetNewFeaturesAsync(Specification specification)
         {
             _specification = specification;
-            return specification.Features.Where(f => f.Status == FeatureStatus.New).ToList();
+            // Process Ready features (and legacy New for backwards compatibility)
+            return specification.Features.Where(f => f.Status == FeatureStatus.Ready || f.Status == FeatureStatus.New).ToList();
         }
 
         /// <summary>
@@ -376,12 +377,16 @@ namespace DraCode.KoboldLair.Orchestrators
                 foreach (var feature in group)
                 {
                     var taskCount = feature.TaskIds.Count;
-                    var icon = group.Key switch
+                    // Handle legacy New status as Draft for display
+                    var displayStatus = group.Key == FeatureStatus.New ? FeatureStatus.Draft : group.Key;
+
+                    var icon = displayStatus switch
                     {
-                        FeatureStatus.New => "🆕",
+                        FeatureStatus.Draft => "📝",
+                        FeatureStatus.Ready => "✅",
                         FeatureStatus.AssignedToWyvern => "📋",
                         FeatureStatus.InProgress => "🔨",
-                        FeatureStatus.Completed => "✅",
+                        FeatureStatus.Completed => "🎉",
                         _ => "❓"
                     };
 
@@ -532,8 +537,8 @@ Respond with ONLY valid JSON (no markdown, no explanations):
 
             var specContent = await File.ReadAllTextAsync(_specificationPath);
 
-            // Get new features to include in analysis
-            var newFeatures = _specification?.Features.Where(f => f.Status == FeatureStatus.New).ToList() ?? new List<Feature>();
+            // Get new features to include in analysis (Ready and legacy New)
+            var newFeatures = _specification?.Features.Where(f => f.Status == FeatureStatus.Ready || f.Status == FeatureStatus.New).ToList() ?? new List<Feature>();
 
             // Build enhanced prompt with features and Wyrm recommendations
             var prompt = specContent;

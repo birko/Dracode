@@ -6,23 +6,34 @@ namespace DraCode.KoboldLair.Models.Tasks
     public enum FeatureStatus
     {
         /// <summary>
-        /// Feature is newly created and can be modified by Dragon
+        /// Feature is in draft state - newly created, can be modified, NOT ready for processing
         /// </summary>
-        New = 0,
+        Draft = 0,
+
+        /// <summary>
+        /// Feature is ready for Wyvern to process
+        /// </summary>
+        Ready = 1,
 
         /// <summary>
         /// Feature has been assigned to Wyvern for task breakdown
         /// </summary>
-        AssignedToWyvern = 1,
+        AssignedToWyvern = 2,
 
         /// <summary>
         /// Feature is being worked on by Kobolds
         /// </summary>
-        InProgress = 2,
+        InProgress = 3,
 
         /// <summary>
         /// Feature implementation is completed
         /// </summary>
-        Completed = 3
+        Completed = 4,
+
+        /// <summary>
+        /// Legacy status for backwards compatibility - treated as Draft
+        /// </summary>
+        [System.Obsolete("Use Draft instead")]
+        New = 0
     }
 }

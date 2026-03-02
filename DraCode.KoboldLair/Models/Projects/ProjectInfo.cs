@@ -10,6 +10,7 @@ namespace DraCode.KoboldLair.Models.Projects
         public string Status { get; set; } = "";
         public string ExecutionState { get; set; } = "Running";
         public int FeatureCount { get; set; }
+        public int PendingFeatureCount { get; set; }
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public bool HasGitRepository { get; set; }

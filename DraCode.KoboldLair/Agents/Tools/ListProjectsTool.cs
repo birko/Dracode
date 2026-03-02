@@ -74,7 +74,32 @@ namespace DraCode.KoboldLair.Agents.Tools
                     };
 
                     var gitIcon = project.HasGitRepository ? "✓" : "✗";
-                    result.AppendLine($"| {statusIcon} {project.Status} | {project.Name} | {execIcon} {project.ExecutionState} | {project.FeatureCount} | {gitIcon} | {project.UpdatedAt:MM-dd HH:mm} |");
+
+                    // Show pending features indicator
+                    var featuresDisplay = project.FeatureCount > 0
+                        ? (project.PendingFeatureCount > 0
+                            ? $"{project.FeatureCount} ({project.PendingFeatureCount} 🆕 pending)"
+                            : $"{project.FeatureCount}")
+                        : "0";
+
+                    result.AppendLine($"| {statusIcon} {project.Status} | {project.Name} | {execIcon} {project.ExecutionState} | {featuresDisplay} | {gitIcon} | {project.UpdatedAt:MM-dd HH:mm} |");
+                }
+
+                // Add notification if any projects have pending features
+                var projectsWithPending = projects.Where(p => p.PendingFeatureCount > 0).ToList();
+                if (projectsWithPending.Any())
+                {
+                    result.AppendLine();
+                    result.AppendLine("**⚠️ Draft Features Detected:**");
+                    foreach (var p in projectsWithPending)
+                    {
+                        result.AppendLine($"- **{p.Name}**: {p.PendingFeatureCount} draft feature(s) not yet ready for processing");
+                    }
+                    result.AppendLine();
+                    result.AppendLine("*To process draft features:*");
+                    result.AppendLine("1. Use `process_features` with action 'list' to see draft features");
+                    result.AppendLine("2. Use `process_features` with action 'promote' to mark features as Ready");
+                    result.AppendLine("3. Use `process_features` with action 'update_spec' to trigger Wyvern analysis");
                 }
 
                 return result.ToString();

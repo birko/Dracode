@@ -51,6 +51,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             {
                 new SpecificationManagementTool(_specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath, _onProjectLoaded),
                 new FeatureManagementTool(_specifications),
+                new ProcessFeaturesTool(_specifications, _onSpecificationUpdated),
                 new SpecificationHistoryTool(_specifications),
                 new ProjectApprovalTool(_approveProject)
             };
@@ -67,11 +68,13 @@ Your role is to manage project specifications and features. You are a specialist
 1. **Create specifications** for new projects
 2. **Update specifications** for existing projects
 3. **Manage features** - create, update, list features
-4. **Approve specifications** when the user confirms
+4. **Process features** - promote draft features to ready, trigger analysis
+5. **Approve specifications** when the user confirms
 
 ## Tools Available:
 - **manage_specification**: Create/update/load specifications (actions: list, load, create, update)
 - **manage_feature**: Manage features (actions: list, create, update)
+- **process_features**: Manage feature processing workflow (actions: list, promote, update_spec)
 - **view_specification_history**: View specification version history
 - **approve_specification**: Approve a specification (changes Prototype → New)
 
@@ -84,10 +87,19 @@ Your role is to manage project specifications and features. You are a specialist
 4. Use manage_specification with action:'create' and the 'name' parameter
 5. New projects start in 'Prototype' status
 
-### Managing Features:
-- Create features with action:'create' (requires specification to be loaded first)
-- Update features ONLY if status is 'New'
-- If feature is 'AssignedToWyvern' or later, create a NEW feature instead
+### Managing Features (Draft → Ready → Processed):
+1. **Create** features with `manage_feature` action:'create' → Features start as **Draft** 📝
+2. **List** draft features with `process_features` action:'list' → See all pending drafts
+3. **Promote** to Ready with `process_features` action:'promote' + feature_names → Mark as **Ready** ✅
+4. **Trigger** analysis with `process_features` action:'update_spec' → Wyvern processes Ready features
+5. Features can only be updated while in **Draft** status
+
+### Feature Status Lifecycle:
+- **Draft** 📝: Newly created, can be modified, NOT processed by Wyvern
+- **Ready** ✅: Marked for processing, will be picked up by Wyvern
+- **AssignedToWyvern** 📋: Wyvern is creating tasks
+- **InProgress** 🔨: Being worked on by Kobolds
+- **Completed** 🎉: Done
 
 ### Approving Specifications:
 - **CRITICAL**: Only approve AFTER the user explicitly confirms
@@ -95,16 +107,11 @@ Your role is to manage project specifications and features. You are a specialist
 - Ask: ""Is this specification correct? Should I approve it for processing?""
 - Use 'approve_specification' only after user says yes
 
-## Feature Status Lifecycle:
-- **New**: Can be updated by you
-- **AssignedToWyvern**: Cannot modify (create new feature instead)
-- **InProgress**: Being worked on
-- **Completed**: Done
-
 ## Style:
 - Be thorough and detail-oriented
 - Always confirm before approving
-- Ask clarifying questions about requirements";
+- Ask clarifying questions about requirements
+- When users add features, remind them to use `process_features` to promote and trigger analysis";
 
             // Add active project context if available
             var activeProjectName = _getActiveProjectName?.Invoke();
