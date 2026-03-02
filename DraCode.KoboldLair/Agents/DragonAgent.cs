@@ -182,7 +182,7 @@ Remember: You're the conductor of an orchestra. Each council member is a special
         }
 
         /// <summary>
-        /// Continues the conversation with user input
+        /// Continues the conversation with user input with latency tracking
         /// </summary>
         public async Task<string> ContinueSessionAsync(string userMessage, Action<string, string>? statusCallback = null)
         {
@@ -192,12 +192,18 @@ Remember: You're the conductor of an orchestra. Each council member is a special
                 _statusCallback = statusCallback;
             }
 
+            var dragonStart = DateTime.UtcNow;
+            SendStatus("thinking", "Processing your request...");
+
             try
             {
-                SendStatus("thinking", "Processing your request...");
+                SendStatus("debug", "[Dragon] LLM call starting");
 
                 var messages = await ContinueAsync(_conversationHistory, userMessage, maxIterations: 25);
                 _conversationHistory = messages;
+
+                var dragonDuration = DateTime.UtcNow - dragonStart;
+                SendStatus("debug", $"[Dragon] LLM call completed in {dragonDuration.TotalMilliseconds:F0}ms");
 
                 var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
                 if (lastMessage?.Content == null)

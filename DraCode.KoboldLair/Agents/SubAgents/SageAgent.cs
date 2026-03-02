@@ -129,12 +129,18 @@ Do NOT invent a new name or variation - use the existing project name exactly as
         }
 
         /// <summary>
-        /// Process a task from Dragon coordinator
+        /// Process a task from Dragon coordinator with latency tracking
         /// </summary>
         public async Task<string> ProcessTaskAsync(string task, List<Message>? context = null)
         {
+            var startTime = DateTime.UtcNow;
+            SendMessage("debug", "[Sage] START | Task: " + (task.Length > 80 ? task.Substring(0, 80) + "..." : task));
+
             var messages = context ?? new List<Message>();
             var result = await ContinueAsync(messages, task, maxIterations: 15);
+
+            var duration = DateTime.UtcNow - startTime;
+            SendMessage("debug", $"[Sage] COMPLETE | Duration: {duration.TotalMilliseconds:F0}ms");
 
             var lastMessage = result.LastOrDefault(m => m.Role == "assistant");
             return ExtractTextFromContent(lastMessage?.Content);

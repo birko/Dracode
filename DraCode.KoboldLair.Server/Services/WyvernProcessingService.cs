@@ -181,16 +181,25 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Runs Wyvern analysis on a project
+        /// Runs Wyvern analysis on a project with timing
         /// </summary>
         private async Task AnalyzeProjectAsync(Project project)
         {
-            _logger.LogInformation("🔍 Starting Wyvern analysis for project: {ProjectName}", project.Name);
+            _logger.LogInformation("[Wyvern] START {ProjectName} | Beginning analysis", project.Name);
 
+            var analysisStart = DateTime.UtcNow;
             var analysis = await _projectService.AnalyzeProjectAsync(project.Id);
+            var analysisDuration = DateTime.UtcNow - analysisStart;
 
-            _logger.LogInformation("✅ Wyvern analysis completed for project: {ProjectName}. Total tasks: {TaskCount}",
-                project.Name, analysis.TotalTasks);
+            _logger.LogInformation("[Wyvern] COMPLETE {ProjectName} | Duration: {Duration}ms | Tasks: {TaskCount}",
+                project.Name, analysisDuration.TotalMilliseconds.ToString("F0"), analysis.TotalTasks);
+
+            // Warn if analysis took too long
+            if (analysisDuration.TotalSeconds > 120)
+            {
+                _logger.LogWarning("[Wyvern] SLOW {ProjectName} | Analysis took {Duration}s",
+                    project.Name, analysisDuration.TotalSeconds.ToString("F1"));
+            }
         }
 
         /// <summary>
@@ -199,17 +208,20 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task ReanalyzeModifiedProjectAsync(Project project)
         {
-            _logger.LogInformation("🔄 Reanalyzing modified specification for project: {ProjectName}", project.Name);
+            _logger.LogInformation("[Wyvern] REANALYZE {ProjectName} | Starting reanalysis", project.Name);
 
-            // Transition back to WyrmAssigned so normal analysis flow can pick it up
+            var reanalysisStart = DateTime.UtcNow;
+
+            // Transition back to WyvernAssigned so normal analysis flow can pick it up
             // This allows Wyvern to re-analyze with potentially updated Wyrm recommendations
             _projectService.UpdateProjectStatus(project.Id, ProjectStatus.WyrmAssigned);
 
             // Run analysis (which will create new tasks for changes)
             var analysis = await _projectService.AnalyzeProjectAsync(project.Id);
+            var reanalysisDuration = DateTime.UtcNow - reanalysisStart;
 
-            _logger.LogInformation("✅ Reanalysis completed for project: {ProjectName}. Total tasks: {TaskCount}",
-                project.Name, analysis.TotalTasks);
+            _logger.LogInformation("[Wyvern] REANALYZE COMPLETE {ProjectName} | Duration: {Duration}ms | Tasks: {TaskCount}",
+                project.Name, reanalysisDuration.TotalMilliseconds.ToString("F0"), analysis.TotalTasks);
         }
 
         /// <summary>

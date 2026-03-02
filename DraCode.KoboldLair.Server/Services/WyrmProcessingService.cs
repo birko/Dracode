@@ -66,7 +66,10 @@ namespace DraCode.KoboldLair.Server.Services
             await _projectThrottle.WaitAsync(stoppingToken);
             try
             {
-                _logger.LogInformation("Starting Wyrm analysis: {Name}", project.Name);
+                _logger.LogInformation("[Wyrm] START {ProjectName} | Starting pre-analysis", project.Name);
+
+                var wyrmStart = DateTime.UtcNow;
+
                 var wyrm = _wyrmFactory.CreateWyrm(project);
                 var spec = File.Exists(project.Paths.Specification)
                     ? await File.ReadAllTextAsync(project.Paths.Specification, stoppingToken)
@@ -153,17 +156,29 @@ Include verification steps appropriate for the detected tech stack.";
                     SuggestedAreas = new List<string> { "general" }, 
                     Complexity = "Medium" 
                 };
-                
+
                 var path = Path.Combine(project.Paths.Output, "wyrm-recommendation.json");
-                await File.WriteAllTextAsync(path, JsonSerializer.Serialize(rec, new JsonSerializerOptions { 
-                    WriteIndented = true, 
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+                await File.WriteAllTextAsync(path, JsonSerializer.Serialize(rec, new JsonSerializerOptions {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 }), stoppingToken);
-                
+
+                var wyrmDuration = DateTime.UtcNow - wyrmStart;
+
                 _projectService.UpdateProjectStatus(project.Id, ProjectStatus.WyrmAssigned);
-                _logger.LogInformation("Wyrm analysis complete: {Name}", project.Name);
+                _logger.LogInformation("[Wyrm] COMPLETE {ProjectName} | Duration: {Duration}ms", project.Name, wyrmDuration.TotalMilliseconds.ToString("F0"));
+
+                // Warn if Wyrm took too long
+                if (wyrmDuration.TotalSeconds > 60)
+                {
+                    _logger.LogWarning("[Wyrm] SLOW {ProjectName} | Pre-analysis took {Duration}s",
+                        project.Name, wyrmDuration.TotalSeconds.ToString("F1"));
+                }
             }
-            catch (Exception ex) { _logger.LogError(ex, "Wyrm analysis failed: {Name}", project.Name); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Wyrm] FAILED {ProjectName} | Analysis failed", project.Name);
+            }
             finally { _projectThrottle.Release(); }
         }
 

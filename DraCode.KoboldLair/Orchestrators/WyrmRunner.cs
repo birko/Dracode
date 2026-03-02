@@ -42,15 +42,17 @@ namespace DraCode.KoboldLair.Orchestrators
             options ??= new AgentOptions();
             tracker ??= new TaskTracker();
 
+            var overallStart = DateTime.UtcNow;
+
             // Add task to tracker with display name (falls back to task if not provided)
             var taskRecord = tracker.AddTask(taskDisplayName ?? task);
-            
+
             // Save initial state
             if (outputMarkdownPath != null)
             {
                 tracker.SaveToFile(outputMarkdownPath, "KoboldLair Wyrm Task Report");
             }
-            
+
             // Clear any previous selection
             SelectAgentTool.ClearSelection();
 
@@ -65,7 +67,11 @@ namespace DraCode.KoboldLair.Orchestrators
 
                 messageCallback?.Invoke("info", "🎯 Wyrm: Analyzing task to select the best agent...\n");
 
+                var wyrmStart = DateTime.UtcNow;
                 var wyrmConversation = await wyrm.RunAsync(task, maxIterations: 8);
+                var wyrmDuration = DateTime.UtcNow - wyrmStart;
+
+                messageCallback?.Invoke("debug", $"[Wyrm] Analysis completed in {wyrmDuration.TotalMilliseconds:F0}ms");
 
                 // Get the agent selection
                 var selection = SelectAgentTool.GetLastSelection();
@@ -109,7 +115,11 @@ namespace DraCode.KoboldLair.Orchestrators
                     specializedAgent.SetMessageCallback(messageCallback);
                 }
 
+                var delegatedStart = DateTime.UtcNow;
                 var delegatedConversation = await specializedAgent.RunAsync(delegatedTask, maxIterations);
+                var delegatedDuration = DateTime.UtcNow - delegatedStart;
+
+                messageCallback?.Invoke("debug", $"[{selectedAgentType}] Execution completed in {delegatedDuration.TotalMilliseconds:F0}ms");
 
                 // Update status: done
                 tracker.UpdateTask(taskRecord, TaskStatus.Done);
@@ -119,6 +129,9 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
 
                 messageCallback?.Invoke("success", $"\n✓ Task completed by {selectedAgentType} agent");
+
+                var overallDuration = DateTime.UtcNow - overallStart;
+                messageCallback?.Invoke("debug", $"[WyrmRunner] Total time: {overallDuration.TotalMilliseconds:F0}ms (Wyrm: {wyrmDuration.TotalMilliseconds:F0}ms, {selectedAgentType}: {delegatedDuration.TotalMilliseconds:F0}ms)");
 
                 return (selectedAgentType, wyrmConversation, delegatedConversation, tracker);
             }

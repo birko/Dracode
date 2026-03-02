@@ -331,9 +331,17 @@ namespace DraCode.KoboldLair.Models.Agents
                 throw new InvalidOperationException($"Cannot start working - Kobold {Id} has no task description");
             }
 
+            var workStart = DateTime.UtcNow;
             Status = KoboldStatus.Working;
-            StartedAt = DateTime.UtcNow;
+            StartedAt = workStart;
             LastLlmResponseAt = DateTime.UtcNow; // Initialize to start time
+
+            var taskPreview = TaskDescription?.Length > 60
+                ? TaskDescription.Substring(0, 60) + "..."
+                : TaskDescription ?? "unknown";
+
+            _logger?.LogInformation("[Kobold] START {KoboldId} | Type: {AgentType} | Task: {TaskPreview}",
+                Id.ToString()[..8], AgentType, taskPreview);
 
             // Check if specification version changed before starting work
             if (!string.IsNullOrEmpty(_specificationPath))
@@ -345,6 +353,9 @@ namespace DraCode.KoboldLair.Models.Agents
             {
                 // Build the full task prompt with specification context if available
                 var fullTaskPrompt = TaskDescription;
+
+                // Track LLM call timing
+                var llmStart = DateTime.UtcNow;
                 
                 if (!string.IsNullOrEmpty(SpecificationContext))
                 {
@@ -368,6 +379,10 @@ You are working on a task that is part of a larger project. Below is the project
                 // Execute the task through the underlying agent in non-interactive mode
                 var messages = await Agent.RunAsync(fullTaskPrompt, maxIterations);
 
+                var llmDuration = DateTime.UtcNow - llmStart;
+                _logger?.LogDebug("[Kobold] LLM call completed in {Duration}ms | {KoboldId}",
+                    llmDuration.TotalMilliseconds.ToString("F0"), Id.ToString()[..8]);
+
                 // Check if execution encountered errors
                 var executionError = ExtractErrorFromMessages(messages);
                 if (executionError != null)
@@ -376,9 +391,6 @@ You are working on a task that is part of a larger project. Below is the project
                     Status = KoboldStatus.Failed;
                     CompletedAt = DateTime.UtcNow;
 
-                    var taskPreview = TaskDescription?.Length > 60
-                        ? TaskDescription.Substring(0, 60) + "..."
-                        : TaskDescription ?? "unknown";
                     _logger?.LogWarning(
                         "Kobold {KoboldId} failed with errors\n" +
                         "  Project: {ProjectId}\n" +
@@ -393,6 +405,10 @@ You are working on a task that is part of a larger project. Below is the project
                 Status = KoboldStatus.Done;
                 CompletedAt = DateTime.UtcNow;
 
+                var totalDuration = DateTime.UtcNow - workStart;
+                _logger?.LogInformation("[Kobold] COMPLETE {KoboldId} | Type: {AgentType} | Duration: {Duration}ms | Task: {TaskPreview}",
+                    Id.ToString()[..8], AgentType, totalDuration.TotalMilliseconds.ToString("F0"), taskPreview);
+
                 return messages;
             }
             catch (Exception ex)
@@ -401,16 +417,11 @@ You are working on a task that is part of a larger project. Below is the project
                 ErrorMessage = ex.Message;
                 Status = KoboldStatus.Failed;
                 CompletedAt = DateTime.UtcNow;
-                
-                var taskPreview = TaskDescription?.Length > 60 
-                    ? TaskDescription.Substring(0, 60) + "..." 
-                    : TaskDescription ?? "unknown";
-                _logger?.LogError(ex, 
-                    "Kobold {KoboldId} failed with exception\n" +
-                    "  Project: {ProjectId}\n" +
-                    "  Task ID: {TaskId}\n" +
-                    "  Task: {TaskDescription}",
-                    Id.ToString()[..8], ProjectId ?? "unknown", TaskId?.ToString()[..8] ?? "unknown", taskPreview);
+
+                var totalDuration = DateTime.UtcNow - workStart;
+                _logger?.LogError(ex,
+                    "[Kobold] FAILED {KoboldId} | Type: {AgentType} | Duration: {Duration}ms | Task: {TaskPreview}",
+                    Id.ToString()[..8], AgentType, totalDuration.TotalMilliseconds.ToString("F0"), taskPreview);
                 throw; // Re-throw so caller knows it failed
             }
         }

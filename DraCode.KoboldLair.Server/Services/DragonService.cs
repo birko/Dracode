@@ -771,11 +771,15 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Delegates a task to a council member (sub-agent)
+        /// Delegates a task to a council member (sub-agent) with detailed latency tracking
         /// </summary>
         private async Task<string> DelegateToCouncilAsync(DragonSession session, string councilMember, string task)
         {
-            _logger.LogInformation("[Dragon Council] Delegating to {Member}: {Task}", councilMember, task);
+            var delegationStart = DateTime.UtcNow;
+            var memberName = char.ToUpper(councilMember[0]) + councilMember.Substring(1).ToLowerInvariant();
+
+            _logger.LogInformation("[Dragon Council] DELEGATION START {Member} | Task: {TaskPreview}",
+                memberName, task.Length > 100 ? task.Substring(0, 100) + "..." : task);
 
             try
             {
@@ -808,7 +812,10 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                 }
 
-                return councilMember.ToLowerInvariant() switch
+                string result;
+                var agentStart = DateTime.UtcNow;
+
+                result = councilMember.ToLowerInvariant() switch
                 {
                     "sage" => await session.Sage!.ProcessTaskAsync(enhancedTask),
                     "seeker" => await session.Seeker!.ProcessTaskAsync(enhancedTask),
@@ -816,10 +823,20 @@ namespace DraCode.KoboldLair.Server.Services
                     "warden" => await session.Warden!.ProcessTaskAsync(enhancedTask),
                     _ => $"Unknown council member: {councilMember}"
                 };
+
+                var agentDuration = DateTime.UtcNow - agentStart;
+                var totalDuration = DateTime.UtcNow - delegationStart;
+
+                _logger.LogInformation("[Dragon Council] DELEGATION COMPLETE {Member} | Agent: {AgentMs}ms | Total: {TotalMs}ms",
+                    memberName, agentDuration.TotalMilliseconds.ToString("F0"), totalDuration.TotalMilliseconds.ToString("F0"));
+
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error delegating to {Member}", councilMember);
+                var totalDuration = DateTime.UtcNow - delegationStart;
+                _logger.LogError(ex, "[Dragon Council] DELEGATION FAILED {Member} | Duration: {Duration}ms",
+                    memberName, totalDuration.TotalMilliseconds.ToString("F0"));
                 return $"Error from {councilMember}: {ex.Message}";
             }
         }

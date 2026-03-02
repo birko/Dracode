@@ -75,12 +75,18 @@ Your role is to discover and analyze existing codebases. You help users import t
         }
 
         /// <summary>
-        /// Process a task from Dragon coordinator
+        /// Process a task from Dragon coordinator with latency tracking
         /// </summary>
         public async Task<string> ProcessTaskAsync(string task, List<Message>? context = null)
         {
+            var startTime = DateTime.UtcNow;
+            SendMessage("debug", "[Seeker] START | Task: " + (task.Length > 80 ? task.Substring(0, 80) + "..." : task));
+
             var messages = context ?? new List<Message>();
             var result = await ContinueAsync(messages, task, maxIterations: 10);
+
+            var duration = DateTime.UtcNow - startTime;
+            SendMessage("debug", $"[Seeker] COMPLETE | Duration: {duration.TotalMilliseconds:F0}ms");
 
             var lastMessage = result.LastOrDefault(m => m.Role == "assistant");
             return ExtractTextFromContent(lastMessage?.Content);

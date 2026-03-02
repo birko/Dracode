@@ -173,14 +173,16 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task ProcessProjectAsync(Project project, CancellationToken cancellationToken)
         {
-            _logger.LogDebug("Processing project: {ProjectName} (Status: {Status})", project.Name, project.Status);
+            _logger.LogDebug("[Drake] Processing project: {ProjectName} (Status: {Status})", project.Name, project.Status);
+
+            var projectStart = DateTime.UtcNow;
 
             // Ensure Drakes exist for all task files (returns drake name with drake)
             var drakesWithNames = EnsureDrakesForProject(project);
 
             if (drakesWithNames.Count == 0)
             {
-                _logger.LogWarning("No Drakes created for project {ProjectName} - no task files found or all areas complete/blocked", project.Name);
+                _logger.LogWarning("[Drake] No Drakes created for project {ProjectName} - no task files found or all areas complete/blocked", project.Name);
                 return;
             }
 
@@ -196,6 +198,9 @@ namespace DraCode.KoboldLair.Server.Services
                 ProcessDrakeTasksAsync(item.Drake, item.Name, project, cancellationToken));
 
             await Task.WhenAll(drakeTasks);
+
+            var projectDuration = DateTime.UtcNow - projectStart;
+            _logger.LogDebug("[Drake] Project {ProjectName} cycle completed in {Duration}ms", project.Name, projectDuration.TotalMilliseconds.ToString("F0"));
 
             // Check if all tasks are complete and clean up finished Drakes
             await CheckProjectCompletionAsync(project, drakesWithNames);
@@ -387,16 +392,13 @@ namespace DraCode.KoboldLair.Server.Services
                 if (cancellationToken.IsCancellationRequested)
                     return;
 
+                var taskStart = DateTime.UtcNow;
+
                 try
                 {
                     var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
                     _logger.LogInformation(
-                        "🚀 Starting task execution\n" +
-                        "  Project: {ProjectName}\n" +
-                        "  Task ID: {TaskId}\n" +
-                        "  Agent: {AgentType}\n" +
-                        "  Task: {TaskDescription}",
-                        project.Name,
+                        "[Kobold] START {TaskId} | Type: {AgentType} | Task: {TaskPreview}",
                         task.Id[..Math.Min(8, task.Id.Length)],
                         agentType,
                         taskPreview);
@@ -410,25 +412,42 @@ namespace DraCode.KoboldLair.Server.Services
                         cancellationToken: _shutdownCoordinator.ShutdownToken
                     );
 
+                    var taskDuration = DateTime.UtcNow - taskStart;
+
                     if (result == null)
                     {
                         _logger.LogDebug(
-                            "Task {TaskId} deferred - Kobold limit reached for project {ProjectName}", 
+                            "[Kobold] DEFERRED {TaskId} | Kobold limit reached for project {ProjectName}",
                             task.Id[..Math.Min(8, task.Id.Length)],
                             project.Name);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "[Kobold] COMPLETE {TaskId} | Type: {AgentType} | Duration: {Duration}ms",
+                            task.Id[..Math.Min(8, task.Id.Length)],
+                            agentType,
+                            taskDuration.TotalMilliseconds.ToString("F0"));
+
+                        // Warn if task took too long
+                        if (taskDuration.TotalMinutes > 10)
+                        {
+                            _logger.LogWarning(
+                                "[Kobold] SLOW {TaskId} | Task took {Duration}min",
+                                task.Id[..Math.Min(8, task.Id.Length)],
+                                taskDuration.TotalMinutes.ToString("F1"));
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
+                    var taskDuration = DateTime.UtcNow - taskStart;
                     var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
-                    _logger.LogError(ex, 
-                        "❌ Failed to execute task\n" +
-                        "  Project: {ProjectName}\n" +
-                        "  Task ID: {TaskId}\n" +
-                        "  Task: {TaskDescription}",
-                        project.Name,
-                        task.Id,
-                        taskPreview);
+                    _logger.LogError(ex,
+                        "[Kobold] FAILED {TaskId} | Type: {AgentType} | Duration: {Duration}ms",
+                        task.Id[..Math.Min(8, task.Id.Length)],
+                        agentType,
+                        taskDuration.TotalMilliseconds.ToString("F0"));
                 }
             });
 

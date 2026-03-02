@@ -158,9 +158,11 @@ namespace DraCode.KoboldLair.Server.Services
 
                 // Log queue wait time for debugging
                 var queueWaitTime = DateTime.UtcNow - request.QueuedAt;
+                _logger.LogInformation("[DragonRequest] QUEUE {RequestId} | Wait: {WaitMs}ms before processing",
+                    request.RequestId, queueWaitTime.TotalMilliseconds.ToString("F0"));
                 if (queueWaitTime.TotalSeconds > 1)
                 {
-                    _logger.LogWarning("Dragon request {RequestId} waited {WaitTime}s in queue before processing",
+                    _logger.LogWarning("[DragonRequest] QUEUE DELAY {RequestId} | Waited {WaitTime}s in queue",
                         request.RequestId, queueWaitTime.TotalSeconds.ToString("F2"));
                 }
 
@@ -168,9 +170,14 @@ namespace DraCode.KoboldLair.Server.Services
                 var slotWaitStart = DateTime.UtcNow;
                 await _concurrencyLimiter.WaitAsync(shutdownToken);
                 var slotWaitTime = DateTime.UtcNow - slotWaitStart;
+                if (slotWaitTime.TotalMilliseconds > 0)
+                {
+                    _logger.LogDebug("[DragonRequest] CONCURRENCY {RequestId} | Slot wait: {WaitMs}ms",
+                        request.RequestId, slotWaitTime.TotalMilliseconds.ToString("F0"));
+                }
                 if (slotWaitTime.TotalSeconds > 1)
                 {
-                    _logger.LogWarning("Dragon request {RequestId} waited {WaitTime}s for concurrency slot",
+                    _logger.LogWarning("[DragonRequest] CONCURRENCY DELAY {RequestId} | Waited {WaitTime}s for slot",
                         request.RequestId, slotWaitTime.TotalSeconds.ToString("F2"));
                 }
 
@@ -220,7 +227,25 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Processes a single Dragon request
+        /// Extracts agent name from delegation message
+        /// </summary>
+        private static string? ExtractAgentName(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return null;
+
+            // Look for patterns like "Sage", "Seeker", "Sentinel", "Warden"
+            var agents = new[] { "Sage", "Seeker", "Sentinel", "Warden" };
+            foreach (var agent in agents)
+            {
+                if (message.Contains(agent, StringComparison.OrdinalIgnoreCase))
+                    return agent;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Processes a single Dragon request with detailed latency tracking
         /// </summary>
         private async Task ProcessRequestAsync(DragonRequest request)
         {
@@ -231,27 +256,84 @@ namespace DraCode.KoboldLair.Server.Services
             string? errorType = null;
             string? errorMessage = null;
 
+            // Latency tracking
+            var latencyTracker = new LatencyTracker();
+
             try
             {
-                _logger.LogInformation("Processing Dragon request: {RequestId} for session {SessionId}",
-                    request.RequestId, request.SessionId);
+                _logger.LogInformation("[DragonRequest] START {RequestId} | Session: {SessionId} | Message: {MessagePreview}",
+                    request.RequestId, request.SessionId,
+                    request.Message.Length > 50 ? request.Message.Substring(0, 50) + "..." : request.Message);
 
                 // Send initial status
+                var statusStart = DateTime.UtcNow;
                 await SendStatusAsync(request, DragonStatusUpdate.STATUS_THINKING, "Processing your request...");
+                latencyTracker.TrackOperation("InitialStatus", DateTime.UtcNow - statusStart);
 
-                // Set status callback for progress updates
+                // Set status callback for progress updates with latency tracking
+                var delegationStart = DateTime.UtcNow;
+                string? currentAgent = "Dragon";
+                int llmCallCount = 0;
+
                 request.StatusCallback = async (statusType, message) =>
                 {
+                    // Track delegation latency
+                    if (statusType == "delegation_start")
+                    {
+                        currentAgent = ExtractAgentName(message) ?? "Unknown";
+                        delegationStart = DateTime.UtcNow;
+                        _logger.LogDebug("[DragonRequest] {RequestId} | Delegating to {Agent} | Reason: {Message}",
+                            request.RequestId, currentAgent, message);
+                    }
+                    else if (statusType == "delegation_complete")
+                    {
+                        var delegationDuration = DateTime.UtcNow - delegationStart;
+                        latencyTracker.TrackDelegation(currentAgent, delegationDuration);
+                        _logger.LogInformation("[DragonRequest] {RequestId} | {Agent} completed in {Duration}ms",
+                            request.RequestId, currentAgent, delegationDuration.TotalMilliseconds.ToString("F0"));
+                    }
+                    else if (statusType == "llm_call_start")
+                    {
+                        llmCallCount++;
+                        _logger.LogDebug("[DragonRequest] {RequestId} | LLM call #{Count} starting for {Agent}",
+                            request.RequestId, llmCallCount, currentAgent);
+                    }
+                    else if (statusType == "llm_call_complete")
+                    {
+                        _logger.LogDebug("[DragonRequest] {RequestId} | LLM call #{Count} completed for {Agent}",
+                            request.RequestId, llmCallCount, currentAgent);
+                    }
+
                     await SendStatusAsync(request, statusType, message);
                 };
 
                 // Process the Dragon request
+                var dragonStart = DateTime.UtcNow;
                 response = await request.Dragon.ContinueSessionAsync(request.Message);
+                var dragonDuration = DateTime.UtcNow - dragonStart;
+                latencyTracker.TrackOperation("DragonProcessing", dragonDuration);
+
                 isStreamed = request.Dragon.ConversationMessageCount > 0; // Approximation
                 success = true;
 
-                _logger.LogInformation("Dragon request completed: {RequestId} in {Duration}ms",
-                    request.RequestId, (DateTime.UtcNow - startTime).TotalMilliseconds);
+                var totalDuration = DateTime.UtcNow - startTime;
+
+                // Log detailed latency breakdown
+                _logger.LogInformation("[DragonRequest] COMPLETE {RequestId} | Total: {Total}ms | Dragon: {Dragon}ms | LLM Calls: {LLMCount} | Delegations: {Delegations}",
+                    request.RequestId,
+                    totalDuration.TotalMilliseconds.ToString("F0"),
+                    dragonDuration.TotalMilliseconds.ToString("F0"),
+                    llmCallCount,
+                    latencyTracker.GetDelegationSummary());
+
+                // Log warning if request took too long
+                if (totalDuration.TotalSeconds > 60)
+                {
+                    _logger.LogWarning("[DragonRequest] SLOW {RequestId} | Total: {Total}s | Breakdown: {Breakdown}",
+                        request.RequestId,
+                        totalDuration.TotalSeconds.ToString("F1"),
+                        latencyTracker.GetDetailedBreakdown());
+                }
             }
             catch (HttpRequestException ex)
             {
@@ -429,5 +511,66 @@ namespace DraCode.KoboldLair.Server.Services
         public long TotalErrored { get; init; }
         public int MaxConcurrency { get; init; }
         public int AvailableSlots { get; init; }
+    }
+
+    /// <summary>
+    /// Tracks detailed latency breakdown for Dragon requests
+    /// </summary>
+    internal class LatencyTracker
+    {
+        private readonly Dictionary<string, TimeSpan> _operationTimes = new();
+        private readonly Dictionary<string, List<TimeSpan>> _delegationTimes = new();
+        private readonly List<string> _delegationOrder = new();
+
+        public void TrackOperation(string operationName, TimeSpan duration)
+        {
+            _operationTimes[operationName] = duration;
+        }
+
+        public void TrackDelegation(string agentName, TimeSpan duration)
+        {
+            if (!_delegationTimes.ContainsKey(agentName))
+            {
+                _delegationTimes[agentName] = new List<TimeSpan>();
+                _delegationOrder.Add(agentName);
+            }
+            _delegationTimes[agentName].Add(duration);
+        }
+
+        public string GetDelegationSummary()
+        {
+            if (_delegationTimes.Count == 0)
+                return "none";
+
+            var parts = new List<string>();
+            foreach (var agent in _delegationOrder)
+            {
+                var times = _delegationTimes[agent];
+                var total = TimeSpan.FromMilliseconds(times.Sum(t => t.TotalMilliseconds));
+                parts.Add($"{agent}={total.TotalMilliseconds:F0}ms");
+            }
+            return string.Join(", ", parts);
+        }
+
+        public string GetDetailedBreakdown()
+        {
+            var parts = new List<string>();
+
+            // Add operation times
+            foreach (var (op, time) in _operationTimes)
+            {
+                parts.Add($"{op}={time.TotalMilliseconds:F0}ms");
+            }
+
+            // Add delegation times
+            foreach (var (agent, times) in _delegationTimes)
+            {
+                var total = TimeSpan.FromMilliseconds(times.Sum(t => t.TotalMilliseconds));
+                var avg = TimeSpan.FromMilliseconds(times.Average(t => t.TotalMilliseconds));
+                parts.Add($"{agent} total={total.TotalMilliseconds:F0}ms (avg={avg.TotalMilliseconds:F0}ms, calls={times.Count})");
+            }
+
+            return string.Join(", ", parts);
+        }
     }
 }
