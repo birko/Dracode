@@ -254,8 +254,14 @@ Reasoning approach: Balanced
 
                 if (iteration == 1)
                 {
+                    // Track LLM latency
+                    var llmStart = DateTime.UtcNow;
+
                     // Stream the first response for real-time display
                     var streamingResponse = await _llmProvider.SendMessageStreamingAsync(conversation, _tools, SystemPrompt);
+
+                    var llmConnectTime = (DateTime.UtcNow - llmStart).TotalMilliseconds;
+                    SendMessage("debug", $"LLM connected in {llmConnectTime:F0}ms");
 
                     // Notify that LLM response was received
                     _options.OnLlmResponseReceived?.Invoke();
@@ -270,8 +276,17 @@ Reasoning approach: Balanced
                     var fullText = new System.Text.StringBuilder();
                     var stream = await streamingResponse.GetStreamAsync();
 
+                    var firstToken = true;
+                    var firstTokenTime = DateTime.UtcNow;
+
                     await foreach (var chunk in stream)
                     {
+                        if (firstToken && !string.IsNullOrEmpty(chunk))
+                        {
+                            var timeToFirstToken = (DateTime.UtcNow - firstTokenTime).TotalMilliseconds;
+                            SendMessage("debug", $"First token received in {timeToFirstToken:F0}ms (total: {(llmConnectTime + timeToFirstToken):F0}ms)");
+                            firstToken = false;
+                        }
                         fullText.Append(chunk);
                         // Send streaming chunks to callback for real-time display
                         SendMessage("assistant_stream", chunk);

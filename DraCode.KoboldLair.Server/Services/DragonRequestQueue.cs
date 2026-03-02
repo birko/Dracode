@@ -156,8 +156,24 @@ namespace DraCode.KoboldLair.Server.Services
                     continue;
                 }
 
+                // Log queue wait time for debugging
+                var queueWaitTime = DateTime.UtcNow - request.QueuedAt;
+                if (queueWaitTime.TotalSeconds > 1)
+                {
+                    _logger.LogWarning("Dragon request {RequestId} waited {WaitTime}s in queue before processing",
+                        request.RequestId, queueWaitTime.TotalSeconds.ToString("F2"));
+                }
+
                 // Wait for concurrency slot
+                var slotWaitStart = DateTime.UtcNow;
                 await _concurrencyLimiter.WaitAsync(shutdownToken);
+                var slotWaitTime = DateTime.UtcNow - slotWaitStart;
+                if (slotWaitTime.TotalSeconds > 1)
+                {
+                    _logger.LogWarning("Dragon request {RequestId} waited {WaitTime}s for concurrency slot",
+                        request.RequestId, slotWaitTime.TotalSeconds.ToString("F2"));
+                }
+
                 try
                 {
                     // Add to active requests
