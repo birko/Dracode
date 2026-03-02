@@ -76,6 +76,11 @@ export class WebSocketClient {
                 this.setStatus('connected');
                 this.connectPromise = null;
                 this.startHeartbeat();
+
+                // Send ready message to server so it knows we're prepared to receive messages
+                // This fixes race condition where server sends welcome before client handlers are ready
+                this.ws.send(JSON.stringify({ type: 'client_ready', sessionId: this.sessionId }));
+
                 resolve();
             };
 

@@ -51,6 +51,12 @@ namespace DraCode.KoboldLair.Server.Services
         public bool StreamingResponseSent { get; set; }
 
         /// <summary>
+        /// Tracks whether the welcome message has been sent to the client.
+        /// Welcome is only sent after client sends client_ready to prevent race conditions.
+        /// </summary>
+        public bool WelcomeSent { get; set; }
+
+        /// <summary>
         /// Saves the message history to a JSON file in the project folder.
         /// Thread-safe: takes snapshot under lock to prevent race conditions.
         /// </summary>
@@ -379,50 +385,9 @@ namespace DraCode.KoboldLair.Server.Services
                     session.Sentinel!.SetMessageCallback(councilCallback);
                     session.Warden!.SetMessageCallback(councilCallback);
 
-                    _logger.LogInformation("[Dragon] Starting session...");
-                    try
-                    {
-                        // Reset streaming flag before processing
-                        session.StreamingResponseSent = false;
-                        var welcomeResponse = await session.Dragon.StartSessionAsync();
-                        _logger.LogInformation("[Dragon] Welcome: {Response}", welcomeResponse);
-
-                        // Always send the final message through the reliable awaited path
-                        // The isStreamed flag tells the client whether streaming chunks were sent
-                        _logger.LogDebug("[Dragon] Sending welcome (isStreamed={IsStreamed})", session.StreamingResponseSent);
-                        await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
-                        {
-                            type = "dragon_message",
-                            sessionId = currentSessionId,
-                            message = welcomeResponse,
-                            timestamp = DateTime.UtcNow,
-                            isStreamed = session.StreamingResponseSent
-                        });
-                    }
-                    catch (HttpRequestException ex)
-                    {
-                        _logger.LogError(ex, "Failed to start Dragon session - LLM connection error");
-                        await SendTrackedMessageAsync(webSocket, session, "error", new
-                        {
-                            type = "error",
-                            errorType = "llm_connection",
-                            sessionId = currentSessionId,
-                            message = $"Failed to connect to LLM provider: {ex.Message}",
-                            timestamp = DateTime.UtcNow
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to start Dragon session");
-                        await SendTrackedMessageAsync(webSocket, session, "error", new
-                        {
-                            type = "error",
-                            errorType = "startup_error",
-                            sessionId = currentSessionId,
-                            message = $"Failed to initialize Dragon: {ex.Message}",
-                            timestamp = DateTime.UtcNow
-                        });
-                    }
+                    // Welcome will be sent after client sends client_ready message
+                    // This prevents race condition where server sends messages before client is ready
+                    _logger.LogInformation("[Dragon] Session initialized, waiting for client_ready...");
                 }
 
                 var buffer = new byte[1024 * 64]; // 64KB buffer for large messages
@@ -900,6 +865,54 @@ namespace DraCode.KoboldLair.Server.Services
                 if (messageType?.Equals("ping", StringComparison.OrdinalIgnoreCase) == true)
                 {
                     await SendMessageAsync(webSocket, new { type = "pong" }, session.Sender);
+                    return;
+                }
+
+                // Handle client_ready signal - send welcome message only after client is prepared
+                if (message.Type == "client_ready" && !session.WelcomeSent && session.Dragon != null)
+                {
+                    _logger.LogInformation("[Dragon] Client ready, sending welcome message");
+                    try
+                    {
+                        session.StreamingResponseSent = false;
+                        var welcomeResponse = await session.Dragon.StartSessionAsync();
+                        _logger.LogInformation("[Dragon] Welcome: {Response}", welcomeResponse);
+
+                        _logger.LogDebug("[Dragon] Sending welcome (isStreamed={IsStreamed})", session.StreamingResponseSent);
+                        await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                        {
+                            type = "dragon_message",
+                            sessionId,
+                            message = welcomeResponse,
+                            timestamp = DateTime.UtcNow,
+                            isStreamed = session.StreamingResponseSent
+                        });
+                        session.WelcomeSent = true;
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        _logger.LogError(ex, "Failed to start Dragon session - LLM connection error");
+                        await SendTrackedMessageAsync(webSocket, session, "error", new
+                        {
+                            type = "error",
+                            errorType = "llm_connection",
+                            sessionId,
+                            message = $"Failed to connect to LLM provider: {ex.Message}",
+                            timestamp = DateTime.UtcNow
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to start Dragon session");
+                        await SendTrackedMessageAsync(webSocket, session, "error", new
+                        {
+                            type = "error",
+                            errorType = "startup_error",
+                            sessionId,
+                            message = $"Failed to initialize Dragon: {ex.Message}",
+                            timestamp = DateTime.UtcNow
+                        });
+                    }
                     return;
                 }
 
