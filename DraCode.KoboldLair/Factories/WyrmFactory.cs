@@ -127,8 +127,8 @@ namespace DraCode.KoboldLair.Factories
                 }
             };
 
-            // Create Wyrm agent using KoboldLairAgentFactory for consistency
-            // Use "coding" agent type since we're doing specification analysis, not task delegation
+            // Create a generic coding agent for specification pre-analysis (JSON output).
+            // WyrmAgent (with select_agent tool) is a separate class used by Drake for task delegation.
             var wyrm = KoboldLairAgentFactory.Create(providerType, koboldLairConfig, finalOptions, config, "coding");
 
             // Register for tracking

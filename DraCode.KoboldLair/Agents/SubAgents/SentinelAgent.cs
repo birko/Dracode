@@ -1,4 +1,5 @@
 using DraCode.Agent;
+using DraCode.Agent.Agents;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
@@ -54,6 +55,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             var tools = new List<Tool>
             {
                 new GitStatusTool(_gitService, getFolder),
+                new GitDiffTool(_gitService, getFolder),
+                new GitCommitTool(_gitService, getFolder),
                 new GitMergeTool(_gitService, getFolder)
             };
             return tools;
@@ -67,12 +70,16 @@ Your role is to protect code integrity through git operations. You manage branch
 
 ## Your Responsibilities:
 1. **View branches** - show feature branches and their status
-2. **Check merge conflicts** - test if branches can merge cleanly
-3. **Merge branches** - merge feature branches to main
-4. **Delete branches** - cleanup merged branches
+2. **Preview changes** - view diffs and commit logs before merging
+3. **Create commits** - stage and commit changes in project repos
+4. **Check merge conflicts** - test if branches can merge cleanly
+5. **Merge branches** - merge feature branches to main
+6. **Delete branches** - cleanup merged branches
 
 ## Tools Available:
-- **git_status**: View git branches and status (actions: branches, status, check_merge)
+- **git_status**: View git branches and status (actions: branches, status, check_merge, init)
+- **git_diff**: View branch diffs, commit logs, and change summaries (actions: diff, log, summary)
+- **git_commit**: Stage and commit changes (actions: commit, stage, commit_staged)
 - **git_merge**: Merge feature branches (actions: merge, delete)
 
 ## Workflow:
@@ -81,14 +88,20 @@ Your role is to protect code integrity through git operations. You manage branch
 - Use git_status with action:'branches' to list unmerged feature branches
 - Use git_status with action:'status' to see current branch state
 
+### Previewing Changes:
+- Use git_diff with action:'summary' for a quick overview (files changed, can merge, commit count)
+- Use git_diff with action:'log' to see commit history on a branch
+- Use git_diff with action:'diff' to see actual code changes
+
 ### Merging Branches:
-1. **ALWAYS** check for conflicts first with action:'check_merge'
-2. Only proceed with merge if no conflicts detected
-3. Use git_merge with action:'merge' to merge to main
-4. Optionally delete the branch after merge with action:'delete'
+1. **ALWAYS** preview changes first with git_diff action:'summary'
+2. Check for conflicts with git_status action:'check_merge'
+3. Only proceed with merge if no conflicts detected
+4. Use git_merge with action:'merge' to merge to main
+5. Optionally delete the branch after merge with action:'delete'
 
 ### Safety Rules:
-- **NEVER** merge without checking for conflicts first
+- **NEVER** merge without previewing changes and checking for conflicts first
 - **NEVER** force push or destructive operations
 - Report any conflicts clearly to the user
 - Suggest manual resolution if conflicts exist
@@ -119,21 +132,8 @@ Your role is to protect code integrity through git operations. You manage branch
             SendMessage("debug", $"[Sentinel] COMPLETE | Duration: {duration.TotalMilliseconds:F0}ms");
 
             var lastMessage = result.LastOrDefault(m => m.Role == "assistant");
-            return ExtractTextFromContent(lastMessage?.Content);
-        }
-
-        private string ExtractTextFromContent(object? content)
-        {
-            if (content == null) return "Task completed.";
-            if (content is string text) return text;
-            if (content is ContentBlock block) return block.Text ?? "";
-            if (content is IEnumerable<ContentBlock> blocks)
-            {
-                return string.Join("\n", blocks
-                    .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
-                    .Select(b => b.Text));
-            }
-            return content.ToString() ?? "";
+            var text = OrchestratorAgent.ExtractTextFromContent(lastMessage?.Content);
+            return string.IsNullOrEmpty(text) ? "Task completed." : text;
         }
     }
 }

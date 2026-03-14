@@ -1,0 +1,4 @@
+root = true
+
+[*.{cs,vb}]
+dotnet_prefer_slnx = true

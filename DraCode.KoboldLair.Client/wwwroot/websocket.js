@@ -264,6 +264,23 @@ export class WebSocketClient {
         }
     }
 
+    /**
+     * Remove all handlers for a specific message type.
+     * Call before re-registering to prevent handler accumulation on reconnect.
+     */
+    offAll(type) {
+        this.messageHandlers.delete(type);
+    }
+
+    /**
+     * Remove all message handlers and status change handlers.
+     * Use when tearing down a connection completely.
+     */
+    removeAllHandlers() {
+        this.messageHandlers.clear();
+        this.statusChangeHandlers = [];
+    }
+
     onStatusChange(handler) {
         this.statusChangeHandlers.push(handler);
         handler(this.currentStatus);

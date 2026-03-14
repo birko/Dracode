@@ -35,6 +35,12 @@ namespace DraCode.KoboldLair.Factories
         private readonly object _lock = new object();
 
         /// <summary>
+        /// Optional callback invoked when a feature's tasks are all complete and its branch is ready for merge.
+        /// Parameters: projectName, featureName, branchName
+        /// </summary>
+        public Action<string, string, string>? OnFeatureBranchReady { get; set; }
+
+        /// <summary>
         /// Creates a new DrakeFactory
         /// </summary>
         /// <param name="koboldFactory">Kobold factory for creating workers</param>
@@ -170,6 +176,15 @@ namespace DraCode.KoboldLair.Factories
                     "kobold-planner");
             }
 
+            // Create implementation service for specification tracking
+            ProjectImplementationService? implementationService = null;
+            if (_projectRepository != null && !string.IsNullOrEmpty(projectId))
+            {
+                implementationService = new ProjectImplementationService(
+                    _projectsPath,
+                    _projectRepository,
+                    _loggerFactory?.CreateLogger<ProjectImplementationService>());
+            }
             // Create the Drake with all dependencies including plan service and project repository
             var drake = new Drake(
                 _koboldFactory,
@@ -194,7 +209,9 @@ namespace DraCode.KoboldLair.Factories
                 _autoApproveModifications,
                 _filterFilesByPlan,
                 _sharedPlanningContext,
-                _koboldLairConfig.Planning
+                implementationService,
+                _koboldLairConfig.Planning,
+                OnFeatureBranchReady
             );
 
             // Lock only for dictionary insertion, with race condition check

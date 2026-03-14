@@ -100,10 +100,15 @@ After analyzing the task, use the create_implementation_plan tool to output your
         }
 
         /// <summary>
-        /// Creates an implementation plan for the given task
+        /// GAP FIX 1: Creates an implementation plan for the given task with full specification context
         /// </summary>
+        /// <param name="projectId">Project identifier for this plan</param>
+        /// <param name="taskId">Task identifier for this plan</param>
         /// <param name="taskDescription">The task to plan</param>
-        /// <param name="specificationContext">Optional project specification for context</param>
+        /// <param name="specification">Optional full specification for version tracking</param>
+        /// <param name="featureId">Optional feature ID this task implements</param>
+        /// <param name="featureName">Optional feature name this task implements</param>
+        /// <param name="featureDescription">Optional feature description</param>
         /// <param name="projectStructure">Optional project structure with file organization guidelines</param>
         /// <param name="workspaceFiles">List of files already in workspace</param>
         /// <param name="filesInUse">Files currently being worked on by other agents</param>
@@ -114,8 +119,13 @@ After analyzing the task, use the create_implementation_plan tool to output your
         /// <param name="maxIterations">Maximum iterations for plan generation</param>
         /// <returns>The generated implementation plan</returns>
         public async Task<KoboldImplementationPlan> CreatePlanAsync(
+            string projectId,
+            string taskId,
             string taskDescription,
-            string? specificationContext = null,
+            Specification? specification = null,
+            string? featureId = null,
+            string? featureName = null,
+            string? featureDescription = null,
             ProjectStructure? projectStructure = null,
             List<string>? workspaceFiles = null,
             HashSet<string>? filesInUse = null,
@@ -127,6 +137,9 @@ After analyzing the task, use the create_implementation_plan tool to output your
         {
             // Clear any previous plan
             CreateImplementationPlanTool.ClearLastPlan();
+
+            // Build specification context for the prompt
+            var specificationContext = BuildSpecificationContext(specification, featureId, featureName, featureDescription);
 
             // Build the prompt
             var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure, workspaceFiles, filesInUse, fileMetadata, relatedPlans, similarTaskInsights, bestPractices);
@@ -142,7 +155,15 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 // Create a fallback single-step plan if no plan was generated
                 plan = new KoboldImplementationPlan
                 {
+                    ProjectId = projectId,
+                    TaskId = taskId,
                     TaskDescription = taskDescription,
+                    FeatureId = featureId,
+                    FeatureName = featureName,
+                    FeatureDescription = featureDescription,
+                    SpecificationVersion = specification?.Version ?? 1,
+                    SpecificationContentHash = specification?.ContentHash ?? string.Empty,
+                    SpecificationContext = specificationContext,
                     Status = PlanStatus.Ready,
                     Steps = new List<ImplementationStep>
                     {
@@ -157,7 +178,16 @@ After analyzing the task, use the create_implementation_plan tool to output your
             }
             else
             {
+                // GAP FIX 1: Embed specification context in the plan
+                plan.ProjectId = projectId;
+                plan.TaskId = taskId;
                 plan.TaskDescription = taskDescription;
+                plan.FeatureId = featureId;
+                plan.FeatureName = featureName;
+                plan.FeatureDescription = featureDescription;
+                plan.SpecificationVersion = specification?.Version ?? 1;
+                plan.SpecificationContentHash = specification?.ContentHash ?? string.Empty;
+                plan.SpecificationContext = specificationContext;
 
                 // Phase 4: Intelligently reorder steps based on dependencies
                 var analyzer = new Services.StepDependencyAnalyzer();
@@ -190,6 +220,77 @@ After analyzing the task, use the create_implementation_plan tool to output your
             plan.AddLogEntry("Plan created by KoboldPlannerAgent");
 
             return plan;
+        }
+
+        /// <summary>
+        /// GAP FIX 1: Builds a concise specification context for the planner
+        /// Extracts only the relevant parts of the specification for this task
+        /// </summary>
+        private string? BuildSpecificationContext(
+            Specification? specification,
+            string? featureId,
+            string? featureName,
+            string? featureDescription)
+        {
+            if (specification == null) return null;
+
+            var context = new System.Text.StringBuilder();
+
+            // Add project overview
+            if (!string.IsNullOrEmpty(specification.Name))
+            {
+                context.AppendLine($"**Project:** {specification.Name}");
+                context.AppendLine($"**Specification Version:** {specification.Version}");
+                context.AppendLine();
+            }
+
+            // Add feature context if available
+            if (!string.IsNullOrEmpty(featureId) || !string.IsNullOrEmpty(featureName))
+            {
+                context.AppendLine("**Feature Context:**");
+                context.AppendLine();
+
+                if (!string.IsNullOrEmpty(featureName))
+                {
+                    context.AppendLine($"**Feature:** {featureName}");
+                }
+
+                if (!string.IsNullOrEmpty(featureDescription))
+                {
+                    context.AppendLine(featureDescription);
+                }
+
+                // Find and include the full feature details from specification
+                if (specification.Features.Any())
+                {
+                    var feature = specification.Features.FirstOrDefault(f =>
+                        f.Id == featureId ||
+                        f.Name.Equals(featureName, StringComparison.OrdinalIgnoreCase));
+
+                    if (feature != null)
+                    {
+                        if (!string.IsNullOrEmpty(feature.Description) &&
+                            feature.Description != featureDescription)
+                        {
+                            context.AppendLine($"**Details:** {feature.Description}");
+                        }
+
+                        // GAP FIX 3: Include acceptance criteria if available
+                        if (feature.AcceptanceCriteria != null && feature.AcceptanceCriteria.Any())
+                        {
+                            context.AppendLine("**Acceptance Criteria:**");
+                            foreach (var criteria in feature.AcceptanceCriteria)
+                            {
+                                context.AppendLine($"- {criteria}");
+                            }
+                        }
+                    }
+                }
+
+                context.AppendLine();
+            }
+
+            return context.Length > 0 ? context.ToString() : null;
         }
 
         private string BuildPlanningPrompt(

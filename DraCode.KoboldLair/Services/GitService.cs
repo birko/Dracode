@@ -509,6 +509,127 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Gets the diff between a branch and main (or another target branch)
+        /// </summary>
+        public async Task<(string Diff, string Stat, int FilesChanged)> GetBranchDiffAsync(string projectFolder, string sourceBranch, string targetBranch = "main")
+        {
+            // Get diff stat (summary)
+            var statResult = await RunGitCommandAsync(projectFolder, "diff", "--stat", $"{targetBranch}...{sourceBranch}");
+            var stat = statResult.Success ? statResult.Output : "";
+
+            // Get actual diff (limited to avoid huge output)
+            var diffResult = await RunGitCommandAsync(projectFolder, "diff", $"{targetBranch}...{sourceBranch}");
+            var diff = diffResult.Success ? diffResult.Output : "";
+
+            // Count files changed
+            var numstatResult = await RunGitCommandAsync(projectFolder, "diff", "--numstat", $"{targetBranch}...{sourceBranch}");
+            var filesChanged = numstatResult.Success
+                ? numstatResult.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length
+                : 0;
+
+            return (diff, stat, filesChanged);
+        }
+
+        /// <summary>
+        /// Gets the commit log between two branches
+        /// </summary>
+        public async Task<List<(string Sha, string Message, string Author, DateTime Date)>> GetBranchLogAsync(string projectFolder, string sourceBranch, string targetBranch = "main")
+        {
+            var result = await RunGitCommandAsync(projectFolder, "log", "--oneline", "--format=%H|%s|%an|%aI", $"{targetBranch}..{sourceBranch}");
+            var commits = new List<(string Sha, string Message, string Author, DateTime Date)>();
+
+            if (!result.Success) return commits;
+
+            foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = line.Split('|', 4);
+                if (parts.Length >= 4)
+                {
+                    DateTime.TryParse(parts[3], out var date);
+                    commits.Add((parts[0], parts[1], parts[2], date));
+                }
+            }
+
+            return commits;
+        }
+
+        /// <summary>
+        /// Creates a git worktree for a branch, enabling parallel work on different branches.
+        /// Returns the worktree path if successful, null otherwise.
+        /// </summary>
+        public async Task<string?> CreateWorktreeAsync(string projectFolder, string branchName, string? worktreePath = null)
+        {
+            if (!await IsRepositoryAsync(projectFolder))
+                return null;
+
+            // Default worktree path: .worktrees/{sanitized-branch-name}
+            worktreePath ??= Path.Combine(projectFolder, ".worktrees", SanitizeBranchName(branchName));
+
+            // If worktree already exists and is valid, reuse it
+            if (Directory.Exists(worktreePath))
+            {
+                var checkResult = await RunGitCommandAsync(worktreePath, "rev-parse", "--git-dir");
+                if (checkResult.Success)
+                {
+                    _logger.LogDebug("Reusing existing worktree at {Path} for branch {Branch}", worktreePath, branchName);
+                    // Make sure it's on the right branch
+                    await RunGitCommandAsync(worktreePath, "checkout", branchName);
+                    return worktreePath;
+                }
+                // Invalid worktree, clean it up
+                await RemoveWorktreeAsync(projectFolder, worktreePath);
+            }
+
+            // Create the worktree directory's parent if needed
+            var parentDir = Path.GetDirectoryName(worktreePath);
+            if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
+            {
+                Directory.CreateDirectory(parentDir);
+            }
+
+            var result = await RunGitCommandAsync(projectFolder, "worktree", "add", worktreePath, branchName);
+            if (result.Success)
+            {
+                _logger.LogInformation("Created worktree at {Path} for branch {Branch}", worktreePath, branchName);
+                return worktreePath;
+            }
+
+            _logger.LogError("Failed to create worktree for {Branch}: {Error}", branchName, result.Error);
+            return null;
+        }
+
+        /// <summary>
+        /// Removes a git worktree
+        /// </summary>
+        public async Task<bool> RemoveWorktreeAsync(string projectFolder, string worktreePath)
+        {
+            // First try git worktree remove (clean removal)
+            var result = await RunGitCommandAsync(projectFolder, "worktree", "remove", worktreePath, "--force");
+            if (result.Success)
+            {
+                _logger.LogDebug("Removed worktree at {Path}", worktreePath);
+                return true;
+            }
+
+            // Fallback: manually remove and prune
+            try
+            {
+                if (Directory.Exists(worktreePath))
+                {
+                    Directory.Delete(worktreePath, recursive: true);
+                }
+                await RunGitCommandAsync(projectFolder, "worktree", "prune");
+                _logger.LogDebug("Force-removed worktree at {Path}", worktreePath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to remove worktree at {Path}", worktreePath);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Runs a git command and returns the result
         /// </summary>
         private async Task<(bool Success, string Output, string Error)> RunGitCommandAsync(string workingDirectory, params string[] args)

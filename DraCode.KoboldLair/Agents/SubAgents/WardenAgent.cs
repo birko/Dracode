@@ -1,4 +1,5 @@
 using DraCode.Agent;
+using DraCode.Agent.Agents;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
@@ -35,6 +36,10 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<string, (bool Success, string? VerificationStatus, DateTime? LastVerified, string? Summary)>? _getVerificationStatus;
         private readonly Func<string, (bool Success, string? Report)>? _getVerificationReport;
         private readonly Func<string, bool>? _skipVerification;
+        private readonly ViewTaskDetailsTool? _viewTaskDetailsTool;
+        private readonly ProjectProgressTool? _projectProgressTool;
+        private readonly ViewWorkspaceTool? _viewWorkspaceTool;
+        private readonly DeleteProjectTool? _deleteProjectTool;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -61,7 +66,11 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<string, bool>? retryVerification = null,
             Func<string, (bool Success, string? VerificationStatus, DateTime? LastVerified, string? Summary)>? getVerificationStatus = null,
             Func<string, (bool Success, string? Report)>? getVerificationReport = null,
-            Func<string, bool>? skipVerification = null)
+            Func<string, bool>? skipVerification = null,
+            ViewTaskDetailsTool? viewTaskDetailsTool = null,
+            ProjectProgressTool? projectProgressTool = null,
+            ViewWorkspaceTool? viewWorkspaceTool = null,
+            DeleteProjectTool? deleteProjectTool = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -85,6 +94,10 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _getVerificationStatus = getVerificationStatus;
             _getVerificationReport = getVerificationReport;
             _skipVerification = skipVerification;
+            _viewTaskDetailsTool = viewTaskDetailsTool;
+            _projectProgressTool = projectProgressTool;
+            _viewWorkspaceTool = viewWorkspaceTool;
+            _deleteProjectTool = deleteProjectTool;
             RebuildTools();
         }
 
@@ -105,18 +118,20 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 new SkipVerificationTool(_skipVerification)
             };
             
-            // Add retry failed task tool if available
+            // Add optional tools if available
             if (_retryFailedTaskTool != null)
-            {
                 tools.Add(_retryFailedTaskTool);
-            }
-            
-            // Add set task priority tool if available
             if (_setTaskPriorityTool != null)
-            {
                 tools.Add(_setTaskPriorityTool);
-            }
-            
+            if (_viewTaskDetailsTool != null)
+                tools.Add(_viewTaskDetailsTool);
+            if (_projectProgressTool != null)
+                tools.Add(_projectProgressTool);
+            if (_viewWorkspaceTool != null)
+                tools.Add(_viewWorkspaceTool);
+            if (_deleteProjectTool != null)
+                tools.Add(_deleteProjectTool);
+
             return tools;
         }
 
@@ -143,16 +158,20 @@ Your role is to manage the workforce - the background agents that process projec
 - **retry_analysis**: View failed projects and retry Wyvern analysis (actions: list, retry, status)
 - **retry_failed_task**: View and retry failed Kobold tasks (actions: list, retry, retry_all)
 - **set_task_priority**: Manually override task priority to control execution order
+- **view_task_details**: View detailed task info including errors, plan steps, dependencies (actions: list, detail, plan)
+- **project_progress**: View project progress analytics - completion %, breakdowns, success rates (actions: overview, all)
+- **view_workspace**: Browse generated output files in workspace (actions: tree, stats, recent)
+- **delete_project**: Permanently remove a cancelled project from registry
 - **pause_project**: Temporarily halt project execution (short-term)
 - **resume_project**: Resume paused or suspended project
 - **suspend_project**: Long-term hold (awaiting external changes)
 - **cancel_project**: Permanently stop project (requires confirmation)
 
 ## Agent Types You Oversee:
-- **Wyvern**: Analyzes specifications, creates task breakdowns (first step after approval)
-- **Wyrm**: Task analysis (if separate from Wyvern)
-- **Drake**: Supervises task execution, manages Kobolds
-- **Kobold**: Code generation workers that implement tasks
+- **Wyrm**: Pre-analyzes specifications, recommends languages/agent types/tech stack. Also used by Drake to select specialist Kobold types for each task.
+- **Wyvern**: Detailed analysis of specs (guided by Wyrm recommendations), creates task breakdowns with priorities and dependencies.
+- **Drake**: Supervises task execution, creates implementation plans, summons and monitors Kobolds.
+- **Kobold**: Code generation workers that implement tasks step-by-step from plans.
 
 ## Workflow:
 
@@ -171,7 +190,7 @@ Your role is to manage the workforce - the background agents that process projec
 - Use action:'enable' with project and agent_type to enable
 - Use action:'disable' with project and agent_type to disable
 - **Important**: Agents must be enabled for a project before they will process it
-- New projects have all agents disabled by default
+- New projects have all agents enabled by default
 
 ### Setting Limits:
 - Use action:'set_limit' with project, agent_type, and limit
@@ -225,9 +244,11 @@ Your role is to manage the workforce - the background agents that process projec
 
 ## Processing Pipeline:
 When all agents are enabled, the flow is:
-1. Wyvern analyzes spec → creates tasks (every 60s check)
-2. Drake monitors tasks → summons Kobolds
-3. Kobolds implement code → commit to branches
+1. Wyrm pre-analyzes spec → recommends languages, agent types, tech stack (every 60s check)
+2. Wyvern analyzes spec (guided by Wyrm) → creates tasks with priorities and dependencies (every 60s check)
+3. Drake picks up tasks → creates implementation plans → summons Kobolds (every 30s check)
+4. Kobolds execute plans step-by-step → output code to workspace
+5. Verification service checks build/tests → marks project Completed or creates fix tasks
 
 ## Style:
 - Be authoritative but helpful
@@ -252,21 +273,8 @@ When all agents are enabled, the flow is:
             SendMessage("debug", $"[Warden] COMPLETE | Duration: {duration.TotalMilliseconds:F0}ms");
 
             var lastMessage = result.LastOrDefault(m => m.Role == "assistant");
-            return ExtractTextFromContent(lastMessage?.Content);
-        }
-
-        private string ExtractTextFromContent(object? content)
-        {
-            if (content == null) return "Task completed.";
-            if (content is string text) return text;
-            if (content is ContentBlock block) return block.Text ?? "";
-            if (content is IEnumerable<ContentBlock> blocks)
-            {
-                return string.Join("\n", blocks
-                    .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
-                    .Select(b => b.Text));
-            }
-            return content.ToString() ?? "";
+            var text = OrchestratorAgent.ExtractTextFromContent(lastMessage?.Content);
+            return string.IsNullOrEmpty(text) ? "Task completed." : text;
         }
     }
 }

@@ -28,9 +28,10 @@ dotnet run --project DraCode.AppHost
 🐉 **Dragon** (Interactive) - Your only touchpoint. Conduct conversational requirements gathering, refine specifications.
 🐉 **Wyrm** (Automatic) - Pre-analyzes specifications for languages, tech stack, agent recommendations, complexity.
 🐲 **Wyvern** (Automatic) - Analyzes specifications, breaks down into organized tasks using Wyrm's recommendations.
-🦅 **Drake** (Automatic) - Supervises task execution, monitors progress, handles errors.
+🦅 **Drake** (Automatic) - Supervises task execution, manages git worktrees for feature branches, commits completed work.
 📋 **Kobold Planner** (Automatic) - Creates implementation plans with atomic steps before code generation.
 👹 **Kobold** (Automatic) - Executes plans step-by-step, writing the actual code.
+🔀 **Git** (Automatic) - Feature branches per feature, worktrees for parallel safety, notifications when ready to merge.
 
 **Key Features:**
 - 💬 **Interactive Dragon Chat** - Natural conversation interface for requirements
@@ -42,7 +43,7 @@ dotnet run --project DraCode.AppHost
 - 📁 **Project Management** - Automatic project tracking with metadata and output locations
 - ⏱️ **Background Processing** - Services run every 30-60 seconds checking for new work
 - 🎨 **Modern UI** - Three-page interface: Status Monitor, Dragon Chat, Hierarchy View
-- 🔀 **Git Integration** - Branch management, merge operations, conflict detection
+- 🔀 **Git Integration** - Automatic feature branches, worktree-based parallel execution, commit tracking, merge notifications
 - 💭 **Thinking Indicator** - Real-time processing feedback during Dragon chat
 - 🔒 **External Path Access** - Per-project access control for directories outside workspace
 - 🔄 **LLM Retry Logic** - Robust API handling with exponential backoff for all providers
@@ -63,9 +64,9 @@ dotnet run --project DraCode.AppHost
 - **Interactive CLI UI**: Beautiful Spectre.Console interface with provider selection menus
 - **Verbose Mode Control**: Toggle between detailed execution info or clean minimal output
 - **Autonomous Agent System**: Multi-turn conversations with iterative problem solving
-- **Tool System**: 7 built-in tools + 12 Dragon-specific tools + 1 Planner tool
+- **Tool System**: 7 built-in tools + 23 Dragon-specific tools + 1 Planner tool
   - **Built-in**: `list_files`, `read_file`, `write_file`, `search_code`, `run_command`, `ask_user`, `display_text`
-  - **Dragon Tools**: `git_status`, `git_merge`, `manage_specification`, `manage_features`, `view_specification_history`, `approve_specification`, `list_projects`, `add_existing_project`, `select_agent`, `manage_external_paths`, `retry_analysis`, `agent_status`, `retry_failed_task`
+  - **Dragon Tools**: `git_status`, `git_diff`, `git_commit`, `git_merge`, `manage_specification`, `manage_features`, `delete_feature`, `view_specification_history`, `approve_specification`, `list_projects`, `add_existing_project`, `select_agent`, `manage_external_paths`, `retry_analysis`, `agent_status`, `retry_failed_task`, `set_task_priority`, `view_task_details`, `project_progress`, `view_workspace`, `delete_project`, `pause_project`, `resume_project`, `suspend_project`, `cancel_project`
   - **Planner Tool**: `create_implementation_plan`
 - **Shared Planning Context**: Cross-agent coordination, file conflict detection, learning from past executions (v2.6.0)
 - **GitHub Copilot OAuth**: Integrated device flow authentication
@@ -366,7 +367,7 @@ dotnet test
 ```
 DraCode/
 ├── DraCode/                      # Main CLI application
-├── DraCode.Agent/                # Agent library (21 agent types)
+├── DraCode.Agent/                # Agent library (23 agent types)
 │   ├── Agents/                  # Agent implementations (Coding, Media, Documentation, Debug, Refactor, Test, Diagramming)
 │   ├── Auth/                    # OAuth implementation
 │   ├── LLMs/                    # 10 LLM provider implementations
@@ -374,8 +375,8 @@ DraCode/
 │   └── Helpers/                 # Utility classes
 ├── DraCode.KoboldLair/           # Multi-agent core library
 │   ├── Agents/                  # Dragon, Wyrm, Wyvern, KoboldPlanner agents
-│   │   ├── SubAgents/          # Dragon sub-agents (Warden, Librarian, Architect)
-│   │   └── Tools/              # Dragon & Planner tools (Git, Spec, Features, ExternalPaths)
+│   │   ├── SubAgents/          # Dragon Council (Sage, Seeker, Sentinel, Warden)
+│   │   └── Tools/              # 23 Dragon tools (Git, Spec, Features, Progress, Workspace)
 │   ├── Factories/               # KoboldFactory, DrakeFactory, WyvernFactory
 │   ├── Models/                  # Data models (Agents, Config, Projects, Tasks)
 │   ├── Orchestrators/           # Drake, Wyvern, WyrmRunner

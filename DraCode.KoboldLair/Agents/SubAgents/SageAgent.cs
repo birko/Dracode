@@ -1,4 +1,5 @@
 using DraCode.Agent;
+using DraCode.Agent.Agents;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
@@ -51,6 +52,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             {
                 new SpecificationManagementTool(_specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath, _onProjectLoaded),
                 new FeatureManagementTool(_specifications),
+                new DeleteFeatureTool(_specifications),
                 new ProcessFeaturesTool(_specifications, _onSpecificationUpdated),
                 new SpecificationHistoryTool(_specifications),
                 new ProjectApprovalTool(_approveProject)
@@ -74,6 +76,7 @@ Your role is to manage project specifications and features. You are a specialist
 ## Tools Available:
 - **manage_specification**: Create/update/load specifications (actions: list, load, create, update)
 - **manage_feature**: Manage features (actions: list, create, update)
+- **delete_feature**: Delete a Draft feature from a specification (requires confirmation)
 - **process_features**: Manage feature processing workflow (actions: list, promote, update_spec)
 - **view_specification_history**: View specification version history
 - **approve_specification**: Approve a specification (changes Prototype → New)
@@ -86,6 +89,23 @@ Your role is to manage project specifications and features. You are a specialist
 3. Gather requirements: purpose, scope, architecture, success criteria
 4. Use manage_specification with action:'create' and the 'name' parameter
 5. New projects start in 'Prototype' status
+
+### Specification Completeness Checklist:
+Before approving any specification, ensure it covers ALL of the following. If any are missing or unclear, **ask the user** before proceeding:
+
+1. **Tech Stack** — Explicitly state all languages, frameworks, and tools. If the project uses NO frameworks (vanilla), say so explicitly. If there is NO backend or NO database, state that clearly so Wyvern does not invent tasks for them.
+2. **Agent Type Hints** — Specify which KoboldLair agent types should be used (e.g., `typescript`, `css`, `html`, `csharp`, `react`, etc.) and which should NOT be used. This prevents Wyvern from assigning wrong agent types.
+3. **Architecture Scope** — Is this frontend-only? Backend-only? Fullstack? Wyvern creates work areas (Backend, Frontend, Database, Infrastructure) — clearly state which apply.
+4. **Build Tooling** — If the project uses a bundler or build tool (Vite, Webpack, etc.), clarify it is a dev dependency, not a runtime framework. Otherwise the ""no frameworks"" constraint conflicts.
+5. **File/Directory Structure** — Propose a structure with source files in subdirectories (not root). Wyvern uses this for task decomposition and file placement.
+6. **Task Dependency Order** — Suggest the logical build order (foundation → core logic → UI → integration → testing → docs). This maps to Wyvern's dependency levels.
+7. **Out-of-Scope Section** — Explicitly list features that are NOT part of v1 with a clear ""Do NOT Implement"" instruction. Wyvern and Kobolds may otherwise attempt to build them.
+8. **Sync/Communication Mechanism** — If the project involves real-time sync between components (e.g., tabs, devices), specify the mechanism (WebSocket, BroadcastChannel, localStorage events, etc.).
+9. **Content/Input Loading** — How does data get into the app? File upload, drag-and-drop, URL parameter, API call? Specify the primary method.
+10. **Error Handling Strategy** — Define behavior for invalid input, empty data, and edge cases.
+11. **Keyboard/Interaction Patterns** — List keyboard shortcuts, gestures, or navigation patterns if applicable.
+
+**When gathering requirements, proactively ask the user about any items from this checklist that are not yet covered.** Frame questions naturally — do not dump the entire checklist at once. Prioritize asking about Tech Stack, Architecture Scope, and Out-of-Scope first, as these have the highest impact on Wyvern's task decomposition.
 
 ### Managing Features (Draft → Ready → Processed):
 1. **Create** features with `manage_feature` action:'create' → Features start as **Draft** 📝
@@ -143,21 +163,8 @@ Do NOT invent a new name or variation - use the existing project name exactly as
             SendMessage("debug", $"[Sage] COMPLETE | Duration: {duration.TotalMilliseconds:F0}ms");
 
             var lastMessage = result.LastOrDefault(m => m.Role == "assistant");
-            return ExtractTextFromContent(lastMessage?.Content);
-        }
-
-        private string ExtractTextFromContent(object? content)
-        {
-            if (content == null) return "Task completed.";
-            if (content is string text) return text;
-            if (content is ContentBlock block) return block.Text ?? "";
-            if (content is IEnumerable<ContentBlock> blocks)
-            {
-                return string.Join("\n", blocks
-                    .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
-                    .Select(b => b.Text));
-            }
-            return content.ToString() ?? "";
+            var text = OrchestratorAgent.ExtractTextFromContent(lastMessage?.Content);
+            return string.IsNullOrEmpty(text) ? "Task completed." : text;
         }
 
         /// <summary>

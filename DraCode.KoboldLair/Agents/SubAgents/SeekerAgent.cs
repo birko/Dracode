@@ -1,4 +1,5 @@
 using DraCode.Agent;
+using DraCode.Agent.Agents;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
@@ -89,21 +90,8 @@ Your role is to discover and analyze existing codebases. You help users import t
             SendMessage("debug", $"[Seeker] COMPLETE | Duration: {duration.TotalMilliseconds:F0}ms");
 
             var lastMessage = result.LastOrDefault(m => m.Role == "assistant");
-            return ExtractTextFromContent(lastMessage?.Content);
-        }
-
-        private string ExtractTextFromContent(object? content)
-        {
-            if (content == null) return "Task completed.";
-            if (content is string text) return text;
-            if (content is ContentBlock block) return block.Text ?? "";
-            if (content is IEnumerable<ContentBlock> blocks)
-            {
-                return string.Join("\n", blocks
-                    .Where(b => b.Type == "text" && !string.IsNullOrEmpty(b.Text))
-                    .Select(b => b.Text));
-            }
-            return content.ToString() ?? "";
+            var text = OrchestratorAgent.ExtractTextFromContent(lastMessage?.Content);
+            return string.IsNullOrEmpty(text) ? "Task completed." : text;
         }
     }
 }

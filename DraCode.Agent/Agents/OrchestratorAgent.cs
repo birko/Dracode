@@ -68,7 +68,7 @@ Reasoning approach: Balanced
         /// Handles string, ContentBlock, IEnumerable&lt;ContentBlock&gt;, JsonElement, and dynamic objects.
         /// This robust implementation handles various serialization/deserialization scenarios.
         /// </summary>
-        protected string ExtractTextFromContent(object? content)
+        public static string ExtractTextFromContent(object? content)
         {
             if (content == null)
                 return string.Empty;
@@ -171,37 +171,70 @@ Reasoning approach: Balanced
         /// Useful for orchestrators that need to parse structured output from LLMs.
         /// Uses regex patterns to handle various formatting scenarios.
         /// </summary>
-        protected static string ExtractJson(string content)
+        public static string ExtractJson(string content)
         {
             if (string.IsNullOrWhiteSpace(content))
                 throw new InvalidOperationException("Agent returned empty response.");
 
-            // If it already starts with '{', assume it's valid JSON
+            // If it already starts with '{', extract balanced JSON
             var trimmed = content.Trim();
             if (trimmed.StartsWith('{'))
-                return trimmed;
+                return ExtractBalancedJson(trimmed, 0);
 
             // Try to extract from markdown code block (```json ... ``` or ``` ... ```)
-            var jsonBlockMatch = System.Text.RegularExpressions.Regex.Match(
+            var codeBlockMatch = System.Text.RegularExpressions.Regex.Match(
                 content,
-                @"```(?:json)?\s*\n?(\{[\s\S]*?\})\s*\n?```",
+                @"```(?:json)?\s*\n?([\s\S]*?)\n?```",
                 System.Text.RegularExpressions.RegexOptions.Singleline);
 
-            if (jsonBlockMatch.Success)
-                return jsonBlockMatch.Groups[1].Value.Trim();
+            if (codeBlockMatch.Success)
+            {
+                var blockContent = codeBlockMatch.Groups[1].Value.Trim();
+                if (blockContent.StartsWith('{'))
+                    return ExtractBalancedJson(blockContent, 0);
+            }
 
-            // Try to find JSON object anywhere in the text
-            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
-                content,
-                @"(\{[\s\S]*\})",
-                System.Text.RegularExpressions.RegexOptions.Singleline);
+            // Try to find JSON object anywhere in the text using bracket matching
+            var startIdx = content.IndexOf('{');
+            if (startIdx >= 0)
+                return ExtractBalancedJson(content, startIdx);
 
-            if (jsonMatch.Success)
-                return jsonMatch.Groups[1].Value.Trim();
-
-            // No JSON found - provide helpful error with preview of what was received
-            var preview = content.Length > 100 ? content.Substring(0, 100) + "..." : content;
+            var preview = content.Length > 100 ? content[..100] + "..." : content;
             throw new InvalidOperationException($"Agent did not return valid JSON. Response started with: {preview}");
+        }
+
+        /// <summary>
+        /// Extracts a balanced JSON object by counting braces.
+        /// Handles nested objects, arrays, and string escaping correctly.
+        /// </summary>
+        private static string ExtractBalancedJson(string content, int startIndex)
+        {
+            if (startIndex >= content.Length || content[startIndex] != '{')
+                throw new InvalidOperationException("Could not extract JSON from response.");
+
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+
+            for (int i = startIndex; i < content.Length; i++)
+            {
+                char c = content[i];
+
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\' && inString) { escaped = true; continue; }
+                if (c == '"') { inString = !inString; continue; }
+                if (inString) continue;
+
+                if (c == '{' || c == '[') depth++;
+                else if (c == '}' || c == ']')
+                {
+                    depth--;
+                    if (depth == 0)
+                        return content.Substring(startIndex, i - startIndex + 1);
+                }
+            }
+
+            throw new InvalidOperationException("Could not extract JSON from response - unbalanced braces.");
         }
     }
 }

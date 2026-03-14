@@ -3,6 +3,7 @@ using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
+using static DraCode.KoboldLair.Server.Helpers.LogFormatHelper;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
 namespace DraCode.KoboldLair.Server.Services
@@ -11,27 +12,17 @@ namespace DraCode.KoboldLair.Server.Services
     /// Background service that automatically retries failed tasks with transient errors.
     /// Uses exponential backoff and circuit breaker pattern to handle provider outages.
     /// </summary>
-    public class FailureRecoveryService : BackgroundService
+    public class FailureRecoveryService : PeriodicBackgroundService
     {
         private readonly ILogger<FailureRecoveryService> _logger;
         private readonly ProjectService _projectService;
         private readonly DrakeFactory _drakeFactory;
         private readonly ProviderCircuitBreaker _circuitBreaker;
-        private readonly TimeSpan _checkInterval;
         private readonly int _maxRetryAttempts;
         private readonly TimeSpan[] _retryBackoffSchedule;
-        private bool _isRunning;
-        private readonly object _lock = new object();
 
-        /// <summary>
-        /// Creates a new failure recovery service
-        /// </summary>
-        /// <param name="logger">Logger instance</param>
-        /// <param name="projectService">Project service for accessing projects</param>
-        /// <param name="drakeFactory">Factory for accessing Drakes</param>
-        /// <param name="circuitBreaker">Circuit breaker for provider health tracking</param>
-        /// <param name="checkIntervalSeconds">Interval in seconds between checks (default: 300 = 5 minutes)</param>
-        /// <param name="maxRetryAttempts">Maximum retry attempts (default: 5)</param>
+        protected override ILogger Logger => _logger;
+
         public FailureRecoveryService(
             ILogger<FailureRecoveryService> logger,
             ProjectService projectService,
@@ -39,93 +30,33 @@ namespace DraCode.KoboldLair.Server.Services
             ProviderCircuitBreaker circuitBreaker,
             int checkIntervalSeconds = 300,
             int maxRetryAttempts = 5)
+            : base(TimeSpan.FromSeconds(checkIntervalSeconds), initialDelay: TimeSpan.FromMinutes(1))
         {
             _logger = logger;
             _projectService = projectService;
             _drakeFactory = drakeFactory;
             _circuitBreaker = circuitBreaker;
-            _checkInterval = TimeSpan.FromSeconds(checkIntervalSeconds);
             _maxRetryAttempts = maxRetryAttempts;
-            _isRunning = false;
 
             // Exponential backoff schedule: 1min, 2min, 5min, 15min, 30min
-            _retryBackoffSchedule = new[]
-            {
+            _retryBackoffSchedule =
+            [
                 TimeSpan.FromMinutes(1),
                 TimeSpan.FromMinutes(2),
                 TimeSpan.FromMinutes(5),
                 TimeSpan.FromMinutes(15),
                 TimeSpan.FromMinutes(30)
-            };
-        }
-
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation(
-                "🔄 Failure Recovery Service started. Check interval: {Interval}s, Max retries: {MaxRetries}",
-                _checkInterval.TotalSeconds,
-                _maxRetryAttempts);
-
-            // Wait 1 minute before first run to let other services stabilize
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    // Check if previous job is still running
-                    bool canRun;
-                    lock (_lock)
-                    {
-                        canRun = !_isRunning;
-                        if (canRun)
-                        {
-                            _isRunning = true;
-                        }
-                    }
-
-                    if (!canRun)
-                    {
-                        _logger.LogDebug("⚠️ Previous recovery cycle still running, skipping");
-                        await Task.Delay(_checkInterval, stoppingToken);
-                        continue;
-                    }
-
-                    await ProcessFailedTasksAsync(stoppingToken);
-
-                    lock (_lock)
-                    {
-                        _isRunning = false;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    _logger.LogInformation("Failure Recovery Service stopping...");
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in Failure Recovery Service");
-                    lock (_lock)
-                    {
-                        _isRunning = false;
-                    }
-                }
-
-                // Wait for next cycle
-                await Task.Delay(_checkInterval, stoppingToken);
-            }
-
-            _logger.LogInformation("Failure Recovery Service stopped");
+            ];
         }
 
         /// <summary>
         /// Processes all failed tasks across all projects and retries eligible ones
         /// </summary>
-        private async Task ProcessFailedTasksAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteCycleAsync(CancellationToken cancellationToken)
         {
             var projects = _projectService.GetAllProjects()
-                .Where(p => p.Status == ProjectStatus.InProgress)
+                .Where(p => p.Status == ProjectStatus.InProgress
+                            && p.ExecutionState == ProjectExecutionState.Running)
                 .ToList();
 
             if (projects.Count == 0)
@@ -231,7 +162,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _logger.LogDebug(
                     "Skipping task {TaskId}: No error message",
-                    task.Id[..Math.Min(8, task.Id.Length)]);
+                    ShortId(task.Id));
                 return false;
             }
 
@@ -240,8 +171,8 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _logger.LogDebug(
                     "Skipping task {TaskId}: Permanent error - {Error}",
-                    task.Id[..Math.Min(8, task.Id.Length)],
-                    task.ErrorMessage.Length > 100 ? task.ErrorMessage[..100] + "..." : task.ErrorMessage);
+                    ShortId(task.Id),
+                    Truncate(task.ErrorMessage, 100));
                 return false;
             }
 
@@ -250,7 +181,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _logger.LogDebug(
                     "Skipping task {TaskId}: Max retries ({MaxRetries}) exceeded",
-                    task.Id[..Math.Min(8, task.Id.Length)],
+                    ShortId(task.Id),
                     _maxRetryAttempts);
                 return false;
             }
@@ -261,7 +192,7 @@ namespace DraCode.KoboldLair.Server.Services
                 var waitTime = task.NextRetryAt.Value - now;
                 _logger.LogDebug(
                     "Skipping task {TaskId}: Next retry in {Minutes:F1} minutes",
-                    task.Id[..Math.Min(8, task.Id.Length)],
+                    ShortId(task.Id),
                     waitTime.TotalMinutes);
                 return false;
             }
@@ -271,7 +202,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _logger.LogDebug(
                     "Skipping task {TaskId}: Circuit breaker open for provider {Provider}",
-                    task.Id[..Math.Min(8, task.Id.Length)],
+                    ShortId(task.Id),
                     task.Provider);
                 return false;
             }
@@ -284,19 +215,19 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task RetryTaskAsync(Drake drake, TaskRecord task)
         {
-            var taskPreview = task.Task.Length > 60 ? task.Task[..60] + "..." : task.Task;
+            var taskPreview = Truncate(task.Task);
             
             _logger.LogInformation(
                 "🔄 Retrying task {TaskId} (attempt {Attempt}/{Max})\n" +
                 "  Provider: {Provider}\n" +
                 "  Task: {Task}\n" +
                 "  Last error: {Error}",
-                task.Id[..Math.Min(8, task.Id.Length)],
+                ShortId(task.Id),
                 task.RetryCount + 1,
                 _maxRetryAttempts,
                 task.Provider ?? "unknown",
                 taskPreview,
-                task.ErrorMessage?.Length > 100 ? task.ErrorMessage[..100] + "..." : task.ErrorMessage ?? "unknown");
+                Truncate(task.ErrorMessage ?? "unknown", 100));
 
             // Update retry metadata
             task.RetryCount++;

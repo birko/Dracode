@@ -147,9 +147,11 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ProjectService _projectService;
+        private readonly ProjectRepository _projectRepository;
         private readonly GitService _gitService;
         private readonly KoboldFactory? _koboldFactory;
         private readonly DrakeFactory? _drakeFactory;
+        private readonly KoboldPlanService? _planService;
         private readonly string _projectsPath;
         private readonly Timer _cleanupTimer;
         private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(10);
@@ -157,6 +159,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         // Request queue for non-blocking Dragon execution
         private readonly DragonRequestQueue _requestQueue;
+        private readonly ProjectNotificationService? _notificationService;
 
         // Cache for specification file enumeration to avoid frequent filesystem calls
         private List<string>? _specFilesCache;
@@ -170,11 +173,14 @@ namespace DraCode.KoboldLair.Server.Services
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
             ProjectService projectService,
+            ProjectRepository projectRepository,
             GitService gitService,
             KoboldLairConfiguration config,
             KoboldFactory? koboldFactory = null,
             DrakeFactory? drakeFactory = null,
-            int maxConcurrentDragonRequests = 5)
+            KoboldPlanService? planService = null,
+            int maxConcurrentDragonRequests = 5,
+            ProjectNotificationService? notificationService = null)
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
@@ -182,9 +188,12 @@ namespace DraCode.KoboldLair.Server.Services
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
             _projectService = projectService;
+            _projectRepository = projectRepository;
             _gitService = gitService;
             _koboldFactory = koboldFactory;
             _drakeFactory = drakeFactory;
+            _planService = planService;
+            _notificationService = notificationService;
             _projectsPath = config.ProjectsPath ?? "./projects";
 
             // Initialize the request queue for non-blocking execution
@@ -277,7 +286,7 @@ namespace DraCode.KoboldLair.Server.Services
                 session = new DragonSession
                 {
                     SessionId = sessionId,
-                    Sender = new WebSocketSender(webSocket)
+                    Sender = new WebSocketSender(webSocket, _logger)
                 };
                 _sessions[sessionId] = session;
                 _sessionWebSockets[sessionId] = webSocket;
@@ -286,7 +295,7 @@ namespace DraCode.KoboldLair.Server.Services
             else if (session.Sender == null || isResuming)
             {
                 // Create new sender for resumed session
-                session.Sender = new WebSocketSender(webSocket);
+                session.Sender = new WebSocketSender(webSocket, _logger);
             }
 
             var currentSessionId = session.SessionId;
@@ -348,9 +357,9 @@ namespace DraCode.KoboldLair.Server.Services
                     Action<string, string> dragonCallback = (type, content) =>
                     {
                         _logger.LogInformation("[Dragon] [{Type}] {Content}", type, content);
-                        if (type == "tool_call" || type == "tool_result" || type == "info")
+                        if (type == "tool_call" || type == "tool_result" || type == "info" || type == "debug" || type == "warning")
                         {
-                            _ = SendThinkingUpdateAsync(webSocket, session, currentSessionId, type, content);
+                            _ = SendThinkingUpdateAsync(webSocket, session, currentSessionId, type, content, agentSource: "Dragon");
                         }
                         else if (type == "assistant_stream")
                         {
@@ -366,24 +375,23 @@ namespace DraCode.KoboldLair.Server.Services
                         }
                     };
 
-                    // Set message callback for council members (does NOT handle assistant_final)
-                    // Council members' final responses are returned to Dragon, not sent directly to client
-                    Action<string, string> councilCallback = (type, content) =>
+                    // Create named callbacks for each council member so the client knows who's working
+                    Action<string, string> MakeCouncilCallback(string memberName) => (type, content) =>
                     {
-                        _logger.LogDebug("[Dragon Council] [{Type}] {Content}", type, content);
-                        if (type == "tool_call" || type == "tool_result" || type == "info")
+                        _logger.LogDebug("[{Member}] [{Type}] {Content}", memberName, type, content);
+                        if (type == "tool_call" || type == "tool_result" || type == "info" || type == "debug" || type == "warning")
                         {
-                            _ = SendThinkingUpdateAsync(webSocket, session, currentSessionId, type, content);
+                            _ = SendThinkingUpdateAsync(webSocket, session, currentSessionId, type, content, agentSource: memberName);
                         }
                         // Note: assistant_stream and assistant_final are intentionally not forwarded
                         // Council responses are returned to Dragon which sends the final response
                     };
 
                     session.Dragon!.SetMessageCallback(dragonCallback);
-                    session.Sage!.SetMessageCallback(councilCallback);
-                    session.Seeker!.SetMessageCallback(councilCallback);
-                    session.Sentinel!.SetMessageCallback(councilCallback);
-                    session.Warden!.SetMessageCallback(councilCallback);
+                    session.Sage!.SetMessageCallback(MakeCouncilCallback("Sage"));
+                    session.Seeker!.SetMessageCallback(MakeCouncilCallback("Seeker"));
+                    session.Sentinel!.SetMessageCallback(MakeCouncilCallback("Sentinel"));
+                    session.Warden!.SetMessageCallback(MakeCouncilCallback("Warden"));
 
                     // Welcome will be sent after client sends client_ready message
                     // This prevents race condition where server sends messages before client is ready
@@ -432,6 +440,8 @@ namespace DraCode.KoboldLair.Server.Services
             // Enable streaming for Dragon (better UX for interactive chat)
             options.EnableStreaming = true;
             options.StreamingFallbackToSync = true;
+            // Enable verbose mode so iteration/tool events fire to the thinking indicator
+            options.Verbose = true;
 
             // Shared specification dictionary for Sage
             var specifications = new Dictionary<string, Specification>();
@@ -491,7 +501,7 @@ namespace DraCode.KoboldLair.Server.Services
                 },
                 addExternalPath: (id, path) =>
                 {
-                    _projectConfigService.AddAllowedExternalPath(id, path);
+                    _projectRepository.AddAllowedExternalPathAsync(id, path).GetAwaiter().GetResult();
                     _logger.LogInformation("External path added for {Project}: {Path}", id, path);
 
                     // Update Dragon's context if this is the current session's project
@@ -499,7 +509,7 @@ namespace DraCode.KoboldLair.Server.Services
                 },
                 removeExternalPath: (id, path) =>
                 {
-                    var removed = _projectConfigService.RemoveAllowedExternalPath(id, path);
+                    var removed = _projectRepository.RemoveAllowedExternalPathAsync(id, path).GetAwaiter().GetResult();
                     if (removed)
                     {
                         _logger.LogInformation("External path removed for {Project}: {Path}", id, path);
@@ -509,7 +519,7 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                     return removed;
                 },
-                getExternalPaths: (id) => _projectConfigService.GetAllowedExternalPaths(id),
+                getExternalPaths: (id) => _projectRepository.GetAllowedExternalPaths(id),
                 getProjectStatus: GetProjectStatusForRetry,
                 retryAnalysis: (projectIdOrName) =>
                 {
@@ -529,7 +539,14 @@ namespace DraCode.KoboldLair.Server.Services
                 retryVerification: RetryVerification,
                 getVerificationStatus: GetVerificationStatus,
                 getVerificationReport: GetVerificationReport,
-                skipVerification: SkipVerification);
+                skipVerification: SkipVerification,
+                viewTaskDetailsTool: _drakeFactory != null ? new ViewTaskDetailsTool(_drakeFactory, _projectService, _planService) : null,
+                projectProgressTool: _drakeFactory != null ? new ProjectProgressTool(_drakeFactory, _projectService) : null,
+                viewWorkspaceTool: new ViewWorkspaceTool(_projectService),
+                deleteProjectTool: new DeleteProjectTool(
+                    getProject: id => _projectService.GetProject(id),
+                    deleteProject: (id, deleteFiles) => DeleteProjectFromRegistry(id, deleteFiles),
+                    getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList()));
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(
@@ -599,16 +616,34 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 // Find the project to get its allowed external paths
                 var allProjects = _projectService.GetAllProjects();
+
+                // Normalize the project folder for comparison (handle relative vs absolute paths)
+                var normalizedProjectFolder = Path.GetFullPath(projectFolder);
+
                 var currentProject = allProjects.FirstOrDefault(p =>
-                    !string.IsNullOrEmpty(p.Paths.Output) &&
-                    string.Equals(p.Paths.Output, projectFolder, StringComparison.OrdinalIgnoreCase));
+                {
+                    if (string.IsNullOrEmpty(p.Paths.Output))
+                        return false;
+
+                    // Get the full path of the project's output directory
+                    var projectOutputPath = Path.IsPathRooted(p.Paths.Output)
+                        ? p.Paths.Output
+                        : Path.Combine(_projectsPath, p.Paths.Output);
+                    projectOutputPath = Path.GetFullPath(projectOutputPath);
+
+                    // Compare normalized paths
+                    return string.Equals(projectOutputPath, normalizedProjectFolder, StringComparison.OrdinalIgnoreCase);
+                });
 
                 List<string>? allowedPaths = null;
                 if (currentProject != null)
                 {
-                    var config = _projectConfigService.GetProjectConfig(currentProject.Id);
-                    allowedPaths = config?.Security.AllowedExternalPaths.ToList();
+                    // Get allowed external paths directly from the project entity
+                    allowedPaths = currentProject.Security.AllowedExternalPaths.ToList();
                 }
+
+                _logger.LogInformation("Dragon loading project: {ProjectName}, ExternalPaths: {Count}",
+                    currentProject?.Name ?? "unknown", allowedPaths?.Count ?? 0);
 
                 // Update Dragon's working directory and allowed external paths
                 session.Dragon.UpdateProjectContext(projectFolder, allowedPaths);
@@ -725,9 +760,8 @@ namespace DraCode.KoboldLair.Server.Services
             if (!isCurrentProject)
                 return;
 
-            // Get updated external paths
-            var config = _projectConfigService.GetProjectConfig(currentProject.Id);
-            var allowedPaths = config?.Security.AllowedExternalPaths.ToList();
+            // Get updated external paths directly from the project entity
+            var allowedPaths = currentProject.Security.AllowedExternalPaths.ToList();
 
             // Update Dragon's context
             session.Dragon.UpdateProjectContext(session.CurrentProjectFolder, allowedPaths);
@@ -760,8 +794,8 @@ namespace DraCode.KoboldLair.Server.Services
 
                     if (currentProject != null)
                     {
-                        var config = _projectConfigService.GetProjectConfig(currentProject.Id);
-                        var allowedPaths = config?.Security.AllowedExternalPaths.ToList() ?? new List<string>();
+                        // Get allowed external paths directly from the project entity
+                        var allowedPaths = currentProject.Security.AllowedExternalPaths.ToList();
 
                         if (allowedPaths.Count > 0)
                         {
@@ -888,6 +922,9 @@ namespace DraCode.KoboldLair.Server.Services
                             isStreamed = session.StreamingResponseSent
                         });
                         session.WelcomeSent = true;
+
+                        // Send any pending notifications (e.g., feature branches ready for merge)
+                        await SendPendingNotificationsAsync(webSocket, session);
                     }
                     catch (HttpRequestException ex)
                     {
@@ -1093,18 +1130,20 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private async Task SendThinkingUpdateAsync(WebSocket webSocket, DragonSession session, string sessionId, string eventType, string content)
+        private async Task SendThinkingUpdateAsync(WebSocket webSocket, DragonSession session, string sessionId, string eventType, string content, string? agentSource = null)
         {
             try
             {
                 string? toolName = null;
                 string? description = null;
+                string? category = null; // Groups: "tool", "thinking", "delegation", "reading", "writing"
 
                 if (eventType == "tool_call" && content.StartsWith("Tool: "))
                 {
                     var lines = content.Split('\n', 2);
                     toolName = lines[0].Substring(6).Trim();
-                    description = $"Calling {toolName}...";
+                    description = GetToolDescription(toolName, lines.Length > 1 ? lines[1] : null);
+                    category = "tool";
                 }
                 else if (eventType == "tool_result" && content.StartsWith("Result from "))
                 {
@@ -1112,13 +1151,56 @@ namespace DraCode.KoboldLair.Server.Services
                     if (colonIndex > 12)
                     {
                         toolName = content.Substring(12, colonIndex - 12);
-                        description = $"Processing {toolName} result...";
+                        description = GetToolResultDescription(toolName, content.Substring(colonIndex + 1).TrimStart('\n'));
+                        category = "tool";
                     }
                 }
                 else if (eventType == "info")
                 {
-                    description = content.StartsWith("ITERATION") ? "Thinking..." : content;
+                    if (content.StartsWith("ITERATION"))
+                    {
+                        // Extract iteration number for the client
+                        var iterNum = content.Replace("ITERATION ", "").Replace(" (streaming)", "").Trim();
+                        description = int.TryParse(iterNum, out var n) && n > 1
+                            ? $"Thinking (round {n})..."
+                            : "Thinking...";
+                        category = "thinking";
+                    }
+                    else if (content.StartsWith("Stop reason:"))
+                    {
+                        description = null; // Don't surface internal stop reasons
+                    }
+                    else
+                    {
+                        description = content;
+                        category = "thinking";
+                    }
                 }
+                else if (eventType == "debug")
+                {
+                    // Surface LLM connection latency to help users understand waits
+                    if (content.Contains("LLM connected in"))
+                    {
+                        description = "Waiting for AI response...";
+                        category = "thinking";
+                    }
+                    else if (content.Contains("First token received"))
+                    {
+                        description = "AI is responding...";
+                        category = "thinking";
+                    }
+                    else
+                    {
+                        return; // Don't surface other debug messages
+                    }
+                }
+                else if (eventType == "warning")
+                {
+                    description = content;
+                    category = "warning";
+                }
+
+                if (description == null) return;
 
                 await SendMessageAsync(webSocket, new
                 {
@@ -1126,7 +1208,9 @@ namespace DraCode.KoboldLair.Server.Services
                     sessionId,
                     eventType,
                     toolName,
-                    description = description ?? "Processing...",
+                    description,
+                    category = category ?? "thinking",
+                    agent = agentSource, // Which agent is active (Dragon, Sage, Seeker, etc.)
                     timestamp = DateTime.UtcNow
                 }, session.Sender);
             }
@@ -1139,6 +1223,117 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _logger.LogWarning(ex, "Error sending thinking update");
             }
+        }
+
+        /// <summary>
+        /// Returns a human-readable description for a tool being called.
+        /// </summary>
+        private static string GetToolDescription(string toolName, string? inputLine)
+        {
+            return toolName switch
+            {
+                "list_projects" => "Loading projects...",
+                "delegate_to_council" => GetDelegationDescription(inputLine),
+                "read_file" => GetFileOperationDescription("Reading", inputLine),
+                "list_files" => GetFileOperationDescription("Browsing", inputLine),
+                "manage_specification" => "Working on specification...",
+                "manage_features" => "Managing features...",
+                "approve_specification" => "Approving project for processing...",
+                "add_existing_project" => "Importing project...",
+                "git_status" => "Checking git status...",
+                "git_merge" => "Merging branches...",
+                "manage_external_paths" => "Configuring paths...",
+                "retry_analysis" => "Retrying analysis...",
+                "agent_status" => "Checking agent status...",
+                "retry_failed_task" => "Retrying failed task...",
+                "set_task_priority" => "Updating task priority...",
+                "pause_project" => "Pausing project...",
+                "resume_project" => "Resuming project...",
+                "suspend_project" => "Suspending project...",
+                "cancel_project" => "Cancelling project...",
+                "view_specification_history" => "Loading specification history...",
+                "select_agent" => "Selecting agent type...",
+                _ => $"Running {toolName}..."
+            };
+        }
+
+        private static string GetDelegationDescription(string? inputLine)
+        {
+            if (string.IsNullOrEmpty(inputLine)) return "Consulting the Council...";
+
+            // Try to extract council_member from Input JSON
+            try
+            {
+                if (inputLine.StartsWith("Input: "))
+                {
+                    var json = inputLine.Substring(7);
+                    using var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("council_member", out var member))
+                    {
+                        return member.GetString()?.ToLowerInvariant() switch
+                        {
+                            "sage" => "Consulting Sage (specifications)...",
+                            "seeker" => "Dispatching Seeker (scanning)...",
+                            "sentinel" => "Alerting Sentinel (git)...",
+                            "warden" => "Summoning Warden (configuration)...",
+                            _ => "Consulting the Council..."
+                        };
+                    }
+                }
+            }
+            catch { /* Parse failed, use default */ }
+
+            return "Consulting the Council...";
+        }
+
+        private static string GetFileOperationDescription(string verb, string? inputLine)
+        {
+            if (string.IsNullOrEmpty(inputLine)) return $"{verb} files...";
+
+            try
+            {
+                if (inputLine.StartsWith("Input: "))
+                {
+                    var json = inputLine.Substring(7);
+                    using var doc = JsonDocument.Parse(json);
+
+                    // read_file has "path", list_files has "directory"
+                    if (doc.RootElement.TryGetProperty("path", out var path))
+                    {
+                        var filename = Path.GetFileName(path.GetString() ?? "");
+                        return string.IsNullOrEmpty(filename) ? $"{verb} files..." : $"{verb} {filename}...";
+                    }
+                    if (doc.RootElement.TryGetProperty("directory", out var dir))
+                    {
+                        var dirname = Path.GetFileName((dir.GetString() ?? "").TrimEnd('/', '\\'));
+                        return string.IsNullOrEmpty(dirname) ? $"{verb} directory..." : $"{verb} {dirname}/...";
+                    }
+                }
+            }
+            catch { /* Parse failed, use default */ }
+
+            return $"{verb} files...";
+        }
+
+        /// <summary>
+        /// Returns a human-readable summary of a tool result.
+        /// </summary>
+        private static string GetToolResultDescription(string toolName, string resultPreview)
+        {
+            return toolName switch
+            {
+                "list_projects" => "Projects loaded",
+                "delegate_to_council" => "Council member responded",
+                "read_file" => "File read complete",
+                "list_files" => "Directory listing complete",
+                "manage_specification" => "Specification updated",
+                "manage_features" => "Features updated",
+                "approve_specification" => "Project approved",
+                "git_status" => "Git status retrieved",
+                "git_merge" => "Merge complete",
+                "agent_status" => "Agent status retrieved",
+                _ => $"{toolName} complete"
+            };
         }
 
         private async Task SendStreamingChunkAsync(WebSocket webSocket, DragonSession session, string sessionId, string chunk)
@@ -1186,6 +1381,56 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     // WebSocket closed between state check and send - expected during disconnect
                 }
+            }
+        }
+
+        /// <summary>
+        /// Sends any pending project notifications to the client.
+        /// Called after welcome message and project switches.
+        /// </summary>
+        private async Task SendPendingNotificationsAsync(WebSocket webSocket, DragonSession session)
+        {
+            if (_notificationService == null || string.IsNullOrEmpty(session.CurrentProjectFolder))
+                return;
+
+            try
+            {
+                // Get project name from active project
+                var projectName = _projectService.GetAllProjects()
+                    .FirstOrDefault(p =>
+                    {
+                        var folder = Path.Combine(_projectsPath, p.Name.ToLowerInvariant().Replace(" ", "-"));
+                        return string.Equals(folder, session.CurrentProjectFolder, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(p.Name, Path.GetFileName(session.CurrentProjectFolder), StringComparison.OrdinalIgnoreCase);
+                    })?.Name;
+
+                if (string.IsNullOrEmpty(projectName))
+                    return;
+
+                var notifications = _notificationService.GetPendingNotifications(projectName);
+                if (notifications.Count == 0)
+                    return;
+
+                foreach (var notification in notifications)
+                {
+                    await SendTrackedMessageAsync(webSocket, session, "project_notification", new
+                    {
+                        type = "project_notification",
+                        notificationType = notification.Type,
+                        sessionId = session.SessionId,
+                        message = notification.Message,
+                        metadata = notification.Metadata,
+                        timestamp = notification.CreatedAt
+                    });
+                }
+
+                // Mark as read after sending
+                _notificationService.MarkAsRead(projectName);
+                _logger.LogInformation("Sent {Count} pending notifications for project {Project}", notifications.Count, projectName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error sending pending notifications");
             }
         }
 
@@ -1275,8 +1520,8 @@ namespace DraCode.KoboldLair.Server.Services
                 // Set message callback for Dragon (handles final response)
                 Action<string, string> dragonCallback = (type, content) =>
                 {
-                    if (type == "tool_call" || type == "tool_result" || type == "info")
-                        _ = SendThinkingUpdateAsync(webSocket, session, sessionId, type, content);
+                    if (type == "tool_call" || type == "tool_result" || type == "info" || type == "debug" || type == "warning")
+                        _ = SendThinkingUpdateAsync(webSocket, session, sessionId, type, content, agentSource: "Dragon");
                     else if (type == "assistant_stream")
                         _ = SendStreamingChunkAsync(webSocket, session, sessionId, content);
                     else if (type == "assistant_final")
@@ -1286,20 +1531,18 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                 };
 
-                // Set message callback for council members (does NOT handle assistant_final)
-                // Council members' final responses are returned to Dragon, not sent directly to client
-                Action<string, string> councilCallback = (type, content) =>
+                // Create named callbacks for each council member
+                Action<string, string> MakeReloadCouncilCallback(string memberName) => (type, content) =>
                 {
-                    if (type == "tool_call" || type == "tool_result" || type == "info")
-                        _ = SendThinkingUpdateAsync(webSocket, session, sessionId, type, content);
-                    // Note: assistant_stream and assistant_final are intentionally not forwarded
+                    if (type == "tool_call" || type == "tool_result" || type == "info" || type == "debug" || type == "warning")
+                        _ = SendThinkingUpdateAsync(webSocket, session, sessionId, type, content, agentSource: memberName);
                 };
 
                 session.Dragon!.SetMessageCallback(dragonCallback);
-                session.Sage!.SetMessageCallback(councilCallback);
-                session.Seeker!.SetMessageCallback(councilCallback);
-                session.Sentinel!.SetMessageCallback(councilCallback);
-                session.Warden!.SetMessageCallback(councilCallback);
+                session.Sage!.SetMessageCallback(MakeReloadCouncilCallback("Sage"));
+                session.Seeker!.SetMessageCallback(MakeReloadCouncilCallback("Seeker"));
+                session.Sentinel!.SetMessageCallback(MakeReloadCouncilCallback("Sentinel"));
+                session.Warden!.SetMessageCallback(MakeReloadCouncilCallback("Warden"));
 
                 // Reset streaming flag before processing
                 session.StreamingResponseSent = false;
@@ -1354,7 +1597,6 @@ namespace DraCode.KoboldLair.Server.Services
         {
             return _projectService.GetAllProjects().Select(p =>
             {
-                var config = _projectConfigService.GetProjectConfig(p.Id);
                 return new ProjectInfo
                 {
                     Id = p.Id,
@@ -1367,7 +1609,7 @@ namespace DraCode.KoboldLair.Server.Services
                     UpdatedAt = p.Timestamps.UpdatedAt,
                     HasGitRepository = !string.IsNullOrEmpty(p.Paths.Output) &&
                         _gitService.IsRepositoryAsync(p.Paths.Output).GetAwaiter().GetResult(), // Sync wrapper for projection
-                    AllowedExternalPaths = config?.Security.AllowedExternalPaths.ToList() ?? new List<string>()
+                    AllowedExternalPaths = p.Security.AllowedExternalPaths.ToList()
                 };
             }).ToList();
         }
@@ -1466,6 +1708,45 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Gets list of failed projects for retry tool
         /// </summary>
+        /// <summary>
+        /// Deletes a project from the registry. Optionally removes project files from disk.
+        /// </summary>
+        private bool DeleteProjectFromRegistry(string projectId, bool deleteFiles)
+        {
+            try
+            {
+                var project = _projectService.GetProject(projectId);
+                if (project == null) return false;
+
+                if (deleteFiles)
+                {
+                    // Delete the project folder from disk
+                    var folder = _projectService.CreateProjectFolder(project.Name);
+                    if (Directory.Exists(folder))
+                    {
+                        try
+                        {
+                            Directory.Delete(folder, recursive: true);
+                            _logger.LogInformation("Deleted project files: {Folder}", folder);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to delete project files for {Project}", project.Name);
+                        }
+                    }
+                }
+
+                _projectRepository.Delete(projectId);
+                _logger.LogInformation("Project {Name} ({Id}) deleted from registry (files: {DeleteFiles})", project.Name, projectId, deleteFiles);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting project {Id}", projectId);
+                return false;
+            }
+        }
+
         private List<(string Id, string Name, string Status, string? ErrorMessage)> GetFailedProjects()
         {
             return _projectService.GetAllProjects()

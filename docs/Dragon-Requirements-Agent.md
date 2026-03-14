@@ -21,10 +21,10 @@ DragonAgent (Council Leader)
 └─────────────────────────────────────┘
     ↓ Delegates to Dragon Council:
 ┌─────────────────────────────────────┐
-│ Sage     → Specifications, features, approval
+│ Sage     → Specifications, features, delete features, approval
 │ Seeker   → Import existing codebases
-│ Sentinel → Git operations, merging
-│ Warden   → Config, limits, external paths
+│ Sentinel → Git status/init, diffs, commits, merging
+│ Warden   → Config, task details, progress, workspace, retry, delete
 └─────────────────────────────────────┘
     ↓ Creates
 {ProjectsPath}/{project-name}/specification.md (Status: Prototype)
@@ -209,6 +209,9 @@ Each council member has specialized tools:
 |------|---------|
 | `manage_specification` | Create/edit specification content |
 | `manage_features` | Add/update/remove project features |
+| `delete_feature` | Delete Draft features from specifications |
+| `process_features` | Promote features and trigger analysis |
+| `view_specification_history` | View specification version history |
 | `approve_specification` | Approve specs (Prototype → New) |
 
 **Seeker** (Project Import):
@@ -219,10 +222,12 @@ Each council member has specialized tools:
 **Sentinel** (Git Operations):
 | Tool | Purpose |
 |------|---------|
-| `git_status` | View branch status and merge readiness |
+| `git_status` | View branch status, merge readiness, init repos |
+| `git_diff` | View branch diffs, commit logs, change summaries |
+| `git_commit` | Stage and commit changes in project repos |
 | `git_merge` | Merge feature branches to main |
 
-**Warden** (Configuration):
+**Warden** (Configuration & Monitoring):
 | Tool | Purpose |
 |------|---------|
 | `manage_external_paths` | Add/remove allowed external paths |
@@ -231,6 +236,15 @@ Each council member has specialized tools:
 | `retry_analysis` | Retry failed Wyvern analysis (list/retry/status) |
 | `agent_status` | View running agents (Drakes, Kobolds) per project |
 | `retry_failed_task` | Retry failed tasks by resetting to Unassigned |
+| `set_task_priority` | Override task priority to control execution order |
+| `view_task_details` | View detailed task info, errors, plan step progress |
+| `project_progress` | View completion %, task breakdowns, success rates |
+| `view_workspace` | Browse generated output files in workspace |
+| `delete_project` | Permanently remove cancelled projects |
+| `pause_project` | Temporarily halt project execution |
+| `resume_project` | Resume paused or suspended project |
+| `suspend_project` | Long-term hold for projects |
+| `cancel_project` | Permanently cancel project |
 
 #### Tool Details
 
@@ -613,18 +627,43 @@ Each project gets its own folder with all related files:
 ### Flow
 
 ```
-1. Dragon creates specification
+1. Dragon creates specification → git init (automatic)
      ↓
-2. User provides spec to Wyvern
+2. User approves spec → Wyrm pre-analyzes
      ↓
-3. Wyvern breaks into tasks
+3. Wyvern breaks into tasks → creates feature branches (automatic)
      ↓
-4. Drake summons Kobolds for tasks
+4. Drake summons Kobolds → creates git worktrees per feature branch (automatic)
      ↓
-5. Kobolds execute work
+5. Kobolds execute work in isolated worktrees
      ↓
-6. Project gets built!
+6. Drake commits completed tasks → cleans up worktrees (automatic)
+     ↓
+7. Notification: "Feature branch ready for merge!" (automatic, persisted)
+     ↓
+8. User asks Dragon → Sentinel reviews diff → merges to main (user-initiated)
 ```
+
+### Git Workflow
+
+Git is fully automated except for the final merge step:
+
+| Stage | Trigger | Git Operation | Actor |
+|-------|---------|---------------|-------|
+| Init | Project folder created | `git init -b main` | ProjectService |
+| Branch | Feature assigned to Wyvern | `git branch feature/{id}-{name}` | Wyvern |
+| Worktree | Task assigned to Kobold | `git worktree add .worktrees/{branch}` | Drake |
+| Execute | Kobold starts work | Works in `worktree/workspace/` | Kobold |
+| Commit | Task completed (Done) | `git add -A && git commit` | Drake |
+| Cleanup | After commit | `git worktree remove` | Drake |
+| Notify | All feature tasks done | Persist to `notifications.json` | ProjectNotificationService |
+| Merge | User requests via Dragon | `git merge --no-ff` | Sentinel (git_merge tool) |
+
+**Parallel Safety**: Multiple Drakes working on different features each get their own git worktree — an isolated filesystem copy that shares the `.git` object store. No branch checkout conflicts.
+
+**External Projects**: For imported codebases (`IsExistingProject=true`), all git operations target the external `SourcePath` rather than the KoboldLair metadata folder.
+
+**Notifications**: Persisted to disk so they survive server restarts. Pushed to Dragon client in real-time or delivered on reconnect.
 
 ### Example
 

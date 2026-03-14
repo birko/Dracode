@@ -268,13 +268,17 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// Updates feature status based on task completion
+        /// Updates feature status based on task completion.
+        /// Returns list of features that just transitioned to Completed (name, gitBranch).
         /// </summary>
         /// <param name="taskStatuses">Dictionary of task IDs to their status</param>
-        public void UpdateFeatureStatus(Dictionary<string, TaskStatus> taskStatuses)
+        /// <returns>List of newly completed features with their branch names</returns>
+        public List<(string Name, string? GitBranch)> UpdateFeatureStatus(Dictionary<string, TaskStatus> taskStatuses)
         {
+            var newlyCompleted = new List<(string Name, string? GitBranch)>();
+
             if (_specification == null || _analysis == null)
-                return;
+                return newlyCompleted;
 
             foreach (var feature in _specification.Features.Where(f => f.Status != FeatureStatus.Completed))
             {
@@ -298,6 +302,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 {
                     feature.Status = FeatureStatus.Completed;
                     feature.UpdatedAt = DateTime.UtcNow;
+                    newlyCompleted.Add((feature.Name, feature.GitBranch));
                 }
                 else if (hasWorkingTasks && feature.Status == FeatureStatus.AssignedToWyvern)
                 {
@@ -305,6 +310,8 @@ namespace DraCode.KoboldLair.Orchestrators
                     feature.UpdatedAt = DateTime.UtcNow;
                 }
             }
+
+            return newlyCompleted;
         }
 
         /// <summary>

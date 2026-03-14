@@ -7,88 +7,32 @@ namespace DraCode.KoboldLair.Server.Services
     /// Background service that monitors for new project specifications and processes them with Wyverns.
     /// Runs every minute to check for projects needing processing.
     /// </summary>
-    public class WyvernProcessingService : BackgroundService
+    public class WyvernProcessingService : PeriodicBackgroundService
     {
         private readonly ILogger<WyvernProcessingService> _logger;
         private readonly ProjectService _projectService;
-        private readonly TimeSpan _checkInterval;
-        private bool _isRunning;
-        private readonly object _lock = new object();
 
         // Throttle concurrent project processing to avoid overwhelming LLM providers
         private readonly SemaphoreSlim _projectThrottle;
         private const int MaxConcurrentProjects = 5;
 
+        protected override ILogger Logger => _logger;
+
         public WyvernProcessingService(
             ILogger<WyvernProcessingService> logger,
             ProjectService projectService,
             int checkIntervalSeconds = 60)
+            : base(TimeSpan.FromSeconds(checkIntervalSeconds))
         {
             _logger = logger;
             _projectService = projectService;
-            _checkInterval = TimeSpan.FromSeconds(checkIntervalSeconds);
-            _isRunning = false;
             _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
-        }
-
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("🐉 Wyvern Processing Service started. Interval: {Interval}s",
-                _checkInterval.TotalSeconds);
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    // Wait for the interval before next run
-                    await Task.Delay(_checkInterval, stoppingToken);
-
-                    // Check if previous job is still running
-                    bool canRun;
-                    lock (_lock)
-                    {
-                        canRun = !_isRunning;
-                        if (canRun)
-                        {
-                            _isRunning = true;
-                        }
-                    }
-
-                    if (!canRun)
-                    {
-                        _logger.LogWarning("⚠️ Previous Wyvern processing job still running, skipping this cycle");
-                        continue;
-                    }
-
-                    // Process specifications
-                    await ProcessSpecificationsAsync(stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected when stopping
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "❌ Error in Wyvern processing cycle");
-                }
-                finally
-                {
-                    // Mark job as complete
-                    lock (_lock)
-                    {
-                        _isRunning = false;
-                    }
-                }
-            }
-
-            _logger.LogInformation("🛑 Wyvern Processing Service stopped");
         }
 
         /// <summary>
         /// Processes all projects by iterating through the project repository
         /// </summary>
-        private async Task ProcessSpecificationsAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteCycleAsync(CancellationToken cancellationToken)
         {
             var allProjects = _projectService.GetAllProjects();
             if (allProjects.Count == 0)
@@ -100,12 +44,23 @@ namespace DraCode.KoboldLair.Server.Services
             _logger.LogInformation("📋 Found {Count} project(s)", allProjects.Count);
 
             // Process projects that need analysis (WyrmAssigned status from WyrmProcessingService)
-            var projectsNeedingAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyrmAssigned)
+            var wyrmAssigned = _projectService.GetProjectsByStatus(ProjectStatus.WyrmAssigned);
+
+            // Skip projects that are not in Running execution state
+            var pausedProjects = wyrmAssigned.Where(p => p.ExecutionState != ProjectExecutionState.Running).ToList();
+            foreach (var project in pausedProjects)
+            {
+                _logger.LogDebug("Skipping project {ProjectName} - execution state: {State}", project.Name, project.ExecutionState);
+            }
+
+            var projectsNeedingAnalysis = wyrmAssigned
+                .Where(p => p.ExecutionState == ProjectExecutionState.Running)
                 .Where(p => _projectService.IsAgentEnabled(p.Id, "wyvern"))
                 .ToList();
 
-            var skippedAnalysis = _projectService.GetProjectsByStatus(ProjectStatus.WyrmAssigned)
-                .Except(projectsNeedingAnalysis)
+            var skippedAnalysis = wyrmAssigned
+                .Where(p => p.ExecutionState == ProjectExecutionState.Running)
+                .Where(p => !_projectService.IsAgentEnabled(p.Id, "wyvern"))
                 .ToList();
             foreach (var project in skippedAnalysis)
             {
@@ -138,12 +93,22 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             // Process projects with modified specifications (in parallel)
-            var projectsWithModifiedSpecs = _projectService.GetProjectsByStatus(ProjectStatus.SpecificationModified)
+            var modifiedSpecs = _projectService.GetProjectsByStatus(ProjectStatus.SpecificationModified);
+
+            var pausedModified = modifiedSpecs.Where(p => p.ExecutionState != ProjectExecutionState.Running).ToList();
+            foreach (var project in pausedModified)
+            {
+                _logger.LogDebug("Skipping reanalysis for {ProjectName} - execution state: {State}", project.Name, project.ExecutionState);
+            }
+
+            var projectsWithModifiedSpecs = modifiedSpecs
+                .Where(p => p.ExecutionState == ProjectExecutionState.Running)
                 .Where(p => _projectService.IsAgentEnabled(p.Id, "wyvern"))
                 .ToList();
 
-            var skippedReanalysis = _projectService.GetProjectsByStatus(ProjectStatus.SpecificationModified)
-                .Except(projectsWithModifiedSpecs)
+            var skippedReanalysis = modifiedSpecs
+                .Where(p => p.ExecutionState == ProjectExecutionState.Running)
+                .Where(p => !_projectService.IsAgentEnabled(p.Id, "wyvern"))
                 .ToList();
             foreach (var project in skippedReanalysis)
             {
@@ -224,18 +189,5 @@ namespace DraCode.KoboldLair.Server.Services
                 project.Name, reanalysisDuration.TotalMilliseconds.ToString("F0"), analysis.TotalTasks);
         }
 
-        /// <summary>
-        /// Gets the current status of the processing service
-        /// </summary>
-        public bool IsCurrentlyRunning
-        {
-            get
-            {
-                lock (_lock)
-                {
-                    return _isRunning;
-                }
-            }
-        }
     }
 }

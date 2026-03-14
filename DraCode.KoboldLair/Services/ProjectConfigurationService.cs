@@ -11,6 +11,43 @@ namespace DraCode.KoboldLair.Services
     /// </summary>
     public class ProjectConfigurationService
     {
+        /// <summary>
+        /// Normalizes a path to its canonical form with correct capitalization.
+        /// On Windows, this returns the actual path with proper case as stored on the filesystem.
+        /// On case-sensitive filesystems, returns the path as-is.
+        /// </summary>
+        private static string GetCanonicalPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
+
+            var fullPath = Path.GetFullPath(path);
+
+            // On Windows, get the actual case from the filesystem
+            if (OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    // Get the directory info which provides the actual casing
+                    if (Directory.Exists(fullPath))
+                    {
+                        var dirInfo = new DirectoryInfo(fullPath);
+                        return dirInfo.FullName;
+                    }
+                    else if (File.Exists(fullPath))
+                    {
+                        var fileInfo = new FileInfo(fullPath);
+                        return fileInfo.FullName;
+                    }
+                }
+                catch
+                {
+                    // If we can't get the actual case, return the normalized full path
+                }
+            }
+
+            return fullPath;
+        }
         private readonly ProviderConfigurationService _providerConfig;
         private readonly ILogger<ProjectConfigurationService> _logger;
         private readonly string _configPath;
@@ -365,100 +402,6 @@ namespace DraCode.KoboldLair.Services
         /// Gets the default maximum parallel wyverns
         /// </summary>
         public int GetDefaultMaxParallelWyverns() => _providerConfig.GetDefaultLimits().MaxParallelWyverns;
-
-        /// <summary>
-        /// Adds an allowed external path for a project
-        /// </summary>
-        public void AddAllowedExternalPath(string projectId, string path)
-        {
-            if (string.IsNullOrEmpty(path))
-                throw new ArgumentException("Path cannot be empty", nameof(path));
-
-            var normalizedPath = Path.GetFullPath(path);
-            var config = GetOrCreateProjectConfig(projectId);
-
-            lock (_lock)
-            {
-                if (!config.Security.AllowedExternalPaths.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
-                {
-                    config.Security.AllowedExternalPaths.Add(normalizedPath);
-                    config.Metadata.LastUpdated = DateTime.UtcNow;
-                    SaveConfigurations();
-                    _logger.LogInformation("Added allowed external path for {Project}: {Path}", projectId, normalizedPath);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Removes an allowed external path from a project
-        /// </summary>
-        public bool RemoveAllowedExternalPath(string projectId, string path)
-        {
-            if (string.IsNullOrEmpty(path))
-                return false;
-
-            var normalizedPath = Path.GetFullPath(path);
-            var config = GetProjectConfig(projectId);
-
-            if (config == null)
-                return false;
-
-            lock (_lock)
-            {
-                var existingPath = config.Security.AllowedExternalPaths
-                    .FirstOrDefault(p => p.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
-
-                if (existingPath != null)
-                {
-                    config.Security.AllowedExternalPaths.Remove(existingPath);
-                    config.Metadata.LastUpdated = DateTime.UtcNow;
-                    SaveConfigurations();
-                    _logger.LogInformation("Removed allowed external path for {Project}: {Path}", projectId, normalizedPath);
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Gets the allowed external paths for a project
-        /// </summary>
-        public IReadOnlyList<string> GetAllowedExternalPaths(string projectId)
-        {
-            var config = GetProjectConfig(projectId);
-            if (config == null)
-                return Array.Empty<string>();
-
-            lock (_lock)
-            {
-                return config.Security.AllowedExternalPaths.ToList().AsReadOnly();
-            }
-        }
-
-        /// <summary>
-        /// Sets the sandbox mode for a project
-        /// </summary>
-        public void SetSandboxMode(string projectId, string mode)
-        {
-            var validModes = new[] { "workspace", "relaxed", "strict" };
-            if (!validModes.Contains(mode.ToLowerInvariant()))
-                throw new ArgumentException($"Invalid sandbox mode: {mode}. Valid modes: {string.Join(", ", validModes)}");
-
-            var config = GetOrCreateProjectConfig(projectId);
-            config.Security.SandboxMode = mode.ToLowerInvariant();
-            config.Metadata.LastUpdated = DateTime.UtcNow;
-            SaveConfigurations();
-        }
-
-        /// <summary>
-        /// Gets the sandbox mode for a project
-        /// </summary>
-        public string GetSandboxMode(string projectId)
-        {
-            var config = GetProjectConfig(projectId);
-            return config?.Security.SandboxMode ?? "workspace";
-        }
 
         private ProjectConfigurations LoadConfigurations()
         {

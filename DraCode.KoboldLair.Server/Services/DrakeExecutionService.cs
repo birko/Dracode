@@ -3,6 +3,7 @@ using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
+using static DraCode.KoboldLair.Server.Helpers.LogFormatHelper;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
 namespace DraCode.KoboldLair.Server.Services
@@ -12,30 +13,20 @@ namespace DraCode.KoboldLair.Server.Services
     /// and starts Kobolds to execute tasks. This bridges the gap between Wyvern analysis
     /// and actual task execution.
     /// </summary>
-    public class DrakeExecutionService : BackgroundService
+    public class DrakeExecutionService : PeriodicBackgroundService
     {
         private readonly ILogger<DrakeExecutionService> _logger;
         private readonly ProjectService _projectService;
         private readonly DrakeFactory _drakeFactory;
         private readonly GracefulShutdownCoordinator _shutdownCoordinator;
-        private readonly TimeSpan _executionInterval;
         private readonly int _maxKoboldIterations;
-        private bool _isRunning;
-        private readonly object _lock = new object();
 
         // Throttle concurrent project processing to avoid overwhelming resources
         private readonly SemaphoreSlim _projectThrottle;
         private const int MaxConcurrentProjects = 5;
 
-        /// <summary>
-        /// Creates a new Drake execution service
-        /// </summary>
-        /// <param name="logger">Logger instance</param>
-        /// <param name="projectService">Project service for accessing projects</param>
-        /// <param name="drakeFactory">Factory for creating Drakes</param>
-        /// <param name="shutdownCoordinator">Coordinator for graceful shutdown signaling</param>
-        /// <param name="executionIntervalSeconds">Interval in seconds between execution cycles (default: 30)</param>
-        /// <param name="maxKoboldIterations">Maximum iterations for Kobold execution (default: 100)</param>
+        protected override ILogger Logger => _logger;
+
         public DrakeExecutionService(
             ILogger<DrakeExecutionService> logger,
             ProjectService projectService,
@@ -43,74 +34,20 @@ namespace DraCode.KoboldLair.Server.Services
             GracefulShutdownCoordinator shutdownCoordinator,
             int executionIntervalSeconds = 30,
             int maxKoboldIterations = 100)
+            : base(TimeSpan.FromSeconds(executionIntervalSeconds))
         {
             _logger = logger;
             _projectService = projectService;
             _drakeFactory = drakeFactory;
             _shutdownCoordinator = shutdownCoordinator;
-            _executionInterval = TimeSpan.FromSeconds(executionIntervalSeconds);
             _maxKoboldIterations = maxKoboldIterations;
-            _isRunning = false;
             _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
-        }
-
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation(
-                "🐲 Drake Execution Service started. Interval: {Interval}s",
-                _executionInterval.TotalSeconds);
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    // Wait for the interval before next run
-                    await Task.Delay(_executionInterval, stoppingToken);
-
-                    // Check if previous job is still running
-                    bool canRun;
-                    lock (_lock)
-                    {
-                        canRun = !_isRunning;
-                        if (canRun)
-                        {
-                            _isRunning = true;
-                        }
-                    }
-
-                    if (!canRun)
-                    {
-                        _logger.LogDebug("⚠️ Previous execution cycle still running, skipping");
-                        continue;
-                    }
-
-                    // Execute the main cycle
-                    await ExecuteCycleAsync(stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "❌ Error in Drake execution cycle");
-                }
-                finally
-                {
-                    lock (_lock)
-                    {
-                        _isRunning = false;
-                    }
-                }
-            }
-
-            _logger.LogInformation("🛑 Drake Execution Service stopped");
         }
 
         /// <summary>
         /// Executes a single cycle: find analyzed projects, create Drakes, execute tasks
         /// </summary>
-        private async Task ExecuteCycleAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteCycleAsync(CancellationToken cancellationToken)
         {
             // Get all projects
             var allProjects = _projectService.GetAllProjects();
@@ -316,15 +253,14 @@ namespace DraCode.KoboldLair.Server.Services
                 var failedTasks = drake.GetAllTasks().Where(t => t.Status == TaskStatus.Failed).ToList();
                 foreach (var task in failedTasks)
                 {
-                    var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
                     _logger.LogError(
                         "❌ Failed task in project {ProjectName}\n" +
                         "  Task ID: {TaskId}\n" +
                         "  Task: {Task}\n" +
                         "  Error: {Error}",
                         project.Name,
-                        task.Id[..Math.Min(8, task.Id.Length)], 
-                        taskPreview,
+                        ShortId(task.Id),
+                        Truncate(task.Task),
                         task.ErrorMessage ?? "No error message");
                 }
 
@@ -396,12 +332,11 @@ namespace DraCode.KoboldLair.Server.Services
 
                 try
                 {
-                    var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
                     _logger.LogInformation(
                         "[Kobold] START {TaskId} | Type: {AgentType} | Task: {TaskPreview}",
-                        task.Id[..Math.Min(8, task.Id.Length)],
+                        ShortId(task.Id),
                         agentType,
-                        taskPreview);
+                        Truncate(task.Task));
 
                     // Execute the task (this summons a Kobold and runs it)
                     var result = await drake.ExecuteTaskAsync(
@@ -418,14 +353,14 @@ namespace DraCode.KoboldLair.Server.Services
                     {
                         _logger.LogDebug(
                             "[Kobold] DEFERRED {TaskId} | Kobold limit reached for project {ProjectName}",
-                            task.Id[..Math.Min(8, task.Id.Length)],
+                            ShortId(task.Id),
                             project.Name);
                     }
                     else
                     {
                         _logger.LogInformation(
                             "[Kobold] COMPLETE {TaskId} | Type: {AgentType} | Duration: {Duration}ms",
-                            task.Id[..Math.Min(8, task.Id.Length)],
+                            ShortId(task.Id),
                             agentType,
                             taskDuration.TotalMilliseconds.ToString("F0"));
 
@@ -434,7 +369,7 @@ namespace DraCode.KoboldLair.Server.Services
                         {
                             _logger.LogWarning(
                                 "[Kobold] SLOW {TaskId} | Task took {Duration}min",
-                                task.Id[..Math.Min(8, task.Id.Length)],
+                                ShortId(task.Id),
                                 taskDuration.TotalMinutes.ToString("F1"));
                         }
                     }
@@ -442,10 +377,9 @@ namespace DraCode.KoboldLair.Server.Services
                 catch (Exception ex)
                 {
                     var taskDuration = DateTime.UtcNow - taskStart;
-                    var taskPreview = task.Task.Length > 60 ? task.Task.Substring(0, 60) + "..." : task.Task;
                     _logger.LogError(ex,
                         "[Kobold] FAILED {TaskId} | Type: {AgentType} | Duration: {Duration}ms",
-                        task.Id[..Math.Min(8, task.Id.Length)],
+                        ShortId(task.Id),
                         agentType,
                         taskDuration.TotalMilliseconds.ToString("F0"));
                 }
@@ -745,18 +679,5 @@ namespace DraCode.KoboldLair.Server.Services
             return (totalTasks, doneTasks);
         }
 
-        /// <summary>
-        /// Gets the current status of the execution service
-        /// </summary>
-        public bool IsCurrentlyRunning
-        {
-            get
-            {
-                lock (_lock)
-                {
-                    return _isRunning;
-                }
-            }
-        }
     }
 }

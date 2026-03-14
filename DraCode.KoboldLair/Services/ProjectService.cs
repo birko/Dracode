@@ -13,6 +13,39 @@ namespace DraCode.KoboldLair.Services
     /// </summary>
     public class ProjectService
     {
+        /// <summary>
+        /// Gets the canonical path with correct capitalization from the filesystem.
+        /// On Windows, returns the actual path with proper case. On other platforms, returns the full path.
+        /// </summary>
+        private static string GetCanonicalPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
+
+            var fullPath = Path.GetFullPath(path);
+
+            // On Windows, get the actual case from the filesystem
+            if (OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    if (Directory.Exists(fullPath))
+                    {
+                        return new DirectoryInfo(fullPath).FullName;
+                    }
+                    else if (File.Exists(fullPath))
+                    {
+                        return new FileInfo(fullPath).FullName;
+                    }
+                }
+                catch
+                {
+                    // If we can't get the actual case, fall through to return the full path
+                }
+            }
+
+            return fullPath;
+        }
         private readonly ProjectRepository _repository;
         private readonly WyvernFactory _wyvernFactory;
         private readonly ILogger<ProjectService> _logger;
@@ -707,6 +740,9 @@ namespace DraCode.KoboldLair.Services
             // Auto-configure external paths from project references
             AutoConfigureExternalPaths(project, sourcePath);
 
+            // Save the project again with the external paths that were added
+            _repository.Update(project);
+
             _logger.LogInformation("✨ Registered existing project: {ProjectName} (ID: {ProjectId}) from {SourcePath}",
                 projectName, project.Id, sourcePath);
 
@@ -722,9 +758,8 @@ namespace DraCode.KoboldLair.Services
             try
             {
                 // Add the source path itself as an allowed external path
-                var normalizedSourcePath = Path.GetFullPath(sourcePath);
-                AddExternalPathToProject(project, normalizedSourcePath);
-                _projectConfigService?.AddAllowedExternalPath(project.Id, sourcePath);
+                var canonicalSourcePath = GetCanonicalPath(sourcePath);
+                AddExternalPathToProject(project, canonicalSourcePath);
 
                 // Discover project references
                 var discovery = ProjectReferenceDiscoverer.DiscoverReferences(sourcePath);
@@ -732,9 +767,8 @@ namespace DraCode.KoboldLair.Services
                 // Add each external directory as an allowed path
                 foreach (var extDir in discovery.ExternalDirectories)
                 {
-                    var normalizedExtDir = Path.GetFullPath(extDir);
-                    AddExternalPathToProject(project, normalizedExtDir);
-                    _projectConfigService?.AddAllowedExternalPath(project.Id, extDir);
+                    var canonicalExtDir = GetCanonicalPath(extDir);
+                    AddExternalPathToProject(project, canonicalExtDir);
                 }
 
                 // Store discovery metadata on the project

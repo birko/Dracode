@@ -2,6 +2,7 @@ using DraCode.Agent;
 using DraCode.Agent.Agents;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.Tools;
+using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
 using DraCode.KoboldLair.Models.Validation;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ namespace DraCode.KoboldLair.Models.Agents
         private readonly ILogger<Kobold>? _logger;
         private readonly StepValidationService _validationService;
         private SharedPlanningContextService? _sharedPlanningContext;
+        private Specification? _specification;
 
         /// <summary>
         /// Phase 4: Indices of steps assigned to this Kobold for parallel execution (0-based).
@@ -54,6 +56,21 @@ namespace DraCode.KoboldLair.Models.Agents
         /// Task description this Kobold is working on
         /// </summary>
         public string? TaskDescription { get; private set; }
+
+        /// <summary>
+        /// Feature ID this task implements (from specification)
+        /// </summary>
+        public string? FeatureId { get; private set; }
+
+        /// <summary>
+        /// Feature name this task implements (from specification)
+        /// </summary>
+        public string? FeatureName { get; private set; }
+
+        /// <summary>
+        /// Feature description this task implements (from specification)
+        /// </summary>
+        public string? FeatureDescription { get; private set; }
 
         /// <summary>
         /// Specification context for the task (project requirements, architecture, etc.)
@@ -198,6 +215,43 @@ namespace DraCode.KoboldLair.Models.Agents
         }
 
         /// <summary>
+        /// Updates the feature context for this Kobold.
+        /// This information comes from the specification and helps the Kobold understand
+        /// which feature it is implementing.
+        /// </summary>
+        /// <param name="featureId">Feature ID from specification</param>
+        /// <param name="featureName">Feature name from specification</param>
+        /// <param name="featureDescription">Feature description from specification</param>
+        public void UpdateFeatureContext(
+            string? featureId,
+            string? featureName,
+            string? featureDescription)
+        {
+            if (Status == KoboldStatus.Working)
+            {
+                throw new InvalidOperationException($"Cannot update feature context while Kobold {Id} is working");
+            }
+
+            FeatureId = featureId;
+            FeatureName = featureName;
+            FeatureDescription = featureDescription;
+        }
+
+        /// <summary>
+
+        /// <summary>
+        /// Sets the full Specification for this Kobold.
+        /// This provides access to all features and acceptance criteria.
+        /// </summary>
+        public void SetSpecification(Specification specification)
+        {
+            if (Status == KoboldStatus.Working)
+            {
+                throw new InvalidOperationException($"Cannot set specification while Kobold {Id} is working");
+            }
+
+            _specification = specification;
+        }
         /// Phase 4: Sets the indices of steps this Kobold should execute in parallel mode.
         /// When set, the Kobold will only work on the assigned steps instead of all steps.
         /// </summary>
@@ -546,9 +600,15 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             // Create new plan using the planner agent with workspace awareness and learning context
+            // Note: Specification is loaded from project and passed to planner for full feature context
             var plan = await planner.CreatePlanAsync(
-                TaskDescription,
-                SpecificationContext,
+                ProjectId ?? string.Empty,
+                taskIdStr,
+                TaskDescription ?? string.Empty,
+                specification: _specification,
+                FeatureId,
+                FeatureName,
+                FeatureDescription,
                 ProjectStructure,
                 workspaceFiles,
                 filesInUse,
@@ -556,9 +616,6 @@ You are working on a task that is part of a larger project. Below is the project
                 relatedPlans,
                 similarTaskInsights,
                 bestPractices);
-            
-            plan.TaskId = taskIdStr;
-            plan.ProjectId = ProjectId;
 
             // Save the plan
             await planService.SavePlanAsync(plan);

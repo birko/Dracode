@@ -60,9 +60,15 @@ Analyze task descriptions and select the optimal specialist agent. Your decision
 - **image**: General image tasks (both vector and raster, format conversion)
 - **media**: Multimedia (video, audio, formats, streaming, optimization)
 
+### Quality & Process:
+- **debug**: Debugging and troubleshooting (error investigation, root cause analysis)
+- **test**: Testing and QA (unit tests, integration tests, test automation)
+- **refactor**: Code restructuring (improving design without changing behavior)
+- **documentation**: Technical writing (README, API docs, guides)
+
 ### Specialized:
 - **diagramming**: Technical diagrams (UML, ERD, DFD, flowcharts, architecture)
-- **coding**: General-purpose (multi-language, no clear specialization, tests, docs)
+- **coding**: General-purpose (multi-language, no clear specialization — use only when no specialist fits)
 
 {GetDepthGuidance()}
 
@@ -81,9 +87,13 @@ Analyze task descriptions and select the optimal specialist agent. Your decision
 - Photo/image editing → **bitmap**
 - Video/audio → **media**
 
+**Quality & Process Selection**:
+- Testing/QA tasks → **test** (test automation specialist)
+- Debugging/troubleshooting → **debug** (root cause analysis)
+- Code restructuring → **refactor** (design improvement)
+- Documentation/README → **documentation** (technical writing)
+
 **Fallback Selection**:
-- Testing/QA tasks → **coding** (tests are code)
-- Documentation/README → **coding** (technical writing)
 - Multi-language or unclear → **coding** (generalist)
 
 ## Decision Rules:
@@ -92,6 +102,14 @@ Analyze task descriptions and select the optimal specialist agent. Your decision
 3. **Match frameworks**: React task → react agent, not javascript
 4. **Consider file types**: .tsx/.jsx → react, .html → html, .css → css
 5. **Trust the task description**: If it says ""React component"", choose react
+
+## Resolving Conflicts:
+When a task mentions multiple technologies, pick the PRIMARY one:
+- ""React component with CSS styling"" → **react** (CSS is secondary to the component)
+- ""TypeScript React app"" → **react** (React is the framework, TS is the language)
+- ""Node.js API with TypeScript"" → **typescript** (no framework, just language)
+- ""Python script to generate SVG"" → **python** (SVG is output, Python is implementation)
+- If truly ambiguous with no clear primary tech → **coding** (generalist handles it safely)
 
 ## Your Output:
 Call the **select_agent** tool with your chosen agent type. The selected Kobold will then receive:

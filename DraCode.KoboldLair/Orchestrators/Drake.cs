@@ -4,6 +4,7 @@ using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 using Microsoft.Extensions.Logging;
@@ -35,12 +36,14 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly ProviderCircuitBreaker? _circuitBreaker;
         private readonly SharedPlanningContextService? _sharedPlanningContext;
         private readonly bool _planningEnabled;
+        private readonly ProjectImplementationService? _implementationService;
         private readonly bool _useEnhancedExecution;
         private readonly bool _allowPlanModifications;
         private readonly bool _autoApproveModifications;
         private readonly bool _filterFilesByPlan;
         private readonly PlanFileFilterService _fileFilterService;
         private readonly Models.Configuration.PlanningConfiguration? _planningConfig;
+        private readonly Action<string, string, string>? _onFeatureBranchReady;
         private Wyvern? _wyvern;
         private WyrmRecommendation? _wyrmRecommendation;
 
@@ -104,7 +107,9 @@ namespace DraCode.KoboldLair.Orchestrators
             bool autoApproveModifications = false,
             bool filterFilesByPlan = true,
             SharedPlanningContextService? sharedPlanningContext = null,
-            Models.Configuration.PlanningConfiguration? planningConfig = null)
+            ProjectImplementationService? implementationService = null,
+            Models.Configuration.PlanningConfiguration? planningConfig = null,
+            Action<string, string, string>? onFeatureBranchReady = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -123,7 +128,9 @@ namespace DraCode.KoboldLair.Orchestrators
             _plannerAgent = plannerAgent;
             _circuitBreaker = circuitBreaker;
             _sharedPlanningContext = sharedPlanningContext;
+            _implementationService = implementationService;
             _planningConfig = planningConfig;
+            _onFeatureBranchReady = onFeatureBranchReady;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
@@ -287,14 +294,10 @@ namespace DraCode.KoboldLair.Orchestrators
                 _logger?.LogDebug("Kobold workspace set to {WorkspacePath}", resolvedWorkspace);
             }
 
-            // Add external paths if available (try ProjectConfigurationService first, fall back to project entity)
+            // Add external paths if available
             if (!string.IsNullOrEmpty(projectId))
             {
-                var externalPaths = _projectConfigService?.GetAllowedExternalPaths(projectId);
-                if (externalPaths == null || externalPaths.Count == 0)
-                {
-                    externalPaths = _projectRepository?.GetAllowedExternalPaths(projectId);
-                }
+                var externalPaths = _projectRepository?.GetAllowedExternalPaths(projectId);
                 if (externalPaths != null && externalPaths.Count > 0)
                 {
                     effectiveOptions.AllowedExternalPaths = externalPaths.ToList();
@@ -585,6 +588,35 @@ namespace DraCode.KoboldLair.Orchestrators
                 _specificationPath);
 
             // Add dependency context if task has dependencies
+
+            // GAP FIX 1 & 4: Load full Specification and update feature context
+            Specification? specification = null;
+            if (!string.IsNullOrEmpty(_specificationPath))
+            {
+                specification = await LoadSpecificationAsync();
+            }
+
+            if (!string.IsNullOrEmpty(task.FeatureId) && specification != null)
+            {
+                try
+                {
+                    var (featureId, featureName, featureDesc, acceptanceCriteria) =
+                        GetFeatureFromSpecification(specification, task.FeatureId);
+
+                    kobold.UpdateFeatureContext(featureId, featureName, featureDesc);
+
+                    // Also store the specification for plan creation
+                    kobold.SetSpecification(specification);
+
+                    _logger?.LogDebug(
+                        "Set feature context for Kobold {KoboldId}: {FeatureName} with {AcceptanceCriteriaCount} acceptance criteria",
+                        kobold.Id.ToString()[..8], featureName ?? task.FeatureId, acceptanceCriteria.Count);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to load feature context for task {TaskId}", task.Id);
+                }
+            }
             var dependencyContext = await BuildDependencyContextAsync(task.Task);
             if (!string.IsNullOrEmpty(dependencyContext))
             {
@@ -814,7 +846,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// Also commits changes to git when a task completes successfully.
         /// </summary>
         /// <param name="kobold">Kobold to sync from</param>
-        private async Task SyncTaskFromKoboldAsync(Kobold kobold)
+        private async Task SyncTaskFromKoboldAsync(Kobold kobold, string? worktreePath = null)
         {
             if (!kobold.TaskId.HasValue)
                 return;
@@ -901,44 +933,158 @@ namespace DraCode.KoboldLair.Orchestrators
             // Commit changes to git when task completes successfully
             if (previousStatus != TaskStatus.Done && taskStatus == TaskStatus.Done && kobold.IsSuccess)
             {
-                await CommitTaskCompletionAsync(kobold, task);
+                await CommitTaskCompletionAsync(kobold, task, worktreePath);
             }
         }
 
         /// <summary>
         /// Commits changes to git when a task is completed
         /// </summary>
-        private async Task CommitTaskCompletionAsync(Kobold kobold, TaskRecord task)
+        /// <summary>
+        /// Sets up a git worktree for the task's feature branch, enabling parallel work across branches.
+        /// Returns (branchName, worktreePath) if a worktree was created, (null, null) otherwise.
+        /// </summary>
+        private async Task<(string? BranchName, string? WorktreePath)> SetupFeatureBranchWorktreeAsync(TaskRecord task)
+        {
+            if (_gitService == null || _wyvern == null)
+                return (null, null);
+
+            try
+            {
+                var projectFolder = GetProjectFolder();
+                if (projectFolder == null) return (null, null);
+
+                if (!await _gitService.IsGitInstalledAsync() || !await _gitService.IsRepositoryAsync(projectFolder))
+                    return (null, null);
+
+                // Find the feature branch for this task
+                string? featureBranch = null;
+
+                // First try: task has explicit FeatureId
+                if (!string.IsNullOrEmpty(task.FeatureId))
+                {
+                    featureBranch = _wyvern.GetFeatureBranch(task.FeatureId);
+                }
+
+                // Second try: find via Wyvern analysis task-to-feature mapping
+                if (featureBranch == null && _wyvern.Analysis != null)
+                {
+                    foreach (var area in _wyvern.Analysis.Areas)
+                    {
+                        var wyvernTask = area.Tasks.FirstOrDefault(t =>
+                            task.Task.Contains(t.Description, StringComparison.OrdinalIgnoreCase) ||
+                            t.Description.Contains(task.Task.Split('(')[0].Trim(), StringComparison.OrdinalIgnoreCase));
+
+                        if (wyvernTask?.FeatureId != null)
+                        {
+                            featureBranch = _wyvern.GetFeatureBranch(wyvernTask.FeatureId);
+                            break;
+                        }
+                    }
+                }
+
+                if (string.IsNullOrEmpty(featureBranch))
+                    return (null, null);
+
+                // Create a worktree for this feature branch (reuses existing if available)
+                var worktreePath = await _gitService.CreateWorktreeAsync(projectFolder, featureBranch);
+                if (worktreePath != null)
+                {
+                    _logger?.LogInformation("Worktree ready at {Path} for branch {Branch} (task {TaskId})",
+                        worktreePath, featureBranch, task.Id[..Math.Min(8, task.Id.Length)]);
+                    return (featureBranch, worktreePath);
+                }
+
+                _logger?.LogWarning("Failed to create worktree for branch {Branch} (task {TaskId})",
+                    featureBranch, task.Id[..Math.Min(8, task.Id.Length)]);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Error setting up worktree for task {TaskId}", task.Id);
+            }
+
+            return (null, null);
+        }
+
+        /// <summary>
+        /// Removes a git worktree after task execution.
+        /// Only removes if no more tasks need this feature branch's worktree.
+        /// </summary>
+        private async Task CleanupWorktreeAsync(string worktreePath)
+        {
+            if (_gitService == null) return;
+
+            try
+            {
+                var projectFolder = GetProjectFolder();
+                if (projectFolder == null) return;
+
+                await _gitService.RemoveWorktreeAsync(projectFolder, worktreePath);
+                _logger?.LogDebug("Cleaned up worktree at {Path}", worktreePath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to cleanup worktree at {Path}", worktreePath);
+            }
+        }
+
+        /// <summary>
+        /// Gets the folder where the git repository lives.
+        /// For external projects: returns the SourcePath (where the real .git is)
+        /// For new projects: returns the KoboldLair project folder (parent of tasks/)
+        /// </summary>
+        private string? GetProjectFolder()
+        {
+            // For external projects, git operations target the external source directory
+            if (_projectRepository != null && !string.IsNullOrEmpty(_projectId))
+            {
+                var project = _projectRepository.GetById(_projectId);
+                if (project?.Metadata.TryGetValue("IsExistingProject", out var isExisting) == true &&
+                    isExisting == "true" &&
+                    project.Metadata.TryGetValue("SourcePath", out var sourcePath) == true &&
+                    Directory.Exists(sourcePath))
+                {
+                    return sourcePath;
+                }
+            }
+
+            // For new projects: go up from tasks/ to the project root
+            var tasksDir = Path.GetDirectoryName(_outputMarkdownPath);
+            if (string.IsNullOrEmpty(tasksDir)) return null;
+
+            var projectRoot = Path.GetDirectoryName(tasksDir);
+            return !string.IsNullOrEmpty(projectRoot) && Directory.Exists(projectRoot) ? projectRoot : tasksDir;
+        }
+
+        private async Task CommitTaskCompletionAsync(Kobold kobold, TaskRecord task, string? worktreePath = null)
         {
             if (_gitService == null)
                 return;
 
             try
             {
-                // Get the project folder (output path from task file path)
-                var projectFolder = Path.GetDirectoryName(_outputMarkdownPath);
-                if (string.IsNullOrEmpty(projectFolder))
+                // Use worktree path if available, otherwise fall back to project folder
+                var commitFolder = worktreePath ?? GetProjectFolder();
+                if (string.IsNullOrEmpty(commitFolder))
                     return;
 
                 if (!await _gitService.IsGitInstalledAsync())
                     return;
 
-                if (!await _gitService.IsRepositoryAsync(projectFolder))
+                if (!await _gitService.IsRepositoryAsync(commitFolder))
                     return;
 
-                // Get current branch - we commit to whatever branch we're on
-                // Feature branches are managed by Wyvern when features are assigned
-                var currentBranch = await _gitService.GetCurrentBranchAsync(projectFolder);
+                var currentBranch = await _gitService.GetCurrentBranchAsync(commitFolder);
 
                 // Stage all changes
-                await _gitService.StageAllAsync(projectFolder);
+                await _gitService.StageAllAsync(commitFolder);
 
                 // Create detailed commit message with context
                 var commitMessage = BuildDetailedCommitMessage(kobold, task, currentBranch);
 
                 // Commit with Kobold agent type as author
                 var authorName = $"Kobold-{kobold.AgentType}";
-                var committed = await _gitService.CommitChangesAsync(projectFolder, commitMessage, authorName);
+                var committed = await _gitService.CommitChangesAsync(commitFolder, commitMessage, authorName);
 
                 if (committed)
                 {
@@ -951,13 +1097,13 @@ namespace DraCode.KoboldLair.Orchestrators
                         "  Task: {Task}\n" +
                         "  Agent: {AgentType}",
                         projectInfo, currentBranch ?? "current branch", taskSummary, kobold.AgentType);
-                    
+
                     // Track commit SHA and output files for dependency context
-                    var commitSha = await _gitService.GetLastCommitShaAsync(projectFolder);
+                    var commitSha = await _gitService.GetLastCommitShaAsync(commitFolder);
                     if (!string.IsNullOrEmpty(commitSha))
                     {
                         task.CommitSha = commitSha;
-                        task.OutputFiles = await _gitService.GetFilesFromCommitAsync(projectFolder, commitSha);
+                        task.OutputFiles = await _gitService.GetFilesFromCommitAsync(commitFolder, commitSha);
 
                         _logger?.LogDebug(
                             "Tracked {FileCount} output files for task {TaskId} (commit: {CommitSha})",
@@ -1168,18 +1314,33 @@ namespace DraCode.KoboldLair.Orchestrators
             Action<string, string>? messageCallback = null,
             CancellationToken cancellationToken = default)
         {
+            // Set up a worktree for the feature branch (safe for parallel execution)
+            var (featureBranch, worktreePath) = await SetupFeatureBranchWorktreeAsync(task);
+
             // Summon Kobold (may return null if resource limit reached)
             var kobold = await SummonKoboldAsync(task, agentType, provider);
 
             if (kobold == null)
             {
-                // Resource limit reached - task remains in queue for retry on next cycle
+                // Resource limit reached, task remains in queue for retry
                 var projectId = task.ProjectId ?? _projectId ?? "(default)";
                 messageCallback?.Invoke("info", $"⏸️ Drake cannot summon kobold for task {task.Id.ToString()[..8]} - project {projectId} at parallel limit. Will retry.");
                 return null;
             }
 
-            messageCallback?.Invoke("info", $"🐉 Drake summoned Kobold {kobold.Id.ToString()[..8]} for task {task.Id.ToString()[..8]}");
+            // If we have a worktree, redirect the Kobold's workspace to it
+            if (worktreePath != null)
+            {
+                var worktreeWorkspace = Path.Combine(worktreePath, "workspace");
+                if (!Directory.Exists(worktreeWorkspace))
+                    Directory.CreateDirectory(worktreeWorkspace);
+                kobold.Agent.Options.WorkingDirectory = worktreeWorkspace;
+            }
+
+            if (featureBranch != null)
+                messageCallback?.Invoke("info", $"🐉 Drake summoned Kobold {kobold.Id.ToString()[..8]} on branch `{featureBranch}` (worktree) for task {task.Id.ToString()[..8]}");
+            else
+                messageCallback?.Invoke("info", $"🐉 Drake summoned Kobold {kobold.Id.ToString()[..8]} for task {task.Id.ToString()[..8]}");
 
             List<Message> messages;
             bool koboldRemovedByParallel = false;
@@ -1330,10 +1491,19 @@ namespace DraCode.KoboldLair.Orchestrators
                     _logger?.LogDebug("Unsummoned Kobold {KoboldId} after task {TaskId} execution",
                         kobold.Id.ToString()[..8], task.Id.ToString()[..8]);
                 }
+
+                // Note: worktree cleanup happens after SyncTaskFromKoboldAsync below
+                // so commit can still use the worktree path
             }
 
-            // Final sync of task status from Kobold
-            await SyncTaskFromKoboldAsync(kobold);
+            // Final sync of task status from Kobold (commits happen here if task completed)
+            await SyncTaskFromKoboldAsync(kobold, worktreePath);
+
+            // Clean up worktree after commit is done
+            if (worktreePath != null)
+            {
+                await CleanupWorktreeAsync(worktreePath);
+            }
 
             // Update feature status if Wyvern is available
             UpdateFeatureStatus();
@@ -1580,7 +1750,29 @@ namespace DraCode.KoboldLair.Orchestrators
             var allTasks = _taskTracker.GetAllTasks();
             var taskStatuses = allTasks.ToDictionary(t => t.Id, t => t.Status);
 
-            _wyvern.UpdateFeatureStatus(taskStatuses);
+            var newlyCompleted = _wyvern.UpdateFeatureStatus(taskStatuses);
+
+            // Notify about newly completed features with branches ready for merge
+            if (_onFeatureBranchReady != null)
+            {
+                var projectName = _projectId ?? "unknown";
+                foreach (var (featureName, gitBranch) in newlyCompleted)
+                {
+                    if (!string.IsNullOrEmpty(gitBranch))
+                    {
+                        _logger?.LogInformation("Feature '{FeatureName}' completed, branch '{Branch}' ready for merge",
+                            featureName, gitBranch);
+                        try
+                        {
+                            _onFeatureBranchReady(projectName, featureName, gitBranch);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogWarning(ex, "Error notifying feature branch ready for {Feature}", featureName);
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -2512,6 +2704,97 @@ namespace DraCode.KoboldLair.Orchestrators
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// GAP FIX 1 & 4: Loads the full Specification from disk with features.
+        /// </summary>
+        private async Task<Specification?> LoadSpecificationAsync()
+        {
+            if (string.IsNullOrEmpty(_specificationPath) || !File.Exists(_specificationPath))
+            {
+                return null;
+            }
+
+            try
+            {
+                var content = await File.ReadAllTextAsync(_specificationPath);
+                var projectFolder = Path.GetDirectoryName(_specificationPath) ?? "";
+
+                var spec = new Specification
+                {
+                    Name = _projectId ?? "Unknown",
+                    FilePath = _specificationPath,
+                    ProjectFolder = projectFolder,
+                    Content = content,
+                    ContentHash = Specification.ComputeHash(content)
+                };
+
+                // Load features from specification.features.json
+                var featuresPath = Path.Combine(projectFolder, "specification.features.json");
+                if (File.Exists(featuresPath))
+                {
+                    try
+                    {
+                        var featuresJson = await File.ReadAllTextAsync(featuresPath);
+                        using var doc = System.Text.Json.JsonDocument.Parse(featuresJson);
+
+                        if (doc.RootElement.TryGetProperty("features", out var featuresProp))
+                        {
+                            var options = new System.Text.Json.JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true
+                            };
+                            var features = System.Text.Json.JsonSerializer.Deserialize<List<Feature>>(
+                                featuresProp.GetRawText(), options);
+                            if (features != null)
+                            {
+                                spec.Features = features;
+                            }
+                        }
+
+                        if (doc.RootElement.TryGetProperty("specificationVersion", out var versionProp))
+                        {
+                            spec.Version = versionProp.GetInt32();
+                        }
+
+                        if (doc.RootElement.TryGetProperty("specificationContentHash", out var hashProp))
+                        {
+                            spec.ContentHash = hashProp.GetString() ?? spec.ContentHash;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to load features from {Path}", featuresPath);
+                    }
+                }
+
+                _logger?.LogDebug("Loaded specification {Name} v{Version} with {FeatureCount} features",
+                    spec.Name, spec.Version, spec.Features.Count);
+
+                return spec;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to load specification from {Path}", _specificationPath);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets feature details from specification by feature ID.
+        /// </summary>
+        private (string? FeatureId, string? FeatureName, string? FeatureDescription, List<string> AcceptanceCriteria)
+            GetFeatureFromSpecification(Specification spec, string featureId)
+        {
+            var feature = spec.Features.FirstOrDefault(f => f.Id == featureId);
+            if (feature == null)
+            {
+                return (featureId, null, null, new List<string>());
+            }
+
+            return (feature.Id, feature.Name, feature.Description,
+                feature.AcceptanceCriteria ?? new List<string>());
         }
     }
 }

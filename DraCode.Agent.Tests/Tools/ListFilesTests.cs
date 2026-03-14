@@ -138,7 +138,7 @@ public class ListFilesTests : TestBase
 
             // Assert - normalize path separators for comparison
             var normalizedLines = lines.Select(l => l.Replace('\\', '/')).ToList();
-            normalizedLines.Should().HaveCountGreaterOrEqualTo(3);
+            normalizedLines.Count.Should().BeGreaterThan(2);
             normalizedLines.Should().Contain(l => l.Trim() == "file1.txt");
             normalizedLines.Should().Contain(l => l.Contains("subdir") && l.Contains("file2.txt"));
             normalizedLines.Should().Contain(l => l.Contains("subdir") && l.Contains("nested") && l.Contains("file3.txt"));

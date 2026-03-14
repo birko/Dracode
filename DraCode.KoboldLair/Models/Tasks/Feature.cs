@@ -60,5 +60,17 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// Null if git is not enabled for the project
         /// </summary>
         public string? GitBranch { get; set; }
+
+        /// <summary>
+        /// GAP FIX 3: Acceptance criteria for this feature
+        /// Defines what "done" looks like for this feature
+        /// </summary>
+        public List<string> AcceptanceCriteria { get; set; } = new();
+
+        /// <summary>
+        /// GAP FIX 3: User stories or scenarios for this feature
+        /// Provides concrete usage examples for implementation
+        /// </summary>
+        public List<string> UserStories { get; set; } = new();
     }
 }

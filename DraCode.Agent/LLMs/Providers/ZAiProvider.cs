@@ -214,15 +214,31 @@ namespace DraCode.Agent.LLMs.Providers
                     {
                         var function = toolCall.GetProperty("function");
                         var argumentsJson = function.GetProperty("arguments").GetString();
-                        var args = argumentsJson is not null
-                            ? JsonSerializer.Deserialize<Dictionary<string, object>>(argumentsJson)
-                            : [];
+                        Dictionary<string, object>? args = null;
+
+                        if (argumentsJson is not null)
+                        {
+                            try
+                            {
+                                args = JsonSerializer.Deserialize<Dictionary<string, object>>(argumentsJson);
+                            }
+                            catch (JsonException ex)
+                            {
+                                SendMessage("error", $"Failed to parse tool arguments: {ex.Message}. Arguments JSON: {argumentsJson?.Substring(0, Math.Min(500, argumentsJson.Length))}");
+                                args = new Dictionary<string, object>();
+                            }
+                        }
+                        else
+                        {
+                            SendMessage("warning", "Tool call has null arguments");
+                        }
+
                         llmResponse.Content.Add(new ContentBlock
                         {
                             Type = "tool_use",
                             Id = toolCall.TryGetProperty("id", out var idProp) ? idProp.GetString() : Guid.NewGuid().ToString(),
                             Name = function.GetProperty("name").GetString(),
-                            Input = args
+                            Input = args ?? new Dictionary<string, object>()
                         });
                     }
                 }

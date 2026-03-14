@@ -5,6 +5,7 @@
 [Rr]eleases/
 x64/
 x86/
+[Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
@@ -15,38 +16,17 @@ bld/
 
 # Visual Studio cache/options
 .vs/
-.vscode/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-
-# Launch settings (user-specific debug profiles)
-**/Properties/launchSettings.json
-
-# User-specific files
-*.rsuser
 *.suo
 *.user
 *.userosscache
 *.sln.docstates
 *.userprefs
 
-# Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
-x64/
-x86/
-[Ww][Ii][Nn]32/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-[Ll]ogs/
+# Launch settings (user-specific debug profiles)
+**/Properties/launchSettings.json
+
+# User-specific files
+*.rsuser
 
 # .NET Core
 project.lock.json
@@ -97,9 +77,6 @@ ScaffoldingReadMe.txt
 *.nuget.props
 *.nuget.targets
 
-# NuGet Symbol Packages
-*.snupkg
-
 # Local configuration
 appsettings.local.json
 appsettings.Local.json
@@ -149,6 +126,9 @@ $RECYCLE.BIN/
 # Copilot session state
 .copilot/session-state/
 
+# Claude Code
+.claude/
+
 # Environment variables
 .env
 .env.local
@@ -158,3 +138,9 @@ $RECYCLE.BIN/
 *.swp
 *.swo
 *~
+
+# Backup files
+*.bak
+
+# Windows artifacts
+nul

@@ -29,6 +29,43 @@ namespace DraCode.KoboldLair.Models.Agents
         public string TaskDescription { get; set; } = string.Empty;
 
         /// <summary>
+        /// GAP FIX 1: Feature ID this task implements (from specification)
+        /// Links implementation directly to specification features for impact tracking.
+        /// </summary>
+        public string? FeatureId { get; set; }
+
+        /// <summary>
+        /// GAP FIX 1: Feature name this task implements
+        /// Provides human-readable context for the Kobold.
+        /// </summary>
+        public string? FeatureName { get; set; }
+
+        /// <summary>
+        /// GAP FIX 1: Feature description from specification
+        /// Provides full context about what feature this task implements.
+        /// </summary>
+        public string? FeatureDescription { get; set; }
+
+        /// <summary>
+        /// GAP FIX 1: Specification version when this plan was created
+        /// Enables detection of specification drift during execution.
+        /// </summary>
+        public int SpecificationVersion { get; set; } = 1;
+
+        /// <summary>
+        /// GAP FIX 1: Specification content hash when this plan was created
+        /// Enables precise change detection.
+        /// </summary>
+        public string SpecificationContentHash { get; set; } = string.Empty;
+
+        /// <summary>
+        /// GAP FIX 1: Relevant specification context for this task
+        /// Contains the parts of the spec that are relevant to this specific task.
+        /// This is a condensed version focused on the task's scope.
+        /// </summary>
+        public string? SpecificationContext { get; set; }
+
+        /// <summary>
         /// When the plan was created
         /// </summary>
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -12,7 +12,9 @@
   </ItemGroup>
 
   <Import Project="..\..\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.Communication.Authentication\Birko.Communication.Authentication.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Communication.SSE\Birko.Communication.SSE.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.MessageQueue\Birko.MessageQueue.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Security\Birko.Security.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Communication\Birko.Communication.projitems" Label="Shared" />
 
 </Project>

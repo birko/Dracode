@@ -45,7 +45,8 @@ namespace DraCode.KoboldLair.Agents
 - **Systems**: csharp, cpp, assembler, php, python
 - **Web**: javascript, typescript, html, css, react, angular
 - **Media**: svg, bitmap, image, media
-- **Other**: diagramming, coding (general/fallback), documentation
+- **Quality**: debug (debugging/troubleshooting), test (testing/QA), refactor (code restructuring)
+- **Other**: diagramming, coding (general/multi-language fallback), documentation (README, docs)
 
 IMPORTANT: Area names (Frontend, Backend, etc.) are for ORGANIZATION only.
 The agentType field MUST be a specific agent type, NOT an area name.

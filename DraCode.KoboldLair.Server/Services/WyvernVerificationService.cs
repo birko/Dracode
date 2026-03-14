@@ -10,29 +10,27 @@ namespace DraCode.KoboldLair.Server.Services
     /// Background service that monitors projects awaiting verification and runs validation checks.
     /// Automatically creates fix tasks if verification fails.
     /// </summary>
-    public class WyvernVerificationService : BackgroundService
+    public class WyvernVerificationService : PeriodicBackgroundService
     {
         private readonly ILogger<WyvernVerificationService> _logger;
         private readonly ProjectService _projectService;
-        private readonly TimeSpan _checkInterval;
-        private bool _isRunning;
-        private readonly object _lock = new object();
         private readonly SemaphoreSlim _projectThrottle;
         private const int MaxConcurrentProjects = 3;
         private readonly int _defaultTimeout;
         private readonly bool _autoCreateFixTasks;
         private readonly bool _requireAllChecksPassing;
 
+        protected override ILogger Logger => _logger;
+
         public WyvernVerificationService(
             ILogger<WyvernVerificationService> logger,
             ProjectService projectService,
             IConfiguration configuration,
             int checkIntervalSeconds = 30)
+            : base(TimeSpan.FromSeconds(checkIntervalSeconds))
         {
             _logger = logger;
             _projectService = projectService;
-            _checkInterval = TimeSpan.FromSeconds(checkIntervalSeconds);
-            _isRunning = false;
             _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
 
             var verificationConfig = configuration.GetSection("KoboldLair:Verification");
@@ -41,28 +39,11 @@ namespace DraCode.KoboldLair.Server.Services
             _requireAllChecksPassing = verificationConfig.GetValue<bool>("RequireAllChecksPassing", false);
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteCycleAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Wyvern Verification Service started");
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await Task.Delay(_checkInterval, stoppingToken);
-                    bool canRun;
-                    lock (_lock) { canRun = !_isRunning; if (canRun) _isRunning = true; }
-                    if (!canRun) continue;
-                    await ProcessProjectsAsync(stoppingToken);
-                }
-                catch (OperationCanceledException) { break; }
-                catch (Exception ex) { _logger.LogError(ex, "Error in verification processing"); }
-                finally { lock (_lock) { _isRunning = false; } }
-            }
-        }
-
-        private async Task ProcessProjectsAsync(CancellationToken stoppingToken)
-        {
-            var projects = _projectService.GetProjectsByStatus(ProjectStatus.AwaitingVerification);
+            var projects = _projectService.GetProjectsByStatus(ProjectStatus.AwaitingVerification)
+                .Where(p => p.ExecutionState == ProjectExecutionState.Running)
+                .ToList();
             if (!projects.Any()) return;
             await Task.WhenAll(projects.Select(p => RunVerificationAsync(p, stoppingToken)));
         }
@@ -100,7 +81,8 @@ namespace DraCode.KoboldLair.Server.Services
                     project.VerificationStatus = VerificationStatus.Skipped;
                     project.VerificationCompletedAt = DateTime.UtcNow;
                     project.VerificationReport = "No verification steps configured.";
-                    _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Verified);
+                    _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Completed);
+                    _logger.LogInformation("Project {Name} completed (verification skipped)", project.Name);
                     return;
                 }
 
@@ -166,8 +148,8 @@ namespace DraCode.KoboldLair.Server.Services
                 }
                 else
                 {
-                    _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Verified);
-                    _logger.LogInformation("Verification completed for {Name}: {Status}", project.Name, project.VerificationStatus);
+                    _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Completed);
+                    _logger.LogInformation("Project {Name} completed (verification {Status})", project.Name, project.VerificationStatus);
                 }
             }
             catch (Exception ex)
@@ -303,7 +285,37 @@ namespace DraCode.KoboldLair.Server.Services
             return exitCode == 0;
         }
 
-        private async Task<List<VerificationStepDefinition>> AutoDetectVerificationStepsAsync(
+        private static readonly TechStackDetector[] TechStackDetectors =
+        [
+            new(
+                TechStackKeywords: ["NET", "csharp"],
+                Languages: ["csharp"],
+                FilePatterns: [".csproj", ".sln", ".slnx"],
+                Steps:
+                [
+                    ("build", "dotnet build", "Critical", ".NET build verification"),
+                    ("test", "dotnet test", "High", ".NET unit tests")
+                ]),
+            new(
+                TechStackKeywords: ["Node", "npm"],
+                Languages: ["javascript", "typescript"],
+                FilePatterns: ["package.json"],
+                Steps:
+                [
+                    ("build", "npm run build", "Critical", "Node.js build verification"),
+                    ("test", "npm test", "High", "Node.js unit tests")
+                ]),
+            new(
+                TechStackKeywords: [],
+                Languages: ["python"],
+                FilePatterns: ["requirements.txt", "setup.py", "pyproject.toml"],
+                Steps:
+                [
+                    ("test", "pytest", "High", "Python unit tests")
+                ])
+        ];
+
+        private Task<List<VerificationStepDefinition>> AutoDetectVerificationStepsAsync(
             Project project,
             WyrmRecommendation? wyrmRec)
         {
@@ -315,68 +327,36 @@ namespace DraCode.KoboldLair.Server.Services
             var techStack = wyrmRec?.TechnicalStack ?? new List<string>();
             var languages = wyrmRec?.RecommendedLanguages ?? new List<string>();
 
-            // .NET detection
-            if (techStack.Any(t => t.Contains("NET", StringComparison.OrdinalIgnoreCase) || t.Contains("csharp", StringComparison.OrdinalIgnoreCase)) ||
-                languages.Contains("csharp") ||
-                workspaceFiles.Any(f => f.EndsWith(".csproj") || f.EndsWith(".sln")))
+            foreach (var detector in TechStackDetectors)
             {
-                steps.Add(new VerificationStepDefinition
+                bool matched =
+                    detector.TechStackKeywords.Any(kw => techStack.Any(t => t.Contains(kw, StringComparison.OrdinalIgnoreCase))) ||
+                    detector.Languages.Any(l => languages.Contains(l)) ||
+                    detector.FilePatterns.Any(fp => workspaceFiles.Any(f => f.EndsWith(fp)));
+
+                if (!matched) continue;
+
+                foreach (var (checkType, command, priority, description) in detector.Steps)
                 {
-                    CheckType = "build",
-                    Command = "dotnet build",
-                    Priority = "Critical",
-                    Description = ".NET build verification",
-                    TimeoutSeconds = 600
-                });
-                steps.Add(new VerificationStepDefinition
-                {
-                    CheckType = "test",
-                    Command = "dotnet test",
-                    Priority = "High",
-                    Description = ".NET unit tests",
-                    TimeoutSeconds = 600
-                });
+                    steps.Add(new VerificationStepDefinition
+                    {
+                        CheckType = checkType,
+                        Command = command,
+                        Priority = priority,
+                        Description = description,
+                        TimeoutSeconds = 600
+                    });
+                }
             }
 
-            // Node.js detection
-            if (techStack.Any(t => t.Contains("Node", StringComparison.OrdinalIgnoreCase) || t.Contains("npm", StringComparison.OrdinalIgnoreCase)) ||
-                languages.Any(l => l == "javascript" || l == "typescript") ||
-                workspaceFiles.Any(f => f.EndsWith("package.json")))
-            {
-                steps.Add(new VerificationStepDefinition
-                {
-                    CheckType = "build",
-                    Command = "npm run build",
-                    Priority = "Critical",
-                    Description = "Node.js build verification",
-                    TimeoutSeconds = 600
-                });
-                steps.Add(new VerificationStepDefinition
-                {
-                    CheckType = "test",
-                    Command = "npm test",
-                    Priority = "High",
-                    Description = "Node.js unit tests",
-                    TimeoutSeconds = 600
-                });
-            }
-
-            // Python detection
-            if (languages.Contains("python") ||
-                workspaceFiles.Any(f => f.EndsWith("requirements.txt") || f.EndsWith("setup.py") || f.EndsWith("pyproject.toml")))
-            {
-                steps.Add(new VerificationStepDefinition
-                {
-                    CheckType = "test",
-                    Command = "pytest",
-                    Priority = "High",
-                    Description = "Python unit tests",
-                    TimeoutSeconds = 600
-                });
-            }
-
-            return steps;
+            return Task.FromResult(steps);
         }
+
+        private sealed record TechStackDetector(
+            string[] TechStackKeywords,
+            string[] Languages,
+            string[] FilePatterns,
+            (string CheckType, string Command, string Priority, string Description)[] Steps);
 
         private async Task CreateFixTasksAsync(Project project, List<VerificationCheck> failedChecks, CancellationToken stoppingToken)
         {

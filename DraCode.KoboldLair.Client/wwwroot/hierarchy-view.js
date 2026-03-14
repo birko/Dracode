@@ -1,9 +1,12 @@
 import { ApiClient } from './api.js';
+import CONFIG from './config.js';
 
 export class HierarchyView {
     constructor(api, onRefresh) {
         this.api = api;
         this.onRefresh = onRefresh;
+        this._refreshTimer = null;
+        this._lastTreeHtml = '';
     }
 
     async render() {
@@ -17,6 +20,11 @@ export class HierarchyView {
                 }
             }
 
+            this._lastTreeHtml = `
+                ${this.renderDragon(data.hierarchy.dragon)}
+                ${data.hierarchy.projects.map(p => this.renderProject(p)).join('')}
+            `;
+
             return `
                 <div class="card">
                     <div class="card-header">
@@ -24,8 +32,7 @@ export class HierarchyView {
                     </div>
                     <div class="card-body">
                         <div class="tree">
-                            ${this.renderDragon(data.hierarchy.dragon)}
-                            ${data.hierarchy.projects.map(p => this.renderProject(p)).join('')}
+                            ${this._lastTreeHtml}
                         </div>
                     </div>
                 </div>
@@ -117,5 +124,46 @@ export class HierarchyView {
                 }
             });
         });
+    }
+
+    onMount() {
+        this._refreshTimer = setInterval(() => this._autoRefresh(), CONFIG.refreshInterval);
+    }
+
+    onUnmount() {
+        if (this._refreshTimer) {
+            clearInterval(this._refreshTimer);
+            this._refreshTimer = null;
+        }
+    }
+
+    async _autoRefresh() {
+        if (!this.api.isConnected()) return;
+        try {
+            const data = await this.api.getHierarchy();
+            if (data.projects) {
+                for (const p of data.projects) {
+                    this.projectsData[p.id] = p;
+                }
+            }
+
+            // Build new tree HTML and compare
+            const newTreeHtml = `
+                ${this.renderDragon(data.hierarchy.dragon)}
+                ${data.hierarchy.projects.map(p => this.renderProject(p)).join('')}
+            `;
+
+            if (newTreeHtml !== this._lastTreeHtml) {
+                this._lastTreeHtml = newTreeHtml;
+                const tree = document.querySelector('.tree');
+                if (tree) {
+                    tree.innerHTML = newTreeHtml;
+                    // Re-attach retry button listeners
+                    this.attachEventListeners(tree);
+                }
+            }
+        } catch (e) {
+            // Silent
+        }
     }
 }

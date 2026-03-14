@@ -37,6 +37,13 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// </summary>
         public string? CommitSha { get; set; }
         
+
+        /// <summary>
+        /// GAP FIX 1: Feature ID this task implements (if any)
+        /// Links the task to a specific feature in the specification.
+        /// </summary>
+        public string? FeatureId { get; set; }
+
         /// <summary>
         /// List of files created or modified by this task (extracted from git commit)
         /// </summary>

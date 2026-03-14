@@ -1,10 +1,12 @@
 import { ApiClient } from './api.js';
+import CONFIG from './config.js';
 
 export class ProjectsView {
     constructor(api, onRefresh) {
         this.api = api;
         this.onRefresh = onRefresh;
         this.agentStats = new Map(); // Cache agent statistics
+        this._refreshTimer = null;
     }
 
     async render() {
@@ -144,5 +146,75 @@ export class ProjectsView {
                 }
             });
         });
+    }
+
+    onMount() {
+        this._refreshTimer = setInterval(() => this._autoRefresh(), CONFIG.refreshInterval);
+    }
+
+    onUnmount() {
+        if (this._refreshTimer) {
+            clearInterval(this._refreshTimer);
+            this._refreshTimer = null;
+        }
+    }
+
+    async _autoRefresh() {
+        if (!this.api.isConnected()) return;
+        try {
+            const projects = await this.api.getProjects();
+
+            // Update each project's status and agent stats in-place
+            for (const p of projects) {
+                // Update status badge
+                const badge = document.querySelector(`.list-item [data-project-id="${p.id}"]`)
+                    ?.closest('.list-item')
+                    ?.querySelector('.badge:last-child');
+
+                // Find project list item by retry button or by matching title
+                const items = document.querySelectorAll('.list-item');
+                for (const item of items) {
+                    const title = item.querySelector('.list-item-title');
+                    if (title && title.textContent === p.name) {
+                        // Update status badge
+                        const statusBadge = item.querySelector('.list-item-actions .badge:last-child');
+                        if (statusBadge) {
+                            const newClass = `badge badge-${this.getStatusBadge(p.status)}`;
+                            if (statusBadge.className !== newClass || statusBadge.textContent !== p.status) {
+                                statusBadge.className = newClass;
+                                statusBadge.textContent = p.status;
+                            }
+                        }
+
+                        // Update agent stats
+                        try {
+                            const agentData = await this.api.getProjectAgents(p.id);
+                            if (agentData?.agents) {
+                                const statsEl = item.querySelector('.agent-stats');
+                                const newStats = `🐲 Wyverns: ${agentData.agents.wyverns} • 🐉 Drakes: ${agentData.agents.drakes} • 👺 Kobolds: ${agentData.agents.kobolds}`;
+                                if (statsEl) {
+                                    if (statsEl.textContent.trim() !== newStats.trim()) {
+                                        statsEl.innerHTML = newStats;
+                                    }
+                                } else {
+                                    // Add agent stats if not present yet
+                                    const subtitle = item.querySelector('.list-item-content');
+                                    if (subtitle) {
+                                        const div = document.createElement('div');
+                                        div.className = 'list-item-subtitle agent-stats';
+                                        div.innerHTML = newStats;
+                                        subtitle.appendChild(div);
+                                    }
+                                }
+                            }
+                        } catch (e) { /* silent */ }
+
+                        break;
+                    }
+                }
+            }
+        } catch (e) {
+            // Silent
+        }
     }
 }

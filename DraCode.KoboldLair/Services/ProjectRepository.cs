@@ -10,6 +10,39 @@ namespace DraCode.KoboldLair.Services
     /// </summary>
     public class ProjectRepository
     {
+        /// <summary>
+        /// Gets the canonical path with correct capitalization from the filesystem.
+        /// On Windows, returns the actual path with proper case. On other platforms, returns the full path.
+        /// </summary>
+        private static string GetCanonicalPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
+
+            var fullPath = Path.GetFullPath(path);
+
+            // On Windows, get the actual case from the filesystem
+            if (OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    if (Directory.Exists(fullPath))
+                    {
+                        return new DirectoryInfo(fullPath).FullName;
+                    }
+                    else if (File.Exists(fullPath))
+                    {
+                        return new FileInfo(fullPath).FullName;
+                    }
+                }
+                catch
+                {
+                    // If we can't get the actual case, fall through to return the full path
+                }
+            }
+
+            return fullPath;
+        }
         private readonly string _projectsDirectory;
         private readonly string _projectsFilePath;
         private readonly object _lock = new object();
@@ -191,10 +224,10 @@ namespace DraCode.KoboldLair.Services
                 {
                     try
                     {
-                        var normalized = Path.GetFullPath(sourcePath);
-                        if (!project.Security.AllowedExternalPaths.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                        var canonical = GetCanonicalPath(sourcePath);
+                        if (!project.Security.AllowedExternalPaths.Contains(canonical, StringComparer.OrdinalIgnoreCase))
                         {
-                            project.Security.AllowedExternalPaths.Add(normalized);
+                            project.Security.AllowedExternalPaths.Add(canonical);
                             changed = true;
                         }
                     }
@@ -207,10 +240,10 @@ namespace DraCode.KoboldLair.Services
                     {
                         try
                         {
-                            var normalized = Path.GetFullPath(extRef.Path);
-                            if (!project.Security.AllowedExternalPaths.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                            var canonical = GetCanonicalPath(extRef.Path);
+                            if (!project.Security.AllowedExternalPaths.Contains(canonical, StringComparer.OrdinalIgnoreCase))
                             {
-                                project.Security.AllowedExternalPaths.Add(normalized);
+                                project.Security.AllowedExternalPaths.Add(canonical);
                                 changed = true;
                             }
                         }
@@ -764,17 +797,19 @@ namespace DraCode.KoboldLair.Services
             if (string.IsNullOrEmpty(path))
                 throw new ArgumentException("Path cannot be empty", nameof(path));
 
-            var normalizedPath = Path.GetFullPath(path);
+            // Get canonical path with correct capitalization from filesystem
+            var canonicalPath = GetCanonicalPath(path);
             var project = GetById(projectId);
             if (project == null)
                 throw new InvalidOperationException($"Project not found: {projectId}");
 
             lock (_lock)
             {
-                if (!project.Security.AllowedExternalPaths.Contains(normalizedPath, StringComparer.OrdinalIgnoreCase))
+                // Use case-insensitive check to avoid duplicates
+                if (!project.Security.AllowedExternalPaths.Contains(canonicalPath, StringComparer.OrdinalIgnoreCase))
                 {
-                    project.Security.AllowedExternalPaths.Add(normalizedPath);
-                    _logger?.LogInformation("Added allowed external path for {Project}: {Path}", projectId, normalizedPath);
+                    project.Security.AllowedExternalPaths.Add(canonicalPath);
+                    _logger?.LogInformation("Added allowed external path for {Project}: {Path}", projectId, canonicalPath);
                 }
             }
             await UpdateAsync(project);
@@ -788,7 +823,8 @@ namespace DraCode.KoboldLair.Services
             if (string.IsNullOrEmpty(path))
                 return false;
 
-            var normalizedPath = Path.GetFullPath(path);
+            // Get canonical path with correct capitalization from filesystem
+            var canonicalPath = GetCanonicalPath(path);
             var project = GetById(projectId);
             if (project == null)
                 return false;
@@ -796,13 +832,14 @@ namespace DraCode.KoboldLair.Services
             bool removed = false;
             lock (_lock)
             {
+                // Use case-insensitive comparison to find the path
                 var existingPath = project.Security.AllowedExternalPaths
-                    .FirstOrDefault(p => p.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(p => p.Equals(canonicalPath, StringComparison.OrdinalIgnoreCase));
 
                 if (existingPath != null)
                 {
                     project.Security.AllowedExternalPaths.Remove(existingPath);
-                    _logger?.LogInformation("Removed allowed external path for {Project}: {Path}", projectId, normalizedPath);
+                    _logger?.LogInformation("Removed allowed external path for {Project}: {Path}", projectId, canonicalPath);
                     removed = true;
                 }
             }

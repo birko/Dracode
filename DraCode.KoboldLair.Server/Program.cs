@@ -104,6 +104,12 @@ builder.Services.AddSingleton<WyrmFactory>(sp =>
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
     return new WyrmFactory(projectConfigService, providerConfigService);
 });
+builder.Services.AddSingleton<ProjectNotificationService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<ProjectNotificationService>>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    return new ProjectNotificationService(logger, config.ProjectsPath ?? "./projects");
+});
 builder.Services.AddSingleton<DrakeFactory>(sp =>
 {
     var koboldFactory = sp.GetRequiredService<KoboldFactory>();
@@ -115,7 +121,16 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
     var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    return new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext);
+    var factory = new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext);
+
+    // Wire feature completion notifications so users get notified when branches are ready for merge
+    var notificationService = sp.GetRequiredService<ProjectNotificationService>();
+    factory.OnFeatureBranchReady = (projectName, featureName, branchName) =>
+    {
+        notificationService.NotifyFeatureBranchReady(projectName, featureName, branchName);
+    };
+
+    return factory;
 });
 
 // Register services (DragonRequestQueue must be registered first)
@@ -156,12 +171,15 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var projectService = sp.GetRequiredService<ProjectService>();
+    var projectRepository = sp.GetRequiredService<ProjectRepository>();
     var gitService = sp.GetRequiredService<GitService>();
     var koboldFactory = sp.GetRequiredService<KoboldFactory>();
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    var planService = sp.GetRequiredService<KoboldPlanService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var maxConcurrent = config.Limits?.MaxConcurrentDragonRequests ?? 5;
-    return new DragonService(logger, providerConfigService, projectConfigService, projectService, gitService, config, koboldFactory, drakeFactory, maxConcurrent);
+    var notificationService = sp.GetRequiredService<ProjectNotificationService>();
+    return new DragonService(logger, providerConfigService, projectConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService);
 });
 
 // Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)

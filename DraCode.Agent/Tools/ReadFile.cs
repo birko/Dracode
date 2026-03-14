@@ -24,14 +24,27 @@ namespace DraCode.Agent.Tools
         {
             try
             {
-                var filePath = input["file_path"].ToString();
+                var filePath = input["file_path"].ToString()?.Trim();
                 if (string.IsNullOrEmpty(filePath))
                     throw new ArgumentException("file_path is required");
 
-                var fullPath = Path.Combine(workingDirectory, filePath);
+                // Normalize the working directory
+                var normalizedWorkingDir = Path.GetFullPath(workingDirectory);
 
-                if (!PathHelper.IsPathSafe(fullPath, workingDirectory, Options?.AllowedExternalPaths))
-                    return "Error: Access denied. Path must be in workspace or an allowed external path.";
+                // Handle LLMs that use Unix-style absolute paths to reference workspace
+                // e.g., "/workspace/file.txt" should be treated as "file.txt" relative to workspace
+                var relativePath = filePath.StartsWith('/') && !filePath.StartsWith("//")
+                    ? filePath.Substring(1)
+                    : filePath;
+
+                var fullPath = Path.GetFullPath(Path.Combine(normalizedWorkingDir, relativePath));
+
+                // Debug logging
+                var externalPathsCount = Options?.AllowedExternalPaths?.Count ?? 0;
+                var externalPathsList = externalPathsCount > 0 ? string.Join(", ", Options!.AllowedExternalPaths!) : "none";
+
+                if (!PathHelper.IsPathSafe(fullPath, normalizedWorkingDir, Options?.AllowedExternalPaths))
+                    return $"Error: Access denied. Path must be in workspace or an allowed external path.\n\n[DEBUG] fullPath: {fullPath}\n[DEBUG] workingDirectory: {normalizedWorkingDir}\n[DEBUG] AllowedExternalPaths ({externalPathsCount}): {externalPathsList}";
 
                 return File.ReadAllText(fullPath);
             }

@@ -17,6 +17,14 @@ class DragonSession {
     }
 
     connect() {
+        // Clean up previous WebSocket handlers to prevent accumulation on reconnect
+        // (Birko WebSocketServer pattern: OnClientDisconnected cleans up before new connection)
+        if (this.ws) {
+            this.ws.removeAllHandlers();
+            this.ws.disconnect();
+            this.ws = null;
+        }
+
         this.ws = new WebSocketClient('/dragon');
 
         // Set up session not found handler before connecting
@@ -70,134 +78,165 @@ class DragonSession {
     }
 
     handleMessage(data) {
-        console.log(`[Session ${this.id}] Received message:`, {
-            type: data.type,
-            messageId: data.messageId || '(no id)',
-            hasContent: !!(data.message || data.content),
-            isReplay: data.isReplay || false,
-            sessionId: data.sessionId,
-            currentSessionId: this.sessionId
-        });
+        // Transient messages (no messageId) skip dedup and sessionId tracking
+        const isTransient = !data.messageId;
 
-        // Track sessionId from server
+        if (!isTransient) {
+            console.log(`[Session ${this.id}] Received:`, data.type, data.messageId);
+        }
+
+        // Track sessionId from server (skip for transient messages that don't carry session context)
         if (data.sessionId && data.sessionId !== this.sessionId) {
-            console.log(`[Session ${this.id}] Session ID changed from ${this.sessionId} to ${data.sessionId}`);
+            console.log(`[Session ${this.id}] Session ID changed: ${this.sessionId} -> ${data.sessionId}`);
             this.sessionId = data.sessionId;
             this.ws.setSessionId(this.sessionId);
         }
 
-        // Deduplicate by messageId (single dedup layer)
-        if (data.messageId && this.receivedMessageIds.has(data.messageId)) {
-            console.log(`[Session ${this.id}] Skipping duplicate:`, data.messageId, data.type);
-            return;
-        }
-        if (data.messageId) {
+        // Deduplicate only tracked messages (those with messageId)
+        if (!isTransient) {
+            if (this.receivedMessageIds.has(data.messageId)) {
+                return; // Duplicate
+            }
             this.receivedMessageIds.add(data.messageId);
-            console.log(`[Session ${this.id}] ✓ Tracking new messageId:`, data.messageId, `(total: ${this.receivedMessageIds.size})`);
-        }
 
-        // Log replay messages that were accepted (not already in local state)
-        if (data.isReplay) {
-            console.log(`[Session ${this.id}] Accepted replay message:`, data.messageId);
-        }
-
-        if (data.type === 'session_resumed') {
-            console.log(`[Session ${this.id}] Session resumed, message count:`, data.messageCount);
-            return;
-        } else if (data.type === 'session_replay_complete') {
-            console.log(`[Session ${this.id}] Session replay complete:`, data.messagesProcessed, 'messages');
-            this.view.showNotification(`Conversation restored (${data.messagesProcessed} messages)`, 'success');
-            return;
-        } else if (data.type === 'session_replay_error') {
-            console.error(`[Session ${this.id}] Session replay error:`, data.error);
-            this.view.showNotification(`Failed to restore conversation: ${data.error}`, 'error');
-            return;
-        } else if (data.type === 'dragon_message') {
-            console.log(`[Session ${this.id}] Processing dragon_message:`, {
-                isStreamed: data.isStreamed,
-                hasContent: !!(data.message || data.content),
-                contentLength: (data.message || data.content || '').length,
-                activeSession: this.view.activeSessionId === this.id
-            });
-
-            // Check if this is a completion of a streaming response.
-            // Note: isStreamed may be true even if no streaming chunks arrived (e.g., after tool use)
-            const streamingElementExists = this.view.hasStreamingElement();
-            console.log(`[Session ${this.id}] Streaming element exists:`, streamingElementExists);
-
-            if (data.isStreamed && streamingElementExists) {
-                // Finalize the streaming message display (remove cursor) and update content
-                // This ensures the final message is displayed even if streaming chunks were incomplete
-                this.view.finalizeStreamingMessage(data.message ?? data.content ?? '');
+            // Prune old IDs to prevent unbounded growth (keep last 500)
+            if (this.receivedMessageIds.size > 500) {
+                const iter = this.receivedMessageIds.values();
+                for (let i = 0; i < 100; i++) iter.next();
+                // Delete the first 100 (oldest) entries
+                const toDelete = [];
+                const allIter = this.receivedMessageIds.values();
+                for (let i = 0; i < 100; i++) toDelete.push(allIter.next().value);
+                toDelete.forEach(id => this.receivedMessageIds.delete(id));
             }
+        }
 
-            // Always save the message from server response (handles both streamed and non-streamed)
-            // Use data.message with fallback - prevents "undefined" display
-            const content = data.message ?? data.content ?? '';
-            if (content) {
+        switch (data.type) {
+            // --- Session lifecycle ---
+            case 'session_resumed':
+                console.log(`[Session ${this.id}] Resumed, ${data.messageCount} messages on server`);
+                return;
+
+            case 'session_replay_complete':
+                this.view.showNotification(`Conversation restored (${data.messagesProcessed} messages)`, 'success');
+                return;
+
+            case 'session_replay_error':
+                console.error(`[Session ${this.id}] Replay error:`, data.error);
+                this.view.showNotification(`Failed to restore conversation: ${data.error}`, 'error');
+                return;
+
+            // --- Dragon response (final message) ---
+            case 'dragon_message': {
+                const streamingElementExists = this.view.hasStreamingElement();
+
                 if (data.isStreamed && streamingElementExists) {
-                    // For streamed: save without UI update (streaming element already displays it)
-                    console.log(`[Session ${this.id}] Saving streamed message (UI already updated)`);
-                    const msg = { role: 'assistant', content };
-                    if (data.messageId) msg.messageId = data.messageId;
-                    this.messages.push(msg);
-                } else {
-                    // For non-streamed OR streamed without chunks: normal flow with UI update
-                    console.log(`[Session ${this.id}] Adding message to UI via addMessage()`);
-                    this.addMessage('assistant', content, data.messageId);
+                    // Finalize the streaming display with the complete content
+                    this.view.finalizeStreamingMessage(data.message ?? data.content ?? '');
                 }
-            } else {
-                console.warn(`[Session ${this.id}] dragon_message received with no content!`);
+
+                const content = data.message ?? data.content ?? '';
+                if (content) {
+                    if (data.isStreamed && streamingElementExists) {
+                        // Streamed: save to history only (UI already shows it)
+                        const msg = { role: 'assistant', content };
+                        if (data.messageId) msg.messageId = data.messageId;
+                        this.messages.push(msg);
+                    } else {
+                        // Non-streamed or no chunks arrived: render to UI
+                        this.addMessage('assistant', content, data.messageId);
+                    }
+                } else {
+                    console.warn(`[Session ${this.id}] dragon_message with no content`);
+                }
+
+                // Response complete — reset processing state
+                this.isProcessing = false;
+                this.view.hideThinkingIndicator();
+                this.view.setInputEnabled(true);
+                return;
             }
 
-            // Hide thinking indicator and re-enable input
-            this.isProcessing = false;
-            this.view.hideThinkingIndicator();
-            this.view.setInputEnabled(true);
-        } else if (data.type === 'dragon_stream') {
-            // Handle streaming chunk - append to current streaming message
-            console.log(`[Session ${this.id}] dragon_stream chunk:`, JSON.stringify(data.chunk), 'full data:', data);
-            this.view.appendStreamingChunk(data.chunk);
-        } else if (data.type === 'dragon_reloaded') {
-            // Hide thinking indicator and clear session on reload
-            this.isProcessing = false;
-            this.view.hideThinkingIndicator();
-            this.view.setInputEnabled(true);
-            this.clearMessages();
-            this.sessionId = data.sessionId;
-            this.ws.setSessionId(this.sessionId);
-            this.addMessage('system', data.message, data.messageId);
-            console.log(`[Session ${this.id}] ✓ Agent reloaded, session reset, receivedMessageIds cleared`);
-        } else if (data.type === 'dragon_typing') {
-            // Show initial thinking indicator and disable input
-            this.isProcessing = true;
-            this.view.showThinkingIndicator();
-            this.view.setInputEnabled(false);
-        } else if (data.type === 'dragon_thinking') {
-            // Update thinking indicator with tool/processing info
-            this.view.updateThinkingIndicator(data.description, data.toolName);
-        } else if (data.type === 'context_cleared') {
-            // Handle context cleared notification
-            this.addMessage('system', data.message || 'Conversation context cleared.', data.messageId);
-        } else if (data.type === 'specification_created') {
-            // Handle specification created notification
-            const projectName = data.projectFolder ? data.projectFolder.split(/[/\\]/).pop() : 'project';
-            const message = `✅ Specification created for project: **${projectName}**\n📄 File: \`${data.filename}\``;
-            this.addMessage('system', message, data.messageId);
-            this.view.showNotification(`Specification created: ${projectName}`, 'success');
-        } else if (data.type === 'error') {
-            // Hide thinking indicator and re-enable input on error
-            this.isProcessing = false;
-            this.view.hideThinkingIndicator();
-            this.view.setInputEnabled(true);
-            this.addErrorMessage(data);
-        } else if (data.type !== 'user_message') {
-            // Fallback for unknown message types - only show if content exists
-            if (data.content) {
-                this.addMessage('assistant', data.content, data.messageId);
-            } else {
-                console.warn(`[Session ${this.id}] Received message with unknown type and no content:`, data.type, data);
+            // --- Streaming chunks ---
+            case 'dragon_stream':
+                // Hide thinking indicator on first streaming chunk (response is arriving)
+                if (!this.view.hasStreamingElement()) {
+                    this.view.hideThinkingIndicator();
+                }
+                this.view.appendStreamingChunk(data.chunk);
+                return;
+
+            // --- Agent reloaded ---
+            case 'dragon_reloaded':
+                this.isProcessing = false;
+                this.view.hideThinkingIndicator();
+                this.view.setInputEnabled(true);
+                this.clearMessages();
+                this.sessionId = data.sessionId;
+                this.ws.setSessionId(this.sessionId);
+                this.addMessage('system', data.message, data.messageId);
+                return;
+
+            // --- Processing indicators (transient, no messageId) ---
+            case 'dragon_typing':
+                // Server confirmed it received our message — only act if we haven't already
+                // (sendMessage() already shows indicator optimistically)
+                if (!this.isProcessing) {
+                    this.isProcessing = true;
+                    this.view.showThinkingIndicator();
+                    this.view.setInputEnabled(false);
+                }
+                return;
+
+            case 'dragon_thinking':
+                this.view.updateThinkingIndicator(data.description, data.toolName, data.category, data.agent);
+                return;
+
+            case 'dragon_status':
+                this.view.updateThinkingIndicator(data.message, null, 'status', null);
+                return;
+
+            // --- System notifications ---
+            case 'context_cleared':
+                this.addMessage('context_cleared', data.message || 'Conversation context cleared.', data.messageId);
+                return;
+
+            case 'specification_created': {
+                const projectName = data.projectFolder ? data.projectFolder.split(/[/\\]/).pop() : 'project';
+                const message = `Specification created for project: ${projectName} (${data.filename})`;
+                this.addMessage('system', message, data.messageId);
+                this.view.showNotification(`Specification created: ${projectName}`, 'success');
+                return;
             }
+
+            case 'project_notification': {
+                // Display persistent project notifications (e.g., feature branches ready for merge)
+                const notifIcon = data.notificationType === 'feature_branch_ready' ? '🔀' :
+                                  data.notificationType === 'project_complete' ? '🎉' : '📢';
+                this.addMessage('system', `${notifIcon} ${data.message}`, data.messageId);
+                this.view.showNotification(data.message, 'info');
+                return;
+            }
+
+            // --- Errors ---
+            case 'error':
+                this.isProcessing = false;
+                this.view.hideThinkingIndicator();
+                this.view.setInputEnabled(true);
+                this.addErrorMessage(data);
+                return;
+
+            // --- Ignore echoed user messages ---
+            case 'user_message':
+                return;
+
+            // --- Unknown types ---
+            default:
+                if (data.content) {
+                    this.addMessage('assistant', data.content, data.messageId);
+                } else {
+                    console.warn(`[Session ${this.id}] Unknown message type:`, data.type);
+                }
         }
     }
 
@@ -271,8 +310,11 @@ class DragonSession {
     }
 
     disconnect() {
-        this.ws?.disconnect();
-        this.ws = null;
+        if (this.ws) {
+            this.ws.removeAllHandlers();
+            this.ws.disconnect();
+            this.ws = null;
+        }
         this.isConnected = false;
     }
 
@@ -448,8 +490,7 @@ export class DragonView {
             if (msg.role === 'error') {
                 return this.renderErrorMessageHtml(msg);
             }
-            // Special styling for context cleared indicator
-            if (msg.role === 'system' && msg.content.includes('Context cleared')) {
+            if (msg.role === 'context_cleared') {
                 return this.renderContextClearedHtml(msg);
             }
             return `
@@ -475,24 +516,22 @@ export class DragonView {
         `;
     }
 
+    /**
+     * Get icon and title for an error type.
+     */
+    getErrorMeta(errorType) {
+        const icons = { llm_connection: '🔌', llm_timeout: '⏱️', llm_error: '🤖', llm_response: '📄' };
+        const titles = { llm_connection: 'Connection Error', llm_timeout: 'Timeout Error', llm_error: 'LLM Provider Error', llm_response: 'Response Error', startup_error: 'Startup Error' };
+        return { icon: icons[errorType] || '⚠️', title: titles[errorType] || 'Error' };
+    }
+
     renderErrorMessageHtml(msg) {
-        const errorType = msg.errorType || 'general';
-        const icon = errorType === 'llm_connection' ? '🔌' :
-            errorType === 'llm_timeout' ? '⏱️' :
-                errorType === 'llm_error' ? '🤖' :
-                    errorType === 'llm_response' ? '📄' : '⚠️';
-
-        const errorTitle = errorType === 'llm_connection' ? 'Connection Error' :
-            errorType === 'llm_timeout' ? 'Timeout Error' :
-                errorType === 'llm_error' ? 'LLM Provider Error' :
-                    errorType === 'llm_response' ? 'Response Error' :
-                        errorType === 'startup_error' ? 'Startup Error' : 'Error';
-
+        const { icon, title } = this.getErrorMeta(msg.errorType || 'general');
         return `
             <div class="chat-message error" style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border: 1px solid #f87171; border-left: 4px solid #dc2626;">
                 <div class="chat-message-icon" style="color: #dc2626;">${icon}</div>
                 <div class="chat-message-content">
-                    <div class="chat-message-role" style="color: #dc2626; font-weight: bold;">${errorTitle}</div>
+                    <div class="chat-message-role" style="color: #dc2626; font-weight: bold;">${title}</div>
                     <div class="chat-message-text" style="color: #7f1d1d;">
                         <strong>${this.escapeHtml(msg.content)}</strong>
                         ${msg.details ? `<div style="margin-top: 8px; font-size: 0.9em; color: #991b1b;">${this.escapeHtml(msg.details)}</div>` : ''}
@@ -706,19 +745,12 @@ export class DragonView {
 
         // Guard against empty or undefined content
         if (!msg.content) {
-            console.warn('[DragonView] appendMessageToUI: msg.content is empty/falsy!');
             return;
-        }
-
-        // Clear if system reload message
-        if (role === 'system' && msg.content.includes('reloaded')) {
-            messagesContainer.innerHTML = '';
         }
 
         const messageEl = document.createElement('div');
 
-        // Special styling for context cleared indicator
-        if (role === 'system' && msg.content.includes('Context cleared')) {
+        if (role === 'context_cleared') {
             messageEl.className = 'chat-message context-cleared';
             messageEl.style.cssText = `
                 background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
@@ -846,41 +878,17 @@ export class DragonView {
         const messagesContainer = document.getElementById('dragonMessages');
         if (!messagesContainer) return;
 
-        const errorType = errorData.errorType || 'general';
-        const message = errorData.message || 'An error occurred';
-        const details = errorData.details || '';
-
-        const messageEl = document.createElement('div');
-        messageEl.className = 'chat-message error';
-        messageEl.style.cssText = `
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            border: 1px solid #f87171;
-            border-left: 4px solid #dc2626;
-        `;
-
-        const icon = errorType === 'llm_connection' ? '🔌' :
-            errorType === 'llm_timeout' ? '⏱️' :
-                errorType === 'llm_error' ? '🤖' :
-                    errorType === 'llm_response' ? '📄' : '⚠️';
-
-        const errorTitle = errorType === 'llm_connection' ? 'Connection Error' :
-            errorType === 'llm_timeout' ? 'Timeout Error' :
-                errorType === 'llm_error' ? 'LLM Provider Error' :
-                    errorType === 'llm_response' ? 'Response Error' :
-                        errorType === 'startup_error' ? 'Startup Error' : 'Error';
-
-        messageEl.innerHTML = `
-            <div class="chat-message-icon" style="color: #dc2626;">${icon}</div>
-            <div class="chat-message-content">
-                <div class="chat-message-role" style="color: #dc2626; font-weight: bold;">${errorTitle}</div>
-                <div class="chat-message-text" style="color: #7f1d1d;">
-                    <strong>${this.escapeHtml(message)}</strong>
-                    ${details ? `<div style="margin-top: 8px; font-size: 0.9em; color: #991b1b;">${this.escapeHtml(details)}</div>` : ''}
-                </div>
-            </div>
-        `;
-
-        messagesContainer.appendChild(messageEl);
+        // Reuse renderErrorMessageHtml to avoid duplicated icon/title logic
+        const msg = {
+            role: 'error',
+            content: errorData.message || 'An error occurred',
+            details: errorData.details || '',
+            errorType: errorData.errorType || 'general'
+        };
+        const html = this.renderErrorMessageHtml(msg);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html.trim();
+        messagesContainer.appendChild(wrapper.firstChild);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
@@ -943,8 +951,9 @@ export class DragonView {
                 <span class="thinking-spinner"></span>
             </div>
             <div class="thinking-content">
-                <div class="thinking-label">Dragon is thinking...</div>
+                <div class="thinking-label" id="thinkingLabel">Dragon is thinking...</div>
                 <div class="thinking-details" id="thinkingDetails"></div>
+                <div class="thinking-activity-log" id="thinkingActivityLog"></div>
             </div>
         `;
         messagesContainer.appendChild(indicator);
@@ -952,17 +961,27 @@ export class DragonView {
     }
 
     /**
-     * Update the thinking indicator with current processing info
+     * Update the thinking indicator with current processing info and activity log.
      * @param {string} description - What the agent is doing
      * @param {string|null} toolName - Name of the tool being used (optional)
+     * @param {string|null} category - Category: tool, thinking, delegation, warning, status
+     * @param {string|null} agent - Which agent is active (Dragon, Sage, Seeker, etc.)
      */
-    updateThinkingIndicator(description, toolName = null) {
+    updateThinkingIndicator(description, toolName = null, category = null, agent = null) {
         const indicator = document.getElementById('dragonThinkingIndicator');
         if (!indicator) {
-            // If indicator doesn't exist yet, create it
             this.showThinkingIndicator();
         }
 
+        // Update the main label with agent name
+        const labelEl = document.getElementById('thinkingLabel');
+        if (labelEl && agent) {
+            const agentIcons = { Dragon: '🐉', Sage: '📜', Seeker: '🔍', Sentinel: '🛡️', Warden: '⚙️' };
+            const icon = agentIcons[agent] || '';
+            labelEl.textContent = `${icon} ${agent} is working...`;
+        }
+
+        // Update the current step description
         const detailsEl = document.getElementById('thinkingDetails');
         if (detailsEl) {
             if (toolName) {
@@ -970,6 +989,24 @@ export class DragonView {
             } else {
                 detailsEl.textContent = description;
             }
+        }
+
+        // Append to activity log (keeps last 6 entries)
+        const logEl = document.getElementById('thinkingActivityLog');
+        if (logEl && description) {
+            const entry = document.createElement('div');
+            entry.className = `thinking-log-entry thinking-log-${category || 'thinking'}`;
+            const prefix = category === 'tool' ? '⚡' : category === 'warning' ? '⚠️' : '·';
+            entry.textContent = `${prefix} ${description}`;
+            logEl.appendChild(entry);
+
+            // Keep only last 6 entries
+            while (logEl.children.length > 6) {
+                logEl.removeChild(logEl.firstChild);
+            }
+
+            // Fade in new entry
+            requestAnimationFrame(() => entry.classList.add('visible'));
         }
 
         // Ensure scroll to bottom

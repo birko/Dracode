@@ -15,11 +15,19 @@ export class ApiClient {
         this.connecting = true;
 
         try {
+            // Clean up previous WebSocket if reconnecting (prevents handler accumulation)
+            if (this.ws) {
+                this.ws.removeAllHandlers();
+                this.ws.disconnect();
+                this.ws = null;
+            }
+
             this.ws = new WebSocketClient('/wyvern');
 
             this.ws.on('response', (data) => {
                 const request = this.pendingRequests.get(data.id);
                 if (request) {
+                    clearTimeout(request.timeout);
                     request.resolve(data.data);
                     this.pendingRequests.delete(data.id);
                 }
@@ -30,6 +38,7 @@ export class ApiClient {
                 if (data && data.id) {
                     const request = this.pendingRequests.get(data.id);
                     if (request) {
+                        clearTimeout(request.timeout);
                         request.reject(new Error(data.error || 'Unknown error'));
                         this.pendingRequests.delete(data.id);
                     }
@@ -37,14 +46,37 @@ export class ApiClient {
             });
 
             this.ws.onStatusChange((status) => {
+                const wasConnected = this.connected;
                 this.connected = (status === 'connected');
                 console.log('API WebSocket status:', status);
+
+                // Fail all pending requests immediately on disconnect
+                // (inspired by Birko WebSocketServer OnClientDisconnected pattern)
+                if (wasConnected && !this.connected) {
+                    this._failPendingRequests('Connection lost');
+                }
             });
 
             await this.ws.connect();
             this.connected = true;
         } finally {
             this.connecting = false;
+        }
+    }
+
+    /**
+     * Fail all pending requests with the given reason.
+     * Prevents requests from hanging for 30s after connection drops.
+     */
+    _failPendingRequests(reason) {
+        const pending = Array.from(this.pendingRequests.entries());
+        this.pendingRequests.clear();
+        for (const [id, request] of pending) {
+            clearTimeout(request.timeout);
+            request.reject(new Error(reason));
+        }
+        if (pending.length > 0) {
+            console.warn(`ApiClient: Failed ${pending.length} pending request(s): ${reason}`);
         }
     }
 
@@ -57,7 +89,15 @@ export class ApiClient {
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         return new Promise((resolve, reject) => {
-            this.pendingRequests.set(requestId, { resolve, reject });
+            // Timeout after 30 seconds (stored so it can be cleared on response/disconnect)
+            const timeout = setTimeout(() => {
+                if (this.pendingRequests.has(requestId)) {
+                    this.pendingRequests.delete(requestId);
+                    reject(new Error('Request timeout'));
+                }
+            }, 30000);
+
+            this.pendingRequests.set(requestId, { resolve, reject, timeout });
 
             // Send the message
             this.ws.send({
@@ -65,26 +105,22 @@ export class ApiClient {
                 command,
                 data
             }).catch(error => {
+                clearTimeout(timeout);
                 this.pendingRequests.delete(requestId);
                 reject(error);
             });
-
-            // Timeout after 30 seconds
-            setTimeout(() => {
-                if (this.pendingRequests.has(requestId)) {
-                    this.pendingRequests.delete(requestId);
-                    reject(new Error('Request timeout'));
-                }
-            }, 30000);
         });
     }
 
     disconnect() {
+        this._failPendingRequests('Client disconnected');
         if (this.ws) {
+            this.ws.removeAllHandlers();
             this.ws.disconnect();
-            this.connected = false;
-            this.connecting = false;
+            this.ws = null;
         }
+        this.connected = false;
+        this.connecting = false;
     }
 
     isConnected() {
@@ -140,6 +176,10 @@ export class ApiClient {
         return this.sendCommand('get_agent_status', { projectId, agentType });
     }
 
+    async getImplementationSummary(projectId) {
+        return this.sendCommand('get_implementation_summary', { projectId });
+    }
+
     async configureProvider(agentType, providerName, modelOverride) {
         return this.sendCommand('configure_provider', { agentType, providerName, modelOverride });
     }
@@ -178,13 +218,5 @@ export class ApiClient {
 
     async retryAnalysis(projectId) {
         return this.sendCommand('retry_analysis', { projectId });
-    }
-
-    disconnect() {
-        if (this.ws) {
-            this.ws.disconnect();
-            this.ws = null;
-            this.connected = false;
-        }
     }
 }

@@ -59,14 +59,15 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 ```
 
 - **Dragon**: Interactive chat for requirements → creates project folder and `specification.md`
-  - Dragon Council: SageAgent (specs/features), SeekerAgent (import), SentinelAgent (git), WardenAgent (config/retry)
+  - Dragon Council: SageAgent (specs/features/delete), SeekerAgent (import), SentinelAgent (git status/diff/commit/merge), WardenAgent (config/task details/progress/workspace/retry/delete)
 - **Wyrm (Pre-Analysis)**: Reads specs, provides recommendations → creates `wyrm-recommendation.json` with languages, agent types, tech stack, complexity
   - **WyrmProcessingService** (60s): Monitors New projects, runs Wyrm pre-analysis, transitions to WyrmAssigned
 - **Wyvern**: Reads specs + Wyrm recommendations, breaks into tasks → creates `{area}-tasks.md` files, persists `analysis.json`
   - **WyvernProcessingService** (60s): Monitors WyrmAssigned projects, runs detailed analysis, transitions to Analyzed
-- **Drake**: Monitors tasks, summons Kobolds → updates task status
+- **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
+  - **Git Worktrees**: Creates isolated worktrees per feature branch for parallel-safe execution
 - **Kobold Planner**: Creates structured implementation plans → enables resumability
 - **Kobold**: Executes plans step-by-step → outputs to `workspace/` subfolder
 
@@ -136,16 +137,19 @@ Located in `DraCode.Agent/Tools/`:
 - `ask_user` - User interaction
 - `display_text` - Output display
 
-### Dragon Tools (16)
+### Dragon Tools (23)
 
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `list_projects` - List all registered projects
 - `manage_specification` - Create, update, load specifications
 - `manage_features` - Manage features within specifications
-- `view_specification_history` - View specification version history (NEW - 2026-02-26)
+- `delete_feature` - Delete Draft features from specifications (NEW - 2026-03-14)
+- `view_specification_history` - View specification version history
 - `approve_specification` - Approve projects for processing
 - `add_existing_project` - Register existing projects
-- `git_status` - View branch status and merge readiness
+- `git_status` - View branch status, merge readiness, init repos
+- `git_diff` - View branch diffs, commit logs, change summaries (NEW - 2026-03-14)
+- `git_commit` - Stage and commit changes in project repos (NEW - 2026-03-14)
 - `git_merge` - Merge feature branches with conflict detection
 - `manage_external_paths` - Add/remove allowed external paths
 - `select_agent` - Select agent type for tasks
@@ -153,6 +157,10 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `agent_status` - View running agents (Drakes, Kobolds) per project
 - `retry_failed_task` - Retry failed tasks by resetting to Unassigned
 - `set_task_priority` - Manually override task priority (critical/high/normal/low) to control execution order
+- `view_task_details` - View detailed task info, errors, plan step progress (NEW - 2026-03-14)
+- `project_progress` - View project progress analytics, completion %, breakdowns (NEW - 2026-03-14)
+- `view_workspace` - Browse generated output files in workspace (NEW - 2026-03-14)
+- `delete_project` - Permanently remove cancelled projects from registry (NEW - 2026-03-14)
 - `pause_project` - Temporarily pause project execution (short-term hold)
 - `resume_project` - Resume paused or suspended project
 - `suspend_project` - Long-term hold for projects awaiting external changes
@@ -310,9 +318,48 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
             plan-index.json           # Plan lookup index
         planning-context.json         # Shared planning context
         dragon-history.json           # Dragon conversation history (server-persisted)
+        notifications.json            # Pending project notifications (feature completion, etc.)
+        .worktrees/                   # Git worktrees for parallel feature branch execution
+            feature-abc-name/         # Isolated worktree per feature branch
 provider-config.json                  # Provider configuration
 user-settings.json                    # User runtime settings (agent providers)
 ```
+
+### Git Workflow (Automatic Feature Branch Management)
+
+KoboldLair manages git automatically throughout the project lifecycle:
+
+```
+1. INIT (automatic)           ProjectService.CreateProjectFolderAsync()
+   └→ git init -b main        When project folder is created
+
+2. BRANCH (automatic)         Wyvern.AssignFeaturesAsync()
+   └→ git branch feature/{id}-{name}    Per feature, from main
+
+3. WORKTREE (automatic)       Drake.SetupFeatureBranchWorktreeAsync()
+   └→ git worktree add .worktrees/{branch} {branch}
+   └→ Kobold workspace → worktree/workspace/
+   └→ Parallel-safe: each feature branch gets isolated copy
+
+4. COMMIT (automatic)         Drake.CommitTaskCompletionAsync()
+   └→ git add -A && git commit   In worktree (or main if no feature)
+   └→ Author: Kobold-{agentType}
+   └→ Conventional commit format with task metadata
+
+5. CLEANUP (automatic)        Drake.CleanupWorktreeAsync()
+   └→ git worktree remove       After task commit
+
+6. NOTIFY (automatic)         ProjectNotificationService
+   └→ Feature complete → notification persisted to notifications.json
+   └→ Pushed to Dragon client (or on reconnect if offline)
+
+7. MERGE (user-initiated)     Dragon → Sentinel → git_merge tool
+   └→ User reviews via git_diff → merges via git_merge → deletes branch
+```
+
+**External Projects**: For imported codebases (`IsExistingProject=true`), git operations target the external `SourcePath` (e.g., `C:\Source\MyApp\`) instead of the KoboldLair metadata folder. Worktrees are created under the external repo's `.worktrees/` directory.
+
+**Parallel Safety**: Multiple Drakes can work on different feature branches simultaneously. Each gets its own git worktree (isolated filesystem copy sharing the same `.git` object store). No branch checkout conflicts.
 
 ### Project Data Structure (projects.json)
 

@@ -1,7 +1,92 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-02-27 - Unit Tests for All Tools completed**
+**Last updated: 2026-03-14 - Git Workflow, New Dragon Tools, Project Notifications completed, Birko.Framework integration plan added**
+
+---
+
+## 🟢 COMPLETED - Git Workflow & Feature Branch Automation (2026-03-14)
+
+Full automatic git workflow with parallel-safe feature branch execution.
+
+### Implementation Details
+
+- [x] **Git Worktree Support** *(Completed 2026-03-14)*
+  - Added `CreateWorktreeAsync()` and `RemoveWorktreeAsync()` to `GitService`
+  - Enables parallel Kobold execution on different feature branches without checkout conflicts
+  - Worktrees are created at `.worktrees/{branch-name}/` under the project (or external source)
+
+- [x] **Drake Feature Branch Integration** *(Completed 2026-03-14)*
+  - `SetupFeatureBranchWorktreeAsync()` - Creates worktree for task's feature branch
+  - `CleanupWorktreeAsync()` - Removes worktree after commit
+  - `ExecuteTaskAsync()` redirects Kobold workspace to worktree
+  - `CommitTaskCompletionAsync()` accepts optional worktree path for commits
+  - `GetProjectFolder()` now resolves external source paths for imported projects
+
+- [x] **Feature Completion Notifications** *(Completed 2026-03-14)*
+  - `ProjectNotificationService` with disk persistence (`notifications.json`)
+  - `Wyvern.UpdateFeatureStatus()` returns newly completed features
+  - Drake fires `OnFeatureBranchReady` callback via `DrakeFactory`
+  - Notifications survive server restarts (persisted to disk)
+  - Dragon sends pending notifications on client connect/reconnect
+  - Client displays notifications with icons (merge-ready, project complete)
+
+- [x] **External Project Git Support** *(Completed 2026-03-14)*
+  - `GetProjectFolder()` returns `SourcePath` for external projects
+  - Git operations (branches, worktrees, commits) target the external repo
+  - Worktrees created under external repo's `.worktrees/` directory
+
+**Git Workflow Lifecycle:**
+```
+ProjectService → git init -b main (auto on project creation)
+Wyvern → git branch feature/{id}-{name} (auto per feature)
+Drake → git worktree add (auto before Kobold execution)
+Kobold → works in worktree/workspace/
+Drake → git add -A && git commit (auto on task Done)
+Drake → git worktree remove (auto after commit)
+Notification → "Branch ready for merge!" (auto on feature complete)
+User → Dragon → Sentinel → git_merge (user-initiated)
+```
+
+**Files Modified**: `GitService.cs`, `Drake.cs`, `DrakeFactory.cs`, `Wyvern.cs`, `ProjectNotificationService.cs` (new), `DragonService.cs`, `Program.cs`, `dragon-view.js`
+
+---
+
+## 🟢 COMPLETED - New Dragon Council Tools (2026-03-14)
+
+Added 7 new tools and expanded existing tool capabilities for the Dragon Council.
+
+### New Tools
+
+- [x] **ViewTaskDetailsTool** (Warden) - Drill into task details: list/detail/plan actions
+- [x] **ProjectProgressTool** (Warden) - Progress analytics: overview/all actions with breakdown
+- [x] **ViewWorkspaceTool** (Warden) - Browse workspace files: tree/stats/recent actions
+- [x] **DeleteProjectTool** (Warden) - Remove cancelled projects with optional file cleanup
+- [x] **DeleteFeatureTool** (Sage) - Delete Draft features from specifications
+- [x] **GitDiffTool** (Sentinel) - View branch diffs, commit logs, merge summaries
+- [x] **GitCommitTool** (Sentinel) - Create commits: commit/stage/commit_staged actions
+
+### Updated Components
+- DragonAgent system prompt: Updated council member descriptions
+- DelegateToCouncilTool: Updated capability descriptions
+- SentinelAgent: New git tools + expanded workflow documentation
+- WardenAgent: 4 new tools with conditional wiring
+- SageAgent: DeleteFeature tool + specification completeness checklist
+
+**Total Dragon Tools**: 23 (was 16)
+
+---
+
+## 🟢 COMPLETED - Client Auto-Refresh (2026-03-14)
+
+All KoboldLair client views now auto-refresh data without full page reloads.
+
+- [x] **Dashboard**: In-place stat updates via `data-stat` attributes, green flash animation
+- [x] **Projects View**: Status badges and agent stats update in-place
+- [x] **Hierarchy View**: Tree HTML comparison with event listener re-attachment
+- [x] **Impact View**: Metric comparison refresh when project selected
+
+**Pattern**: `CONFIG.refreshInterval` (5000ms), `onMount()`/`onUnmount()` lifecycle, `Promise.all` for parallel fetches.
 
 ---
 
@@ -1046,7 +1131,119 @@ Migrate from file-based JSON storage to a hybrid database approach using Birko.F
 
 ---
 
-*Last updated: 2026-02-26*
+*Last updated: 2026-03-14*
+
+---
+
+## 🟡 MEDIUM PRIORITY - Birko.Framework Integration (Beyond Data Layer)
+
+Additional Birko.Framework libraries (from `C:\Source\Birko.Framework\`) that can replace custom implementations or add missing capabilities. The data layer integration (`Birko.Data`, `Birko.Data.SQL.PostgreSQL`) is tracked in the Database Persistence section above.
+
+**Source**: `C:\Source\Birko.Framework\` — 50+ modular .NET 10.0 libraries
+
+### Background Jobs — Replace Custom PeriodicBackgroundServices
+
+Current state: 5 custom `PeriodicBackgroundService` classes (WyrmProcessingService, WyvernProcessingService, DrakeExecutionService, DrakeMonitoringService, FailureRecoveryService) each with manual timer loops.
+
+- [ ] **Integrate `Birko.BackgroundJobs`** ⚪ NOT STARTED
+  - Replace `PeriodicBackgroundService` base class with Birko job scheduler
+  - Birko supports: cron scheduling, retry policies, job status tracking, multiple storage backends (InMemory, SQL, Redis, MongoDB, RabbitMQ, Kafka, Azure)
+  - Benefits: Built-in retry/backoff (replaces custom retry logic), job persistence across restarts, job dashboard potential
+  - **Migration approach**: One service at a time, starting with `FailureRecoveryService` (simplest)
+  - **Package**: `Birko.BackgroundJobs` + `Birko.BackgroundJobs.Storage.PostgreSQL`
+  - **Effort**: 12 hours (all 5 services)
+
+### Event Bus — Inter-Agent Communication
+
+Current state: Agent lifecycle events use direct callbacks (`Action<string, string, string>`). No structured event system.
+
+- [ ] **Integrate `Birko.EventBus`** ⚪ NOT STARTED
+  - Replace callback-based notifications with publish/subscribe events
+  - Event types to define:
+    - `FeatureBranchReadyEvent` (replaces `OnFeatureBranchReady` callback)
+    - `ProjectStatusChangedEvent` (replaces direct service calls)
+    - `TaskStatusChangedEvent` (enables decoupled monitoring)
+    - `KoboldLifecycleEvent` (start/complete/fail/timeout)
+    - `DrakeSupervisionEvent` (stuck detection, recovery actions)
+  - Birko supports: in-process, distributed (Redis/RabbitMQ), outbox pattern, event sourcing
+  - Start with in-process event bus, upgrade to distributed later
+  - **Package**: `Birko.EventBus` + `Birko.EventBus.InProcess`
+  - **Effort**: 16 hours
+
+### Caching — Shared Planning Context & Project Data
+
+Current state: `SharedPlanningContextService` uses in-memory `ConcurrentDictionary` with LRU (max 50 projects) + JSON file persistence.
+
+- [ ] **Integrate `Birko.Caching.Redis`** ⚪ NOT STARTED
+  - Cache active agent tracking with TTL (auto-expire stale agents)
+  - Cache file locks with auto-expiry (replaces manual cleanup)
+  - Cache project statistics and cross-project insights
+  - Cache hot project data (reduces JSON file reads)
+  - **Package**: `Birko.Caching` + `Birko.Caching.Redis`
+  - **Prerequisite**: Redis instance (can add to Aspire AppHost)
+  - **Effort**: 10 hours
+
+### Validation — Specification & Feature Input
+
+Current state: No structured validation. Dragon accepts any input, Wyvern may fail on malformed specs.
+
+- [ ] **Integrate `Birko.Validation`** ⚪ NOT STARTED
+  - Validate specification structure before Wyrm/Wyvern processing
+  - Validate feature definitions (name, description, acceptance criteria)
+  - Validate project configuration (agent settings, security modes)
+  - Validate external paths (existence, permissions)
+  - Birko provides: fluent validation rules, custom validators, localization
+  - **Package**: `Birko.Validation`
+  - **Effort**: 8 hours
+
+### Security — WebSocket Authentication
+
+Current state: Simple token-based auth via query string (`?token=your-token`).
+
+- [ ] **Integrate `Birko.Security.Jwt`** ⚪ NOT STARTED
+  - Replace simple token auth with JWT-based authentication
+  - Token refresh support for long Dragon sessions
+  - Role-based access: admin (all projects), user (own projects), viewer (read-only)
+  - Birko provides: JWT generation/validation, refresh tokens, RBAC, AES encryption
+  - **Package**: `Birko.Security` + `Birko.Security.Jwt`
+  - **Effort**: 12 hours
+
+### Event Sourcing — Specification Audit Trail
+
+Current state: `Specification.VersionHistory` tracks versions but loses intermediate state.
+
+- [ ] **Integrate `Birko.Data.EventSourcing`** ⚪ NOT STARTED
+  - Full audit trail of specification changes (who, what, when)
+  - Replay capability: reconstruct spec at any point in time
+  - Event types: FeatureAdded, FeatureModified, FeatureRemoved, SpecApproved
+  - Complements existing version tracking (adds replay + audit)
+  - **Package**: `Birko.Data.EventSourcing`
+  - **Prerequisite**: Database persistence (Phase 2 above)
+  - **Effort**: 10 hours
+
+### Message Queue — Distributed Agent Messaging (Future)
+
+Current state: All agents run in-process. No distributed messaging.
+
+- [ ] **Integrate `Birko.MessageQueue`** ⚪ NOT STARTED
+  - Enables distributed Kobold execution across multiple machines
+  - Drake publishes task assignments to queue, Kobold workers consume
+  - Supports: InMemory (dev), MQTT (lightweight), RabbitMQ (production)
+  - **Prerequisite**: Event Bus integration (above)
+  - **Package**: `Birko.MessageQueue` + `Birko.MessageQueue.MQTT`
+  - **Effort**: 20 hours
+
+### Integration Priority Order
+
+| Priority | Integration | Replaces | Impact |
+|----------|------------|----------|--------|
+| 1 | Background Jobs | 5 custom services | Reliability, persistence |
+| 2 | Event Bus | Callback chains | Decoupling, extensibility |
+| 3 | Validation | No validation | Input safety |
+| 4 | Caching (Redis) | In-memory ConcurrentDict | Scalability |
+| 5 | Security (JWT) | Token query string | Auth robustness |
+| 6 | Event Sourcing | Version tracking | Audit trail |
+| 7 | Message Queue | In-process only | Distributed execution |
 
 ---
 
