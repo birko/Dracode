@@ -383,8 +383,12 @@ namespace DraCode.KoboldLair.Server.Services
                         {
                             _ = SendThinkingUpdateAsync(webSocket, session, currentSessionId, type, content, agentSource: memberName);
                         }
-                        // Note: assistant_stream and assistant_final are intentionally not forwarded
-                        // Council responses are returned to Dragon which sends the final response
+                        else if (type == "assistant_final")
+                        {
+                            // Forward council member final responses so client knows they're done
+                            _ = SendThinkingUpdateAsync(webSocket, session, currentSessionId, type, content, agentSource: memberName);
+                        }
+                        // Note: assistant_stream is intentionally not forwarded for council members
                     };
 
                     session.Dragon!.SetMessageCallback(dragonCallback);
@@ -968,6 +972,21 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogInformation("Dragon received: {Message}", message.Message);
                 TrackMessage(session, "user_message", new Dictionary<string, object> { ["role"] = "user", ["content"] = message.Message! });
 
+                // Validate session is properly initialized before processing
+                if (session.Sender == null || session.Dragon == null)
+                {
+                    _logger.LogWarning("Dragon session not properly initialized (Sender={Sender}, Dragon={Dragon}), cannot process message",
+                        session.Sender != null, session.Dragon != null);
+                    await SendMessageAsync(webSocket, new
+                    {
+                        type = "error",
+                        error = "session_not_ready",
+                        message = "Session is not ready. Please try reconnecting.",
+                        timestamp = DateTime.UtcNow
+                    }, session.Sender);
+                    return;
+                }
+
                 await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId }, session.Sender);
 
                 // Create a request for non-blocking processing
@@ -980,10 +999,10 @@ namespace DraCode.KoboldLair.Server.Services
                     SessionId = sessionId,
                     Message = message.Message!,
                     WebSocket = webSocket,
-                    Sender = session.Sender!,
+                    Sender = session.Sender,
                     CancellationTokenSource = cts,
                     QueuedAt = DateTime.UtcNow,
-                    Dragon = session.Dragon!
+                    Dragon = session.Dragon
                 };
 
                 // Set up status callback to send progress updates via WebSocket
@@ -1535,6 +1554,9 @@ namespace DraCode.KoboldLair.Server.Services
                 Action<string, string> MakeReloadCouncilCallback(string memberName) => (type, content) =>
                 {
                     if (type == "tool_call" || type == "tool_result" || type == "info" || type == "debug" || type == "warning")
+                        _ = SendThinkingUpdateAsync(webSocket, session, sessionId, type, content, agentSource: memberName);
+                    else if (type == "assistant_final")
+                        // Forward council member final responses so client knows they're done
                         _ = SendThinkingUpdateAsync(webSocket, session, sessionId, type, content, agentSource: memberName);
                 };
 

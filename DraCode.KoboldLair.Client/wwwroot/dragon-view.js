@@ -193,7 +193,12 @@ class DragonSession {
                 return;
 
             case 'dragon_status':
-                this.view.updateThinkingIndicator(data.message, null, 'status', null);
+                // When status is complete, hide the thinking indicator
+                if (data.statusType === 'complete') {
+                    this.view.hideThinkingIndicator();
+                } else {
+                    this.view.updateThinkingIndicator(data.message, null, 'status', null);
+                }
                 return;
 
             // --- System notifications ---

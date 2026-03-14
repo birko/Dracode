@@ -51,6 +51,7 @@ namespace DraCode.KoboldLair.Services
         private readonly ILogger<ProjectService> _logger;
         private readonly GitService _gitService;
         private readonly ProjectConfigurationService? _projectConfigService;
+        private readonly DrakeFactory? _drakeFactory;
         private readonly string _projectsPath;
 
         public ProjectService(
@@ -59,13 +60,15 @@ namespace DraCode.KoboldLair.Services
             ILogger<ProjectService> logger,
             GitService gitService,
             KoboldLairConfiguration config,
-            ProjectConfigurationService? projectConfigService = null)
+            ProjectConfigurationService? projectConfigService = null,
+            DrakeFactory? drakeFactory = null)
         {
             _repository = repository;
             _wyvernFactory = wyvernFactory;
             _logger = logger;
             _gitService = gitService;
             _projectConfigService = projectConfigService;
+            _drakeFactory = drakeFactory;
             _projectsPath = config.ProjectsPath ?? "./projects";
         }
 
@@ -381,6 +384,13 @@ namespace DraCode.KoboldLair.Services
                 // - Otherwise keep as WyvernAssigned for reprocessing on next cycle
                 var allAreasComplete = pendingAreas.Count == 0;
 
+                // Clear any previous error state when analysis succeeds
+                if (project.Status == ProjectStatus.Failed)
+                {
+                    _logger.LogInformation("🔄 Project {ProjectName} transitioning from Failed to active state", project.Name);
+                    project.Tracking.ErrorMessage = null;
+                }
+
                 if (wyrmEnabled && allAreasComplete)
                 {
                     project.Status = ProjectStatus.Analyzed;
@@ -523,6 +533,17 @@ namespace DraCode.KoboldLair.Services
                 _logger.LogWarning("Cannot retry analysis for project {ProjectName} - status is {Status}, not Failed",
                     project.Name, project.Status);
                 return false;
+            }
+
+            // Stop any running Drakes for this project to prevent Kobolds from continuing
+            if (_drakeFactory != null)
+            {
+                var removedCount = _drakeFactory.RemoveAllDrakesForProject(project.Id);
+                if (removedCount > 0)
+                {
+                    _logger.LogInformation("🛑 Stopped {Count} Drake(s) for project '{ProjectName}' before retry",
+                        removedCount, project.Name);
+                }
             }
 
             // Clear Wyvern assignment so it gets recreated

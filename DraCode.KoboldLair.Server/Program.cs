@@ -72,6 +72,32 @@ builder.Services.AddSingleton<WyvernFactory>(sp =>
     return new WyvernFactory(providerConfigService, projectConfigService, config, gitService: gitService);
 });
 
+// Register factories as singletons
+// Register DrakeFactory before ProjectService since ProjectService depends on it
+builder.Services.AddSingleton<DrakeFactory>(sp =>
+{
+    var koboldFactory = sp.GetRequiredService<KoboldFactory>();
+    var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
+    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+    var gitService = sp.GetRequiredService<GitService>();
+    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
+    var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var factory = new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config,
+        loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext);
+
+    // Wire feature completion notifications so users get notified when branches are ready for merge
+    var notificationService = sp.GetRequiredService<ProjectNotificationService>();
+    factory.OnFeatureBranchReady = (projectName, featureName, branchName) =>
+    {
+        notificationService.NotifyFeatureBranchReady(projectName, featureName, branchName);
+    };
+
+    return factory;
+});
+
 builder.Services.AddSingleton<ProjectService>(sp =>
 {
     var repository = sp.GetRequiredService<ProjectRepository>();
@@ -80,10 +106,11 @@ builder.Services.AddSingleton<ProjectService>(sp =>
     var gitService = sp.GetRequiredService<GitService>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    return new ProjectService(repository, wyvernFactory, logger, gitService, config, projectConfigService);
+    var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    return new ProjectService(repository, wyvernFactory, logger, gitService, config, projectConfigService, drakeFactory);
 });
 
-// Register factories as singletons
+// Register remaining factories
 builder.Services.AddSingleton<KoboldFactory>(sp =>
 {
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
@@ -109,28 +136,6 @@ builder.Services.AddSingleton<ProjectNotificationService>(sp =>
     var logger = sp.GetRequiredService<ILogger<ProjectNotificationService>>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     return new ProjectNotificationService(logger, config.ProjectsPath ?? "./projects");
-});
-builder.Services.AddSingleton<DrakeFactory>(sp =>
-{
-    var koboldFactory = sp.GetRequiredService<KoboldFactory>();
-    var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
-    var projectRepository = sp.GetRequiredService<ProjectRepository>();
-    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-    var gitService = sp.GetRequiredService<GitService>();
-    var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
-    var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
-    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    var factory = new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config, loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext);
-
-    // Wire feature completion notifications so users get notified when branches are ready for merge
-    var notificationService = sp.GetRequiredService<ProjectNotificationService>();
-    factory.OnFeatureBranchReady = (projectName, featureName, branchName) =>
-    {
-        notificationService.NotifyFeatureBranchReady(projectName, featureName, branchName);
-    };
-
-    return factory;
 });
 
 // Register services (DragonRequestQueue must be registered first)

@@ -318,6 +318,31 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
+        /// Removes all Drakes associated with a specific project.
+        /// Used when retrying analysis or cancelling a project.
+        /// </summary>
+        /// <param name="projectId">Project identifier</param>
+        /// <returns>Number of Drakes removed</returns>
+        public int RemoveAllDrakesForProject(string projectId)
+        {
+            lock (_lock)
+            {
+                var drakeNames = _drakeProjectIds
+                    .Where(kvp => kvp.Value == projectId)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                foreach (var drakeName in drakeNames)
+                {
+                    _drakeProjectIds.Remove(drakeName);
+                    _drakes.Remove(drakeName);
+                }
+
+                return drakeNames.Count;
+            }
+        }
+
+        /// <summary>
         /// Gets the total number of Drakes
         /// </summary>
         public int TotalDrakes
