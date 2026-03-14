@@ -178,6 +178,11 @@ Reasoning approach: Balanced
 
             // If it already starts with '{', extract balanced JSON
             var trimmed = content.Trim();
+
+            // Check if the response contains an error message before attempting JSON extraction
+            if (trimmed.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"LLM request failed: {content}");
+
             if (trimmed.StartsWith('{'))
                 return ExtractBalancedJson(trimmed, 0);
 
