@@ -1,6 +1,7 @@
 using System.Text;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Factories;
+using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
@@ -77,7 +78,18 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 var tasks = GetTasksForProject(project);
                 if (tasks.Count == 0)
+                {
+                    if (project.Status == ProjectStatus.Prototype)
+                    {
+                        return $"⚠️ Project '{project.Name}' is in **Prototype** status and has not been approved for processing yet.\n\n" +
+                               $"📋 **Next Step:** Use the `approve_specification` tool to approve this project.\n" +
+                               $"   - This will transition the project from 'Prototype' → 'New' status\n" +
+                               $"   - Wyrm will pre-analyze it and create recommendations (within 60 seconds)\n" +
+                               $"   - Wyvern will break down the specification into tasks (within another 60 seconds)\n" +
+                               $"   - Drake will supervise Kobold execution";
+                    }
                     return $"No tasks found for project '{project.Name}'. Project may not be analyzed yet.";
+                }
 
                 var sb = new StringBuilder();
                 sb.AppendLine($"# Project Progress: {project.Name}");
@@ -94,6 +106,19 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 sb.AppendLine($"**Status:** {project.Status} | **Execution:** {project.ExecutionState}");
                 sb.AppendLine();
+
+                // Hint for Prototype status
+                if (project.Status == ProjectStatus.Prototype)
+                {
+                    sb.AppendLine("⚠️ **This project is in Prototype status** - it has not been approved for processing yet.");
+                    sb.AppendLine();
+                    sb.AppendLine("📋 **Next Step:** Use the `approve_specification` tool to approve this project.");
+                    sb.AppendLine("   - This will transition the project from 'Prototype' → 'New' status");
+                    sb.AppendLine("   - Wyrm will then pre-analyze it (within 60 seconds)");
+                    sb.AppendLine("   - Wyvern will create tasks (within another 60 seconds)");
+                    sb.AppendLine("   - Drake will supervise Kobold execution");
+                    sb.AppendLine();
+                }
 
                 // Progress bar
                 var barLength = 20;
@@ -210,6 +235,20 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var totalPercent = totalTasks > 0 ? (totalDone * 100.0 / totalTasks) : 0;
                 sb.AppendLine();
                 sb.AppendLine($"**Totals:** {totalTasks} tasks, {totalDone} done ({totalPercent:F0}%), {totalFailed} failed");
+
+                // Check for projects in Prototype status
+                var prototypeProjects = projects.Where(p => p.Status == ProjectStatus.Prototype).ToList();
+                if (prototypeProjects.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("⚠️ **Projects awaiting approval:**");
+                    foreach (var proj in prototypeProjects)
+                    {
+                        sb.AppendLine($"   - {proj.Name}");
+                    }
+                    sb.AppendLine();
+                    sb.AppendLine("💡 Use the `approve_specification` tool to approve these projects for processing.");
+                }
 
                 return sb.ToString();
             }
