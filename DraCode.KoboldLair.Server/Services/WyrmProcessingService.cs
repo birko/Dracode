@@ -69,45 +69,69 @@ namespace DraCode.KoboldLair.Server.Services
                 // GAP 2 FIX: Build cross-project insights context
                 var crossProjectContext = await BuildCrossProjectContextAsync(project.Id);
 
-                var prompt = $@"Analyze the following project specification and provide initial recommendations as JSON:
+                var prompt = $@"You are Wyrm, a technical pre-analyzer. Your job is to CAREFULLY read a project specification and extract precise technical recommendations that will guide downstream agents.
+
+## SPECIFICATION:
 
 {spec}
 {crossProjectContext}
-Provide JSON with:
-- RecommendedLanguages[]: Programming languages used (e.g., ""csharp"", ""typescript"", ""python"")
-- RecommendedAgentTypes{{}}: Map area names to VALID agent types (see list below)
-- TechnicalStack[]: Frameworks and libraries detected
-- SuggestedAreas[]: Work areas like ""Backend"", ""Frontend"", ""Database""
-- Complexity: ""Low"", ""Medium"", or ""High""
-- AnalysisSummary: Brief analysis
-- VerificationSteps[]: Array of verification checks to run after implementation
 
-IMPORTANT: For RecommendedAgentTypes, use ONLY these valid agent type values:
-- Systems: csharp, cpp, assembler, php, python
-- Web: javascript, typescript, html, css, react, angular
-- Media: svg, bitmap, image, media
-- Other: diagramming, coding (general fallback), documentation
+## INSTRUCTIONS:
 
-Example RecommendedAgentTypes: {{""backend"": ""csharp"", ""frontend"": ""react"", ""styling"": ""css""}}
-Do NOT use area names like ""frontend"" or ""backend"" as agent types - map them to specific agents.
+Read the specification above THOROUGHLY. Pay attention to:
+1. Every programming language, framework, library, and tool mentioned
+2. Explicit constraints (""no frameworks"", ""vanilla only"", ""no runtime dependencies"", etc.)
+3. The project type and architecture
+4. All technical requirements sections
 
-VerificationSteps Format:
-Each verification step should be an object with:
-- checkType: Type of check (""build"", ""test"", ""lint"", ""syntax"")
+## OUTPUT FORMAT (JSON only):
+
+{{
+  ""AnalysisSummary"": ""2-3 sentence summary of what this project IS and its key technical approach"",
+  ""RecommendedLanguages"": [""list every programming language explicitly mentioned - e.g. typescript, python, csharp""],
+  ""RecommendedAgentTypes"": {{
+    ""area-name"": ""agent-type""
+  }},
+  ""TechnicalStack"": [""every framework, library, build tool, API mentioned - e.g. Vite, BroadcastChannel API, localStorage""],
+  ""SuggestedAreas"": [""work areas like Backend, Frontend, Database, Infrastructure""],
+  ""Complexity"": ""Low | Medium | High"",
+  ""Constraints"": [""every explicit constraint or restriction from the spec - e.g. No external runtime dependencies, No CSS frameworks""],
+  ""OutOfScope"": [""features explicitly marked as out of scope or future work""],
+  ""VerificationSteps"": [],
+  ""Notes"": ""any additional observations""
+}}
+
+## CRITICAL RULES:
+
+1. **AnalysisSummary MUST NOT be empty**. Summarize the project in 2-3 sentences.
+2. **RecommendedLanguages**: List SPECIFIC languages from the spec (typescript, css, html, python, csharp, etc.), NOT ""general"".
+3. **RecommendedAgentTypes**: Map each work area to a VALID agent type:
+   - Systems: csharp, cpp, assembler, php, python
+   - Web: javascript, typescript, html, css, react, angular
+   - Media: svg, bitmap, image, media
+   - Other: diagramming, coding (general fallback), documentation
+   - Example: {{""typescript-modules"": ""typescript"", ""html-pages"": ""html"", ""styling"": ""css"", ""docs"": ""documentation""}}
+   - Do NOT use area names (""frontend"", ""backend"") as agent types.
+4. **TechnicalStack MUST NOT be empty** if the spec mentions ANY technology. Extract build tools, APIs, patterns.
+5. **Constraints**: Extract EVERY restriction (""no frameworks"", ""vanilla only"", ""no server"", etc.). This is critical - downstream agents will use these to avoid spec violations.
+6. **OutOfScope**: Extract features explicitly excluded. Downstream agents must NOT implement these.
+
+## VERIFICATION STEPS:
+
+Include verification commands appropriate for the detected tech stack:
+- checkType: ""build"" | ""test"" | ""lint"" | ""syntax""
 - command: Shell command to execute
 - successCriteria: ""exit_code_0"" or ""contains:expected text""
-- priority: ""Critical"" (builds), ""High"" (tests), ""Medium"" (lint), ""Low"" (docs)
+- priority: ""Critical"" (builds), ""High"" (tests), ""Medium"" (lint)
 - timeoutSeconds: Command timeout (default: 300)
-- workingDirectory: Relative path from project workspace (optional)
 - description: What this check validates
 
-Tech Stack Verification Examples:
-- .NET: {{checkType:""build"", command:""dotnet build"", priority:""Critical""}}, {{checkType:""test"", command:""dotnet test"", priority:""High""}}
-- Node.js: {{checkType:""build"", command:""npm run build"", priority:""Critical""}}, {{checkType:""test"", command:""npm test"", priority:""High""}}
-- Python: {{checkType:""test"", command:""pytest"", priority:""High""}}, {{checkType:""lint"", command:""pylint ."", priority:""Medium""}}
-- React: {{checkType:""build"", command:""npm run build"", priority:""Critical""}}, {{checkType:""lint"", command:""npm run lint"", priority:""Medium""}}
+Examples:
+- .NET: {{checkType:""build"", command:""dotnet build"", priority:""Critical""}}
+- Node.js/TypeScript: {{checkType:""build"", command:""npx tsc --noEmit"", priority:""Critical""}}, {{checkType:""build"", command:""npm run build"", priority:""Critical""}}
+- Python: {{checkType:""test"", command:""pytest"", priority:""High""}}
 
-Include verification steps appropriate for the detected tech stack.";
+Response must be pure JSON - no code blocks or explanations.";
                 
                 var messages = await wyrm.RunAsync(prompt);
                 var lastMessage = messages.LastOrDefault();

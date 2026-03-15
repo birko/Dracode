@@ -72,6 +72,12 @@ Planning guidelines:
 - Keep entries short (identifiers, not full code lines)
 - 2-5 entries per step is ideal
 
+**Cross-Module Integration:**
+- If this task IMPORTS or USES modules created by other tasks, check the Module APIs section
+- Your plan steps MUST reference the ACTUAL function signatures, constructor parameters, and exported types
+- Include a final integration verification step: ""Verify all imports match actual module exports""
+- Never assume an API — if module APIs are provided, use them exactly
+
 **Naming:**
 - Use clear, descriptive step titles
 - Titles should be action-oriented (""Create"", ""Implement"", ""Add"", ""Configure"")
@@ -116,6 +122,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
         /// <param name="relatedPlans">Related completed plans that touched similar files</param>
         /// <param name="similarTaskInsights">Insights from similar task executions</param>
         /// <param name="bestPractices">Best practices learned for this agent type</param>
+        /// <param name="moduleApis">Extracted public API signatures from existing workspace modules</param>
         /// <param name="maxIterations">Maximum iterations for plan generation</param>
         /// <returns>The generated implementation plan</returns>
         public async Task<KoboldImplementationPlan> CreatePlanAsync(
@@ -133,6 +140,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
             List<KoboldImplementationPlan>? relatedPlans = null,
             List<PlanningInsight>? similarTaskInsights = null,
             Dictionary<string, string>? bestPractices = null,
+            Dictionary<string, List<string>>? moduleApis = null,
             int maxIterations = 5)
         {
             // Clear any previous plan
@@ -142,7 +150,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
             var specificationContext = BuildSpecificationContext(specification, featureId, featureName, featureDescription);
 
             // Build the prompt
-            var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure, workspaceFiles, filesInUse, fileMetadata, relatedPlans, similarTaskInsights, bestPractices);
+            var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure, workspaceFiles, filesInUse, fileMetadata, relatedPlans, similarTaskInsights, bestPractices, moduleApis);
 
             // Run the agent to generate the plan
             await RunAsync(prompt, maxIterations);
@@ -302,7 +310,8 @@ After analyzing the task, use the create_implementation_plan tool to output your
             Dictionary<string, string>? fileMetadata,
             List<KoboldImplementationPlan>? relatedPlans,
             List<PlanningInsight>? similarTaskInsights,
-            Dictionary<string, string>? bestPractices)
+            Dictionary<string, string>? bestPractices,
+            Dictionary<string, List<string>>? moduleApis = null)
         {
             var prompt = new System.Text.StringBuilder();
             prompt.AppendLine("Please create an implementation plan for the following task.");
@@ -423,6 +432,35 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 prompt.AppendLine("## Workspace State");
                 prompt.AppendLine();
                 prompt.AppendLine("The workspace is currently empty. All files you specify will need to be created.");
+                prompt.AppendLine();
+                prompt.AppendLine("---");
+                prompt.AppendLine();
+            }
+
+            // Add module API signatures for cross-module awareness
+            if (moduleApis != null && moduleApis.Any())
+            {
+                prompt.AppendLine("## Existing Module APIs");
+                prompt.AppendLine();
+                prompt.AppendLine("These are the PUBLIC APIs of existing modules in the workspace.");
+                prompt.AppendLine("When your task imports or uses these modules, you MUST use their ACTUAL signatures below.");
+                prompt.AppendLine("Do NOT assume or guess function signatures — use exactly what is listed here.");
+                prompt.AppendLine();
+
+                foreach (var module in moduleApis.OrderBy(m => m.Key))
+                {
+                    prompt.AppendLine($"### `{module.Key}`");
+                    prompt.AppendLine("```");
+                    foreach (var sig in module.Value)
+                    {
+                        prompt.AppendLine(sig);
+                    }
+                    prompt.AppendLine("```");
+                    prompt.AppendLine();
+                }
+
+                prompt.AppendLine("**CRITICAL**: Your plan steps MUST reference these actual APIs, not assumed ones.");
+                prompt.AppendLine("Include an integration verification step if this task imports other modules.");
                 prompt.AppendLine();
                 prompt.AppendLine("---");
                 prompt.AppendLine();

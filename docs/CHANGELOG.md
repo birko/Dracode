@@ -6,6 +6,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### ✨ Added - Pipeline Quality Improvements (2026-03-15)
+
+**Improved Wyrm pre-analysis prompt** (`WyrmProcessingService.cs`):
+- Wyrm now extracts specific languages, tech stack, constraints, and out-of-scope items from specifications
+- `AnalysisSummary` must not be empty; `RecommendedLanguages` must list specific languages (not "general")
+- New fields: `Constraints` and `OutOfScope` on `WyrmRecommendation` model
+
+**Enhanced Wyvern task descriptions and traceability** (`WyvernAgent.cs`, `WyvernAnalysis.cs`):
+- Task descriptions must include acceptance criteria, target file paths, and public API signatures
+- Requirements traceability: every spec requirement must map to at least one task (`requirementsCoverage` field)
+- Constraints and out-of-scope extraction (`constraints`, `outOfScope` fields on analysis)
+- Task granularity guidelines: avoid shared dump files, split large integration tasks
+
+**Cross-module API extraction for Kobold Planner** (`KoboldPlannerAgent.cs`, `Kobold.cs`):
+- `ExtractModuleApis()` scans workspace files for export/public signatures before planning
+- Planner receives actual module APIs to prevent cross-module interface mismatches
+- New "Existing Module APIs" section in planner prompt with actual function signatures
+
+**Mandatory Kobold execution rules** (`Kobold.cs`):
+- Read-before-write: must read file contents before every modification
+- No duplicate declarations: must extend existing types, not redeclare
+- Import consistency: must match actual exported names and signatures
+- Integration task protocol: tasks with 4+ dependencies force reading all dependency files first
+
+**Constraints propagation to Kobolds** (`Drake.cs`):
+- Drake collects constraints from both Wyrm and Wyvern analysis
+- Displays as prominent "⛔ PROJECT CONSTRAINTS" block at top of Kobold context
+- Out-of-scope features listed to prevent accidental implementation
+
+**Post-task compilation verification** (`Drake.cs`):
+- `RunPostTaskVerificationAsync()` runs Critical-priority verification steps after task completion
+- Uses verification steps from Wyrm recommendations (e.g., `tsc --noEmit`, `dotnet build`)
+- Logs warnings on failure; does not block task completion
+
+---
+
 ### ✨ Added - Specification Version Tracking
 
 **Implemented specification version tracking to prevent drift during execution (2026-02-26):**

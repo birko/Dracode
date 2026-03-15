@@ -37,6 +37,12 @@ Ensures required tasks:
   • README.md with run/usage instructions (always included)
   • Proper folder structure (js/, css/, docs/, etc.)
     ↓
+Extracts constraints and out-of-scope items from spec
+    ↓
+Verifies requirements coverage:
+  • Cross-checks every spec requirement has at least one task
+  • Populates requirementsCoverage mapping
+    ↓
 Identifies dependencies
     ↓
 Orders tasks by dependency level
@@ -115,6 +121,10 @@ Specialized agent that analyzes specifications and produces structured JSON outp
 - Categories work into logical areas
 - Identifies task dependencies
 - Orders by dependency level
+- **Requirements traceability**: Verifies every spec requirement has a corresponding task
+- **Rich task descriptions**: Includes acceptance criteria, target file paths, and public API signatures
+- **Task granularity guidelines**: Avoids shared dump files, splits large integration tasks into focused units
+- **Constraints extraction**: Identifies spec restrictions and explicitly excluded features
 - **Always includes README.md task** with run/usage instructions
 - **Always organizes files** into proper folder structures
 - Outputs structured JSON
@@ -123,6 +133,8 @@ Specialized agent that analyzes specifications and produces structured JSON outp
 ```json
 {
   "projectName": "Web App",
+  "constraints": ["No external runtime dependencies", "No CSS frameworks"],
+  "outOfScope": ["Custom templates", "Cloud storage integration"],
   "areas": [
     {
       "name": "Documentation",
@@ -165,6 +177,10 @@ Specialized agent that analyzes specifications and produces structured JSON outp
       ]
     }
   ],
+  "requirementsCoverage": {
+    "User Authentication": "backend-4",
+    "Product Catalog": "backend-5"
+  },
   "totalTasks": 15,
   "estimatedComplexity": "medium"
 }
@@ -576,6 +592,9 @@ public class WyvernAnalysis
     public string EstimatedComplexity { get; set; }
     public DateTime AnalyzedAt { get; set; }
     public string SpecificationPath { get; set; }
+    public List<string> Constraints { get; set; }
+    public List<string> OutOfScope { get; set; }
+    public Dictionary<string, string> RequirementsCoverage { get; set; }
 }
 ```
 

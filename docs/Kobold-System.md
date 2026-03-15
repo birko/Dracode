@@ -64,6 +64,31 @@ Unassigned → Assigned → Working → Done
 - Applies to all 10 LLM providers (OpenAI, Claude, Gemini, Z.AI, etc.)
 - Applies to all agent types (Dragon, Wyvern, Drake, Kobold)
 
+### Execution Rules (v2.6.0)
+
+Kobold execution now includes mandatory rules injected into the execution prompt:
+
+**1. Read Before Write (Mandatory)**
+- Every file modification must be preceded by reading the current file contents
+- Prevents overwriting changes made by other tasks
+
+**2. No Duplicate Declarations (Mandatory)**
+- When modifying shared files (types, configs), Kobolds must not add duplicate interfaces, classes, or functions
+- Must extend or update existing declarations instead
+
+**3. Import Consistency (Mandatory)**
+- Imports must use actual exported names from target modules
+- Function signatures must match exactly (parameter count, types, return types)
+
+**4. Integration Task Protocol**
+- Tasks with 4+ dependencies trigger the integration protocol
+- Forces reading ALL dependency files before writing any code
+- Prevents the #1 source of integration bugs: assumed API signatures
+
+**5. Constraints Enforcement**
+- Project constraints (from Wyrm/Wyvern) displayed as prominent "⛔ PROJECT CONSTRAINTS" block
+- Out-of-scope features listed to prevent accidental implementation
+
 ### Methods
 
 ```csharp

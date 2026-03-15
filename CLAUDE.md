@@ -61,15 +61,26 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 - **Dragon**: Interactive chat for requirements → creates project folder and `specification.md`
   - Dragon Council: SageAgent (specs/features/delete), SeekerAgent (import), SentinelAgent (git status/diff/commit/merge), WardenAgent (config/task details/progress/workspace/retry/delete)
 - **Wyrm (Pre-Analysis)**: Reads specs, provides recommendations → creates `wyrm-recommendation.json` with languages, agent types, tech stack, complexity
+  - WyrmRecommendation also includes `Constraints` (explicit spec restrictions) and `OutOfScope` (features explicitly excluded from scope)
   - **WyrmProcessingService** (60s): Monitors New projects, runs Wyrm pre-analysis, transitions to WyrmAssigned
 - **Wyvern**: Reads specs + Wyrm recommendations, breaks into tasks → creates `{area}-tasks.md` files, persists `analysis.json`
+  - WyvernAnalysis includes `Constraints`, `OutOfScope`, and `RequirementsCoverage` (maps spec requirements to task IDs)
+  - **Requirements traceability**: Every spec requirement must map to at least one task
+  - **Rich task descriptions**: Task descriptions must include acceptance criteria, target files, and public API signatures
+  - **Task granularity guidelines**: Avoids shared dump files, splits large integration tasks
   - **WyvernProcessingService** (60s): Monitors WyrmAssigned projects, runs detailed analysis, transitions to Analyzed
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
   - **Git Worktrees**: Creates isolated worktrees per feature branch for parallel-safe execution
+  - **Post-task verification**: After task completion, runs Critical-priority verification steps (e.g., `tsc --noEmit`) from Wyrm recommendations
+  - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block
 - **Kobold Planner**: Creates structured implementation plans → enables resumability
+  - **Module API signatures**: Receives extracted export statements from existing workspace files for cross-module awareness
 - **Kobold**: Executes plans step-by-step → outputs to `workspace/` subfolder
+  - **Mandatory execution rules**: Read-before-write, no duplicate declarations, import consistency
+  - **Integration task protocol**: Tasks with 4+ dependencies force reading all dependency files before writing
+  - **Constraints display**: Project constraints shown prominently to prevent spec violations
 
 **Note:** Wyrm also has a task delegation mode (WyrmAgent) used by Drake for selecting specialized agent types during execution.
 

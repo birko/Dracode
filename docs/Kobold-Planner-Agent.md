@@ -14,15 +14,18 @@ Before a Kobold begins writing code, the Kobold Planner:
 3. **Identifies files** - Determines which files to create or modify
 4. **Orders dependencies** - Sequences steps so dependencies come first
 5. **Enables resumability** - Allows interrupted work to continue from last step
+6. **Cross-module awareness** - Receives API signatures from existing workspace modules to prevent interface mismatches
 
 ## Architecture
 
 ```
 Drake detects unassigned task
     ↓
+Kobold extracts module APIs from workspace
+    ↓
 Drake summons Kobold Planner
     ↓
-KoboldPlannerAgent analyzes task
+KoboldPlannerAgent analyzes task (with module APIs)
     ↓
 Calls create_implementation_plan tool
     ↓
@@ -45,6 +48,8 @@ Specialized agent that inherits from `Agent` with planning-specific system promp
 - Breaking tasks into atomic steps
 - File organization and structure
 - Dependency ordering
+- Cross-module integration verification
+- Using actual module API signatures (not assumed)
 - Planning best practices
 
 **Available Tools:**
@@ -301,6 +306,15 @@ Step 1: Create ILogger interface           ← Dependency
 Step 2: Create ConsoleLogger (uses ILogger) ← Dependent
 Step 3: Create UserService (uses ILogger)  ← Also dependent
 ```
+
+### Cross-Module Integration
+
+When a task imports or uses modules created by other tasks:
+
+- The planner receives **extracted API signatures** from existing workspace files (export statements, public classes, function signatures)
+- Plan steps must reference **actual function signatures**, not assumed ones
+- An **integration verification step** should be included as the final step: "Verify all imports match actual module exports"
+- This prevents the #1 source of bugs in multi-task projects: API mismatches between modules
 
 ## Status Tracking
 

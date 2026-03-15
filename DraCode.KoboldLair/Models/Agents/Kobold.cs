@@ -599,6 +599,21 @@ You are working on a task that is part of a larger project. Below is the project
                 _logger?.LogWarning(ex, "Failed to gather workspace state for planning, proceeding without it");
             }
 
+            // Extract public API signatures from existing workspace files for cross-module awareness
+            Dictionary<string, List<string>>? moduleApis = null;
+            try
+            {
+                var workspacePath = Agent.Options.WorkingDirectory;
+                if (Directory.Exists(workspacePath))
+                {
+                    moduleApis = ExtractModuleApis(workspacePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "Could not extract module APIs for planning, proceeding without");
+            }
+
             // Create new plan using the planner agent with workspace awareness and learning context
             // Note: Specification is loaded from project and passed to planner for full feature context
             var plan = await planner.CreatePlanAsync(
@@ -615,7 +630,8 @@ You are working on a task that is part of a larger project. Below is the project
                 fileMetadata,
                 relatedPlans,
                 similarTaskInsights,
-                bestPractices);
+                bestPractices,
+                moduleApis: moduleApis);
 
             // Save the plan
             await planService.SavePlanAsync(plan);
@@ -1369,6 +1385,12 @@ If step is complete, call `update_plan_step` with status 'completed'.
             sb.AppendLine("You are working on a task that is part of a larger project.");
             sb.AppendLine();
 
+            // Add mandatory execution rules
+            AppendExecutionRules(sb);
+
+            // Add integration task protocol if this task has many dependencies
+            AppendIntegrationProtocol(sb);
+
             // Add file location guidelines - CRITICAL for correct file placement
             AppendFileLocationGuidelines(sb);
 
@@ -1976,6 +1998,87 @@ If step is complete, call `update_plan_step` with status 'completed'.
         }
 
         /// <summary>
+        /// Appends mandatory execution rules: read-before-write, no duplicates, correct imports
+        /// </summary>
+        private void AppendExecutionRules(System.Text.StringBuilder sb)
+        {
+            sb.AppendLine("## MANDATORY EXECUTION RULES");
+            sb.AppendLine();
+            sb.AppendLine("### 1. Read Before Write (MANDATORY)");
+            sb.AppendLine("Before EVERY file modification:");
+            sb.AppendLine("- Use `read_file` to get the CURRENT contents of the file");
+            sb.AppendLine("- Check what already exists — other tasks may have modified it since your plan was created");
+            sb.AppendLine("- NEVER write a file based on what you THINK it contains — always read first");
+            sb.AppendLine();
+            sb.AppendLine("### 2. No Duplicate Declarations (MANDATORY)");
+            sb.AppendLine("When modifying shared files (types, configs, entry points):");
+            sb.AppendLine("- If an interface, class, function, or type ALREADY EXISTS in the file, do NOT declare a second copy");
+            sb.AppendLine("- Instead: EXTEND or UPDATE the existing declaration");
+            sb.AppendLine("- After writing, mentally verify: no duplicate `interface`, `class`, `function`, `type`, or `enum` names");
+            sb.AppendLine();
+            sb.AppendLine("### 3. Import Consistency (MANDATORY)");
+            sb.AppendLine("- When importing from other modules, use the ACTUAL exported names (read the target file if unsure)");
+            sb.AppendLine("- Match function signatures exactly: correct parameter count, types, and return types");
+            sb.AppendLine("- Use consistent import extensions throughout the project (all `.js` or all `.ts`, not mixed)");
+            sb.AppendLine();
+            sb.AppendLine("### 4. No Spec Violations");
+            sb.AppendLine("- Do NOT add runtime dependencies unless the spec explicitly allows them");
+            sb.AppendLine("- Do NOT implement features marked as out-of-scope or future work");
+            sb.AppendLine("- Do NOT add frameworks/libraries the spec forbids");
+            sb.AppendLine();
+            sb.AppendLine("---");
+            sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Appends integration task protocol when this task has many dependencies.
+        /// Forces the Kobold to read all dependency files before writing any code.
+        /// </summary>
+        private void AppendIntegrationProtocol(System.Text.StringBuilder sb)
+        {
+            // Count dependencies from the task description
+            var dependencyCount = 0;
+            if (ImplementationPlan?.Steps != null)
+            {
+                var allFilesToModify = ImplementationPlan.Steps
+                    .SelectMany(s => s.FilesToModify)
+                    .Distinct()
+                    .Count();
+                var allImports = ImplementationPlan.Steps
+                    .SelectMany(s => s.FilesToCreate.Concat(s.FilesToModify))
+                    .Distinct()
+                    .Count();
+                dependencyCount = Math.Max(allFilesToModify, allImports);
+            }
+
+            // Also check task description for dependency markers
+            if (TaskDescription != null)
+            {
+                var depMatches = System.Text.RegularExpressions.Regex.Matches(TaskDescription, @"depends on:\s*([^)]+)\)");
+                foreach (System.Text.RegularExpressions.Match match in depMatches)
+                {
+                    dependencyCount = Math.Max(dependencyCount, match.Groups[1].Value.Split(',').Length);
+                }
+            }
+
+            if (dependencyCount >= 4)
+            {
+                sb.AppendLine("## ⚡ INTEGRATION TASK PROTOCOL");
+                sb.AppendLine();
+                sb.AppendLine("This task integrates MULTIPLE modules. Before writing ANY code:");
+                sb.AppendLine("1. **Read EVERY file** you will import from — use `read_file` on each dependency module");
+                sb.AppendLine("2. **Note the EXACT** function signatures, constructor parameters, exported types, and interface shapes");
+                sb.AppendLine("3. **Only then** start implementing, using the ACTUAL APIs you discovered");
+                sb.AppendLine("4. **After writing**, verify: every import resolves, every function call matches its signature");
+                sb.AppendLine();
+                sb.AppendLine("Do NOT assume what a module exports — READ IT FIRST. API assumptions are the #1 cause of integration bugs.");
+                sb.AppendLine();
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+        }
+
+        /// <summary>
         /// Appends file location guidelines to ensure files are created in correct directories
         /// </summary>
         private void AppendFileLocationGuidelines(System.Text.StringBuilder sb)
@@ -2048,6 +2151,73 @@ If step is complete, call `update_plan_step` with status 'completed'.
         /// <summary>
         /// Categorizes a file by its type for display in prompts
         /// </summary>
+        /// <summary>
+        /// Extracts public API signatures (exports, public classes, functions) from workspace source files.
+        /// Returns a dictionary mapping relative file paths to lists of API signatures.
+        /// </summary>
+        private Dictionary<string, List<string>> ExtractModuleApis(string workspacePath)
+        {
+            var apis = new Dictionary<string, List<string>>();
+            var extensions = new[] { ".ts", ".js", ".cs", ".py" };
+
+            var files = Directory.GetFiles(workspacePath, "*.*", SearchOption.AllDirectories)
+                .Where(f => extensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                .Where(f => !f.Contains("node_modules") && !f.Contains(".git") && !f.Contains("bin") && !f.Contains("obj") && !f.Contains("test", StringComparison.OrdinalIgnoreCase))
+                .Take(30); // Limit to prevent excessive reading
+
+            foreach (var file in files)
+            {
+                try
+                {
+                    var content = File.ReadAllText(file);
+                    var relativePath = Path.GetRelativePath(workspacePath, file).Replace('\\', '/');
+                    var signatures = new List<string>();
+                    var ext = Path.GetExtension(file).ToLowerInvariant();
+
+                    foreach (var line in content.Split('\n'))
+                    {
+                        var trimmed = line.Trim();
+
+                        if (ext is ".ts" or ".js")
+                        {
+                            // TypeScript/JavaScript: export statements, exported functions, classes, interfaces
+                            if (trimmed.StartsWith("export ") || trimmed.StartsWith("export{"))
+                            {
+                                signatures.Add(trimmed.Length > 120 ? trimmed[..120] + "..." : trimmed);
+                            }
+                        }
+                        else if (ext == ".cs")
+                        {
+                            // C#: public class/interface/method declarations
+                            if (trimmed.StartsWith("public ") && (trimmed.Contains("class ") || trimmed.Contains("interface ") || trimmed.Contains("(") || trimmed.Contains("enum ")))
+                            {
+                                signatures.Add(trimmed.Length > 120 ? trimmed[..120] + "..." : trimmed);
+                            }
+                        }
+                        else if (ext == ".py")
+                        {
+                            // Python: top-level function/class definitions
+                            if ((trimmed.StartsWith("def ") || trimmed.StartsWith("class ")) && !trimmed.StartsWith("def _"))
+                            {
+                                signatures.Add(trimmed.Length > 120 ? trimmed[..120] + "..." : trimmed);
+                            }
+                        }
+                    }
+
+                    if (signatures.Count > 0)
+                    {
+                        apis[relativePath] = signatures.Take(20).ToList(); // Limit per file
+                    }
+                }
+                catch
+                {
+                    // Skip files that can't be read
+                }
+            }
+
+            return apis;
+        }
+
         private string GetFileCategoryForDisplay(string filePath)
         {
             var ext = Path.GetExtension(filePath).ToLowerInvariant();

@@ -63,6 +63,7 @@ Monitors for **approved project specifications** (status = "New") and runs Wyrm 
    - Suggested task areas
    - Estimated complexity
 5. **Updates status** - Changes project status to "WyrmAssigned"
+6. **Extracts constraints** - Identifies spec restrictions and out-of-scope features
 
 ### Workflow
 
@@ -126,6 +127,8 @@ public WyrmProcessingService(
   "suggestedAreas": ["backend", "frontend", "database"],
   "complexity": "Medium",
   "analysisSummary": "Full-stack web application with API backend",
+  "constraints": ["No external runtime dependencies", "No CSS frameworks"],
+  "outOfScope": ["Custom templates", "Cloud storage integration"],
   "notes": "Consider using Entity Framework for data access"
 }
 ```

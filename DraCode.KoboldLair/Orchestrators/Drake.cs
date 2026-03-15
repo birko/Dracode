@@ -402,6 +402,43 @@ namespace DraCode.KoboldLair.Orchestrators
                             wyrmInfo.AppendLine();
                         }
 
+                        // Collect constraints from both Wyrm and Wyvern sources
+                        var allConstraints = new List<string>();
+                        var allOutOfScope = new List<string>();
+
+                        if (_wyrmRecommendation.Constraints.Any())
+                            allConstraints.AddRange(_wyrmRecommendation.Constraints);
+                        if (_wyrmRecommendation.OutOfScope.Any())
+                            allOutOfScope.AddRange(_wyrmRecommendation.OutOfScope);
+
+                        if (_wyvern?.Analysis?.Constraints?.Any() == true)
+                            allConstraints.AddRange(_wyvern.Analysis.Constraints.Where(c => !allConstraints.Contains(c)));
+                        if (_wyvern?.Analysis?.OutOfScope?.Any() == true)
+                            allOutOfScope.AddRange(_wyvern.Analysis.OutOfScope.Where(o => !allOutOfScope.Contains(o)));
+
+                        if (allConstraints.Any() || allOutOfScope.Any())
+                        {
+                            wyrmInfo.AppendLine("## ⛔ PROJECT CONSTRAINTS (MUST NOT VIOLATE)");
+                            wyrmInfo.AppendLine();
+                            if (allConstraints.Any())
+                            {
+                                foreach (var constraint in allConstraints)
+                                {
+                                    wyrmInfo.AppendLine($"- **{constraint}**");
+                                }
+                                wyrmInfo.AppendLine();
+                            }
+                            if (allOutOfScope.Any())
+                            {
+                                wyrmInfo.AppendLine("**OUT OF SCOPE (do NOT implement):**");
+                                foreach (var item in allOutOfScope)
+                                {
+                                    wyrmInfo.AppendLine($"- {item}");
+                                }
+                                wyrmInfo.AppendLine();
+                            }
+                        }
+
                         wyrmInfo.AppendLine("---");
                         wyrmInfo.AppendLine();
                         wyrmInfo.AppendLine("# Full Project Specification");
@@ -930,11 +967,125 @@ namespace DraCode.KoboldLair.Orchestrators
                 SaveTasksToFile();
             }
 
-            // Commit changes to git when task completes successfully
+            // Run post-task verification when task completes successfully
             if (previousStatus != TaskStatus.Done && taskStatus == TaskStatus.Done && kobold.IsSuccess)
             {
+                var verificationPassed = await RunPostTaskVerificationAsync(kobold, task, worktreePath);
+                if (!verificationPassed)
+                {
+                    _logger?.LogWarning(
+                        "Post-task verification FAILED for task {TaskId} - task remains Done but verification errors were logged",
+                        task.Id[..Math.Min(8, task.Id.Length)]);
+                }
+
+                // Commit changes to git
                 await CommitTaskCompletionAsync(kobold, task, worktreePath);
             }
+        }
+
+        /// <summary>
+        /// Runs post-task verification checks (build, lint, etc.) after a task completes.
+        /// Uses verification steps from Wyrm recommendations if available.
+        /// Returns true if verification passes (or no verification steps configured).
+        /// </summary>
+        private async Task<bool> RunPostTaskVerificationAsync(Kobold kobold, TaskRecord task, string? worktreePath = null)
+        {
+            // Get verification steps from Wyrm recommendations
+            var verificationSteps = _wyrmRecommendation?.VerificationSteps?
+                .Where(v => v.Priority == "Critical")
+                .ToList();
+
+            if (verificationSteps == null || !verificationSteps.Any())
+                return true;
+
+            var workspacePath = worktreePath ?? ResolveWorkspacePath();
+            if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath))
+                return true;
+
+            var allPassed = true;
+
+            foreach (var step in verificationSteps)
+            {
+                try
+                {
+                    var workDir = !string.IsNullOrEmpty(step.WorkingDirectory)
+                        ? Path.Combine(workspacePath, step.WorkingDirectory)
+                        : workspacePath;
+
+                    // Only run if the working directory exists and has relevant files
+                    if (!Directory.Exists(workDir))
+                        continue;
+
+                    // Check if this verification is relevant (e.g., don't run tsc if no .ts files)
+                    if (step.CheckType == "build" && step.Command.Contains("tsc"))
+                    {
+                        var hasTsFiles = Directory.GetFiles(workDir, "*.ts", SearchOption.AllDirectories)
+                            .Any(f => !f.Contains("node_modules"));
+                        if (!hasTsFiles) continue;
+
+                        // Also need tsconfig.json
+                        if (!File.Exists(Path.Combine(workDir, "tsconfig.json"))) continue;
+                    }
+
+                    _logger?.LogDebug("Running verification: {Description} ({Command}) in {WorkDir}",
+                        step.Description, step.Command, workDir);
+
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = OperatingSystem.IsWindows() ? "cmd" : "sh",
+                        Arguments = OperatingSystem.IsWindows() ? $"/c {step.Command}" : $"-c \"{step.Command}\"",
+                        WorkingDirectory = workDir,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using var process = System.Diagnostics.Process.Start(psi);
+                    if (process == null) continue;
+
+                    var timeoutMs = step.TimeoutSeconds > 0 ? step.TimeoutSeconds * 1000 : 60000;
+                    var exited = process.WaitForExit(timeoutMs);
+
+                    if (!exited)
+                    {
+                        process.Kill();
+                        _logger?.LogWarning("Verification timed out: {Description}", step.Description);
+                        continue; // Don't fail on timeout — just skip
+                    }
+
+                    var stdout = await process.StandardOutput.ReadToEndAsync();
+                    var stderr = await process.StandardError.ReadToEndAsync();
+
+                    var success = step.SuccessCriteria switch
+                    {
+                        "exit_code_0" => process.ExitCode == 0,
+                        var s when s.StartsWith("contains:") => (stdout + stderr).Contains(s["contains:".Length..]),
+                        _ => process.ExitCode == 0
+                    };
+
+                    if (!success)
+                    {
+                        allPassed = false;
+                        var errorOutput = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
+                        var truncated = errorOutput.Length > 500 ? errorOutput[..500] + "..." : errorOutput;
+                        _logger?.LogWarning(
+                            "Verification FAILED: {Description}\n  Command: {Command}\n  Exit code: {ExitCode}\n  Output: {Output}",
+                            step.Description, step.Command, process.ExitCode, truncated);
+                    }
+                    else
+                    {
+                        _logger?.LogDebug("Verification PASSED: {Description}", step.Description);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug(ex, "Verification step skipped due to error: {Description}", step.Description);
+                    // Don't fail the task for verification infrastructure errors
+                }
+            }
+
+            return allPassed;
         }
 
         /// <summary>

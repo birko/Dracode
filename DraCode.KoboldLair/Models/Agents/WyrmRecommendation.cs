@@ -54,6 +54,18 @@ namespace DraCode.KoboldLair.Models.Agents
         public string Complexity { get; set; } = "Medium";
 
         /// <summary>
+        /// Explicit constraints from the specification (e.g., "no frameworks", "vanilla only")
+        /// Used to prevent downstream agents from violating spec requirements
+        /// </summary>
+        public List<string> Constraints { get; set; } = new();
+
+        /// <summary>
+        /// Features explicitly marked as out of scope in the specification
+        /// Downstream agents must NOT implement these
+        /// </summary>
+        public List<string> OutOfScope { get; set; } = new();
+
+        /// <summary>
         /// Recommended verification steps for project validation
         /// </summary>
         public List<VerificationStepDefinition> VerificationSteps { get; set; } = new();

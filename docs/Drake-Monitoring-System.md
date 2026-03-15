@@ -242,6 +242,18 @@ Manages Kobolds for a set of tasks and synchronizes status with markdown file.
 - `UpdateTasksFile()` - Saves status to markdown
 - `ExecuteTaskAsync()` - High-level: summon → work → complete
 
+**New Methods (v2.6.0):**
+- `RunPostTaskVerificationAsync()` - Runs Critical-priority verification steps after task completion
+  - Uses verification steps from Wyrm recommendations (e.g., `tsc --noEmit`, `dotnet build`)
+  - Supports build, test, lint check types with configurable timeouts
+  - Logs warnings on failure but does not block task completion
+
+**Constraints Propagation (v2.6.0):**
+- Drake collects constraints from both Wyrm (`wyrm-recommendation.json`) and Wyvern (`analysis.json`)
+- Constraints displayed as prominent "⛔ PROJECT CONSTRAINTS" block at top of Kobold context
+- Out-of-scope features listed to prevent accidental implementation
+- Ensures Kobolds never violate spec restrictions (e.g., "no frameworks", "no runtime dependencies")
+
 ## Workflow
 
 ### 1. Initial Setup
