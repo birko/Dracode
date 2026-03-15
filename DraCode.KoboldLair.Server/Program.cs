@@ -1,6 +1,8 @@
 using Birko.Communication.WebSocket.Middleware;
 using Birko.Communication.WebSocket.Services;
 using DraCode.Agent;
+using DraCode.KoboldLair.Data;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Services;
@@ -36,6 +38,10 @@ builder.Services.AddSingleton<ProviderCircuitBreaker>();
 builder.Services.AddSingleton<GitService>();
 
 // Register project management components
+// Configure data storage (SQLite or JSON based on config)
+builder.Services.Configure<DataStorageConfig>(
+    builder.Configuration.GetSection("KoboldLair:Data"));
+
 builder.Services.AddSingleton<ProjectRepository>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<ProjectRepository>>();
@@ -43,11 +49,29 @@ builder.Services.AddSingleton<ProjectRepository>(sp =>
     return new ProjectRepository(config.ProjectsPath ?? "./projects", logger);
 });
 
+// Register IProjectRepository - uses SQLite when configured, falls back to JSON ProjectRepository
+builder.Services.AddSingleton<IProjectRepository>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    var koboldConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    dataConfig.ProjectsPath = koboldConfig.ProjectsPath ?? "./projects";
+
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+        var repo = RepositoryFactory.CreateProjectRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
+        return repo;
+    }
+
+    // Default: use existing JSON-based ProjectRepository
+    return sp.GetRequiredService<ProjectRepository>();
+});
+
 // Register plan service for implementation plan persistence
 builder.Services.AddSingleton<KoboldPlanService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<KoboldPlanService>>();
-    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var debounceIntervalMs = config.Planning?.PlanSaveDebounceIntervalMs ?? 2500;
     return new KoboldPlanService(config.ProjectsPath ?? "./projects", logger, projectRepository, debounceIntervalMs);
@@ -57,7 +81,7 @@ builder.Services.AddSingleton<KoboldPlanService>(sp =>
 builder.Services.AddSingleton<SharedPlanningContextService>(sp =>
 {
     var planService = sp.GetRequiredService<KoboldPlanService>();
-    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var logger = sp.GetRequiredService<ILogger<SharedPlanningContextService>>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     return new SharedPlanningContextService(config.ProjectsPath ?? "./projects", planService, projectRepository, logger);
@@ -81,7 +105,7 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
     var gitService = sp.GetRequiredService<GitService>();
-    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
     var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
@@ -114,7 +138,7 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
 
 builder.Services.AddSingleton<ProjectService>(sp =>
 {
-    var repository = sp.GetRequiredService<ProjectRepository>();
+    var repository = sp.GetRequiredService<IProjectRepository>();
     var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
     var gitService = sp.GetRequiredService<GitService>();
@@ -159,7 +183,7 @@ builder.Services.AddSingleton<WebSocketCommandHandler>(sp =>
     var projectService = sp.GetRequiredService<ProjectService>();
     var dragonService = sp.GetRequiredService<DragonService>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
     var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
     var dragonRequestQueue = sp.GetRequiredService<DragonRequestQueue>();
@@ -190,7 +214,7 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var projectService = sp.GetRequiredService<ProjectService>();
-    var projectRepository = sp.GetRequiredService<ProjectRepository>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var gitService = sp.GetRequiredService<GitService>();
     var koboldFactory = sp.GetRequiredService<KoboldFactory>();
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();

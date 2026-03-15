@@ -1,6 +1,7 @@
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Server.Models.WebSocket;
 using DraCode.KoboldLair.Server.Services.CommandHandlers;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Services;
 using System.Net.WebSockets;
 using System.Text;
@@ -36,7 +37,7 @@ namespace DraCode.KoboldLair.Server.Services
             ProjectService projectService,
             DragonService dragonService,
             ProviderConfigurationService providerConfigService,
-            ProjectRepository projectRepository,
+            IProjectRepository projectRepository,
             DrakeFactory drakeFactory,
             WyvernFactory wyvernFactory,
             DragonRequestQueue? dragonRequestQueue = null)

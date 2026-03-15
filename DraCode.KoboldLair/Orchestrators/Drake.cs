@@ -5,6 +5,7 @@ using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Services;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 using Microsoft.Extensions.Logging;
@@ -29,7 +30,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly ILogger<Drake>? _logger;
         private readonly ProviderConfigurationService? _providerConfigService;
         private readonly ProjectConfigurationService? _projectConfigService;
-        private readonly ProjectRepository? _projectRepository;
+        private readonly IProjectRepository? _projectRepository;
         private readonly GitService? _gitService;
         private readonly KoboldPlanService? _planService;
         private readonly KoboldPlannerAgent? _plannerAgent;
@@ -97,7 +98,7 @@ namespace DraCode.KoboldLair.Orchestrators
             ILogger<Drake>? logger = null,
             ProviderConfigurationService? providerConfigService = null,
             ProjectConfigurationService? projectConfigService = null,
-            ProjectRepository? projectRepository = null,
+            IProjectRepository? projectRepository = null,
             GitService? gitService = null,
             KoboldPlanService? planService = null,
             KoboldPlannerAgent? plannerAgent = null,

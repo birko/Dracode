@@ -2,6 +2,7 @@ using System.Text.Json;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Data.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Services;
@@ -13,7 +14,7 @@ namespace DraCode.KoboldLair.Services;
 public class ProjectImplementationService
 {
     private readonly string _projectsPath;
-    private readonly ProjectRepository _projectRepository;
+    private readonly IProjectRepository _projectRepository;
     private readonly ILogger<ProjectImplementationService>? _logger;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -23,7 +24,7 @@ public class ProjectImplementationService
 
     public ProjectImplementationService(
         string projectsPath,
-        ProjectRepository projectRepository,
+        IProjectRepository projectRepository,
         ILogger<ProjectImplementationService>? logger = null)
     {
         _projectsPath = projectsPath;

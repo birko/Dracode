@@ -10,6 +10,7 @@ using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Server.Services
@@ -147,7 +148,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ProjectService _projectService;
-        private readonly ProjectRepository _projectRepository;
+        private readonly IProjectRepository _projectRepository;
         private readonly GitService _gitService;
         private readonly KoboldFactory? _koboldFactory;
         private readonly DrakeFactory? _drakeFactory;
@@ -173,7 +174,7 @@ namespace DraCode.KoboldLair.Server.Services
             ProviderConfigurationService providerConfigService,
             ProjectConfigurationService projectConfigService,
             ProjectService projectService,
-            ProjectRepository projectRepository,
+            IProjectRepository projectRepository,
             GitService gitService,
             KoboldLairConfiguration config,
             KoboldFactory? koboldFactory = null,

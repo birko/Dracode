@@ -988,16 +988,40 @@ Migrate from file-based JSON storage to a hybrid database approach using Birko.F
 
 ---
 
-### Phase 3: Integration & Testing
+### Phase 2 (was Phase 3): Service Integration *(Renumbered — Phase 2 SQL repos were done in Phase 1)*
 
-#### Week 5: Service Integration
+#### Week 5: DI Wiring & Configuration ✅ COMPLETED (2026-03-15)
 
-- [ ] **Update ProjectService to use new repository** ⚪ NOT STARTED
-  - Inject `IProjectRepository` via DI
-  - Replace JSON file operations with repository calls
-  - Keep JSON as backup/write-through cache during transition
-  - **Location**: `DraCode.KoboldLair/Services/ProjectService.cs`
-  - **Effort**: 4 hours
+- [x] **Wire all services to use IProjectRepository** ✅ COMPLETED (2026-03-15)
+  - Changed 8 files from concrete `ProjectRepository` to `IProjectRepository`:
+    - Library: ProjectService, SharedPlanningContextService, ProjectImplementationService,
+      KoboldPlanService, Drake, DrakeFactory
+    - Server: DragonService, ProjectConfigCommandHandler, WebSocketCommandHandler
+  - All DI registrations in Program.cs updated to resolve `IProjectRepository`
+  - Concrete `ProjectRepository` still registered separately (needed as JSON fallback)
+
+- [x] **Add database configuration to appsettings.json** ✅ COMPLETED (2026-03-15)
+  - Added `KoboldLair.Data` section with `DefaultBackend` and `SqLitePath`
+  - Default: `JsonFile` (zero behavior change for existing installs)
+  - Switch to SQLite: change `"DefaultBackend": "SqLite"`
+  ```json
+  {
+    "KoboldLair": {
+      "Data": {
+        "DefaultBackend": "JsonFile",
+        "SqLitePath": "koboldlair.db"
+      }
+    }
+  }
+  ```
+
+- [x] **Update DI registration in Program.cs** ✅ COMPLETED (2026-03-15)
+  - `IProjectRepository` registered as singleton with backend selection
+  - `DataStorageConfig` bound from `KoboldLair:Data` config section
+  - SQLite: creates `SqlProjectRepository` via `RepositoryFactory`
+  - JsonFile: delegates to existing `ProjectRepository`
+
+#### Week 6: TaskTracker Migration & Testing
 
 - [ ] **Update TaskTracker to use SqlTaskRepository** ⚪ NOT STARTED
   - Inject `ITaskRepository` via DI
@@ -1016,39 +1040,6 @@ Migrate from file-based JSON storage to a hybrid database approach using Birko.F
   - Inject `IKoboldPlanRepository` via DI
   - Replace file-based plan storage
   - **Location**: `DraCode.KoboldLair/Services/KoboldPlanService.cs`
-  - **Effort**: 3 hours
-
-#### Week 6: Configuration & Testing
-
-- [ ] **Add database configuration to appsettings.json** ⚪ NOT STARTED
-  ```json
-  {
-    "KoboldLair": {
-      "Data": {
-        "DefaultBackend": "PostgreSQL",
-        "ConnectionStrings": {
-          "PostgreSQL": "Host=localhost;Port=5432;Database=dracode;Username=dracode;Password=***",
-          "SQLite": "Data Source=./data/dracode.db",
-          "JsonFile": "./projects"
-        },
-        "EntityStorage": {
-          "Projects": "PostgreSQL",
-          "Tasks": "PostgreSQL",
-          "PlanningContext": "JsonFile",
-          "KoboldPlans": "PostgreSQL",
-          "DragonHistory": "JsonFile"
-        }
-      }
-    }
-  }
-  ```
-  - **Effort**: 2 hours
-
-- [ ] **Update DI registration in Program.cs** ⚪ NOT STARTED
-  - Register repository implementations based on configuration
-  - Register PostgreSQL connection string
-  - Add health check for database connectivity
-  - **Location**: `DraCode.KoboldLair.Server/Program.cs`
   - **Effort**: 3 hours
 
 - [ ] **Create migration tool** ⚪ NOT STARTED

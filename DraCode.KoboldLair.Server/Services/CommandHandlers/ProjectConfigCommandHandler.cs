@@ -1,5 +1,6 @@
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Services;
 using System.Text.Json;
 
@@ -14,12 +15,12 @@ namespace DraCode.KoboldLair.Server.Services.CommandHandlers
 
         private readonly ProjectService _projectService;
         private readonly ProviderConfigurationService _providerConfigService;
-        private readonly ProjectRepository _projectRepository;
+        private readonly IProjectRepository _projectRepository;
 
         public ProjectConfigCommandHandler(
             ProjectService projectService,
             ProviderConfigurationService providerConfigService,
-            ProjectRepository projectRepository)
+            IProjectRepository projectRepository)
         {
             _projectService = projectService;
             _providerConfigService = providerConfigService;

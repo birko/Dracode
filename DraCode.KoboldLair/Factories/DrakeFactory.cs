@@ -5,6 +5,7 @@ using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Orchestrators;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Factories
@@ -19,7 +20,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly KoboldFactory _koboldFactory;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
-        private readonly ProjectRepository? _projectRepository;
+        private readonly IProjectRepository? _projectRepository;
         private readonly GitService? _gitService;
         private readonly ProviderCircuitBreaker? _circuitBreaker;
         private readonly SharedPlanningContextService? _sharedPlanningContext;
@@ -66,7 +67,7 @@ namespace DraCode.KoboldLair.Factories
             KoboldLairConfiguration koboldLairConfig,
             ILoggerFactory? loggerFactory = null,
             GitService? gitService = null,
-            ProjectRepository? projectRepository = null,
+            IProjectRepository? projectRepository = null,
             ProviderCircuitBreaker? circuitBreaker = null,
             SharedPlanningContextService? sharedPlanningContext = null)
         {

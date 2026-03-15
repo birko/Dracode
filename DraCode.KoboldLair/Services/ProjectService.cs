@@ -3,6 +3,7 @@ using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Orchestrators;
 
 namespace DraCode.KoboldLair.Services
@@ -46,7 +47,7 @@ namespace DraCode.KoboldLair.Services
 
             return fullPath;
         }
-        private readonly ProjectRepository _repository;
+        private readonly IProjectRepository _repository;
         private readonly WyvernFactory _wyvernFactory;
         private readonly ILogger<ProjectService> _logger;
         private readonly GitService _gitService;
@@ -55,7 +56,7 @@ namespace DraCode.KoboldLair.Services
         private readonly string _projectsPath;
 
         public ProjectService(
-            ProjectRepository repository,
+            IProjectRepository repository,
             WyvernFactory wyvernFactory,
             ILogger<ProjectService> logger,
             GitService gitService,

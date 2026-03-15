@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using DraCode.Agent;
 using DraCode.KoboldLair.Models.Agents;
+using DraCode.KoboldLair.Data.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Services
@@ -19,7 +20,7 @@ namespace DraCode.KoboldLair.Services
     public class KoboldPlanService : IDisposable
     {
         private readonly string _projectsPath;
-        private readonly ProjectRepository? _projectRepository;
+        private readonly IProjectRepository? _projectRepository;
         private readonly ILogger<KoboldPlanService>? _logger;
         private readonly JsonSerializerOptions _jsonOptions;
         private readonly SemaphoreSlim _indexLock = new SemaphoreSlim(1, 1);
@@ -36,7 +37,7 @@ namespace DraCode.KoboldLair.Services
         public KoboldPlanService(
             string projectsPath,
             ILogger<KoboldPlanService>? logger = null,
-            ProjectRepository? projectRepository = null,
+            IProjectRepository? projectRepository = null,
             int debounceIntervalMs = DefaultDebounceIntervalMs)
         {
             _projectsPath = projectsPath;

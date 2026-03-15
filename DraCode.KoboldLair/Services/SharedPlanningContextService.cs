@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Agents;
 
 namespace DraCode.KoboldLair.Services;
@@ -12,7 +13,7 @@ namespace DraCode.KoboldLair.Services;
 public class SharedPlanningContextService
 {
     private readonly KoboldPlanService _planService;
-    private readonly ProjectRepository _projectRepository;
+    private readonly IProjectRepository _projectRepository;
     private readonly ILogger<SharedPlanningContextService>? _logger;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly string _projectsPath;
@@ -30,7 +31,7 @@ public class SharedPlanningContextService
     public SharedPlanningContextService(
         string projectsPath,
         KoboldPlanService planService,
-        ProjectRepository projectRepository,
+        IProjectRepository projectRepository,
         ILogger<SharedPlanningContextService>? logger = null)
     {
         _projectsPath = projectsPath;
