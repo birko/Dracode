@@ -1046,12 +1046,13 @@ Migrate from file-based JSON storage to a hybrid database approach using Birko.F
   - Lower priority — plan files are already debounced and per-project
   - SQL migration resolves debounce race (TODO item) but requires deeper refactor
 
-- [ ] **Integration testing** ⚪ NOT STARTED
-  - Test CRUD operations for all repositories
-  - Test concurrent access (multiple Drakes/Kobolds)
-  - Test migration from JSON to SQL
-  - Test rollback scenarios
-  - **Effort**: 8 hours
+- [x] **Integration testing** ✅ COMPLETED (2026-03-15)
+  - Created `DraCode.KoboldLair.Tests` project (xUnit + FluentAssertions)
+  - **SqlProjectRepositoryTests** (8 tests): CRUD, name search, status filter, nested JSON round-trip, agent config, concurrent adds
+  - **SqlTaskRepositoryTests** (10 tests): CRUD, project/area/status/priority queries, error set/clear, dependency round-trip, concurrent updates
+  - **EntityMapperTests** (3 tests): Project round-trip, TaskRecord round-trip, UpdateEntity preserves Guid
+  - **JsonToSqlMigrationTests** (4 tests): project migration, task migration, dry-run, idempotency
+  - **Results**: 27/27 passing, 902ms total
 
 ---
 

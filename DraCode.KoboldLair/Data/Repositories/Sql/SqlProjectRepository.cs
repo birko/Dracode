@@ -41,7 +41,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// </summary>
         public async Task InitializeAsync()
         {
-            await _repository.InitAsync();
+            await _repository.CreateSchemaAsync();
             await LoadCacheAsync();
             _logger?.LogInformation("Loaded {Count} project(s) from database", _cache.Count);
         }

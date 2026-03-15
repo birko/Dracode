@@ -19,6 +19,7 @@
     <Project Path="../Birko.Data.SQL.SqLite/Birko.Data.SQL.SqLite.shproj" Id="a00e9b88-4e24-40e4-aee1-f3833453aaa5" />
   </Folder>
   <Project Path="DraCode.Agent.Tests/DraCode.Agent.Tests.csproj" />
+  <Project Path="DraCode.KoboldLair.Tests/DraCode.KoboldLair.Tests.csproj" />
   <Project Path="DraCode.Agent/DraCode.Agent.csproj" />
   <Project Path="DraCode.AppHost/DraCode.AppHost.csproj" />
   <Project Path="DraCode.KoboldLair.Client/DraCode.KoboldLair.Client.csproj" />

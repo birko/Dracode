@@ -31,7 +31,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
 
         public async Task InitializeAsync()
         {
-            await _repository.InitAsync();
+            await _repository.CreateSchemaAsync();
             _logger?.LogInformation("SQLite task repository initialized");
         }
 
