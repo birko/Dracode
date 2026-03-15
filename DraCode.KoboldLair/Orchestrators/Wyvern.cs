@@ -859,7 +859,7 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 }
             }
 
-            // Check each task's dependencies
+            // Check each task's dependencies - remove invalid ones
             foreach (var area in analysis.Areas)
             {
                 foreach (var task in area.Tasks)
@@ -888,6 +888,82 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                     }
                 }
             }
+
+            // Detect and break circular dependencies
+            DetectAndBreakCycles(analysis);
+        }
+
+        /// <summary>
+        /// Detects circular dependencies between tasks and breaks them by removing the
+        /// dependency edge that creates the cycle (from the task with higher dependency level).
+        /// Uses depth-first search with coloring to detect back-edges.
+        /// </summary>
+        private void DetectAndBreakCycles(WyvernAnalysis analysis)
+        {
+            // Build adjacency map: taskId → list of dependency taskIds
+            var allTasks = new Dictionary<string, WyvernTask>(StringComparer.OrdinalIgnoreCase);
+            foreach (var area in analysis.Areas)
+            {
+                foreach (var task in area.Tasks)
+                {
+                    allTasks[task.Id] = task;
+                }
+            }
+
+            // DFS cycle detection with coloring: White=unvisited, Gray=in-stack, Black=done
+            var color = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase); // 0=white, 1=gray, 2=black
+            var cycleEdges = new List<(string From, string To)>();
+
+            foreach (var taskId in allTasks.Keys)
+                color[taskId] = 0;
+
+            foreach (var taskId in allTasks.Keys)
+            {
+                if (color[taskId] == 0)
+                    DfsCycleDetect(taskId, allTasks, color, cycleEdges);
+            }
+
+            // Break detected cycles by removing the back-edge dependency
+            foreach (var (from, to) in cycleEdges)
+            {
+                if (allTasks.TryGetValue(from, out var task))
+                {
+                    task.Dependencies.RemoveAll(d => d.Equals(to, StringComparison.OrdinalIgnoreCase));
+                    _logger?.LogWarning(
+                        "Circular dependency detected: [{From}] → [{To}]. Removed dependency to break cycle.",
+                        from, to);
+                }
+            }
+        }
+
+        private void DfsCycleDetect(
+            string taskId,
+            Dictionary<string, WyvernTask> allTasks,
+            Dictionary<string, int> color,
+            List<(string From, string To)> cycleEdges)
+        {
+            color[taskId] = 1; // Gray - in stack
+
+            if (allTasks.TryGetValue(taskId, out var task))
+            {
+                foreach (var dep in task.Dependencies.ToList())
+                {
+                    if (!color.ContainsKey(dep))
+                        continue; // Unknown task, already cleaned up
+
+                    if (color[dep] == 1)
+                    {
+                        // Back-edge found: dep is in our DFS stack → cycle
+                        cycleEdges.Add((taskId, dep));
+                    }
+                    else if (color[dep] == 0)
+                    {
+                        DfsCycleDetect(dep, allTasks, color, cycleEdges);
+                    }
+                }
+            }
+
+            color[taskId] = 2; // Black - done
         }
 
         public string ProjectName => _projectName;

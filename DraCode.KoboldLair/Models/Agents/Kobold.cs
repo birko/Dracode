@@ -86,6 +86,7 @@ namespace DraCode.KoboldLair.Models.Agents
         /// Specification version when this Kobold was created
         /// </summary>
         private int _assignedSpecificationVersion = 1;
+        private string? _assignedSpecificationHash;
 
         /// <summary>
         /// Path to specification file for version checking
@@ -264,6 +265,20 @@ namespace DraCode.KoboldLair.Models.Agents
         /// <param name="stepIndices">List of 0-based step indices to execute</param>
         public void SetAssignedStepIndices(List<int> stepIndices)
         {
+            // Validate indices are within plan bounds
+            if (ImplementationPlan != null)
+            {
+                var maxIndex = ImplementationPlan.Steps.Count - 1;
+                var invalidIndices = stepIndices.Where(i => i < 0 || i > maxIndex).ToList();
+                if (invalidIndices.Count > 0)
+                {
+                    _logger?.LogWarning(
+                        "Kobold {KoboldId}: Removing {Count} out-of-bounds step indices (max: {Max}): {Indices}",
+                        Id.ToString()[..8], invalidIndices.Count, maxIndex, string.Join(", ", invalidIndices));
+                    stepIndices = stepIndices.Where(i => i >= 0 && i <= maxIndex).ToList();
+                }
+            }
+
             _assignedStepIndices = stepIndices;
 
             // Update the plan with this assignment
@@ -357,14 +372,19 @@ namespace DraCode.KoboldLair.Models.Agents
                     catch { }
                 }
 
-                if (persistedVersion > _assignedSpecificationVersion)
+                // Detect changes by version number OR content hash (handles downgrades and edits without version bump)
+                var contentChanged = !string.Equals(currentHash, _assignedSpecificationHash, StringComparison.OrdinalIgnoreCase);
+                var versionChanged = persistedVersion != _assignedSpecificationVersion;
+
+                if (versionChanged || contentChanged)
                 {
                     _logger?.LogWarning(
-                        "Kobold {KoboldId}: Specification version changed: {OldVersion} → {NewVersion}. Reloading context.",
-                        Id.ToString()[..8], _assignedSpecificationVersion, persistedVersion);
+                        "Kobold {KoboldId}: Specification changed (version: {OldVersion} → {NewVersion}, content hash changed: {HashChanged}). Reloading context.",
+                        Id.ToString()[..8], _assignedSpecificationVersion, persistedVersion, contentChanged);
 
                     SpecificationContext = currentContent;
                     _assignedSpecificationVersion = persistedVersion;
+                    _assignedSpecificationHash = currentHash;
                 }
             }
             catch (Exception ex)
@@ -1065,7 +1085,30 @@ You are working on a task that is part of a larger project. Below is the project
             List<Message> conversation;
             if (currentStepIndex > 0 && planService != null && !string.IsNullOrEmpty(ProjectId) && TaskId.HasValue)
             {
+                // Validate step index is within plan bounds before resuming
+                if (currentStepIndex >= ImplementationPlan.Steps.Count)
+                {
+                    _logger?.LogWarning(
+                        "Kobold {KoboldId}: Resume step index {StepIndex} exceeds plan size {PlanSize}. Resetting to step 0.",
+                        Id.ToString()[..8], currentStepIndex, ImplementationPlan.Steps.Count);
+                    currentStepIndex = 0;
+                    resumeStepIndex = 0;
+                }
+
                 var checkpoint = await planService.LoadConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
+                if (checkpoint != null)
+                {
+                    // Validate checkpoint step index is compatible with current plan
+                    if (checkpoint.StepIndex >= ImplementationPlan.Steps.Count)
+                    {
+                        _logger?.LogWarning(
+                            "Kobold {KoboldId}: Checkpoint step index {CheckpointStep} exceeds plan size {PlanSize}. Discarding stale checkpoint.",
+                            Id.ToString()[..8], checkpoint.StepIndex, ImplementationPlan.Steps.Count);
+                        await planService.DeleteConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
+                        checkpoint = null;
+                    }
+                }
+
                 if (checkpoint != null)
                 {
                     conversation = KoboldPlanService.RestoreConversation(checkpoint);

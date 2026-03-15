@@ -222,29 +222,54 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// </summary>
         public bool Enabled { get; set; } = true;
 
+        private int _escalationConfidenceThreshold = 30;
         /// <summary>
         /// Confidence percentage below which an escalation is triggered (default: 30)
         /// </summary>
-        public int EscalationConfidenceThreshold { get; set; } = 30;
+        public int EscalationConfidenceThreshold
+        {
+            get => _escalationConfidenceThreshold;
+            set => _escalationConfidenceThreshold = Math.Clamp(value, 1, 100);
+        }
 
+        private int _stallDetectionCount = 3;
         /// <summary>
         /// Number of consecutive reflections with stalled/declining progress before auto-escalation (default: 3)
         /// </summary>
-        public int StallDetectionCount { get; set; } = 3;
+        public int StallDetectionCount
+        {
+            get => _stallDetectionCount;
+            set => _stallDetectionCount = Math.Max(1, value);
+        }
 
+        private int _monitorIntervalSeconds = 45;
         /// <summary>
         /// Interval in seconds between ReasoningMonitor checks (default: 45)
         /// </summary>
-        public int MonitorIntervalSeconds { get; set; } = 45;
+        public int MonitorIntervalSeconds
+        {
+            get => _monitorIntervalSeconds;
+            set => _monitorIntervalSeconds = Math.Max(5, value);
+        }
 
+        private int _noProgressTimeoutMinutes = 10;
         /// <summary>
         /// Minutes of no progress before ReasoningMonitor triggers escalation (default: 10)
         /// </summary>
-        public int NoProgressTimeoutMinutes { get; set; } = 10;
+        public int NoProgressTimeoutMinutes
+        {
+            get => _noProgressTimeoutMinutes;
+            set => _noProgressTimeoutMinutes = Math.Max(1, value);
+        }
 
+        private int _maxFileWriteRepetitions = 3;
         /// <summary>
         /// Number of times the same file can be written before flagging a stuck loop (default: 3)
         /// </summary>
-        public int MaxFileWriteRepetitions { get; set; } = 3;
+        public int MaxFileWriteRepetitions
+        {
+            get => _maxFileWriteRepetitions;
+            set => _maxFileWriteRepetitions = Math.Max(1, value);
+        }
     }
 }

@@ -564,8 +564,16 @@ namespace DraCode.KoboldLair.Server.Services
                 },
                 addExternalPath: (id, path) =>
                 {
-                    _projectRepository.AddAllowedExternalPathAsync(id, path).GetAwaiter().GetResult();
-                    _logger.LogInformation("External path added for {Project}: {Path}", id, path);
+                    // Normalize path to prevent traversal attacks
+                    var normalizedPath = Path.GetFullPath(path);
+                    if (!Path.IsPathRooted(normalizedPath))
+                    {
+                        _logger.LogWarning("Rejected non-absolute external path for {Project}: {Path}", id, path);
+                        return;
+                    }
+
+                    _projectRepository.AddAllowedExternalPathAsync(id, normalizedPath).GetAwaiter().GetResult();
+                    _logger.LogInformation("External path added for {Project}: {Path}", id, normalizedPath);
 
                     // Update Dragon's context if this is the current session's project
                     RefreshDragonContextForProject(session, id);
@@ -2086,8 +2094,8 @@ namespace DraCode.KoboldLair.Server.Services
             project.VerificationStatus = VerificationStatus.Skipped;
             project.VerificationCompletedAt = DateTime.UtcNow;
             project.VerificationReport = "Verification skipped by user.";
-            _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Verified);
-            _logger.LogInformation("Verification skipped for project: {Project}", projectIdOrName);
+            _projectService.UpdateProjectStatus(project.Id, ProjectStatus.Completed);
+            _logger.LogInformation("Verification skipped for project: {Project} - marked as Completed", projectIdOrName);
             return true;
         }
     }

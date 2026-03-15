@@ -205,21 +205,48 @@ namespace DraCode.KoboldLair.Server.Services
                 "ReasoningMonitor escalation for Kobold {KoboldId}: {Type} - {Summary}",
                 kobold.Id.ToString()[..8], type, summary);
 
-            // Route through Drake
+            // Route through Drake (with retry if Drake not yet available)
             if (!string.IsNullOrEmpty(kobold.ProjectId))
             {
-                var drakes = _drakeFactory.GetDrakesByProject(kobold.ProjectId);
+                _ = RouteEscalationWithRetryAsync(kobold.ProjectId, alert);
+            }
+        }
+
+        /// <summary>
+        /// Routes an escalation alert to a Drake, retrying if no Drake is currently available.
+        /// </summary>
+        private async Task RouteEscalationWithRetryAsync(string projectId, EscalationAlert alert, int maxRetries = 3)
+        {
+            for (var attempt = 0; attempt < maxRetries; attempt++)
+            {
+                var drakes = _drakeFactory.GetDrakesByProject(projectId);
                 var drake = drakes.FirstOrDefault();
                 if (drake != null)
                 {
-                    _ = drake.HandleEscalationAsync(alert);
+                    try
+                    {
+                        await drake.HandleEscalationAsync(alert);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to handle escalation {AlertId} via Drake for project {ProjectId}",
+                            alert.Id[..8], projectId);
+                    }
+                    return;
                 }
-                else
+
+                if (attempt < maxRetries - 1)
                 {
-                    _logger.LogWarning("No Drake found for project {ProjectId} to handle escalation",
-                        kobold.ProjectId);
+                    _logger.LogDebug("No Drake found for project {ProjectId}, retrying escalation routing in 30s (attempt {Attempt}/{Max})",
+                        projectId, attempt + 1, maxRetries);
+                    await Task.Delay(TimeSpan.FromSeconds(30));
                 }
             }
+
+            _logger.LogWarning(
+                "No Drake found for project {ProjectId} after {MaxRetries} attempts - escalation {AlertId} ({Type}) could not be routed. " +
+                "Alert is preserved in plan and will be processed when Drake is recreated.",
+                projectId, maxRetries, alert.Id[..8], alert.Type);
         }
     }
 }

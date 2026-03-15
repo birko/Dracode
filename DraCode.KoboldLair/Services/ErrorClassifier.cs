@@ -140,8 +140,9 @@ namespace DraCode.KoboldLair.Services
                 }
             }
 
-            // Default to permanent for safety (avoid infinite retries on unknown errors)
-            return ErrorCategory.Permanent;
+            // Default to transient for unknown errors - retry logic has its own max retry limit,
+            // so it's safer to attempt a retry than to permanently fail on an unrecognized error
+            return ErrorCategory.Transient;
         }
 
         /// <summary>

@@ -540,7 +540,7 @@ export class DragonView {
                     <div class="chat-message-icon">${msg.role === 'user' ? '👤' : msg.role === 'system' ? 'ℹ️' : '🐉'}</div>
                     <div class="chat-message-content">
                         <div class="chat-message-role">${msg.role}</div>
-                        <div class="chat-message-text">${msg.content}</div>
+                        <div class="chat-message-text">${this.escapeHtml(msg.content)}</div>
                     </div>
                 </div>
             `;
@@ -835,7 +835,7 @@ export class DragonView {
                 <div class="chat-message-icon">${icon}</div>
                 <div class="chat-message-content">
                     <div class="chat-message-role">${role}</div>
-                    <div class="chat-message-text">${msg.content}</div>
+                    <div class="chat-message-text">${this.escapeHtml(msg.content)}</div>
                 </div>
             `;
         }

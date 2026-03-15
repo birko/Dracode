@@ -217,12 +217,25 @@ namespace DraCode.KoboldLair.Server.Services
             int timeoutSeconds,
             CancellationToken stoppingToken)
         {
+            string fileName;
+            string arguments;
+            if (OperatingSystem.IsWindows())
+            {
+                fileName = "powershell.exe";
+                arguments = $"-NoProfile -Command \"{command}\"";
+            }
+            else
+            {
+                fileName = "/bin/bash";
+                arguments = $"-c \"{command.Replace("\"", "\\\"")}\"";
+            }
+
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -Command \"{command}\"",
+                    FileName = fileName,
+                    Arguments = arguments,
                     WorkingDirectory = workingDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -312,6 +325,41 @@ namespace DraCode.KoboldLair.Server.Services
                 Steps:
                 [
                     ("test", "pytest", "High", "Python unit tests")
+                ]),
+            new(
+                TechStackKeywords: ["Go", "golang"],
+                Languages: ["go"],
+                FilePatterns: ["go.mod", "go.sum"],
+                Steps:
+                [
+                    ("build", "go build ./...", "Critical", "Go build verification"),
+                    ("test", "go test ./...", "High", "Go unit tests")
+                ]),
+            new(
+                TechStackKeywords: ["Rust", "cargo"],
+                Languages: ["rust"],
+                FilePatterns: ["Cargo.toml", "Cargo.lock"],
+                Steps:
+                [
+                    ("build", "cargo build", "Critical", "Rust build verification"),
+                    ("test", "cargo test", "High", "Rust unit tests")
+                ]),
+            new(
+                TechStackKeywords: ["Java", "Maven", "Gradle"],
+                Languages: ["java"],
+                FilePatterns: ["pom.xml", "build.gradle", "build.gradle.kts"],
+                Steps:
+                [
+                    ("build", "mvn compile -q", "Critical", "Java build verification"),
+                    ("test", "mvn test -q", "High", "Java unit tests")
+                ]),
+            new(
+                TechStackKeywords: ["C++", "CMake", "cpp"],
+                Languages: ["cpp", "c++"],
+                FilePatterns: ["CMakeLists.txt", "Makefile"],
+                Steps:
+                [
+                    ("build", "cmake --build . --config Release", "Critical", "C++ build verification")
                 ])
         ];
 
@@ -366,7 +414,8 @@ namespace DraCode.KoboldLair.Server.Services
             var taskFilePath = Path.Combine(tasksDir, "verification-fixes-tasks.md");
 
             var taskLines = new List<string>();
-            
+            var existingCheckTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             // Add header if file doesn't exist
             if (!File.Exists(taskFilePath))
             {
@@ -379,13 +428,26 @@ namespace DraCode.KoboldLair.Server.Services
             }
             else
             {
-                // Read existing content
-                taskLines.AddRange(await File.ReadAllLinesAsync(taskFilePath, stoppingToken));
+                // Read existing content and track existing check types to prevent duplicates
+                var existingLines = await File.ReadAllLinesAsync(taskFilePath, stoppingToken);
+                taskLines.AddRange(existingLines);
+                foreach (var line in existingLines)
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(line, @"verify-(\w+)-");
+                    if (match.Success)
+                        existingCheckTypes.Add(match.Groups[1].Value);
+                }
             }
 
-            // Add new tasks
+            // Add new tasks, skipping duplicates by check type
             foreach (var check in failedChecks)
             {
+                if (existingCheckTypes.Contains(check.CheckType))
+                {
+                    _logger.LogDebug("Skipping duplicate fix task for {CheckType} in {Project}", check.CheckType, project.Name);
+                    continue;
+                }
+
                 var taskId = $"verify-{check.CheckType}-{Guid.NewGuid().ToString()[..8]}";
                 var priority = check.Priority switch
                 {
@@ -396,8 +458,9 @@ namespace DraCode.KoboldLair.Server.Services
                 };
 
                 var taskDescription = $"[id:{taskId}] [priority:{priority}] Fix {check.CheckType} failure: {check.Command}. Error: {(check.Output.Length > 200 ? check.Output.Substring(0, 200) + "..." : check.Output)}";
-                
+
                 taskLines.Add($"| {taskId} | {taskDescription} | unassigned | unassigned |");
+                existingCheckTypes.Add(check.CheckType);
                 _logger.LogInformation("Created fix task {TaskId} for {CheckType} failure in {Project}", taskId, check.CheckType, project.Name);
             }
 

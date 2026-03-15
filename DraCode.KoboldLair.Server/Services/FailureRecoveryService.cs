@@ -239,9 +239,12 @@ namespace DraCode.KoboldLair.Server.Services
 
             // Reset task to Unassigned so Drake will pick it up again
             drake.UpdateTask(task, TaskStatus.Unassigned);
-            
+
             // Clear error message so it doesn't show as errored while retrying
             task.ErrorMessage = $"Retry {task.RetryCount}/{_maxRetryAttempts} - Previous error: {task.ErrorMessage}";
+
+            // Clear escalation alerts from the associated plan (if any) to prevent stale escalation history
+            await drake.ClearEscalationsForTaskAsync(task.Id);
 
             // Force save task state
             await drake.SaveTasksToFileAsync();

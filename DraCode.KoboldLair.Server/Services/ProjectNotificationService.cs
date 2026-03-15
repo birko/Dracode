@@ -132,6 +132,20 @@ namespace DraCode.KoboldLair.Server.Services
                 $"All features for project \"{projectName}\" are complete! Review branches and merge when ready.");
         }
 
+        /// <summary>
+        /// Persists all in-memory notifications to disk. Called during graceful shutdown.
+        /// </summary>
+        public void PersistAll()
+        {
+            foreach (var (projectName, list) in _pendingNotifications)
+            {
+                if (list.Count > 0)
+                {
+                    SaveNotifications(projectName, list);
+                }
+            }
+        }
+
         private string GetNotificationsPath(string projectName)
         {
             var sanitized = projectName.ToLowerInvariant()

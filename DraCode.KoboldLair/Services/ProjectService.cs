@@ -583,6 +583,18 @@ namespace DraCode.KoboldLair.Services
                 project.Status == ProjectStatus.InProgress ||
                 project.Status == ProjectStatus.Completed)
             {
+                // Stop active Drakes before transitioning to prevent Kobolds from continuing
+                // on stale specification while reanalysis runs
+                if (project.Status == ProjectStatus.InProgress && _drakeFactory != null)
+                {
+                    var removedCount = _drakeFactory.RemoveAllDrakesForProject(project.Id);
+                    if (removedCount > 0)
+                    {
+                        _logger.LogInformation("🛑 Stopped {Count} Drake(s) for project '{ProjectName}' before spec reprocessing",
+                            removedCount, project.Name);
+                    }
+                }
+
                 project.Status = ProjectStatus.SpecificationModified;
                 project.Timestamps.UpdatedAt = DateTime.UtcNow;
                 _repository.Update(project);

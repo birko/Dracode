@@ -231,11 +231,13 @@ builder.Services.AddHostedService<DrakeExecutionService>(sp =>
     var shutdownCoordinator = sp.GetRequiredService<GracefulShutdownCoordinator>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var maxIterations = config.Iterations?.MaxKoboldIterations ?? 100;
+    var notificationService = sp.GetRequiredService<ProjectNotificationService>();
     return new DrakeExecutionService(
         logger,
         projectService,
         drakeFactory,
         shutdownCoordinator,
+        notificationService,
         executionIntervalSeconds: 30,
         maxKoboldIterations: maxIterations);
 });
@@ -246,7 +248,8 @@ builder.Services.AddHostedService<WyrmProcessingService>(sp =>
     var logger = sp.GetRequiredService<ILogger<WyrmProcessingService>>();
     var projectService = sp.GetRequiredService<ProjectService>();
     var wyrmFactory = sp.GetRequiredService<WyrmFactory>();
-    return new WyrmProcessingService(logger, projectService, wyrmFactory, checkIntervalSeconds: 60);
+    var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
+    return new WyrmProcessingService(logger, projectService, wyrmFactory, sharedPlanningContext, checkIntervalSeconds: 60);
 });
 
 // Register Wyvern processing background service (WyrmAssigned → Analyzed, checks every 60 seconds)
@@ -364,6 +367,12 @@ appLifetime.ApplicationStopping.Register(() =>
         var sharedPlanningContext = scope.ServiceProvider.GetRequiredService<SharedPlanningContextService>();
         sharedPlanningContext.PersistAllContextsAsync().GetAwaiter().GetResult();
         logger.LogInformation("Shared planning contexts persisted successfully");
+
+        // 5. Persist pending notifications
+        logger.LogInformation("Persisting pending notifications on shutdown...");
+        var notificationSvc = scope.ServiceProvider.GetRequiredService<ProjectNotificationService>();
+        notificationSvc.PersistAll();
+        logger.LogInformation("Notifications persisted successfully");
 
         logger.LogInformation("Graceful shutdown complete");
     }

@@ -57,7 +57,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <summary>
         /// Maps TaskId to KoboldId for tracking active assignments
         /// </summary>
-        private readonly Dictionary<string, Guid> _taskToKoboldMap;
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Guid> _taskToKoboldMap;
 
         /// <summary>
         /// Creates a new Drake supervisor
@@ -140,7 +140,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _autoApproveModifications = autoApproveModifications;
             _filterFilesByPlan = filterFilesByPlan && _planningEnabled; // Only filter if planning is enabled
             _fileFilterService = new PlanFileFilterService(null); // Logger is optional for filter service
-            _taskToKoboldMap = new Dictionary<string, Guid>();
+            _taskToKoboldMap = new System.Collections.Concurrent.ConcurrentDictionary<string, Guid>();
 
             // Initialize WAL for crash-safe state persistence
             _wal = new TaskStateWal(_outputMarkdownPath, _logger);
@@ -149,7 +149,15 @@ namespace DraCode.KoboldLair.Orchestrators
             if (_wal.HasUncommittedChanges())
             {
                 _logger?.LogWarning("Found uncommitted WAL entries, recovering task state...");
-                _ = RecoverFromWalAsync(); // Fire-and-forget recovery
+                try
+                {
+                    RecoverFromWalAsync().GetAwaiter().GetResult();
+                    _logger?.LogInformation("WAL recovery completed successfully");
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "WAL recovery failed - task state may be inconsistent");
+                }
             }
 
             // Initialize debounced save channel (bounded to 1 to coalesce writes)
@@ -835,6 +843,16 @@ namespace DraCode.KoboldLair.Orchestrators
                     alert.Id[..8], alert.Type);
             }
 
+            // Persist task state immediately after escalation to prevent data loss on crash
+            try
+            {
+                SaveTasksToFile();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to persist task state after escalation {AlertId}", alert.Id[..8]);
+            }
+
             // Notify Dragon about the escalation
             try
             {
@@ -994,7 +1012,7 @@ namespace DraCode.KoboldLair.Orchestrators
             if (kobold.TaskId.HasValue)
             {
                 var taskIdString = kobold.TaskId.Value.ToString();
-                _taskToKoboldMap.Remove(taskIdString);
+                _taskToKoboldMap.TryRemove(taskIdString, out _);
             }
 
             // Remove from factory
@@ -1124,9 +1142,9 @@ namespace DraCode.KoboldLair.Orchestrators
                     previousStatus, taskStatus, projectInfo, task.Id[..Math.Min(8, task.Id.Length)], taskPreview);
             }
 
-            // Use immediate save for task completion to prevent race condition with ReloadTasksFromFileAsync
+            // Use immediate save for critical state transitions to prevent race condition with ReloadTasksFromFileAsync
             // (debounced save could be overwritten by reload before it executes)
-            if (taskStatus == TaskStatus.Done)
+            if (taskStatus == TaskStatus.Done || taskStatus == TaskStatus.Failed)
             {
                 await SaveTasksToFileAsync();
             }
@@ -2036,7 +2054,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     else
                     {
                         // Kobold was removed but task still mapped - clean up
-                        _taskToKoboldMap.Remove(task.Id);
+                        _taskToKoboldMap.TryRemove(task.Id, out _);
                     }
                 }
             }
@@ -2362,6 +2380,31 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Clears escalation alerts associated with a task from its implementation plan.
+        /// Called when a task is being retried to prevent stale escalation history.
+        /// </summary>
+        public async Task ClearEscalationsForTaskAsync(string taskId)
+        {
+            if (string.IsNullOrEmpty(taskId) || _planService == null || string.IsNullOrEmpty(_projectId))
+                return;
+
+            try
+            {
+                var plan = await _planService.LoadPlanAsync(_projectId, taskId);
+                if (plan?.Escalations != null && plan.Escalations.Count > 0)
+                {
+                    plan.Escalations.Clear();
+                    await _planService.SavePlanDebouncedAsync(plan);
+                    _logger?.LogDebug("Cleared escalation history for task {TaskId} before retry", taskId[..Math.Min(8, taskId.Length)]);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to clear escalations for task {TaskId}", taskId[..Math.Min(8, taskId.Length)]);
+            }
+        }
+
+        /// <summary>
         /// Forces an immediate save of the current task state (async)
         /// </summary>
         public async Task SaveTasksToFileAsync()
@@ -2492,7 +2535,7 @@ namespace DraCode.KoboldLair.Orchestrators
                             continue;
                         }
                         // Kobold mapping exists but Kobold is gone - clean up mapping
-                        _taskToKoboldMap.Remove(task.Id);
+                        _taskToKoboldMap.TryRemove(task.Id, out _);
                     }
 
                     // Check if the task has a completed plan - if so, mark as Done

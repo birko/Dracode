@@ -140,9 +140,45 @@ namespace DraCode.KoboldLair.Server.Services
                 await Task.WhenAll(reanalysisTasks);
             }
 
+            // Detect stuck projects in intermediate states
+            DetectStuckProjects(allProjects);
+
             // Log statistics
             var stats = _projectService.GetStatistics();
             _logger.LogInformation("📊 {Stats}", stats);
+        }
+
+        /// <summary>
+        /// Detects projects stuck in intermediate states (WyrmAssigned, AwaitingVerification)
+        /// for longer than the configured threshold and logs warnings.
+        /// </summary>
+        private void DetectStuckProjects(List<Project> allProjects)
+        {
+            var stuckThreshold = TimeSpan.FromHours(2);
+            var now = DateTime.UtcNow;
+
+            var stuckStatuses = new[] { ProjectStatus.WyrmAssigned, ProjectStatus.AwaitingVerification };
+
+            foreach (var project in allProjects)
+            {
+                if (!stuckStatuses.Contains(project.Status) || project.ExecutionState != ProjectExecutionState.Running)
+                    continue;
+
+                var lastUpdate = project.Timestamps.UpdatedAt ?? project.Timestamps.CreatedAt ?? now;
+                var stuckDuration = now - lastUpdate;
+
+                if (stuckDuration > stuckThreshold)
+                {
+                    _logger.LogWarning(
+                        "⚠️ Project '{ProjectName}' stuck in {Status} for {Hours:F1} hours. " +
+                        "Last updated: {LastUpdate:yyyy-MM-dd HH:mm} UTC. " +
+                        "Consider checking service health or retrying manually.",
+                        project.Name,
+                        project.Status,
+                        stuckDuration.TotalHours,
+                        lastUpdate);
+                }
+            }
         }
 
         /// <summary>

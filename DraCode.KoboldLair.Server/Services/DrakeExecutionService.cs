@@ -19,6 +19,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProjectService _projectService;
         private readonly DrakeFactory _drakeFactory;
         private readonly GracefulShutdownCoordinator _shutdownCoordinator;
+        private readonly ProjectNotificationService? _notificationService;
         private readonly int _maxKoboldIterations;
 
         // Throttle concurrent project processing to avoid overwhelming resources
@@ -32,6 +33,7 @@ namespace DraCode.KoboldLair.Server.Services
             ProjectService projectService,
             DrakeFactory drakeFactory,
             GracefulShutdownCoordinator shutdownCoordinator,
+            ProjectNotificationService? notificationService = null,
             int executionIntervalSeconds = 30,
             int maxKoboldIterations = 100)
             : base(TimeSpan.FromSeconds(executionIntervalSeconds))
@@ -40,6 +42,7 @@ namespace DraCode.KoboldLair.Server.Services
             _projectService = projectService;
             _drakeFactory = drakeFactory;
             _shutdownCoordinator = shutdownCoordinator;
+            _notificationService = notificationService;
             _maxKoboldIterations = maxKoboldIterations;
             _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
         }
@@ -241,15 +244,9 @@ namespace DraCode.KoboldLair.Server.Services
                 "  Tasks: {Total} (Unassigned: {Unassigned}, Working: {Working}, Done: {Done}, Failed: {Failed}, Blocked: {Blocked})",
                 project.Name, stats.TotalTasks, stats.UnassignedTasks, stats.WorkingTasks, stats.DoneTasks, stats.FailedTasks, stats.BlockedTasks);
 
-            // **CRITICAL: Stop processing if any tasks have failed**
+            // Log failed tasks but continue processing independent tasks
             if (stats.FailedTasks > 0)
             {
-                _logger.LogWarning(
-                    "⛔ Project {ProjectName} has {FailedCount} failed task(s). Halting execution until errors are resolved.\n" +
-                    "  Project ID: {ProjectId}",
-                    project.Name, stats.FailedTasks, project.Id);
-                
-                // Log details about failed tasks
                 var failedTasks = drake.GetAllTasks().Where(t => t.Status == TaskStatus.Failed).ToList();
                 foreach (var task in failedTasks)
                 {
@@ -264,15 +261,14 @@ namespace DraCode.KoboldLair.Server.Services
                         task.ErrorMessage ?? "No error message");
                 }
 
-                // Log blocked tasks
                 if (stats.BlockedTasks > 0)
                 {
                     _logger.LogWarning(
                         "🟠 Project {ProjectName}: {BlockedCount} task(s) blocked by failed dependencies",
                         project.Name, stats.BlockedTasks);
                 }
-                
-                return; // Stop processing this Drake until failed tasks are resolved
+
+                // Continue processing - independent tasks without dependencies on failed ones can still run
             }
 
             // Skip if no unassigned tasks
@@ -454,6 +450,9 @@ namespace DraCode.KoboldLair.Server.Services
                     "  Project ID: {ProjectId}\n" +
                     "  Total Tasks: {Count}",
                     project.Name, project.Id, totalTasks);
+
+                // Notify user that all tasks are complete
+                _notificationService?.NotifyProjectComplete(project.Name);
             }
             else
             {

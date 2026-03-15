@@ -128,7 +128,17 @@ namespace DraCode.KoboldLair.Server.Services
                 }
             }
 
-            await drake.UpdateTasksFileAsync();
+            try
+            {
+                await drake.UpdateTasksFileAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to save task state for Drake in project {ProjectId}. " +
+                    "Task state may be inconsistent - will retry next cycle.",
+                    projectInfo);
+            }
         }
     }
 }

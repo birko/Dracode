@@ -188,7 +188,9 @@ namespace DraCode.KoboldLair.Services
             }
 
             var author = authorName ?? "KoboldLair";
-            var result = await RunGitCommandAsync(projectFolder, "commit", "-m", message, $"--author={author} <{author.ToLower().Replace(" ", "-")}@koboldlair.local>");
+            var sanitizedEmail = System.Text.RegularExpressions.Regex.Replace(
+                author.ToLowerInvariant(), @"[^a-z0-9\-]", "-");
+            var result = await RunGitCommandAsync(projectFolder, "commit", "-m", message, $"--author={author} <{sanitizedEmail}@koboldlair.local>");
 
             if (result.Success)
             {
@@ -590,6 +592,13 @@ namespace DraCode.KoboldLair.Services
             var result = await RunGitCommandAsync(projectFolder, "worktree", "add", worktreePath, branchName);
             if (result.Success)
             {
+                // Verify the worktree was actually created on disk
+                if (!Directory.Exists(worktreePath))
+                {
+                    _logger.LogError("git worktree add reported success but directory does not exist: {Path}", worktreePath);
+                    return null;
+                }
+
                 _logger.LogInformation("Created worktree at {Path} for branch {Branch}", worktreePath, branchName);
                 return worktreePath;
             }

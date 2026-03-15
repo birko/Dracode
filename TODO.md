@@ -1,7 +1,7 @@
 # TODO - Planned Enhancements
 
 This file tracks planned enhancements and their implementation status.
-**Last updated: 2026-03-14 - Git Workflow, New Dragon Tools, Project Notifications completed, Birko.Framework integration plan added**
+**Last updated: 2026-03-15 - Added execution flow gaps & architectural fixes from deep pipeline analysis**
 
 ---
 
@@ -1367,4 +1367,78 @@ Agents currently operate in a plan-execution loop. Adding self-reflection could 
 
 ---
 
-*Last updated: 2026-02-12*
+## 🔴 TODO - Execution Flow Gaps & Architectural Fixes (2026-03-15)
+
+Identified during deep analysis of the KoboldLair Server execution pipeline. Items below require larger refactors.
+
+### Concurrency & Thread Safety
+
+- [ ] **Convert tool Execute methods from sync to async**
+  - Multiple tool `Execute()` methods use `.GetAwaiter().GetResult()` for async calls, causing thread pool starvation and potential deadlocks
+  - **Affected**: `UpdatePlanStepTool.cs:259-281`, `ReflectionTool.cs:214-226`, `GitCommitTool.cs`
+  - Requires changing base Tool interface from `string Execute(...)` to `Task<string> ExecuteAsync(...)`
+
+- [ ] **Add project-level mutex for git operations**
+  - No locking when multiple Kobolds operate on the same git repo — `.git/index.lock` contention
+  - Add `ConcurrentDictionary<string, SemaphoreSlim>` in `GitService.cs` keyed by project folder
+  - Each git operation acquires the semaphore before executing
+
+- [ ] **Fix blocking .GetAwaiter().GetResult() calls in DragonService callbacks**
+  - `DragonService.cs` lines 567, 575, 775, 1754 use blocking sync wrappers around async calls
+  - Risk: deadlocks when called from async context under high concurrency
+  - Change callback signatures to `Func<..., Task>` or use `Task.Run()` wrapper
+
+### Data Loss & Persistence
+
+- [ ] **Fix plan save debounce race condition**
+  - `KoboldPlanService.cs:817-954` — Channel capacity=1 with `DropWrite` can lose intermediate plan states
+  - If step N+1 completes after debounced save but before next drain cycle, that state may not be persisted
+  - Replace with dirty-flag approach: set flag on each request, background loop checks after debounce interval
+
+- [ ] **Fix fire-and-forget history save race condition in Dragon sessions**
+  - `DragonService.cs:1627-1640` — history saved via `Task.Run()` with no synchronization
+  - `CurrentProjectFolder` can change between check and save; concurrent writes can interleave
+  - Use debounced save queue per session (similar to Drake's task save channel)
+
+- [ ] **Fix escalation not persisted before dispatch in ReflectionTool**
+  - `ReflectionTool.cs:178-210` — alert added to in-memory plan, callback invoked, then save is debounced
+  - If callback throws, debounced save may not execute — escalation lost on restart
+  - Save plan BEFORE invoking escalation callback
+
+- [ ] **Persist circuit breaker state across server restarts**
+  - `ProviderCircuitBreaker.cs` stores all state in memory; lost on restart causing retry storms
+  - Add `SaveStateAsync()`/`LoadStateAsync()` persisting to `circuit-breaker-state.json`
+  - Add to graceful shutdown handler
+
+### Git & Worktree Management
+
+- [ ] **Add stale worktree cleanup on server startup**
+  - No detection/cleanup of orphaned `.worktrees/` directories after server crash
+  - Add startup task: iterate project folders, run `git worktree prune`, remove unregistered directories
+  - Add `PruneStaleWorktreesAsync()` to `GitService.cs`, call in `Program.cs` startup
+
+- [ ] **Fix commit failure not propagating task failure status**
+  - `Drake.cs:1396-1459` — if `git commit` fails, task remains `Done` but code was never committed
+  - At minimum add a warning flag; optionally retry or mark as `commit_pending`
+
+### Client-Side
+
+- [ ] **Fix event listener memory leak on view switch**
+  - `dragon-view.js:603-649` — `onMount()` adds listeners without removing previous ones
+  - Switching tabs accumulates duplicates: duplicate sends, memory leak, CPU increase
+  - Use event delegation or track/remove listeners in `onUnmount()`
+
+- [ ] **Add notification deduplication on client reconnect**
+  - `dragon-view.js:228-255` — reconnect replays messages, escalations added without dedup check
+  - Check `notificationStore` for existing ID before adding
+
+### Architecture
+
+- [ ] **Fix worktree file path confusion between parallel feature branches**
+  - `Kobold.cs:533-539, 615` — each Kobold only sees its own worktree's files and APIs
+  - Cross-module API extraction misses exports from sibling feature branches
+  - SharedPlanningContextService should maintain a registry of exported APIs per feature branch
+
+---
+
+*Last updated: 2026-03-15*
