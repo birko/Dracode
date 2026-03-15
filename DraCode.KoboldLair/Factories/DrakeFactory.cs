@@ -21,6 +21,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly IProjectRepository? _projectRepository;
+        private readonly ITaskRepository? _taskRepository;
         private readonly GitService? _gitService;
         private readonly ProviderCircuitBreaker? _circuitBreaker;
         private readonly SharedPlanningContextService? _sharedPlanningContext;
@@ -69,13 +70,15 @@ namespace DraCode.KoboldLair.Factories
             GitService? gitService = null,
             IProjectRepository? projectRepository = null,
             ProviderCircuitBreaker? circuitBreaker = null,
-            SharedPlanningContextService? sharedPlanningContext = null)
+            SharedPlanningContextService? sharedPlanningContext = null,
+            ITaskRepository? taskRepository = null)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
             _projectConfigService = projectConfigService;
             _koboldLairConfig = koboldLairConfig;
             _projectRepository = projectRepository;
+            _taskRepository = taskRepository;
             _loggerFactory = loggerFactory;
             _gitService = gitService;
             _circuitBreaker = circuitBreaker;
@@ -143,7 +146,12 @@ namespace DraCode.KoboldLair.Factories
             }
 
             // Create task tracker by reading the file if it exists
-            var taskTracker = new TaskTracker();
+            var taskTracker = new TaskTracker
+            {
+                Repository = _taskRepository,
+                ProjectId = projectId,
+                AreaName = ExtractAreaName(taskFilePath)
+            };
             if (File.Exists(taskFilePath))
             {
                 // Load existing tasks from file
@@ -406,6 +414,21 @@ namespace DraCode.KoboldLair.Factories
                     tasksLoaded,
                     Path.GetFileName(filePath));
             }
+        }
+
+        /// <summary>
+        /// Extracts the area name from a task file path.
+        /// e.g., "C:\projects\myapp\tasks\frontend-tasks.md" → "frontend"
+        /// </summary>
+        private static string? ExtractAreaName(string taskFilePath)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(taskFilePath);
+            // Remove "-tasks" suffix if present
+            if (fileName.EndsWith("-tasks", StringComparison.OrdinalIgnoreCase))
+            {
+                return fileName[..^6];
+            }
+            return fileName;
         }
     }
 }

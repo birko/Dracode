@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DraCode.KoboldLair.Data.Repositories;
 
 namespace DraCode.KoboldLair.Models.Tasks
 {
@@ -8,11 +9,28 @@ namespace DraCode.KoboldLair.Models.Tasks
     /// Manages task tracking and markdown report generation.
     /// Uses JSON as source of truth for programmatic reading (preserves all data including dependencies).
     /// Markdown is generated for human readability only.
+    /// Optionally dual-writes to ITaskRepository (SQLite) when configured.
     /// </summary>
     public class TaskTracker
     {
         private readonly List<TaskRecord> _tasks = new();
         private readonly object _lock = new();
+
+        /// <summary>
+        /// Optional database repository for dual-write persistence.
+        /// When set, all mutations are written to both JSON files and the database.
+        /// </summary>
+        public ITaskRepository? Repository { get; set; }
+
+        /// <summary>
+        /// Project ID for database writes. Required when Repository is set.
+        /// </summary>
+        public string? ProjectId { get; set; }
+
+        /// <summary>
+        /// Area name for database writes (e.g., "frontend", "backend").
+        /// </summary>
+        public string? AreaName { get; set; }
 
         // JSON serialization options
         private static readonly JsonSerializerOptions JsonOptions = new()
@@ -68,6 +86,10 @@ namespace DraCode.KoboldLair.Models.Tasks
                     CreatedAt = DateTime.UtcNow
                 };
                 _tasks.Add(record);
+
+                // Dual-write to database if configured
+                SyncToRepository(record, isNew: true);
+
                 return record;
             }
         }
@@ -104,6 +126,8 @@ namespace DraCode.KoboldLair.Models.Tasks
                 {
                     task.AssignedAgent = assignedAgent;
                 }
+
+                SyncToRepository(task);
             }
         }
 
@@ -127,6 +151,8 @@ namespace DraCode.KoboldLair.Models.Tasks
                     // Set NextRetryAt to 1 minute from now (first retry)
                     task.NextRetryAt = DateTime.UtcNow.AddMinutes(1);
                 }
+
+                SyncToRepository(task);
             }
         }
 
@@ -141,6 +167,8 @@ namespace DraCode.KoboldLair.Models.Tasks
                 task.ErrorCategory = null;
                 task.NextRetryAt = null;
                 task.UpdatedAt = DateTime.UtcNow;
+
+                SyncToRepository(task);
             }
         }
 
@@ -641,5 +669,58 @@ namespace DraCode.KoboldLair.Models.Tasks
                     .ToDictionary(g => g.Key, g => g.Count());
             }
         }
+
+        #region Database Dual-Write
+
+        /// <summary>
+        /// Loads tasks from the database repository instead of files.
+        /// Returns the number of tasks loaded, or -1 if repository is not configured.
+        /// </summary>
+        public async Task<int> LoadFromRepositoryAsync()
+        {
+            if (Repository == null || string.IsNullOrEmpty(ProjectId) || string.IsNullOrEmpty(AreaName))
+                return -1;
+
+            var tasks = await Repository.GetByProjectAndAreaAsync(ProjectId, AreaName);
+            lock (_lock)
+            {
+                _tasks.Clear();
+                _tasks.AddRange(tasks);
+            }
+            return tasks.Count;
+        }
+
+        /// <summary>
+        /// Syncs a task record to the database repository (fire-and-forget).
+        /// Called internally after each mutation. Failures are swallowed to avoid
+        /// breaking in-memory operations — JSON file saves remain the safety net.
+        /// </summary>
+        private void SyncToRepository(TaskRecord task, bool isNew = false)
+        {
+            if (Repository == null || string.IsNullOrEmpty(ProjectId) || string.IsNullOrEmpty(AreaName))
+                return;
+
+            // Fire-and-forget: database write should not block the caller
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (isNew)
+                    {
+                        await Repository.AddTaskAsync(ProjectId, AreaName, task);
+                    }
+                    else
+                    {
+                        await Repository.UpdateTaskAsync(task);
+                    }
+                }
+                catch
+                {
+                    // Swallow: JSON file save is the safety net during transition
+                }
+            });
+        }
+
+        #endregion
     }
 }

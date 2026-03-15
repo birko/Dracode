@@ -1023,31 +1023,28 @@ Migrate from file-based JSON storage to a hybrid database approach using Birko.F
 
 #### Week 6: TaskTracker Migration & Testing
 
-- [ ] **Update TaskTracker to use SqlTaskRepository** ⚪ NOT STARTED
-  - Inject `ITaskRepository` via DI
-  - Replace JSON file operations with repository calls
-  - Keep dual-write (JSON + SQL) during transition
-  - **Location**: `DraCode.KoboldLair/Models/Tasks/TaskTracker.cs`
-  - **Effort**: 4 hours
+- [x] **Update TaskTracker with dual-write to ITaskRepository** ✅ COMPLETED (2026-03-15)
+  - Added `Repository`, `ProjectId`, `AreaName` properties to TaskTracker
+  - All mutations (AddTask, UpdateTask, SetError, ClearError) fire-and-forget sync to DB
+  - Added `LoadFromRepositoryAsync()` for loading from DB instead of files
+  - DrakeFactory passes `ITaskRepository` to TaskTrackers on creation
+  - `ITaskRepository` registered in Program.cs (SQLite when configured, null otherwise)
 
-- [ ] **Update SharedPlanningContextService** ⚪ NOT STARTED
-  - Inject `IPlanningContextRepository` via DI
-  - Replace file-based persistence
-  - **Location**: `DraCode.KoboldLair/Services/SharedPlanningContextService.cs`
-  - **Effort**: 3 hours
+- [x] **Create migration tool** ✅ COMPLETED (2026-03-15)
+  - `JsonToSqlMigration` reads projects.json + per-area task JSON files
+  - Writes to SQLite via `SqlProjectRepository` + `SqlTaskRepository`
+  - Supports `--dry-run` mode (reports without writing)
+  - Handles idempotent migration (updates existing, inserts new)
+  - Returns `MigrationResult` with counts and error list
+  - **Location**: `DraCode.KoboldLair/Data/Migrations/JsonToSqlMigration.cs`
 
-- [ ] **Update KoboldPlanService** ⚪ NOT STARTED
-  - Inject `IKoboldPlanRepository` via DI
-  - Replace file-based plan storage
-  - **Location**: `DraCode.KoboldLair/Services/KoboldPlanService.cs`
-  - **Effort**: 3 hours
+- [ ] **Update SharedPlanningContextService** ⚪ DEFERRED
+  - Lower priority — works fine with JSON file persistence
+  - Will benefit more from Redis caching (Birko.Caching.Redis) than SQL
 
-- [ ] **Create migration tool** ⚪ NOT STARTED
-  - CLI command to migrate existing JSON projects to database
-  - Options: `--dry-run`, `--backup`, `--verify`
-  - Progress reporting and error handling
-  - **Location**: `DraCode.KoboldLair/Data/Migrations/MigrationTool.cs`
-  - **Effort**: 6 hours
+- [ ] **Update KoboldPlanService** ⚪ DEFERRED
+  - Lower priority — plan files are already debounced and per-project
+  - SQL migration resolves debounce race (TODO item) but requires deeper refactor
 
 - [ ] **Integration testing** ⚪ NOT STARTED
   - Test CRUD operations for all repositories

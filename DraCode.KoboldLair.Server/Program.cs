@@ -67,6 +67,23 @@ builder.Services.AddSingleton<IProjectRepository>(sp =>
     return sp.GetRequiredService<ProjectRepository>();
 });
 
+// Register ITaskRepository - uses SQLite when configured, null otherwise (TaskTracker uses JSON fallback)
+builder.Services.AddSingleton<ITaskRepository?>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    var koboldConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    dataConfig.ProjectsPath = koboldConfig.ProjectsPath ?? "./projects";
+
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+        var repo = RepositoryFactory.CreateTaskRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
+        return repo;
+    }
+
+    return null; // TaskTracker falls back to JSON file persistence
+});
+
 // Register plan service for implementation plan persistence
 builder.Services.AddSingleton<KoboldPlanService>(sp =>
 {
@@ -108,9 +125,10 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
     var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
+    var taskRepository = sp.GetService<ITaskRepository>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var factory = new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config,
-        loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext);
+        loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext, taskRepository);
 
     // Wire feature completion notifications so users get notified when branches are ready for merge
     var notificationService = sp.GetRequiredService<ProjectNotificationService>();
