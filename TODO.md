@@ -1146,14 +1146,15 @@ Current state: Agent lifecycle events use direct callbacks (`Action<string, stri
 
 Current state: `SharedPlanningContextService` uses in-memory `ConcurrentDictionary` with LRU (max 50 projects) + JSON file persistence.
 
-- [ ] **Integrate `Birko.Caching.Redis`** ⚪ NOT STARTED
-  - Cache active agent tracking with TTL (auto-expire stale agents)
-  - Cache file locks with auto-expiry (replaces manual cleanup)
-  - Cache project statistics and cross-project insights
-  - Cache hot project data (reduces JSON file reads)
-  - **Package**: `Birko.Caching` + `Birko.Caching.Redis`
-  - **Prerequisite**: Redis instance (can add to Aspire AppHost)
-  - **Effort**: 10 hours
+- [x] **Integrate `Birko.Caching` (MemoryCache)** ✅ COMPLETED (2026-03-15)
+  - Replaced manual ConcurrentDictionary + LRU trimming in `SharedPlanningContextService`
+  - Project contexts: `ICache` with 30-min sliding expiration (auto-evict inactive)
+  - Agent tracking: `ICache` with 2-hour absolute expiration (auto-clean stale agents)
+  - `GetOrSetAsync` with built-in stampede protection for project context loading
+  - `UpdateAgentActivityAsync` refreshes cache TTL on agent heartbeat
+  - JSON file persistence unchanged (disk = durable store, cache = fast access layer)
+  - **Package**: `Birko.Caching` (MemoryCache — no Redis dependency needed)
+  - **Upgrade path**: Swap `MemoryCache` for `Birko.Caching.Redis` when multi-instance needed
 
 ### Validation — Specification & Feature Input
 

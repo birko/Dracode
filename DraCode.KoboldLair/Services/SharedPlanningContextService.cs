@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Birko.Caching;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Agents;
 
@@ -9,6 +10,7 @@ namespace DraCode.KoboldLair.Services;
 /// Service for sharing planning context between multiple Kobolds, Drake supervisors, and across projects.
 /// Enables coordination, learning from past executions, and intelligent task distribution.
 /// Thread-safe for concurrent access from multiple agents.
+/// Uses Birko.Caching.MemoryCache for automatic TTL/expiry of project contexts and agent tracking.
 /// </summary>
 public class SharedPlanningContextService
 {
@@ -18,26 +20,43 @@ public class SharedPlanningContextService
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly string _projectsPath;
 
-    // In-memory caches for fast access
-    private readonly ConcurrentDictionary<string, ProjectPlanningContext> _projectContexts = new();
+    // Birko.Caching for project contexts — sliding expiration keeps active projects cached
+    private readonly ICache _projectCache;
+
+    // Birko.Caching for active agent tracking — absolute expiry auto-cleans stale agents
+    private readonly ICache _agentCache;
+
+    // Agent contexts also kept in ConcurrentDictionary for enumeration (ICache doesn't support iteration)
     private readonly ConcurrentDictionary<string, AgentPlanningContext> _activeAgentContexts = new();
+
+    // Insights stored in ConcurrentDictionary (cross-project, no TTL needed)
     private readonly ConcurrentDictionary<string, PlanningInsight> _insights = new();
+
+    // Track cached project IDs for PersistAllContextsAsync (ICache doesn't support iteration)
+    private readonly ConcurrentDictionary<string, byte> _cachedProjectIds = new();
     private readonly SemaphoreSlim _persistenceLock = new(1, 1);
 
     // Configuration
     private const int MaxInsightsPerProject = 100;
-    private const int MaxCachedProjects = 50;
+
+    // Cache TTLs
+    private static readonly TimeSpan ProjectCacheSlidingTtl = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan AgentCacheAbsoluteTtl = TimeSpan.FromMinutes(120);
 
     public SharedPlanningContextService(
         string projectsPath,
         KoboldPlanService planService,
         IProjectRepository projectRepository,
-        ILogger<SharedPlanningContextService>? logger = null)
+        ILogger<SharedPlanningContextService>? logger = null,
+        ICache? projectCache = null,
+        ICache? agentCache = null)
     {
         _projectsPath = projectsPath;
         _planService = planService;
         _projectRepository = projectRepository;
         _logger = logger;
+        _projectCache = projectCache ?? new Birko.Caching.Memory.MemoryCache(cleanupInterval: TimeSpan.FromSeconds(60));
+        _agentCache = agentCache ?? new Birko.Caching.Memory.MemoryCache(cleanupInterval: TimeSpan.FromSeconds(30));
         _jsonOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
@@ -49,31 +68,31 @@ public class SharedPlanningContextService
     #region Project Context Management
 
     /// <summary>
-    /// Gets or creates the planning context for a project
+    /// Gets or creates the planning context for a project.
+    /// Uses Birko.Caching with sliding expiration — active projects stay cached automatically.
     /// </summary>
     public async Task<ProjectPlanningContext> GetProjectContextAsync(string projectId)
     {
-        if (_projectContexts.TryGetValue(projectId, out var context))
+        var cacheKey = $"project:{projectId}";
+        var result = await _projectCache.GetOrSetAsync(cacheKey, async _ =>
         {
-            context.LastAccessedAt = DateTime.UtcNow;
+            var context = await LoadProjectContextAsync(projectId) ?? new ProjectPlanningContext
+            {
+                ProjectId = projectId,
+                CreatedAt = DateTime.UtcNow,
+                LastAccessedAt = DateTime.UtcNow
+            };
             return context;
-        }
+        }, CacheEntryOptions.Sliding(ProjectCacheSlidingTtl));
 
-        // Load from disk or create new
-        context = await LoadProjectContextAsync(projectId) ?? new ProjectPlanningContext
-        {
-            ProjectId = projectId,
-            CreatedAt = DateTime.UtcNow,
-            LastAccessedAt = DateTime.UtcNow
-        };
-
-        _projectContexts[projectId] = context;
-        await TrimCacheIfNeededAsync();
-        return context;
+        _cachedProjectIds[projectId] = 0;
+        result.LastAccessedAt = DateTime.UtcNow;
+        return result;
     }
 
     /// <summary>
-    /// Registers an active agent working on a task
+    /// Registers an active agent working on a task.
+    /// Agent entry auto-expires after AgentCacheAbsoluteTtl if not unregistered (stale agent cleanup).
     /// </summary>
     public async Task RegisterAgentAsync(string agentId, string projectId, string taskId, string agentType)
     {
@@ -88,6 +107,8 @@ public class SharedPlanningContextService
         };
 
         _activeAgentContexts[agentId] = agentContext;
+        await _agentCache.SetAsync($"agent:{agentId}", agentContext,
+            CacheEntryOptions.Absolute(AgentCacheAbsoluteTtl));
 
         var projectContext = await GetProjectContextAsync(projectId);
         projectContext.ActiveAgentCount++;
@@ -106,6 +127,8 @@ public class SharedPlanningContextService
         {
             return;
         }
+
+        await _agentCache.RemoveAsync($"agent:{agentId}");
 
         var projectContext = await GetProjectContextAsync(agentContext.ProjectId);
         projectContext.ActiveAgentCount = Math.Max(0, projectContext.ActiveAgentCount - 1);
@@ -132,13 +155,30 @@ public class SharedPlanningContextService
     }
 
     /// <summary>
-    /// Updates agent activity timestamp (for heartbeat/monitoring)
+    /// Updates agent activity timestamp (for heartbeat/monitoring).
+    /// Also refreshes the cache TTL so active agents don't expire.
+    /// </summary>
+    public async Task UpdateAgentActivityAsync(string agentId)
+    {
+        if (_activeAgentContexts.TryGetValue(agentId, out var context))
+        {
+            context.LastActivityAt = DateTime.UtcNow;
+            // Refresh cache TTL
+            await _agentCache.SetAsync($"agent:{agentId}", context,
+                CacheEntryOptions.Absolute(AgentCacheAbsoluteTtl));
+        }
+    }
+
+    /// <summary>
+    /// Updates agent activity timestamp (synchronous compatibility wrapper)
     /// </summary>
     public void UpdateAgentActivity(string agentId)
     {
         if (_activeAgentContexts.TryGetValue(agentId, out var context))
         {
             context.LastActivityAt = DateTime.UtcNow;
+            _ = _agentCache.SetAsync($"agent:{agentId}", context,
+                CacheEntryOptions.Absolute(AgentCacheAbsoluteTtl));
         }
     }
 
@@ -663,13 +703,17 @@ public class SharedPlanningContextService
     {
         var insights = new List<PlanningInsight>();
 
-        // Get insights from all cached projects except current
-        foreach (var kvp in _projectContexts.Where(p => p.Key != currentProjectId))
+        // Get insights from all tracked projects except current
+        foreach (var projectId in _cachedProjectIds.Keys.Where(p => p != currentProjectId))
         {
-            insights.AddRange(kvp.Value.Insights
-                .Where(i => i.AgentType == agentType && i.Success)
-                .OrderByDescending(i => i.Timestamp)
-                .Take(3));
+            var cacheResult = await _projectCache.GetAsync<ProjectPlanningContext>($"project:{projectId}");
+            if (cacheResult.HasValue)
+            {
+                insights.AddRange(cacheResult.Value!.Insights
+                    .Where(i => i.AgentType == agentType && i.Success)
+                    .OrderByDescending(i => i.Timestamp)
+                    .Take(3));
+            }
         }
 
         return insights
@@ -743,10 +787,13 @@ public class SharedPlanningContextService
 
     private async Task PersistProjectContextAsync(string projectId)
     {
-        if (!_projectContexts.TryGetValue(projectId, out var context))
+        var cacheKey = $"project:{projectId}";
+        var result = await _projectCache.GetAsync<ProjectPlanningContext>(cacheKey);
+        if (!result.HasValue)
         {
             return;
         }
+        var context = result.Value!;
 
         await _persistenceLock.WaitAsync();
         try
@@ -780,32 +827,14 @@ public class SharedPlanningContextService
     /// </summary>
     public async Task PersistAllContextsAsync()
     {
-        var tasks = _projectContexts.Keys
+        var tasks = _cachedProjectIds.Keys
             .Select(projectId => PersistProjectContextAsync(projectId))
             .ToList();
 
         await Task.WhenAll(tasks);
     }
 
-    private async Task TrimCacheIfNeededAsync()
-    {
-        if (_projectContexts.Count <= MaxCachedProjects)
-        {
-            return;
-        }
-
-        // Remove least recently accessed contexts
-        var toRemove = _projectContexts
-            .OrderBy(kvp => kvp.Value.LastAccessedAt)
-            .Take(_projectContexts.Count - MaxCachedProjects)
-            .ToList();
-
-        foreach (var kvp in toRemove)
-        {
-            await PersistProjectContextAsync(kvp.Key);
-            _projectContexts.TryRemove(kvp.Key, out _);
-        }
-    }
+    // Cache trimming is now handled automatically by Birko.Caching.MemoryCache TTL/expiry
 
     #endregion
 
