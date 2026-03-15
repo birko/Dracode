@@ -870,71 +870,55 @@ Migrate from file-based JSON storage to a hybrid database approach using Birko.F
 
 ### Phase 1: Birko.Framework Integration (Foundation)
 
-#### Week 1: Setup & PostgreSQL Connector
+#### Week 1: Setup & SQLite Connector *(Changed from PostgreSQL — SQLite for dev, PostgreSQL later)*
 
-- [ ] **Add Birko.Data project references** ⚪ NOT STARTED
-  - Add to `DraCode.KoboldLair.Server`:
-    - `..\..\Birko.Data\Birko.Data.shproj`
-    - `..\..\Birko.Data.SQL\Birko.Data.SQL.shproj`
-    - `..\..\Birko.Data.SQL.MSSql\Birko.Data.SQL.MSSql.shproj`
-    - `..\..\Birko.Data.JSON\Birko.Data.JSON.shproj`
-  - Update `DraCode.slnx` with project references
-  - **Effort**: 2 hours
+- [x] **Add Birko.Data project references** ✅ COMPLETED (2026-03-15)
+  - Added to `DraCode.KoboldLair` (not Server — library needs the types):
+    - `Birko.Helpers`, `Birko.Data.Core`, `Birko.Models`, `Birko.Data.Stores`
+    - `Birko.Data.Repositories`, `Birko.Data.Patterns`, `Birko.Data.ViewModel`
+    - `Birko.Data.SQL`, `Birko.Data.SQL.View`, `Birko.Data.SQL.ViewModel`
+    - `Birko.Data.SQL.SqLite`
+  - Added NuGet: `System.Data.SQLite` v1.0.119
+  - Updated `DraCode.slnx` with all shared project references
 
-- [ ] **Create PostgreSQL connector for Birko.Data** ⚪ NOT STARTED
-  - Create new project: `C:/Source/Birko.Data.SQL.PostgreSQL/`
-  - Files:
-    - `Birko.Data.SQL.PostgreSQL.shproj` (shared project)
-    - `Birko.Data.SQL.PostgreSQL.projitems`
-    - `PostgreSqlConnector.cs` (extend `AbstractConnector`)
-  - Add NuGet package: `Npgsql` v8.0.3
-  - PostgreSQL-specific overrides:
-    - Use `SERIAL` for auto-increment (not `IDENTITY`)
-    - Use `$1, $2` for parameters (not `@p1`)
-    - Use `TRUE/FALSE` for boolean (not `1/0`)
-  - **Location**: Follow pattern from `Birko.Data.SQL.MSSql/MSSqlConnector.cs`
-  - **Effort**: 6 hours
+- [x] **SQLite connector (pre-existing)** ✅ ALREADY EXISTS
+  - `Birko.Data.SQL.SqLite` at `C:/Source/Birko.Data.SQL.SqLite/`
+  - Includes: `SqLiteConnector`, `AsyncSqLiteModelRepository`, bulk operations
+  - No new code needed — just referenced the existing shared project
 
-- [ ] **Create repository abstraction layer** ⚪ NOT STARTED
-  - Create `DraCode.KoboldLair/Data/Repositories/` directory
-  - Create interfaces:
-    - `IProjectRepository.cs` (abstract current `ProjectRepository`)
-    - `ITaskRepository.cs` (new interface for task storage)
-    - `IPlanningContextRepository.cs` (new interface for planning context)
-  - Create `RepositoryFactory.cs` for backend selection
-  - **Effort**: 4 hours
+- [x] **Create repository abstraction layer** ✅ COMPLETED (2026-03-15)
+  - Created `DraCode.KoboldLair/Data/Repositories/` directory
+  - Created interfaces:
+    - `IProjectRepository.cs` — full API matching existing `ProjectRepository`
+    - `ITaskRepository.cs` — async-first task storage interface
+  - Created `RepositoryFactory.cs` with `DataStorageConfig` + `StorageBackend` enum
+  - `ProjectRepository` now implements `IProjectRepository` (JSON backend)
 
-#### Week 2: Model Updates for Birko.Data
+#### Week 2: Entity Models & ViewModels for Birko.Data
 
-- [ ] **Update Project model to inherit from Birko.Data.Models.AbstractModel** ⚪ NOT STARTED
-  - Add `[Table("projects")]` attribute
-  - Add `[Field]` attributes to properties
-  - Replace `Id` string with `GUID` Guid property
-  - Implement `ILoadable<T>` for ViewModel pattern
-  - **Files to modify**:
-    - `DraCode.KoboldLair/Models/Projects/Project.cs`
-    - `DraCode.KoboldLair/Models/Projects/ProjectPaths.cs`
-    - `DraCode.KoboldLair/Models/Projects/ProjectTimestamps.cs`
-    - `DraCode.KoboldLair/Models/Projects/AgentConfig.cs`
-    - `DraCode.KoboldLair/Models/Projects/ProjectSecurity.cs`
-  - **Effort**: 6 hours
+- [x] **Create database entity models** ✅ COMPLETED (2026-03-15)
+  - Created `ProjectEntity` inheriting `AbstractDatabaseLogModel` with `[Table("projects")]`
+  - Created `TaskEntity` inheriting `AbstractDatabaseLogModel` with `[Table("tasks")]`
+  - **Design decision**: Domain models (Project, TaskRecord) kept unchanged. Separate entity classes
+    map flat SQL columns. Complex nested objects (Paths, Agents, Security) stored as JSON text columns.
+  - **Location**: `DraCode.KoboldLair/Data/Entities/`
 
-- [ ] **Update TaskRecord model for Birko.Data** ⚪ NOT STARTED
-  - Add `[Table("tasks")]` attribute
-  - Add `[Field]` attributes to properties
-  - Replace `Id` string with `GUID` Guid property
-  - Implement `ILoadable<T>` for ViewModel pattern
-  - **Files to modify**:
-    - `DraCode.KoboldLair/Models/Tasks/TaskRecord.cs`
-    - `DraCode.KoboldLair/Models/Tasks/TaskStatus.cs`
-    - `DraCode.KoboldLair/Models/Tasks/TaskPriority.cs`
-  - **Effort**: 4 hours
+- [x] **Create ViewModel classes** ✅ COMPLETED (2026-03-15)
+  - `ProjectViewModel` extends `LogViewModel`, implements `ILoadable<ProjectEntity>`
+  - `TaskViewModel` extends `LogViewModel`, implements `ILoadable<TaskEntity>`
+  - **Location**: `DraCode.KoboldLair/Data/ViewModels/`
 
-- [ ] **Create ViewModel classes** ⚪ NOT STARTED
-  - `ProjectViewModel.cs` (implements `ILoadable<Project>`)
-  - `TaskViewModel.cs` (implements `ILoadable<TaskRecord>`)
-  - Separate ViewModels from domain models (Birko pattern)
-  - **Effort**: 3 hours
+- [x] **Create EntityMapper** ✅ COMPLETED (2026-03-15)
+  - Bidirectional mapping: `Project ↔ ProjectEntity`, `TaskRecord ↔ TaskEntity`
+  - JSON serialization for nested objects (Paths, Agents, Security, Dependencies, etc.)
+  - `UpdateEntity()` methods preserve Guid while updating all fields
+  - **Location**: `DraCode.KoboldLair/Data/EntityMapper.cs`
+
+- [x] **Create SQL repository implementations** ✅ COMPLETED (2026-03-15)
+  - `SqlProjectRepository` — full IProjectRepository with in-memory cache + SQLite persistence
+  - `SqlTaskRepository` — full ITaskRepository with async-first operations
+  - Both use `AsyncSqLiteModelRepository<T>` from Birko.Data.SQL.SqLite
+  - **Location**: `DraCode.KoboldLair/Data/Repositories/Sql/`
 
 ---
 

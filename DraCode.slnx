@@ -1,10 +1,20 @@
 <Solution>
   <Folder Name="/Birko.Framework/">
-    <!-- Birko.Communication.Authentication moved to Birko.Security -->
+    <!-- Birko.Communication -->
     <Project Path="../Birko.Communication.WebSocket/Birko.Communication.WebSocket.shproj" Id="d4e5f6a7-b8c9-4d7e-9f3a-4b5c6d7e8f9a" />
     <Project Path="../Birko.Communication.SSE/Birko.Communication.SSE.shproj" Id="7f8e9d0a-1b2c-4d3e-8f9a-2b3c4d5e6f7a" />
     <Project Path="../Birko.MessageQueue/Birko.MessageQueue.shproj" Id="c4d5e6f7-a8b9-4c0d-9e1f-2a3b4c5d6e70" />
     <Project Path="../Birko.Communication/Birko.Communication.shproj" Id="6963fc74-fdaa-416a-b221-650d6548be8b" />
+    <!-- Birko.Data -->
+    <Project Path="../Birko.Data.Core/Birko.Data.Core.shproj" Id="a1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e" />
+    <Project Path="../Birko.Models/Birko.Models.shproj" Id="d4e5f6a7-1234-4567-89ab-cdef01234567" />
+    <Project Path="../Birko.Data.Stores/Birko.Data.Stores.shproj" Id="b2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f" />
+    <Project Path="../Birko.Data.Repositories/Birko.Data.Repositories.shproj" Id="c3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a" />
+    <Project Path="../Birko.Data.Patterns/Birko.Data.Patterns.shproj" Id="e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b" />
+    <Project Path="../Birko.Data.ViewModel/Birko.Data.ViewModel.shproj" Id="f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c" />
+    <Project Path="../Birko.Data.SQL/Birko.Data.SQL.shproj" Id="783ef023-7f54-4b14-a9fc-066e7d6ac966" />
+    <Project Path="../Birko.Data.SQL.ViewModel/Birko.Data.SQL.ViewModel.shproj" Id="a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d" />
+    <Project Path="../Birko.Data.SQL.SqLite/Birko.Data.SQL.SqLite.shproj" Id="a00e9b88-4e24-40e4-aee1-f3833453aaa5" />
   </Folder>
   <Project Path="DraCode.Agent.Tests/DraCode.Agent.Tests.csproj" />
   <Project Path="DraCode.Agent/DraCode.Agent.csproj" />

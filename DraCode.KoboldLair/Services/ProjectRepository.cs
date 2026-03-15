@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Configuration;
 
@@ -6,9 +7,9 @@ namespace DraCode.KoboldLair.Services
 {
     /// <summary>
     /// Repository for persisting projects to JSON file storage.
-    /// Thread-safe for concurrent access.
+    /// Thread-safe for concurrent access. Implements IProjectRepository for backend abstraction.
     /// </summary>
-    public class ProjectRepository
+    public class ProjectRepository : IProjectRepository
     {
         /// <summary>
         /// Gets the canonical path with correct capitalization from the filesystem.
