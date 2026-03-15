@@ -137,6 +137,11 @@ export class HierarchyView {
         }
     }
 
+    async refresh() {
+        if (!this.api.isConnected()) return;
+        await this._autoRefresh();
+    }
+
     async _autoRefresh() {
         if (!this.api.isConnected()) return;
         try {

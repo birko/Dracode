@@ -142,4 +142,9 @@ export class DashboardView {
         };
         return statusMap[status] || 'info';
     }
+
+    async refresh() {
+        if (!this.api.isConnected()) return;
+        await this._autoRefresh();
+    }
 }

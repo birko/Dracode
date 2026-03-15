@@ -429,6 +429,19 @@ namespace DraCode.KoboldLair.Server.Services
                     timestamp = DateTime.UtcNow
                 }, s_writeOptions);
                 await request.Sender.SendAsync(Encoding.UTF8.GetBytes(json));
+
+                // Call post-response callback (e.g., to check for new specifications)
+                if (request.OnResponseCallback != null)
+                {
+                    try
+                    {
+                        await request.OnResponseCallback();
+                    }
+                    catch (Exception callbackEx)
+                    {
+                        _logger.LogError(callbackEx, "Error in OnResponseCallback for request: {RequestId}", request.RequestId);
+                    }
+                }
             }
             catch (Exception ex)
             {

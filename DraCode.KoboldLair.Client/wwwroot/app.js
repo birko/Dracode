@@ -183,8 +183,14 @@ class App {
     setupRefreshButton() {
         const refreshBtn = document.getElementById('refreshBtn');
         refreshBtn?.addEventListener('click', async () => {
-            const currentHash = window.location.hash.slice(1) || 'dashboard';
-            await this.loadView(currentHash);
+            // Use the view's built-in refresh method if available (preserves state like filters, scroll position)
+            if (this.currentView && typeof this.currentView.refresh === 'function') {
+                await this.currentView.refresh();
+            } else {
+                // Fallback to full view reload for views without refresh method
+                const currentHash = window.location.hash.slice(1) || 'dashboard';
+                await this.loadView(currentHash);
+            }
         });
     }
 

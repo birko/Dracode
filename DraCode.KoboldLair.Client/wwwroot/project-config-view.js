@@ -345,4 +345,13 @@ export class ProjectConfigView {
         const modal = document.getElementById('editConfigModal');
         if (modal) modal.remove();
     }
+
+    async refresh() {
+        // Re-render the entire configuration view
+        const content = document.getElementById('content');
+        if (content) {
+            content.innerHTML = await this.render();
+            this.onMount();
+        }
+    }
 }

@@ -374,6 +374,11 @@ export class ImpactView {
         this._selectedProjectId = null;
     }
 
+    async refresh() {
+        if (!this.api.isConnected()) return;
+        await this._autoRefresh();
+    }
+
     async _autoRefresh() {
         if (!this.api.isConnected() || !this._selectedProjectId) return;
         try {

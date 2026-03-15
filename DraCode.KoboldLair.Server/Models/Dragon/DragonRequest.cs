@@ -24,6 +24,12 @@ namespace DraCode.KoboldLair.Server.Models.Dragon
         public Action<string, string>? StatusCallback { get; set; }
 
         /// <summary>
+        /// Optional callback called after the response is successfully sent
+        /// Used for post-response processing like checking for new specifications
+        /// </summary>
+        public Func<Task>? OnResponseCallback { get; set; }
+
+        /// <summary>
         /// Whether this request has been processed
         /// </summary>
         public bool IsProcessed { get; set; }

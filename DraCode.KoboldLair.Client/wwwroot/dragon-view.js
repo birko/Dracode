@@ -208,7 +208,17 @@ class DragonSession {
 
             case 'specification_created': {
                 const projectName = data.projectFolder ? data.projectFolder.split(/[/\\]/).pop() : 'project';
-                const message = `Specification created for project: ${projectName} (${data.filename})`;
+                let message = `✅ Specification created for project: ${projectName} (${data.filename})`;
+
+                // Add git status information
+                if (data.gitStatus === 'not_installed') {
+                    message += `\n\n⚠️ **Git not installed** - Version control is not available. Install git for automatic commit tracking.`;
+                } else if (data.gitStatus === 'not_initialized') {
+                    message += `\n\n⚠️ **Git not initialized** - The project folder was created but git initialization failed.`;
+                } else if (data.gitStatus === 'initialized') {
+                    message += `\n\n🔀 **Git initialized** - Automatic version control is enabled for this project.`;
+                }
+
                 this.addMessage('system', message, data.messageId);
                 this.view.showNotification(`Specification created: ${projectName}`, 'success');
                 return;
@@ -336,6 +346,10 @@ export class DragonView {
 
         // Create initial session (server replays history on connect)
         this.createNewSession();
+
+        // Setup cleanup for page unload (not view switching)
+        this._cleanupOnUnload = () => this.cleanup();
+        window.addEventListener('beforeunload', this._cleanupOnUnload);
     }
 
     /**
@@ -640,9 +654,31 @@ export class DragonView {
     }
 
     onUnmount() {
+        // Don't disconnect WebSocket connections when switching views
+        // This preserves in-flight LLM requests and session state
+        // WebSocket will be properly cleaned up on page unload
+    }
+
+    async refresh() {
+        // DragonView uses real-time WebSocket updates, so manual refresh is not needed
+        // But we can re-render messages and scroll to bottom as a convenience
+        this.renderActiveSessionMessages();
+        const messagesContainer = document.getElementById('dragonMessages');
+        if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+
+    /**
+     * Cleanup all sessions and remove page unload handler
+     * Called only when the page is actually unloaded, not when switching views
+     */
+    cleanup() {
+        window.removeEventListener('beforeunload', this._cleanupOnUnload);
         this.sessions.forEach(session => {
             session.disconnect();
         });
+        this.sessions.clear();
     }
 
     sendMessage() {

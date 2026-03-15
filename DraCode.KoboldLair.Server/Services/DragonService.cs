@@ -1022,6 +1022,19 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                 };
 
+                // Set up post-response callback to check for new specifications
+                dragonRequest.OnResponseCallback = async () =>
+                {
+                    try
+                    {
+                        await CheckForNewSpecifications(webSocket, session);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in CheckForNewSpecifications callback");
+                    }
+                };
+
                 // Enqueue for async processing (non-blocking)
                 await _requestQueue.EnqueueAsync(dragonRequest);
 
@@ -1055,6 +1068,11 @@ namespace DraCode.KoboldLair.Server.Services
                     var projectFolder = Path.GetDirectoryName(latestSpec)!;
                     var projectName = Path.GetFileName(projectFolder);
 
+                    // Check git status for the project
+                    var gitInstalled = await _gitService.IsGitInstalledAsync();
+                    var gitInitialized = gitInstalled && await _gitService.IsRepositoryAsync(projectFolder);
+                    var gitStatus = gitInitialized ? "initialized" : (gitInstalled ? "not_initialized" : "not_installed");
+
                     // Set current project folder and load history if available
                     if (session.CurrentProjectFolder != projectFolder)
                     {
@@ -1081,7 +1099,10 @@ namespace DraCode.KoboldLair.Server.Services
                         filename = "specification.md",
                         path = latestSpec,
                         projectFolder,
-                        timestamp = DateTime.UtcNow
+                        timestamp = DateTime.UtcNow,
+                        gitStatus,
+                        gitInstalled,
+                        gitInitialized
                     });
 
                     try
@@ -1102,6 +1123,9 @@ namespace DraCode.KoboldLair.Server.Services
                             var project = _projectService.RegisterProject(projectName, latestSpec);
                             _logger.LogInformation("Auto-registered project: {Name} ({Id})", projectName, project.Id);
                         }
+
+                        // Invalidate cache so we don't re-process this same spec file
+                        InvalidateSpecFilesCache();
                     }
                     catch (Exception ex)
                     {

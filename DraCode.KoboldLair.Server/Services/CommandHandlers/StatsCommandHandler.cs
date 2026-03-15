@@ -114,9 +114,12 @@ namespace DraCode.KoboldLair.Server.Services.CommandHandlers
             var project = _projectService.GetProject(projectId!)
                 ?? throw new InvalidOperationException($"Project not found: {projectId}");
 
+            // Get all drakes for this project (there can be multiple, one per feature/task file)
+            var drakesForProject = _drakeFactory.GetDrakesForProject(project.Id);
+            var totalKobolds = drakesForProject.Sum(d => d.Drake.GetStatistics().WorkingKobolds);
+
+            // Check if wyvern exists for this project (by project name)
             var wyvern = _wyvernFactory.GetWyvern(project.Name);
-            var drake = _drakeFactory.GetDrake(project.Name);
-            var kobolds = drake?.GetStatistics().WorkingKobolds ?? 0;
 
             return Task.FromResult<object>(new
             {
@@ -125,8 +128,8 @@ namespace DraCode.KoboldLair.Server.Services.CommandHandlers
                 agents = new
                 {
                     wyverns = wyvern != null ? 1 : 0,
-                    drakes = drake != null ? 1 : 0,
-                    kobolds
+                    drakes = drakesForProject.Count,
+                    kobolds = totalKobolds
                 }
             });
         }

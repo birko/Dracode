@@ -57,6 +57,11 @@ namespace DraCode.KoboldLair.Agents.Tools
                     type = "string",
                     description = "Optional: filter tasks by status (for 'list' action)",
                     @enum = new[] { "all", "unassigned", "working", "done", "failed", "blocked" }
+                },
+                show_areas = new
+                {
+                    type = "boolean",
+                    description = "Optional: show task breakdown by area (for 'list' action)"
                 }
             },
             required = new[] { "action", "project" }
@@ -110,26 +115,62 @@ namespace DraCode.KoboldLair.Agents.Tools
                 };
 
                 var sb = new StringBuilder();
-                sb.AppendLine($"**Tasks for '{projectIdOrName}'** ({filtered.Count}/{tasks.Count} shown):\n");
-                sb.AppendLine("| Status | Priority | ID | Task | Agent | Dependencies |");
-                sb.AppendLine("|--------|----------|----|------|-------|--------------|");
 
-                foreach (var task in filtered.OrderBy(t => t.Status).ThenByDescending(t => t.Priority))
+                // Calculate overall progress
+                var total = tasks.Count;
+                var done = tasks.Count(t => t.Status == TaskStatus.Done);
+                var failed = tasks.Count(t => t.Status == TaskStatus.Failed);
+                var working = tasks.Count(t => t.Status == TaskStatus.Working || t.Status == TaskStatus.NotInitialized);
+                var blocked = tasks.Count(t => t.Status == TaskStatus.BlockedByFailure);
+                var unassigned = tasks.Count(t => t.Status == TaskStatus.Unassigned);
+                var percent = total > 0 ? (done * 100.0 / total) : 0;
+
+                // Progress bar
+                var barLength = 20;
+                var filledLength = (int)(percent / 100 * barLength);
+                var bar = new string('█', filledLength) + new string('░', barLength - filledLength);
+
+                // Overall progress summary at the top
+                sb.AppendLine($"# Project: {projectIdOrName}\n");
+                sb.AppendLine($"**Overall Progress:** [{bar}] {percent:F1}% ({done}/{total} tasks completed)\n");
+                sb.AppendLine($"**Task Breakdown:** ✅ {done} done | 🔨 {working} working | ⏳ {unassigned} unassigned | ❌ {failed} failed | 🚫 {blocked} blocked\n");
+                sb.AppendLine($"**Filter:** Showing {filtered.Count} of {total} tasks\n");
+
+                if (filtered.Count > 0)
                 {
-                    var statusIcon = GetStatusIcon(task.Status);
-                    var prioIcon = GetPriorityIcon(task.Priority);
-                    var desc = Truncate(task.Task, 35);
-                    var agent = string.IsNullOrEmpty(task.AssignedAgent) ? "-" : task.AssignedAgent;
-                    var deps = task.Dependencies.Count > 0 ? string.Join(", ", task.Dependencies.Take(3)) : "-";
-                    if (task.Dependencies.Count > 3) deps += $" +{task.Dependencies.Count - 3}";
+                    sb.AppendLine("| Status | Priority | ID | Task | Agent | Dependencies |");
+                    sb.AppendLine("|--------|----------|----|------|-------|--------------|");
 
-                    sb.AppendLine($"| {statusIcon} {task.Status} | {prioIcon} {task.Priority} | {task.Id[..8]} | {desc} | {agent} | {deps} |");
+                    foreach (var task in filtered.OrderBy(t => t.Status).ThenByDescending(t => t.Priority))
+                    {
+                        var statusIcon = GetStatusIcon(task.Status);
+                        var prioIcon = GetPriorityIcon(task.Priority);
+                        var desc = Truncate(task.Task, 35);
+                        var agent = string.IsNullOrEmpty(task.AssignedAgent) ? "-" : task.AssignedAgent;
+                        var deps = task.Dependencies.Count > 0 ? string.Join(", ", task.Dependencies.Take(3)) : "-";
+                        if (task.Dependencies.Count > 3) deps += $" +{task.Dependencies.Count - 3}";
+
+                        sb.AppendLine($"| {statusIcon} {task.Status} | {prioIcon} {task.Priority} | {task.Id[..8]} | {desc} | {agent} | {deps} |");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("*No tasks match the current filter.*");
                 }
 
-                // Summary
-                var byStatus = tasks.GroupBy(t => t.Status).OrderBy(g => g.Key);
-                sb.AppendLine();
-                sb.AppendLine("**Summary:** " + string.Join(", ", byStatus.Select(g => $"{g.Key}: {g.Count()}")));
+                // Summary by area (if available)
+                if (input.TryGetValue("show_areas", out var showAreasVal) && showAreasVal?.ToString() == "true")
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("**By Area:**");
+                    var byArea = tasks.GroupBy(t => t.Area ?? "general").OrderBy(g => g.Key);
+                    foreach (var area in byArea)
+                    {
+                        var areaDone = area.Count(t => t.Status == TaskStatus.Done);
+                        var areaPercent = area.Count() > 0 ? areaDone * 100.0 / area.Count() : 0;
+                        sb.AppendLine($"  - {area.Key}: {areaDone}/{area.Count} ({areaPercent:F0}%)");
+                    }
+                }
 
                 return sb.ToString();
             }
@@ -157,8 +198,16 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return $"Task '{taskId}' not found in project '{projectIdOrName}'.";
                 }
 
+                // Calculate overall project progress for context
+                var total = tasks.Count;
+                var done = tasks.Count(t => t.Status == TaskStatus.Done);
+                var percent = total > 0 ? (done * 100.0 / total) : 0;
+
                 var sb = new StringBuilder();
-                sb.AppendLine($"# Task: {task.Id[..8]}");
+                sb.AppendLine($"# Project: {projectIdOrName}\n");
+                sb.AppendLine($"**Overall Progress:** {done}/{total} tasks completed ({percent:F1}%)\n");
+                sb.AppendLine($"---\n");
+                sb.AppendLine($"## Task: {task.Id[..8]}");
                 sb.AppendLine();
                 sb.AppendLine($"**Description:** {task.Task}");
                 sb.AppendLine($"**Status:** {GetStatusIcon(task.Status)} {task.Status}");

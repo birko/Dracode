@@ -36,7 +36,7 @@ namespace DraCode.Agent.LLMs.Providers
         /// <summary>
         /// Default recommended model (latest stable)
         /// </summary>
-        public const string DefaultModel = Models.Glm5;
+        public const string DefaultModel = Models.Glm48;
 
         public override string Name => $"Z.AI ({_model})";
 
