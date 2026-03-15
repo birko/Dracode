@@ -6,6 +6,62 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### ✨ Added - Self-Reflection & Adaptive Feedback System (2026-03-15)
+
+**Kobold Self-Reflection** (`ReflectionTool.cs`, `Kobold.cs`):
+- New `reflect` tool injected during plan execution alongside `update_plan_step`
+- Kobolds call `reflect` every 3 iterations reporting progress, confidence, blockers, and decision
+- Stall detection: auto-escalates after N consecutive flat-progress reflections (configurable, default 3)
+- Low confidence: auto-escalates when confidence drops below threshold (configurable, default 30%)
+- Explicit escalation: Kobold can request `escalate` decision with type (task_infeasible, missing_dependency, needs_split, wrong_approach, wrong_agent_type)
+- Reflection data stored in `KoboldImplementationPlan.Reflections` and `Escalations` lists
+
+**Escalation Routing** (`Drake.cs`, `DrakeFactory.cs`):
+- `HandleEscalationAsync` routes escalations to appropriate upstream agent:
+  - `WrongApproach` → `KoboldPlannerAgent.RevisePlanAsync` (preserves completed steps, revises remaining)
+  - `TaskInfeasible` / `NeedsSplit` / `MissingDependency` → `Wyvern.RefineTaskAsync` (LLM-driven task refinement)
+  - `WrongAgentType` → task reset to Unassigned for reassignment
+- `OnEscalation` callback on DrakeFactory wired to ProjectNotificationService for Dragon client push
+- Fire-and-forget escalation callback with proper error logging
+
+**ReasoningMonitorService** (`ReasoningMonitorService.cs`):
+- New background service extending PeriodicBackgroundService (configurable interval, default 45s)
+- Detects: stuck loops (repeated file writes), stalled progress (no step completions with active LLM), repeated errors (identical blockers), budget exhaustion
+- Creates EscalationAlert with Source=ReasoningMonitor and routes through Drake
+
+**Planner Revision** (`KoboldPlannerAgent.cs`):
+- `RevisePlanAsync` method creates revised plans after escalation
+- Preserves completed steps, generates new remaining steps based on reflection history and escalation context
+
+**Wyvern Refinement** (`Wyvern.cs`):
+- `RefineTaskAsync` performs LLM-driven task refinement in response to escalations
+- Supports split, add dependency, revise complexity actions
+
+**Real-time Escalation Notifications** (`DragonService.cs`, `ProjectNotificationService.cs`):
+- DragonService subscribes to `ProjectNotificationService.OnNotification` for real-time WebSocket push
+- Active Dragon sessions viewing affected project receive escalation immediately
+- Previously notifications only delivered on connect/project-switch
+
+**Client Escalation UI** (`dragon-view.js`, `views.js`, `styles.css`):
+- Escalation notifications show as `⚠️ ESCALATION: {type}` in Dragon chat with resolution details
+- Warning toast stays 10 seconds (vs 4s for info notifications)
+- Red notification badge on Dragon nav item (clears on view)
+- Dashboard escalation banner: "N escalation(s) require attention" with link to Dragon
+- Shared `notification-store.js` for cross-view escalation awareness with auto-refresh
+
+**Configuration** (`appsettings.json`, `KoboldLairConfiguration.cs`):
+- New `Reflection` section with `Enabled`, `EscalationConfidenceThreshold`, `StallDetectionCount`, `MonitorIntervalSeconds`, `NoProgressTimeoutMinutes`, `MaxFileWriteRepetitions`
+- New `ReflectionConfiguration` class in `KoboldLairConfiguration.cs`
+
+**Agent Prompt Updates** (`KoboldPlannerAgent.cs`, `WyvernAgent.cs`):
+- Planner system prompt: "Self-Reflection & Escalation Awareness" section for measurable step design
+- Wyvern system prompt: "Escalation-Aware Task Design" section for clear acceptance criteria and correct dependencies
+
+**Bug Fixes**:
+- Fixed `ViewTaskDetailsTool.cs`: `TaskRecord.Area` property doesn't exist → extract area from task ID pattern
+- Fixed `ViewTaskDetailsTool.cs`: `area.Count` method group in interpolated string → `area.Count()`
+- Fixed all `FeatureStatus.New` obsolete warnings → replaced with `FeatureStatus.Draft` (same value=0)
+
 ### ✨ Added - Pipeline Quality Improvements (2026-03-15)
 
 **Improved Wyrm pre-analysis prompt** (`WyrmProcessingService.cs`):

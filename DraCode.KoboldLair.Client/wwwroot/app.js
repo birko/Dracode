@@ -228,6 +228,11 @@ class App {
                 if (view.onMount) {
                     view.onMount();
                 }
+
+                // Clear notification badge when navigating to Dragon
+                if (viewName === 'dragon' && view.clearNotificationBadge) {
+                    view.clearNotificationBadge();
+                }
             } else {
                 content.innerHTML = `
                     <div class="empty-state">

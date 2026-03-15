@@ -199,6 +199,12 @@ namespace DraCode.KoboldLair.Server.Services
             // Initialize the request queue for non-blocking execution
             _requestQueue = new DragonRequestQueue(logger, maxConcurrentDragonRequests);
 
+            // Subscribe to real-time notification events for push to active sessions
+            if (_notificationService != null)
+            {
+                _notificationService.OnNotification += OnProjectNotificationReceived;
+            }
+
             _cleanupTimer = new Timer(CleanupExpiredSessions, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
         }
 
@@ -240,10 +246,63 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
+        /// <summary>
+        /// Handles real-time notification events by pushing to all active Dragon sessions
+        /// viewing the affected project.
+        /// </summary>
+        private void OnProjectNotificationReceived(string projectName, ProjectNotification notification)
+        {
+            // Find sessions that are viewing this project and push the notification
+            foreach (var kvp in _sessions)
+            {
+                var session = kvp.Value;
+                if (string.IsNullOrEmpty(session.CurrentProjectFolder))
+                    continue;
+
+                // Match by project folder name
+                var folderName = Path.GetFileName(session.CurrentProjectFolder);
+                var sanitizedProjectName = projectName.ToLowerInvariant().Replace(" ", "-");
+                if (!string.Equals(folderName, sanitizedProjectName, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Get the WebSocket for this session
+                if (!_sessionWebSockets.TryGetValue(kvp.Key, out var webSocket))
+                    continue;
+
+                if (webSocket.State != System.Net.WebSockets.WebSocketState.Open)
+                    continue;
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await SendTrackedMessageAsync(webSocket, session, "project_notification", new
+                        {
+                            type = "project_notification",
+                            notificationType = notification.Type,
+                            sessionId = session.SessionId,
+                            message = notification.Message,
+                            metadata = notification.Metadata,
+                            timestamp = notification.CreatedAt
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to push notification to session {SessionId}", session.SessionId);
+                    }
+                });
+            }
+        }
+
         public void Dispose()
         {
             if (!_disposed)
             {
+                if (_notificationService != null)
+                {
+                    _notificationService.OnNotification -= OnProjectNotificationReceived;
+                }
                 _cleanupTimer.Dispose();
                 _requestQueue?.Dispose();
                 _disposed = true;

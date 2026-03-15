@@ -72,12 +72,20 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
+  - **ReasoningMonitorService** (45s): Detects stuck loops, stalled progress, repeated errors, budget exhaustion → creates escalation alerts
+  - **Escalation routing** (`HandleEscalationAsync`): Routes Kobold escalations to upstream agents:
+    - `WrongApproach` → KoboldPlannerAgent.RevisePlanAsync (preserves completed steps, revises remaining)
+    - `TaskInfeasible` / `NeedsSplit` / `MissingDependency` → Wyvern.RefineTaskAsync (LLM-driven task refinement)
+    - `WrongAgentType` → task reset for reassignment with different agent
   - **Git Worktrees**: Creates isolated worktrees per feature branch for parallel-safe execution
   - **Post-task verification**: After task completion, runs Critical-priority verification steps (e.g., `tsc --noEmit`) from Wyrm recommendations
   - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block
 - **Kobold Planner**: Creates structured implementation plans → enables resumability
   - **Module API signatures**: Receives extracted export statements from existing workspace files for cross-module awareness
+  - **Plan revision**: `RevisePlanAsync` revises plans after escalation, preserving completed steps and generating new remaining steps
 - **Kobold**: Executes plans step-by-step → outputs to `workspace/` subfolder
+  - **Self-reflection**: `reflect` tool called every 3 iterations to report progress, confidence, blockers, and decision (continue/pivot/escalate)
+  - **Escalation triggers**: Low confidence (<30%), stalled progress (3+ flat reflections), or explicit `escalate` decision
   - **Mandatory execution rules**: Read-before-write, no duplicate declarations, import consistency
   - **Integration task protocol**: Tasks with 4+ dependencies force reading all dependency files before writing
   - **Constraints display**: Project constraints shown prominently to prevent spec violations
@@ -181,6 +189,13 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `create_implementation_plan` - Creates structured plans with atomic steps
+
+### Kobold Execution Tools (3)
+
+Located in `DraCode.KoboldLair/Agents/Tools/`:
+- `update_plan_step` - Mark plan steps as completed/failed/skipped (injected during execution)
+- `reflect` - Self-assessment tool called every 3 iterations: reports progress, confidence, blockers, and decision (continue/pivot/escalate). Triggers escalation alerts on low confidence or stalled progress (NEW - 2026-03-15)
+- `modify_plan` - Suggest plan modifications during execution (if enabled)
 
 ### Shared Planning Context Service (NEW - 2026-02-09)
 
@@ -487,6 +502,31 @@ Kobold Planner creates implementation plans before execution:
   }
 }
 ```
+
+### Reflection Configuration (NEW - 2026-03-15)
+
+Controls Kobold self-reflection and escalation behavior:
+
+```json
+{
+  "KoboldLair": {
+    "Reflection": {
+      "Enabled": true,
+      "EscalationConfidenceThreshold": 30,
+      "StallDetectionCount": 3,
+      "MonitorIntervalSeconds": 45,
+      "NoProgressTimeoutMinutes": 10,
+      "MaxFileWriteRepetitions": 3
+    }
+  }
+}
+```
+
+- **EscalationConfidenceThreshold**: Confidence % below which `reflect` tool auto-escalates (default: 30)
+- **StallDetectionCount**: Consecutive flat-progress reflections before auto-escalation (default: 3)
+- **MonitorIntervalSeconds**: ReasoningMonitorService check interval (default: 45)
+- **NoProgressTimeoutMinutes**: Minutes without step completion before monitor flags stall (default: 10)
+- **MaxFileWriteRepetitions**: Repeated file writes before monitor flags stuck loop (default: 3)
 
 ### Allowed External Paths
 

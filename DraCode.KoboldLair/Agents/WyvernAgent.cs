@@ -76,6 +76,16 @@ This is the MOST IMPORTANT quality factor. Vague descriptions cause incorrect im
 - **Avoid ""dump file"" anti-pattern** where every subsequent task modifies the same file. If a file will be touched by 5+ tasks, split its content across module-specific files instead.
 - Each task should ideally OWN its output files. Minimize cross-task file modifications.
 
+## Escalation-Aware Task Design:
+- Kobolds executing tasks have a self-reflection system that monitors progress and can escalate issues back to Wyvern for task refinement.
+- Escalation types: task_infeasible, missing_dependency, needs_split, wrong_approach, wrong_agent_type
+- To MINIMIZE escalations, ensure each task has:
+  * **Clear acceptance criteria** so the Kobold knows when it's done
+  * **Correct dependencies** so the Kobold isn't blocked by missing prerequisite work
+  * **Appropriate scope** — tasks that are too large or vague trigger ""needs_split"" escalations
+  * **Correct agentType** — mismatched agent types trigger ""wrong_agent_type"" escalations
+- Tasks with 4+ dependencies are integration-heavy and escalation-prone — consider splitting them.
+
 ## Priority Guidelines:
 - **Critical**: Blocking tasks, core infrastructure, project setup
   * Examples: project structure, core config files, essential dependencies

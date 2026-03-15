@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DraCode.Agent;
+using DraCode.Agent.Agents;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
@@ -191,8 +192,7 @@ namespace DraCode.KoboldLair.Orchestrators
         public async Task<List<Feature>> GetNewFeaturesAsync(Specification specification)
         {
             _specification = specification;
-            // Process Ready features (and legacy New for backwards compatibility)
-            return specification.Features.Where(f => f.Status == FeatureStatus.Ready || f.Status == FeatureStatus.New).ToList();
+            return specification.Features.Where(f => f.Status == FeatureStatus.Ready || f.Status == FeatureStatus.Draft).ToList();
         }
 
         /// <summary>
@@ -384,8 +384,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 foreach (var feature in group)
                 {
                     var taskCount = feature.TaskIds.Count;
-                    // Handle legacy New status as Draft for display
-                    var displayStatus = group.Key == FeatureStatus.New ? FeatureStatus.Draft : group.Key;
+                    var displayStatus = group.Key;
 
                     var icon = displayStatus switch
                     {
@@ -544,8 +543,7 @@ Respond with ONLY valid JSON (no markdown, no explanations):
 
             var specContent = await File.ReadAllTextAsync(_specificationPath);
 
-            // Get new features to include in analysis (Ready and legacy New)
-            var newFeatures = _specification?.Features.Where(f => f.Status == FeatureStatus.Ready || f.Status == FeatureStatus.New).ToList() ?? new List<Feature>();
+            var newFeatures = _specification?.Features.Where(f => f.Status == FeatureStatus.Ready || f.Status == FeatureStatus.Draft).ToList() ?? new List<Feature>();
 
             // Build enhanced prompt with features and Wyrm recommendations
             var prompt = specContent;
@@ -894,5 +892,121 @@ Respond with ONLY valid JSON (no markdown, no explanations):
 
         public string ProjectName => _projectName;
         public string SpecificationPath => _specificationPath;
+
+        /// <summary>
+        /// Performs targeted task refinement in response to an escalation.
+        /// Returns a result describing what action to take (split, add dependency, etc.)
+        /// without modifying task files directly — Drake applies the changes.
+        /// </summary>
+        public async Task<WyvernRefinementResult> RefineTaskAsync(
+            string taskId,
+            string area,
+            EscalationAlert escalation,
+            List<ReflectionEntry> reflections)
+        {
+            var result = new WyvernRefinementResult();
+
+            try
+            {
+                // Build a targeted refinement prompt
+                var prompt = new System.Text.StringBuilder();
+                prompt.AppendLine("# Task Refinement Request");
+                prompt.AppendLine();
+                prompt.AppendLine($"## Escalation: {escalation.Type}");
+                prompt.AppendLine($"Task ID: {taskId}");
+                prompt.AppendLine($"Area: {area}");
+                prompt.AppendLine($"Summary: {escalation.Summary}");
+                prompt.AppendLine($"Agent Type: {escalation.AgentType}");
+                prompt.AppendLine();
+
+                if (reflections.Any())
+                {
+                    prompt.AppendLine("## Reflection History");
+                    foreach (var r in reflections.TakeLast(5))
+                    {
+                        prompt.AppendLine($"- progress={r.ProgressPercent}%, confidence={r.ConfidencePercent}%, decision={r.Decision}");
+                        if (!string.IsNullOrEmpty(r.Blockers))
+                            prompt.AppendLine($"  Blockers: {r.Blockers}");
+                    }
+                    prompt.AppendLine();
+                }
+
+                // Load specification for context
+                string? specContent = null;
+                if (File.Exists(_specificationPath))
+                {
+                    specContent = await File.ReadAllTextAsync(_specificationPath);
+                }
+
+                if (!string.IsNullOrEmpty(specContent))
+                {
+                    prompt.AppendLine("## Specification (excerpt)");
+                    // Truncate to keep prompt manageable
+                    var truncated = specContent.Length > 3000 ? specContent[..3000] + "\n..." : specContent;
+                    prompt.AppendLine(truncated);
+                    prompt.AppendLine();
+                }
+
+                prompt.AppendLine("## Decision Required");
+                prompt.AppendLine("Based on the escalation type, decide the best action.");
+                prompt.AppendLine("Return ONLY a JSON object with: { \"action\": \"split|add_dependency|revise|no_change\", \"summary\": \"what to do\" }");
+
+                switch (escalation.Type)
+                {
+                    case EscalationType.NeedsSplit:
+                        prompt.AppendLine("- This task is too large. How should it be split into smaller subtasks?");
+                        result.Action = RefinementAction.Split;
+                        break;
+
+                    case EscalationType.MissingDependency:
+                        prompt.AppendLine("- What dependency is missing and needs to be added?");
+                        result.Action = RefinementAction.AddDependency;
+                        break;
+
+                    case EscalationType.TaskInfeasible:
+                        prompt.AppendLine("- Can this task be revised to be feasible, or should it be removed?");
+                        result.Action = RefinementAction.ReviseComplexity;
+                        break;
+
+                    default:
+                        result.Action = RefinementAction.NoChange;
+                        result.Summary = $"No refinement action for escalation type: {escalation.Type}";
+                        _logger?.LogInformation(
+                            "Wyvern refinement skipped for task {TaskId}: {Summary}",
+                            taskId, result.Summary);
+                        return result;
+                }
+
+                // Send to LLM for actual analysis
+                var messages = await _analyzerAgent.RunAsync(prompt.ToString(), maxIterations: 1);
+                var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");
+                var responseText = OrchestratorAgent.ExtractTextFromContent(lastMessage?.Content);
+
+                if (!string.IsNullOrEmpty(responseText))
+                {
+                    result.Summary = $"Task {taskId} [{result.Action}]: {responseText.Length switch
+                    {
+                        > 200 => responseText[..200] + "...",
+                        _ => responseText
+                    }}";
+                }
+                else
+                {
+                    result.Summary = $"Task {taskId} [{result.Action}]: LLM returned no refinement guidance";
+                }
+
+                _logger?.LogInformation(
+                    "Wyvern refinement for task {TaskId}: {Action} - {Summary}",
+                    taskId, result.Action, result.Summary);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error during Wyvern refinement for task {TaskId}", taskId);
+                result.Action = RefinementAction.NoChange;
+                result.Summary = $"Refinement failed: {ex.Message}";
+            }
+
+            return result;
+        }
     }
 }

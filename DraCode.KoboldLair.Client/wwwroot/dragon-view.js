@@ -1,4 +1,5 @@
 import { WebSocketClient } from './websocket.js';
+import notificationStore from './notification-store.js';
 
 /**
  * Represents a single Dragon session with its own WebSocket connection
@@ -225,11 +226,32 @@ class DragonSession {
             }
 
             case 'project_notification': {
-                // Display persistent project notifications (e.g., feature branches ready for merge)
+                // Display project notifications with appropriate treatment based on type
+                const isEscalation = data.notificationType === 'escalation';
                 const notifIcon = data.notificationType === 'feature_branch_ready' ? '🔀' :
-                                  data.notificationType === 'project_complete' ? '🎉' : '📢';
-                this.addMessage('system', `${notifIcon} ${data.message}`, data.messageId);
-                this.view.showNotification(data.message, 'info');
+                                  data.notificationType === 'project_complete' ? '🎉' :
+                                  isEscalation ? '⚠️' : '📢';
+
+                if (isEscalation) {
+                    // Escalation notifications get prominent treatment
+                    const escalationType = data.metadata?.escalationType || 'Unknown';
+                    const resolution = data.metadata?.resolution || '';
+                    this.addMessage('system',
+                        `${notifIcon} **ESCALATION: ${escalationType}**\n${data.message}` +
+                        (resolution ? `\n_Resolution: ${resolution}_` : ''),
+                        data.messageId);
+                    this.view.showNotification(`⚠️ Escalation: ${data.message}`, 'warning');
+                    this.view.incrementNotificationBadge({
+                        type: escalationType,
+                        message: data.message,
+                        taskId: data.metadata?.taskId,
+                        resolution: data.metadata?.resolution,
+                        timestamp: data.timestamp || new Date().toISOString()
+                    });
+                } else {
+                    this.addMessage('system', `${notifIcon} ${data.message}`, data.messageId);
+                    this.view.showNotification(data.message, 'info');
+                }
                 return;
             }
 
@@ -343,6 +365,7 @@ export class DragonView {
         this.nextSessionId = 1;
         this.providers = [];
         this.selectedProvider = null;
+        this.pendingEscalations = []; // Track unread escalation notifications
 
         // Create initial session (server replays history on connect)
         this.createNewSession();
@@ -942,7 +965,7 @@ export class DragonView {
     /**
      * Show a notification message
      * @param {string} message - Message to display
-     * @param {string} type - 'success', 'error', or 'info'
+     * @param {string} type - 'success', 'error', 'info', or 'warning'
      */
     showNotification(message, type = 'info') {
         // Remove any existing notification
@@ -961,11 +984,50 @@ export class DragonView {
             notification.classList.add('show');
         });
 
-        // Auto-remove after 4 seconds
+        // Warning/escalation notifications stay longer (10s), others auto-dismiss at 4s
+        const duration = type === 'warning' ? 10000 : 4000;
         setTimeout(() => {
             notification.classList.remove('show');
             setTimeout(() => notification.remove(), 300);
-        }, 4000);
+        }, duration);
+    }
+
+    /**
+     * Track an escalation and increment the notification badge on the Dragon nav item
+     * @param {object} [escalation] - Optional escalation data to track
+     */
+    incrementNotificationBadge(escalation) {
+        if (escalation) {
+            this.pendingEscalations.push(escalation);
+            notificationStore.addEscalation(escalation);
+        }
+
+        const dragonNav = document.querySelector('.nav-item[data-view="dragon"]');
+        if (!dragonNav) return;
+
+        let badge = dragonNav.querySelector('.nav-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'nav-badge';
+            badge.textContent = '0';
+            dragonNav.appendChild(badge);
+        }
+        const count = parseInt(badge.textContent || '0', 10) + 1;
+        badge.textContent = count.toString();
+        badge.style.display = '';
+    }
+
+    /**
+     * Clear the notification badge on the Dragon nav item
+     */
+    clearNotificationBadge() {
+        this.pendingEscalations = [];
+        notificationStore.clearEscalations();
+        const badge = document.querySelector('.nav-item[data-view="dragon"] .nav-badge');
+        if (badge) {
+            badge.textContent = '0';
+            badge.style.display = 'none';
+        }
     }
 
     /**

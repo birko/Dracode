@@ -8,7 +8,8 @@ Components:
 - **DrakeFactory**: Creates and manages Drake instances from task file paths
 - **DrakeExecutionService**: Background service that bridges Wyvern analysis to task execution (every 30s)
 - **DrakeMonitoringService**: Background service that monitors Drakes and handles stuck Kobolds (every 60s)
-- **Drake**: Supervisor that manages Kobolds and synchronizes with markdown task files
+- **ReasoningMonitorService**: Background service that checks working Kobolds for reasoning anomalies (every 45s)
+- **Drake**: Supervisor that manages Kobolds, synchronizes with markdown task files, and handles escalations
 
 **Drake is NOT interactive** - it automatically manages Kobold workers based on task files created by Wyvern.
 
@@ -16,7 +17,7 @@ Components:
 
 ```
 ┌─────────────────────────────────────────┐
-│   DrakeExecutionService (Background)    │  ← NEW: Task execution (30s)
+│   DrakeExecutionService (Background)    │  ← Task execution (30s)
 │   - Creates Drakes for task files       │
 │   - Summons Kobolds for tasks           │
 │   - Tracks project completion           │
@@ -28,6 +29,13 @@ Components:
 │   - Monitors stuck Kobolds              │
 │   - Handles timeouts                    │
 │   - Mutex prevents overlapping runs     │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────┼──────────────────────┐
+│  ReasoningMonitorService (Background)   │  ← Reasoning checks (45s)
+│  - Detects stuck loops & stalled progress│
+│  - Checks repeated errors & budget      │
+│  - Creates EscalationAlerts → Drake     │
 └──────────────────┬──────────────────────┘
                    │
                    ▼
@@ -253,6 +261,154 @@ Manages Kobolds for a set of tasks and synchronizes status with markdown file.
 - Constraints displayed as prominent "⛔ PROJECT CONSTRAINTS" block at top of Kobold context
 - Out-of-scope features listed to prevent accidental implementation
 - Ensures Kobolds never violate spec restrictions (e.g., "no frameworks", "no runtime dependencies")
+
+## Escalation Handling
+
+When a Kobold encounters a problem it cannot resolve on its own, it creates an `EscalationAlert` that is routed through Drake for upstream handling.
+
+### EscalationAlert Model
+
+```csharp
+public class EscalationAlert
+{
+    public string Id { get; set; }
+    public string ProjectId { get; set; }
+    public string? TaskId { get; set; }
+    public Guid KoboldId { get; set; }
+    public string AgentType { get; set; }
+    public EscalationSource Source { get; set; }    // ReflectionTool or ReasoningMonitor
+    public EscalationType Type { get; set; }
+    public string Summary { get; set; }
+    public List<ReflectionEntry> ReflectionHistory { get; set; }
+    public EscalationStatus Status { get; set; }    // Pending → InProgress → Resolved/Failed
+    public string? Resolution { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+}
+
+public enum EscalationType
+{
+    TaskInfeasible,
+    MissingDependency,
+    NeedsSplit,
+    WrongApproach,
+    WrongAgentType
+}
+```
+
+### HandleEscalationAsync(EscalationAlert alert)
+
+The `HandleEscalationAsync` method on Drake receives escalation alerts and routes them to the appropriate upstream agent based on the `EscalationType`:
+
+| EscalationType | Routing Target | Action |
+|----------------|---------------|--------|
+| `WrongApproach` | **Planner** (KoboldPlannerAgent) | Calls `RevisePlanAsync()` to revise the implementation plan using reflection history. The revised plan replaces the Kobold's current plan and is saved via `PlanService`. |
+| `TaskInfeasible` | **Wyvern** | Calls `RefineTaskAsync()` to re-analyze the task. If refinement produces changes, the current task is marked as `Failed` with the escalation reason. |
+| `NeedsSplit` | **Wyvern** | Same as TaskInfeasible - routes to Wyvern for task refinement, which may split the task into smaller subtasks. |
+| `MissingDependency` | **Wyvern** | Same as TaskInfeasible - routes to Wyvern to identify and create the missing dependency tasks. |
+| `WrongAgentType` | **Task reassignment** | Resets the task to `Unassigned` status with no assigned agent, clears the error message, and saves. Drake's next execution cycle picks a different agent type for the task. |
+
+After routing, the alert status is set to `Resolved` (or `Failed` if an exception occurs) with a resolution summary.
+
+### Notification to Dragon Client
+
+After every escalation is resolved (or fails), Drake invokes the `_onEscalationNotify` callback:
+
+```csharp
+_onEscalationNotify?.Invoke(projectName, alert, resolution);
+```
+
+This callback is wired to `ProjectNotificationService`, which pushes the escalation outcome to the Dragon client via WebSocket. This keeps the user informed about automated recovery actions without requiring manual intervention.
+
+### Wiring on Kobold
+
+In `SummonKoboldAsync`, Drake sets the `OnEscalation` callback on each Kobold:
+
+```csharp
+kobold.OnEscalation = alert =>
+{
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            await HandleEscalationAsync(alert);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Unhandled error in escalation handler for Kobold {KoboldId}",
+                alert.KoboldId.ToString()[..8]);
+        }
+    });
+};
+```
+
+This fire-and-forget pattern ensures that escalation handling does not block the Kobold's execution thread. Escalations can originate from two sources:
+- **ReflectionTool** (`EscalationSource.ReflectionTool`): When a Kobold's self-reflection detects low confidence or blockers.
+- **ReasoningMonitorService** (`EscalationSource.ReasoningMonitor`): When the background monitor detects anomalies externally.
+
+## ReasoningMonitorService
+
+Background service that externally monitors working Kobolds for reasoning anomalies. Unlike Kobold self-reflection (which relies on the LLM recognizing its own issues), the ReasoningMonitorService inspects execution state from the outside.
+
+### Overview
+
+- Extends `PeriodicBackgroundService` with a default interval of **45 seconds** and a 30-second initial delay.
+- Iterates over all Kobolds with `KoboldStatus.Working` via `KoboldFactory.GetKoboldsByStatus()`.
+- When an anomaly is detected, creates an `EscalationAlert` with `Source = EscalationSource.ReasoningMonitor`.
+- Routes the alert through `Drake.HandleEscalationAsync` by looking up the Kobold's project Drake via `DrakeFactory.GetDrakesByProject()`.
+- Includes a 5-minute deduplication window to avoid repeated alerts for the same issue type on the same Kobold.
+
+### Detection Checks
+
+| Check | Condition | Escalation Type |
+|-------|-----------|-----------------|
+| **Stuck loop** | Same file operation repeated `MaxFileWriteRepetitions`+ times in the execution log | `WrongApproach` |
+| **Stalled progress** | No step completions for `NoProgressTimeoutMinutes` minutes, but LLM is still responding | `WrongApproach` |
+| **Repeated errors** | Last `StallDetectionCount` reflections all report the same blocker string | `WrongApproach` |
+| **Budget exhaustion** | >10 reflections with <50% step completion and confidence below 50% | `NeedsSplit` |
+
+### Configuration
+
+Configured via `ReflectionConfiguration` in `appsettings.json` under `KoboldLair:Reflection`:
+
+```json
+{
+  "KoboldLair": {
+    "Reflection": {
+      "Enabled": true,
+      "EscalationConfidenceThreshold": 30,
+      "StallDetectionCount": 3,
+      "MonitorIntervalSeconds": 45,
+      "NoProgressTimeoutMinutes": 10,
+      "MaxFileWriteRepetitions": 3
+    }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `Enabled` | `true` | Master switch for the reflection and monitoring system |
+| `EscalationConfidenceThreshold` | `30` | Confidence % below which ReflectionTool triggers escalation |
+| `StallDetectionCount` | `3` | Consecutive reflections with same blocker before escalation |
+| `MonitorIntervalSeconds` | `45` | Interval between ReasoningMonitor check cycles |
+| `NoProgressTimeoutMinutes` | `10` | Minutes without step progress before flagging stall |
+| `MaxFileWriteRepetitions` | `3` | File write repetition count before flagging stuck loop |
+
+### Service Registration
+
+```csharp
+builder.Services.AddHostedService<ReasoningMonitorService>(sp =>
+{
+    return new ReasoningMonitorService(
+        sp.GetRequiredService<ILogger<ReasoningMonitorService>>(),
+        sp.GetRequiredService<KoboldFactory>(),
+        sp.GetRequiredService<DrakeFactory>(),
+        sp.GetRequiredService<ReflectionConfiguration>(),
+        monitorIntervalSeconds: config.MonitorIntervalSeconds
+    );
+});
+```
 
 ## Workflow
 
@@ -664,13 +820,17 @@ DraCode.KoboldLair/                    # Core Library
     ├── Tasks/
     │   ├── TaskRecord.cs              # Individual task record
     │   └── TaskTracker.cs             # Task tracking
-    └── Agents/
-        └── DrakeStatistics.cs         # Drake statistics model
+    ├── Agents/
+    │   ├── DrakeStatistics.cs         # Drake statistics model
+    │   └── EscalationAlert.cs         # Escalation model and enums
+    └── Configuration/
+        └── KoboldLairConfiguration.cs # Includes ReflectionConfiguration
 
 DraCode.KoboldLair.Server/             # WebSocket Server
 └── Services/
-    ├── DrakeExecutionService.cs       # Task execution service (30s) - NEW
-    └── DrakeMonitoringService.cs      # Background monitoring service (60s)
+    ├── DrakeExecutionService.cs       # Task execution service (30s)
+    ├── DrakeMonitoringService.cs      # Background monitoring service (60s)
+    └── ReasoningMonitorService.cs     # Reasoning anomaly detection (45s)
 ```
 
 ### Data Storage

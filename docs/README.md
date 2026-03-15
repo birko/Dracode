@@ -10,8 +10,16 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 - **[KoboldLair Server](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
 - **[KoboldLair Client](../DraCode.KoboldLair.Client/README.md)** - Multi-agent web UI
 
-## Latest Updates (v2.6.0)
+## Latest Updates (v2.7.0)
 
+- **Self-Reflection & Adaptive Feedback System** (NEW - 2026-03-15)
+  - Kobold `reflect` tool for self-assessment: progress, confidence, blockers, decision
+  - Automatic escalation on low confidence (<30%) or stalled progress
+  - Drake routes escalations: WrongApproach → Planner revision, TaskInfeasible/NeedsSplit → Wyvern refinement, WrongAgentType → reassignment
+  - ReasoningMonitorService (45s) detects stuck loops, stalled progress, repeated errors
+  - Real-time escalation push to Dragon client via ProjectNotificationService.OnNotification
+  - Client: escalation chat messages, warning toasts, red nav badge, dashboard banner
+  - See [Self-Reasoning Analysis](analysis/Self-Reasoning-Analysis.md) for design rationale
 - **Specification Version Tracking**: Automatic detection of specification changes (NEW - 2026-02-26)
   - SHA-256 content hashing for change detection
   - Version history tracking with timestamps
@@ -71,8 +79,10 @@ KoboldLair is an autonomous hierarchical multi-agent system where **Dragon is yo
 6. **Drake monitors** → assigns tasks to Kobolds (via Wyrm for final agent selection)
 7. **Kobold Planner** → creates implementation plan with atomic steps
 8. **Kobolds execute plan** → generates code step-by-step (resumable, with shared context coordination)
-9. **Verification runs** → validates build, tests, linting after all tasks complete
-10. **Fix tasks created** → if verification fails, Drake assigns fixes automatically
+9. **Kobolds self-reflect** → `reflect` tool reports progress/confidence every 3 iterations; escalates if stuck
+10. **Drake handles escalations** → routes to Planner (plan revision) or Wyvern (task refinement) as needed
+11. **Verification runs** → validates build, tests, linting after all tasks complete
+12. **Fix tasks created** → if verification fails, Drake assigns fixes automatically
 
 Only Dragon requires interaction - everything else is automatic!
 
@@ -112,6 +122,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
 - **[Shared Planning Context Service](SharedPlanningContextService.md)** - Cross-agent coordination and learning (NEW - 2026-02-09)
 - **[Verification System](Verification-System.md)** - Automatic project validation system (NEW - 2026-02-15)
 - **[Background Services](Background-Services.md)** - Overview of all background services and their intervals
+- **[Self-Reasoning Analysis](analysis/Self-Reasoning-Analysis.md)** - Design rationale for self-reflection and escalation system
 
 ### Architecture
 - [Architecture Specification](architecture/ARCHITECTURE_SPECIFICATION.md) - System architecture and design

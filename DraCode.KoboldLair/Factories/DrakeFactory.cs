@@ -1,6 +1,7 @@
 using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Orchestrators;
@@ -39,6 +40,12 @@ namespace DraCode.KoboldLair.Factories
         /// Parameters: projectName, featureName, branchName
         /// </summary>
         public Action<string, string, string>? OnFeatureBranchReady { get; set; }
+
+        /// <summary>
+        /// Optional callback invoked when an escalation is raised and handled by Drake.
+        /// Parameters: projectName, escalationAlert, resolution
+        /// </summary>
+        public Action<string, EscalationAlert, string>? OnEscalation { get; set; }
 
         /// <summary>
         /// Creates a new DrakeFactory
@@ -211,7 +218,8 @@ namespace DraCode.KoboldLair.Factories
                 _sharedPlanningContext,
                 implementationService,
                 _koboldLairConfig.Planning,
-                OnFeatureBranchReady
+                OnFeatureBranchReady,
+                OnEscalation
             );
 
             // Lock only for dictionary insertion, with race condition check

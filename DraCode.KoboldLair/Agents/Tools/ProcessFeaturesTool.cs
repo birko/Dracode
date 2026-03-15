@@ -81,9 +81,8 @@ namespace DraCode.KoboldLair.Agents.Tools
         {
             var features = spec.GetFeaturesCopy();
 
-            // Get draft features (including legacy New for migration)
             var draftFeatures = features
-                .Where(f => f.Status == FeatureStatus.Draft || f.Status == FeatureStatus.New)
+                .Where(f => f.Status == FeatureStatus.Draft)
                 .OrderBy(f => f.Priority)
                 .ThenBy(f => f.CreatedAt)
                 .ToList();
@@ -154,8 +153,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                         continue;
                     }
 
-                    // Allow promoting Draft and legacy New features
-                    if (feature.Status != FeatureStatus.Draft && feature.Status != FeatureStatus.New)
+                    if (feature.Status != FeatureStatus.Draft)
                     {
                         notDraft.Add($"{name} (status: {feature.Status})");
                         continue;

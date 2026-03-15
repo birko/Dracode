@@ -95,6 +95,20 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
         notificationService.NotifyFeatureBranchReady(projectName, featureName, branchName);
     };
 
+    // Wire escalation notifications to Dragon client
+    factory.OnEscalation = (projectName, alert, resolution) =>
+    {
+        notificationService.Notify(projectName, "escalation",
+            $"[{alert.Type}] Task {alert.TaskId?[..8]}: {alert.Summary}. Action: {resolution}",
+            new Dictionary<string, string>
+            {
+                ["taskId"] = alert.TaskId ?? "",
+                ["escalationType"] = alert.Type.ToString(),
+                ["source"] = alert.Source.ToString(),
+                ["resolution"] = resolution
+            });
+    };
+
     return factory;
 });
 
@@ -250,6 +264,22 @@ builder.Services.AddHostedService<WyvernVerificationService>(sp =>
     var projectService = sp.GetRequiredService<ProjectService>();
     var configuration = sp.GetRequiredService<IConfiguration>();
     return new WyvernVerificationService(logger, projectService, configuration, checkIntervalSeconds: 30);
+});
+
+// Register Reasoning Monitor Service (detects stuck/stalled Kobolds, triggers escalations)
+builder.Services.AddHostedService<ReasoningMonitorService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<ReasoningMonitorService>>();
+    var koboldFactory = sp.GetRequiredService<KoboldFactory>();
+    var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var reflectionConfig = config.Reflection ?? new DraCode.KoboldLair.Models.Configuration.ReflectionConfiguration();
+    return new ReasoningMonitorService(
+        logger,
+        koboldFactory,
+        drakeFactory,
+        reflectionConfig,
+        monitorIntervalSeconds: reflectionConfig.MonitorIntervalSeconds);
 });
 
 // Register Failure Recovery Service (auto-retries transient failures, checks every 5 minutes)

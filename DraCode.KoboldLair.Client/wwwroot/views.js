@@ -1,5 +1,6 @@
 import { ApiClient } from './api.js';
 import CONFIG from './config.js';
+import notificationStore from './notification-store.js';
 
 export class DashboardView {
     constructor(api) {
@@ -14,7 +15,18 @@ export class DashboardView {
             const projects = await this.api.getProjects();
             this._lastProjectsHtml = this._renderProjectsList(projects);
 
+            const escalationBanner = notificationStore.pendingCount > 0
+                ? `<div class="escalation-banner">
+                    <span class="escalation-banner-icon">⚠️</span>
+                    <span class="escalation-banner-text">
+                        <strong>${notificationStore.pendingCount} escalation(s)</strong> require attention.
+                        Open <a href="#dragon" class="escalation-link">Dragon</a> to review.
+                    </span>
+                  </div>`
+                : '';
+
             return `
+                ${escalationBanner}
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-card-icon">🐉</div>
@@ -128,6 +140,9 @@ export class DashboardView {
                 const container = document.getElementById('dashboardProjects');
                 if (container) container.innerHTML = newProjectsHtml;
             }
+
+            // Update escalation banner
+            this._updateEscalationBanner();
         } catch (e) {
             // Silent - don't disrupt UI on background refresh failure
         }
@@ -141,6 +156,33 @@ export class DashboardView {
             'Created': 'warning'
         };
         return statusMap[status] || 'info';
+    }
+
+    _updateEscalationBanner() {
+        const content = document.getElementById('content');
+        if (!content) return;
+
+        let banner = content.querySelector('.escalation-banner');
+        const count = notificationStore.pendingCount;
+
+        if (count > 0) {
+            const html = `<span class="escalation-banner-icon">⚠️</span>
+                <span class="escalation-banner-text">
+                    <strong>${count} escalation(s)</strong> require attention.
+                    Open <a href="#dragon" class="escalation-link">Dragon</a> to review.
+                </span>`;
+
+            if (banner) {
+                banner.innerHTML = html;
+            } else {
+                banner = document.createElement('div');
+                banner.className = 'escalation-banner';
+                banner.innerHTML = html;
+                content.prepend(banner);
+            }
+        } else if (banner) {
+            banner.remove();
+        }
     }
 
     async refresh() {

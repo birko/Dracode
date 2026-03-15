@@ -31,6 +31,7 @@ public class Kobold
     public DateTime? StartedAt { get; }            // Work start time
     public DateTime? CompletedAt { get; }          // Completion time
     public string? ErrorMessage { get; }           // Error message if any
+    public Action<EscalationAlert>? OnEscalation { get; set; } // Callback when Kobold escalates
 }
 ```
 
@@ -240,6 +241,11 @@ try
 catch (Exception ex)
 {
     kobold.SetError(ex.Message);
+}
+finally
+{
+    UpdatePlanStepTool.ClearContext();
+    ReflectionTool.ClearContext();
 }
 ```
 
@@ -485,6 +491,78 @@ All project data is stored in consolidated per-project folders:
     ├── analysis.md                    # Wyvern analysis
     └── workspace/                     # Generated code output
 ```
+
+## Self-Reflection System
+
+Kobolds periodically assess their own progress and can escalate problems to Drake before wasting further tokens on blocked or infeasible work.
+
+### Reflect Tool
+
+The `reflect` tool is injected alongside `update_plan_step` in both `StartWorkingWithPlanAsync` and `StartWorkingWithPlanEnhancedAsync`. It follows the same static context pattern as `UpdatePlanStepTool` (static `SetContext` / `ClearContext` methods).
+
+#### Tool Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `progress_percent` | int | Yes | Overall plan progress estimate (0-100) |
+| `blockers` | string | No | Description of current blockers, if any |
+| `confidence_percent` | int | Yes | Confidence the plan will succeed (0-100) |
+| `decision` | string | Yes | One of: `continue`, `adjust`, `escalate` |
+| `escalation_type` | string | No | Required when `decision == "escalate"` (see types below) |
+| `adjustment` | string | No | Description of self-correction when `decision == "adjust"` |
+
+### Prompt Integration
+
+- The **CHECKPOINT** prompt (injected at intervals during plan execution) now says **"REFLECTION REQUIRED"** and instructs the Kobold to call the `reflect` tool before proceeding to the next step.
+- The **SELF-REFLECTION PROTOCOL** section in `BuildFullPromptWithPlanAsync` is updated for both sequential and parallel execution modes, telling the Kobold when and how to reflect.
+
+### Auto-Escalation Rules
+
+The `ReflectionTool` evaluates each reflection and may auto-escalate to Drake:
+
+1. **Stall Detection**: If the last N reflections (configurable, default 3) show no meaningful progress increase, the tool auto-escalates with a stall alert.
+2. **Low Confidence**: If `confidence_percent` drops below a threshold (configurable, default 30%), the tool auto-escalates regardless of progress.
+3. **Explicit Escalation**: If `decision == "escalate"`, the Kobold is requesting help directly. An `EscalationAlert` is created with the specified `escalation_type`.
+
+### Escalation Types
+
+| Type | Meaning |
+|------|---------|
+| `TaskInfeasible` | The task cannot be completed as specified |
+| `MissingDependency` | A required dependency is unavailable or incomplete |
+| `NeedsSplit` | The task is too large and should be broken into subtasks |
+| `WrongApproach` | The current implementation approach is fundamentally flawed |
+| `WrongAgentType` | A different specialist agent type would be more appropriate |
+
+### Data Model
+
+Reflection data is stored on the implementation plan:
+
+```csharp
+// Stored in KoboldImplementationPlan.Reflections
+public class ReflectionEntry
+{
+    public DateTime Timestamp { get; set; }
+    public int ProgressPercent { get; set; }
+    public int ConfidencePercent { get; set; }
+    public string Decision { get; set; }        // "continue", "adjust", "escalate"
+    public string? Blockers { get; set; }
+    public string? EscalationType { get; set; }
+    public string? Adjustment { get; set; }
+}
+
+// Stored in KoboldImplementationPlan.Escalations
+public class EscalationAlert
+{
+    public DateTime Timestamp { get; set; }
+    public string EscalationType { get; set; }
+    public string Reason { get; set; }
+    public int ProgressAtEscalation { get; set; }
+    public int ConfidenceAtEscalation { get; set; }
+}
+```
+
+Drake receives escalation alerts via the `Kobold.OnEscalation` callback and can decide to reassign, split, or cancel the task.
 
 ## Future Enhancements
 

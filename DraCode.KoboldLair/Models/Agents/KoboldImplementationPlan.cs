@@ -117,6 +117,16 @@ namespace DraCode.KoboldLair.Models.Agents
         public List<string> ResolvedIssues { get; set; } = new();
 
         /// <summary>
+        /// Self-reflection entries from Kobold checkpoint assessments
+        /// </summary>
+        public List<ReflectionEntry> Reflections { get; set; } = new();
+
+        /// <summary>
+        /// Escalation alerts raised during execution
+        /// </summary>
+        public List<EscalationAlert> Escalations { get; set; } = new();
+
+        /// <summary>
         /// Gets the current step being executed, or null if all complete
         /// </summary>
         public ImplementationStep? CurrentStep =>

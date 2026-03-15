@@ -44,6 +44,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly PlanFileFilterService _fileFilterService;
         private readonly Models.Configuration.PlanningConfiguration? _planningConfig;
         private readonly Action<string, string, string>? _onFeatureBranchReady;
+        private readonly Action<string, EscalationAlert, string>? _onEscalationNotify;
         private Wyvern? _wyvern;
         private WyrmRecommendation? _wyrmRecommendation;
 
@@ -109,7 +110,8 @@ namespace DraCode.KoboldLair.Orchestrators
             SharedPlanningContextService? sharedPlanningContext = null,
             ProjectImplementationService? implementationService = null,
             Models.Configuration.PlanningConfiguration? planningConfig = null,
-            Action<string, string, string>? onFeatureBranchReady = null)
+            Action<string, string, string>? onFeatureBranchReady = null,
+            Action<string, EscalationAlert, string>? onEscalationNotify = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -131,6 +133,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _implementationService = implementationService;
             _planningConfig = planningConfig;
             _onFeatureBranchReady = onFeatureBranchReady;
+            _onEscalationNotify = onEscalationNotify;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
@@ -669,6 +672,23 @@ namespace DraCode.KoboldLair.Orchestrators
             // Track the mapping
             _taskToKoboldMap[task.Id] = kobold.Id;
 
+            // Wire escalation callback so Kobold reflections route to Drake
+            kobold.OnEscalation = alert =>
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await HandleEscalationAsync(alert);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Unhandled error in escalation handler for Kobold {KoboldId}",
+                            alert.KoboldId.ToString()[..8]);
+                    }
+                });
+            };
+
             // Track provider for circuit breaker and retry logic
             task.Provider = effectiveProvider;
 
@@ -677,6 +697,154 @@ namespace DraCode.KoboldLair.Orchestrators
             SaveTasksToFile();
 
             return kobold;
+        }
+
+        /// <summary>
+        /// Handles an escalation alert from a Kobold or the ReasoningMonitor.
+        /// Routes to the appropriate upstream agent based on escalation type.
+        /// </summary>
+        public async Task HandleEscalationAsync(EscalationAlert alert)
+        {
+            alert.Status = EscalationStatus.InProgress;
+            var resolution = "";
+
+            try
+            {
+                _logger?.LogWarning(
+                    "Handling escalation {AlertId}: {Type} from Kobold {KoboldId} for task {TaskId}",
+                    alert.Id[..8], alert.Type, alert.KoboldId.ToString()[..8], alert.TaskId?[..8] ?? "unknown");
+
+                switch (alert.Type)
+                {
+                    case Models.Agents.EscalationType.WrongApproach:
+                        // Route to Planner for plan revision
+                        if (_plannerAgent != null && _planService != null)
+                        {
+                            var kobold = _koboldFactory.GetKobold(alert.KoboldId);
+                            if (kobold?.ImplementationPlan != null)
+                            {
+                                var revisedPlan = await _plannerAgent.RevisePlanAsync(
+                                    kobold.ImplementationPlan,
+                                    alert.ReflectionHistory,
+                                    alert);
+                                if (revisedPlan != null)
+                                {
+                                    kobold.ImplementationPlan = revisedPlan;
+                                    await _planService.SavePlanDebouncedAsync(revisedPlan);
+                                    resolution = $"Plan revised with {revisedPlan.Steps.Count(s => s.Status == StepStatus.Pending)} new/revised steps";
+                                }
+                                else
+                                {
+                                    resolution = "Plan revision returned no changes";
+                                }
+                            }
+                            else
+                            {
+                                resolution = "No active plan to revise";
+                            }
+                        }
+                        else
+                        {
+                            resolution = "Planner not available for plan revision";
+                        }
+                        break;
+
+                    case Models.Agents.EscalationType.TaskInfeasible:
+                    case Models.Agents.EscalationType.NeedsSplit:
+                    case Models.Agents.EscalationType.MissingDependency:
+                        // Route to Wyvern for task refinement
+                        if (_wyvern != null && !string.IsNullOrEmpty(alert.TaskId))
+                        {
+                            var task = _taskTracker.GetTaskById(alert.TaskId);
+                            if (task != null)
+                            {
+                                // Extract area from task file path (e.g., "frontend-tasks.md" → "frontend")
+                                var area = Path.GetFileNameWithoutExtension(_outputMarkdownPath)
+                                    .Replace("-tasks", "", StringComparison.OrdinalIgnoreCase);
+                                var result = await _wyvern.RefineTaskAsync(
+                                    alert.TaskId,
+                                    area,
+                                    alert,
+                                    alert.ReflectionHistory);
+
+                                if (result != null)
+                                {
+                                    resolution = $"Wyvern refinement: {result.Action} - {result.Summary}";
+
+                                    // Mark current task as failed so it doesn't keep running
+                                    if (result.Action != RefinementAction.NoChange)
+                                    {
+                                        _taskTracker.UpdateTask(task, TaskStatus.Failed, task.AssignedAgent);
+                                        task.ErrorMessage = $"Escalated: {alert.Type} - {alert.Summary}";
+                                        SaveTasksToFile();
+                                    }
+                                }
+                                else
+                                {
+                                    resolution = "Wyvern refinement returned no result";
+                                }
+                            }
+                            else
+                            {
+                                resolution = $"Task {alert.TaskId} not found in tracker";
+                            }
+                        }
+                        else
+                        {
+                            resolution = "Wyvern not available for task refinement";
+                        }
+                        break;
+
+                    case Models.Agents.EscalationType.WrongAgentType:
+                        // Mark task for reassignment with different agent type
+                        if (!string.IsNullOrEmpty(alert.TaskId))
+                        {
+                            var task = _taskTracker.GetTaskById(alert.TaskId);
+                            if (task != null)
+                            {
+                                _taskTracker.UpdateTask(task, TaskStatus.Unassigned, null);
+                                task.ErrorMessage = null;
+                                SaveTasksToFile();
+                                resolution = $"Task reset to Unassigned for reassignment with different agent type";
+                            }
+                            else
+                            {
+                                resolution = $"Task {alert.TaskId} not found";
+                            }
+                        }
+                        break;
+                }
+
+                alert.Status = EscalationStatus.Resolved;
+                alert.Resolution = resolution;
+                alert.ResolvedAt = DateTime.UtcNow;
+
+                _logger?.LogInformation(
+                    "Escalation {AlertId} resolved: {Resolution}",
+                    alert.Id[..8], resolution);
+            }
+            catch (Exception ex)
+            {
+                alert.Status = EscalationStatus.Failed;
+                alert.Resolution = $"Error: {ex.Message}";
+                alert.ResolvedAt = DateTime.UtcNow;
+                resolution = alert.Resolution;
+
+                _logger?.LogError(ex,
+                    "Failed to handle escalation {AlertId}: {Type}",
+                    alert.Id[..8], alert.Type);
+            }
+
+            // Notify Dragon about the escalation
+            try
+            {
+                var projectName = _projectRepository?.GetById(_projectId ?? "")?.Name ?? _projectId ?? "unknown";
+                _onEscalationNotify?.Invoke(projectName, alert, resolution);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to send escalation notification");
+            }
         }
 
         /// <summary>

@@ -32,6 +32,11 @@ namespace DraCode.KoboldLair.Models.Configuration
         public PlanningConfiguration Planning { get; set; } = new();
 
         /// <summary>
+        /// Configuration for Kobold self-reflection and escalation
+        /// </summary>
+        public ReflectionConfiguration Reflection { get; set; } = new();
+
+        /// <summary>
         /// Configuration for agent iteration limits
         /// </summary>
         public IterationLimits Iterations { get; set; } = new();
@@ -204,5 +209,42 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Maximum iterations for sub-agents (Sage, Seeker, Sentinel, Warden) (default: 15)
         /// </summary>
         public int MaxSubAgentIterations { get; set; } = 15;
+    }
+
+    /// <summary>
+    /// Configuration for Kobold self-reflection and escalation system.
+    /// Controls when Kobolds escalate issues to Drake for upstream routing.
+    /// </summary>
+    public class ReflectionConfiguration
+    {
+        /// <summary>
+        /// Whether the reflection system is enabled (default: true)
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Confidence percentage below which an escalation is triggered (default: 30)
+        /// </summary>
+        public int EscalationConfidenceThreshold { get; set; } = 30;
+
+        /// <summary>
+        /// Number of consecutive reflections with stalled/declining progress before auto-escalation (default: 3)
+        /// </summary>
+        public int StallDetectionCount { get; set; } = 3;
+
+        /// <summary>
+        /// Interval in seconds between ReasoningMonitor checks (default: 45)
+        /// </summary>
+        public int MonitorIntervalSeconds { get; set; } = 45;
+
+        /// <summary>
+        /// Minutes of no progress before ReasoningMonitor triggers escalation (default: 10)
+        /// </summary>
+        public int NoProgressTimeoutMinutes { get; set; } = 10;
+
+        /// <summary>
+        /// Number of times the same file can be written before flagging a stuck loop (default: 3)
+        /// </summary>
+        public int MaxFileWriteRepetitions { get; set; } = 3;
     }
 }

@@ -134,6 +134,12 @@ namespace DraCode.KoboldLair.Models.Agents
         public KoboldImplementationPlan? ImplementationPlan { get; internal set; }
 
         /// <summary>
+        /// Callback invoked when an escalation alert is raised during execution.
+        /// Drake wires this to route escalations to the appropriate upstream agent.
+        /// </summary>
+        public Action<EscalationAlert>? OnEscalation { get; set; }
+
+        /// <summary>
         /// Creates a new Kobold with an agent instance
         /// </summary>
         public Kobold(Agent.Agents.Agent agent, string agentType, ILogger<Kobold>? logger = null)
@@ -683,6 +689,13 @@ You are working on a task that is part of a larger project. Below is the project
                 // Add the tool to the agent
                 Agent.AddTool(new UpdatePlanStepTool());
                 toolInjected = true;
+
+                // Inject reflection tool for self-assessment
+                ReflectionTool.RegisterContext(
+                    ImplementationPlan, planService, _logger,
+                    ProjectId, TaskId?.ToString(), Id, AgentType,
+                    OnEscalation, null);
+                Agent.AddTool(new ReflectionTool());
             }
 
             try
@@ -825,6 +838,8 @@ You are working on a task that is part of a larger project. Below is the project
                 {
                     Agent.RemoveTool("update_plan_step");
                     UpdatePlanStepTool.ClearContext();
+                    Agent.RemoveTool("reflect");
+                    ReflectionTool.ClearContext();
                 }
             }
         }
@@ -876,6 +891,13 @@ You are working on a task that is part of a larger project. Below is the project
 
             // Add the tool to the agent
             Agent.AddTool(new UpdatePlanStepTool());
+
+            // Inject reflection tool for self-assessment
+            ReflectionTool.RegisterContext(
+                ImplementationPlan, planService, _logger,
+                ProjectId, TaskId?.ToString(), Id, AgentType,
+                OnEscalation, null);
+            Agent.AddTool(new ReflectionTool());
 
             // Phase 4: Add modify_plan tool if enabled
             if (allowPlanModifications)
@@ -1007,7 +1029,9 @@ You are working on a task that is part of a larger project. Below is the project
                 // Clean up: remove tool and clear context
                 Agent.RemoveTool("update_plan_step");
                 UpdatePlanStepTool.ClearContext();
-                
+                Agent.RemoveTool("reflect");
+                ReflectionTool.ClearContext();
+
                 // Phase 4: Clean up modify_plan tool if it was added
                 if (allowPlanModifications)
                 {
@@ -1123,21 +1147,18 @@ You are working on a task that is part of a larger project. Below is the project
                     var currentStep = ImplementationPlan.Steps[currentStepIndex];
                     var checkpointPrompt = $@"
 ---
-**CHECKPOINT REQUIRED** (Iteration {iteration}, step iteration {stepIterationCount})
+**REFLECTION REQUIRED** (Iteration {iteration}, step iteration {stepIterationCount})
 
 You've spent {stepIterationCount} iterations on step {currentStepIndex + 1}: '{currentStep.Title}'
 
-Output a CHECKPOINT block now:
-```
-CHECKPOINT (iteration {iteration}):
-- Progress: [X%] toward '{currentStep.Title}'
-- Files done: [list]
-- Blockers: [any, or 'none']
-- Confidence: [0-100%]
-- Decision: [continue|pivot|escalate]
-```
+Call the `reflect` tool now with your assessment:
+- progress_percent: your estimate of step completion (0-100)
+- confidence_percent: confidence this approach will succeed (0-100)
+- decision: ""continue"", ""pivot"" (change approach), or ""escalate"" (need upstream help)
+- blockers: any obstacles (optional)
+- adjustment: what you're changing if pivoting (optional)
 
-If step is complete, call `update_plan_step` with status 'completed'.
+If step is complete, call `update_plan_step` with status 'completed' instead.
 ---";
 
                     conversation.Add(new Message { Role = "user", Content = checkpointPrompt });
@@ -1430,6 +1451,13 @@ If step is complete, call `update_plan_step` with status 'completed'.
                     sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
                     sb.AppendLine();
 
+                    // Self-Reflection Protocol (parallel mode)
+                    sb.AppendLine("## SELF-REFLECTION PROTOCOL");
+                    sb.AppendLine();
+                    sb.AppendLine("You MUST call the `reflect` tool every 3 iterations to report your status. This is mandatory.");
+                    sb.AppendLine("The reflect tool captures your assessment and can trigger escalation if you're stuck.");
+                    sb.AppendLine();
+
                     // Show only assigned steps in summary
                     sb.AppendLine("**Your Assigned Steps:**");
                     foreach (var step in stepsToDisplay)
@@ -1457,19 +1485,18 @@ If step is complete, call `update_plan_step` with status 'completed'.
                     sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");
                     sb.AppendLine();
 
-                    // Self-Reflection Protocol (P1 - Prompt-based)
+                    // Self-Reflection Protocol (tool-based)
                     sb.AppendLine("## SELF-REFLECTION PROTOCOL");
                     sb.AppendLine();
-                    sb.AppendLine("You MUST output a CHECKPOINT block every 3 iterations. This is mandatory.");
+                    sb.AppendLine("You MUST call the `reflect` tool every 3 iterations to report your status. This is mandatory.");
+                    sb.AppendLine("The reflect tool captures your assessment and can trigger escalation if you're stuck.");
                     sb.AppendLine();
-                    sb.AppendLine("```");
-                    sb.AppendLine("CHECKPOINT (iteration N):");
-                    sb.AppendLine("- Progress: [X%] toward current step completion");
-                    sb.AppendLine("- Files done: [list files created/modified so far]");
-                    sb.AppendLine("- Blockers: [any obstacles, or 'none']");
-                    sb.AppendLine("- Confidence: [0-100%] this approach will succeed");
-                    sb.AppendLine("- Decision: [continue|pivot|escalate]");
-                    sb.AppendLine("```");
+                    sb.AppendLine("When prompted for reflection, call `reflect` with:");
+                    sb.AppendLine("- `progress_percent`: 0-100 estimate of step completion");
+                    sb.AppendLine("- `confidence_percent`: 0-100 confidence this approach will succeed");
+                    sb.AppendLine("- `decision`: \"continue\", \"pivot\" (change approach), or \"escalate\" (need upstream help)");
+                    sb.AppendLine("- `blockers`: any obstacles (optional)");
+                    sb.AppendLine("- `escalation_type`: if escalating - \"task_infeasible\", \"missing_dependency\", \"needs_split\", \"wrong_approach\", \"wrong_agent_type\"");
                     sb.AppendLine();
                     sb.AppendLine("## ERROR HANDLING PROTOCOL");
                     sb.AppendLine();

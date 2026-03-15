@@ -78,6 +78,13 @@ Planning guidelines:
 - Include a final integration verification step: ""Verify all imports match actual module exports""
 - Never assume an API — if module APIs are provided, use them exactly
 
+**Self-Reflection & Escalation Awareness:**
+- The Kobold executing your plan has a `reflect` tool that it calls every 3 iterations to report progress, confidence, and blockers
+- Design steps so progress is **measurable** — each step should have a clear deliverable (a file created, a function implemented) that the Kobold can assess as X% done
+- Avoid steps where progress is hard to gauge (e.g. ""research best approach"" — instead, make it ""create X using Y approach"")
+- If a step fails, the Kobold may escalate with types: task_infeasible, missing_dependency, needs_split, wrong_approach, wrong_agent_type
+- Steps that are too large or vague increase the risk of escalation — keep steps atomic and concrete
+
 **Naming:**
 - Use clear, descriptive step titles
 - Titles should be action-oriented (""Create"", ""Implement"", ""Add"", ""Configure"")
@@ -594,6 +601,120 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 ".rs" => "Rust Files",
                 _ => "Other Files"
             };
+        }
+
+        /// <summary>
+        /// Revises an existing plan after an escalation, preserving completed steps
+        /// and generating new remaining steps based on reflection feedback.
+        /// </summary>
+        public async Task<KoboldImplementationPlan> RevisePlanAsync(
+            KoboldImplementationPlan existingPlan,
+            List<ReflectionEntry> reflections,
+            EscalationAlert escalation,
+            string? additionalContext = null)
+        {
+            CreateImplementationPlanTool.ClearLastPlan();
+
+            var prompt = new System.Text.StringBuilder();
+            prompt.AppendLine("# Plan Revision Required");
+            prompt.AppendLine();
+            prompt.AppendLine($"## Escalation: {escalation.Type}");
+            prompt.AppendLine($"Summary: {escalation.Summary}");
+            prompt.AppendLine();
+
+            // Show completed steps (preserved)
+            var completedSteps = existingPlan.Steps.Where(s => s.Status == StepStatus.Completed).ToList();
+            if (completedSteps.Any())
+            {
+                prompt.AppendLine("## Completed Steps (DO NOT change these)");
+                foreach (var step in completedSteps)
+                {
+                    prompt.AppendLine($"- Step {step.Index}: {step.Title} - {step.Description}");
+                    if (step.FilesToCreate.Any())
+                        prompt.AppendLine($"  Created: {string.Join(", ", step.FilesToCreate)}");
+                    if (step.FilesToModify.Any())
+                        prompt.AppendLine($"  Modified: {string.Join(", ", step.FilesToModify)}");
+                }
+                prompt.AppendLine();
+            }
+
+            // Show failed/pending steps (revisable)
+            var revisableSteps = existingPlan.Steps
+                .Where(s => s.Status != StepStatus.Completed && s.Status != StepStatus.Skipped)
+                .ToList();
+            if (revisableSteps.Any())
+            {
+                prompt.AppendLine("## Steps That Need Revision");
+                foreach (var step in revisableSteps)
+                {
+                    prompt.AppendLine($"- Step {step.Index} [{step.Status}]: {step.Title} - {step.Description}");
+                }
+                prompt.AppendLine();
+            }
+
+            // Show reflection history
+            if (reflections.Any())
+            {
+                prompt.AppendLine("## Reflection History (what went wrong)");
+                foreach (var r in reflections.TakeLast(5))
+                {
+                    prompt.AppendLine($"- Iteration {r.Iteration}: progress={r.ProgressPercent}%, confidence={r.ConfidencePercent}%, decision={r.Decision}");
+                    if (!string.IsNullOrEmpty(r.Blockers))
+                        prompt.AppendLine($"  Blockers: {r.Blockers}");
+                    if (!string.IsNullOrEmpty(r.Adjustment))
+                        prompt.AppendLine($"  Adjustment: {r.Adjustment}");
+                }
+                prompt.AppendLine();
+            }
+
+            prompt.AppendLine("## Task");
+            prompt.AppendLine(existingPlan.TaskDescription);
+            prompt.AppendLine();
+
+            if (!string.IsNullOrEmpty(additionalContext))
+            {
+                prompt.AppendLine("## Additional Context");
+                prompt.AppendLine(additionalContext);
+                prompt.AppendLine();
+            }
+
+            prompt.AppendLine("## Instructions");
+            prompt.AppendLine("Create a REVISED plan that:");
+            prompt.AppendLine("1. Keeps all completed work intact");
+            prompt.AppendLine("2. Addresses the escalation issue with a different approach");
+            prompt.AppendLine("3. Has concrete, atomic steps for the remaining work");
+            prompt.AppendLine();
+            prompt.AppendLine("Use the create_implementation_plan tool to submit your revised plan.");
+
+            await RunAsync(prompt.ToString(), Options.MaxIterations > 0 ? Options.MaxIterations : 5);
+
+            var revisedPlan = CreateImplementationPlanTool.GetLastPlan();
+            if (revisedPlan == null)
+            {
+                return existingPlan; // Return original if revision fails
+            }
+
+            // Merge: completed steps from old plan + new remaining steps from revised plan
+            var mergedSteps = new List<ImplementationStep>();
+            mergedSteps.AddRange(completedSteps);
+
+            var nextIndex = completedSteps.Count + 1;
+            foreach (var step in revisedPlan.Steps)
+            {
+                step.Index = nextIndex++;
+                step.Status = StepStatus.Pending;
+                mergedSteps.Add(step);
+            }
+
+            // Update the existing plan in-place
+            existingPlan.Steps = mergedSteps;
+            existingPlan.CurrentStepIndex = completedSteps.Count;
+            existingPlan.Status = PlanStatus.InProgress;
+            existingPlan.ErrorMessage = null;
+            existingPlan.AddLogEntry($"Plan revised after escalation: {escalation.Type} - {escalation.Summary}");
+            existingPlan.UpdatedAt = DateTime.UtcNow;
+
+            return existingPlan;
         }
     }
 }

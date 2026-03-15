@@ -163,12 +163,12 @@ namespace DraCode.KoboldLair.Agents.Tools
                 {
                     sb.AppendLine();
                     sb.AppendLine("**By Area:**");
-                    var byArea = tasks.GroupBy(t => t.Area ?? "general").OrderBy(g => g.Key);
+                    var byArea = tasks.GroupBy(t => ExtractAreaFromTask(t.Task)).OrderBy(g => g.Key);
                     foreach (var area in byArea)
                     {
                         var areaDone = area.Count(t => t.Status == TaskStatus.Done);
                         var areaPercent = area.Count() > 0 ? areaDone * 100.0 / area.Count() : 0;
-                        sb.AppendLine($"  - {area.Key}: {areaDone}/{area.Count} ({areaPercent:F0}%)");
+                        sb.AppendLine($"  - {area.Key}: {areaDone}/{area.Count()} ({areaPercent:F0}%)");
                     }
                 }
 
@@ -448,6 +448,16 @@ namespace DraCode.KoboldLair.Agents.Tools
         {
             if (string.IsNullOrEmpty(text) || text.Length <= maxLength) return text;
             return text[..(maxLength - 3)] + "...";
+        }
+
+        /// <summary>
+        /// Extracts the area name from a task description.
+        /// Task format: "[frontend-1] Task name..." → "frontend"
+        /// </summary>
+        private static string ExtractAreaFromTask(string taskDescription)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(taskDescription, @"^\[([a-zA-Z]+)-\d+\]");
+            return match.Success ? match.Groups[1].Value : "general";
         }
     }
 }

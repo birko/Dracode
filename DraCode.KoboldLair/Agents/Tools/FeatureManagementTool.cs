@@ -140,18 +140,12 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return;
                 }
 
-                // Allow updating Draft and legacy New status features
-                if (feature.Status != FeatureStatus.Draft && feature.Status != FeatureStatus.New)
+                // Allow updating Draft features only
+                if (feature.Status != FeatureStatus.Draft)
                 {
                     result = $"❌ Cannot update feature '{name}': Status is '{feature.Status}'. Only features with status 'Draft' can be updated.\n" +
                            $"Create a new feature instead if you need to add more functionality.";
                     return;
-                }
-
-                // Migrate legacy New status to Draft
-                if (feature.Status == FeatureStatus.New)
-                {
-                    feature.Status = FeatureStatus.Draft;
                 }
 
                 if (input.TryGetValue("description", out var descObj))
@@ -193,8 +187,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             foreach (var feature in features.OrderBy(f => f.Status).ThenBy(f => f.Priority))
             {
-                // Handle legacy New status as Draft for display
-                var displayStatus = feature.Status == Models.Tasks.FeatureStatus.New ? Models.Tasks.FeatureStatus.Draft : feature.Status;
+                var displayStatus = feature.Status;
 
                 var statusIcon = displayStatus switch
                 {

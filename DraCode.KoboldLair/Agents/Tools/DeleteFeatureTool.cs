@@ -75,8 +75,8 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return;
                 }
 
-                // Only allow deleting Draft (or legacy New) features
-                if (feature.Status != FeatureStatus.Draft && feature.Status != FeatureStatus.New)
+                // Only allow deleting Draft features
+                if (feature.Status != FeatureStatus.Draft)
                 {
                     result = $"Cannot delete feature '{featureName}': Status is '{feature.Status}'. " +
                              "Only features with 'Draft' status can be deleted. " +

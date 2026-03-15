@@ -151,9 +151,9 @@ COMPLETION CHECK:
 |----------|-------------|-------|--------|
 | **P1** | Iteration checkpoints | Kobold | ✅ COMPLETED (2026-02-12) |
 | **P1** | Error explanation | Kobold | ✅ COMPLETED (2026-02-12) |
-| **P2** | Plan re-evaluation | Kobold | ⏳ Future |
-| **P2** | Success self-assessment | Kobold | ⏳ Future |
-| **P3** | Uncertainty estimation | Planner | ⏳ Future |
+| **P2** | Plan re-evaluation | Kobold | ✅ COMPLETED (2026-03-15) via `RevisePlanAsync` |
+| **P2** | Success self-assessment | Kobold | ✅ COMPLETED (2026-03-15) via `reflect` tool |
+| **P3** | Uncertainty estimation | Planner | ✅ COMPLETED (2026-03-15) via `reflect` tool `confidence_percent` |
 | **P3** | Workspace conflict reasoning | Drake | ⏳ Future |
 
 ---
@@ -178,60 +178,62 @@ Implemented in `BuildFullPromptWithPlanAsync()`:
 **Pros**: Simple, no code changes beyond prompts
 **Cons**: LLM may ignore, inconsistent formatting
 
-### Option 2: Structured Reflection Tool
+### Option 2: Structured Reflection Tool ✅ COMPLETED (2026-03-15)
 
-Add a `reflect` tool that forces explicit reasoning:
+**Location**: `DraCode.KoboldLair/Agents/Tools/ReflectionTool.cs`
 
-```csharp
-public class ReflectionTool : ITool
-{
-    public string Execute(Dictionary<string, object> args)
-    {
-        var progress = args["progress_percent"];
-        var blockers = args["blockers"];
-        var confidence = args["confidence_percent"];
-        var adjustment = args["adjustment"];
+The `reflect` tool forces Kobolds to produce structured self-assessments that drive automated intervention:
 
-        // Log reflection for analysis
-        // Trigger Drake intervention if confidence < 30%
-        // Auto-escalate if progress stalled 3 checkpoints
-    }
-}
-```
+- **Captures**: `progress_percent`, `blockers`, `confidence_percent`, `decision` (continue/pivot/escalate), `escalation_type`
+- **Stall detection**: Auto-escalates if the last N reflections show no progress change
+- **Low confidence**: Auto-escalates if `confidence_percent < 30%` (threshold configurable)
+- **Data storage**: Reflections appended to `KoboldImplementationPlan.Reflections` list; escalation alerts stored in `KoboldImplementationPlan.Escalations` list
+- **Decision routing**: `pivot` triggers `KoboldPlannerAgent.RevisePlanAsync`; `escalate` creates an `EscalationAlert` routed through Drake
 
-**Pros**: Structured data, can trigger automated responses
-**Cons**: More complex, adds tool call overhead
+**Pros**: Structured data, triggers automated responses, feeds into monitoring
+**Cons**: Adds tool call overhead per checkpoint
 
-### Option 3: External Reasoning Monitor
+### Option 3: External Reasoning Monitor ✅ COMPLETED (2026-03-15)
 
-Separate service analyzes Kobold outputs for patterns:
+**Location**: `DraCode.KoboldLair.Server/Services/ReasoningMonitorService.cs`
 
-```csharp
-public class ReasoningMonitorService
-{
-    public async Task AnalyzeKoboldOutputAsync(string output, KoboldContext ctx)
-    {
-        // Detect repeated error patterns
-        // Identify stuck loops (same files modified repeatedly)
-        // Flag low-progress iterations
-        // Recommend Drake intervention
-    }
-}
-```
+`ReasoningMonitorService` extends `PeriodicBackgroundService` (configurable interval, default 45s) and observes Kobold behavior without requiring LLM cooperation:
 
-**Pros**: Doesn't require LLM cooperation, observes actual behavior
-**Cons**: Post-hoc analysis, can't prevent issues proactively
+- **Stuck loop detection**: Identifies repeated writes to the same files across iterations
+- **Stalled progress detection**: Flags Kobolds with no step completions over multiple cycles
+- **Repeated error detection**: Catches identical blocker strings across consecutive reflections
+- **Budget exhaustion detection**: Alerts when iteration budget is nearly spent with low progress
+- **Escalation**: Creates `EscalationAlert` with `Source = ReasoningMonitor` and routes through Drake
+
+**Pros**: Doesn't require LLM cooperation, catches issues the agent itself misses
+**Cons**: Reactive rather than preventive (but complements Option 2's proactive checks)
+
+### Escalation Routing (2026-03-15)
+
+When the `reflect` tool or `ReasoningMonitorService` creates an `EscalationAlert`, Drake's `HandleEscalationAsync` routes it by type:
+
+| Escalation Type | Route | Action |
+|----------------|-------|--------|
+| `WrongApproach` | `KoboldPlannerAgent.RevisePlanAsync` | Revises plan in-place, preserving completed steps |
+| `TaskInfeasible` / `NeedsSplit` / `MissingDependency` | `Wyvern.RefineTaskAsync` | LLM-driven task refinement and re-breakdown |
+| `WrongAgentType` | Task reset | Resets task to `Unassigned` for reassignment with correct agent |
+
+**Real-time notifications** are pushed to the Dragon client via `ProjectNotificationService.OnNotification`:
+- Chat displays: "WARNING: ESCALATION" inline message
+- 10-second warning toast notification
+- Red badge on project navigation
+- Dashboard banner for active escalations
 
 ---
 
 ## Expected Benefits
 
-| Metric | Current | With Self-Reasoning |
-|--------|---------|---------------------|
-| Stuck loop detection | After max retries | After 3-5 iterations |
-| Error retry success | ~40% (same approach) | ~65% (adapted approach) |
-| Plan completion rate | ~70% | ~85% (mid-course corrections) |
-| Quality confidence | Binary (done/not done) | Graduated (confidence %) |
+| Metric | Before Self-Reasoning | With Self-Reasoning (Live) |
+|--------|----------------------|----------------------------|
+| Stuck loop detection | After max retries | After 3-5 iterations (ReasoningMonitorService, 45s cycle) |
+| Error retry success | ~40% (same approach) | ~65% (adapted approach via reflect + plan revision) |
+| Plan completion rate | ~70% | ~85% (mid-course corrections via RevisePlanAsync) |
+| Quality confidence | Binary (done/not done) | Graduated (confidence_percent from reflect tool) |
 
 ---
 
@@ -248,10 +250,13 @@ public class ReasoningMonitorService
 
 ## Conclusion
 
-Self-reasoning would address DraCode's primary limitation: agents that execute plans rigidly without adapting to discovered realities. The highest-impact improvements are:
+Self-reasoning has been fully implemented across three complementary layers, addressing DraCode's primary limitation of rigid plan execution:
 
-1. ✅ **Iteration checkpoints** - Catch stuck loops early - COMPLETED
-2. ✅ **Error root-cause analysis** - Smarter retry strategies - COMPLETED
-3. ⏳ **Plan feasibility re-evaluation** - Prevent wasted work downstream - FUTURE
+1. ✅ **Iteration checkpoints** (Option 1) - Prompt-based reflection protocol - COMPLETED 2026-02-12
+2. ✅ **Error root-cause analysis** (Option 1) - Smarter retry strategies - COMPLETED 2026-02-12
+3. ✅ **Structured reflection** (Option 2) - `ReflectionTool` with confidence tracking, stall detection, and escalation - COMPLETED 2026-03-15
+4. ✅ **External monitoring** (Option 3) - `ReasoningMonitorService` detecting stuck loops, stalled progress, and budget exhaustion - COMPLETED 2026-03-15
+5. ✅ **Plan re-evaluation** - `KoboldPlannerAgent.RevisePlanAsync` preserving completed steps - COMPLETED 2026-03-15
+6. ⏳ **Workspace conflict reasoning** - Drake-level multi-agent file conflict detection - FUTURE
 
-**Status**: Option 1 (prompt-based) has been implemented. Next step is Option 2 (structured tools) to enforce and capture reflection data programmatically.
+**Status**: All three implementation options are live. The remaining gap is workspace conflict reasoning at the Drake level, which would complete cross-agent self-awareness.
