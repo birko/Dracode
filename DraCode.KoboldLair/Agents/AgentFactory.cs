@@ -53,6 +53,11 @@ namespace DraCode.KoboldLair.Agents
                 var llmProvider = CreateLlmProvider(providerType, config, agentType);
                 return new KoboldPlannerAgent(llmProvider, options);
             }
+            else if (agentType.Equals("wyrm-preanalysis", StringComparison.OrdinalIgnoreCase))
+            {
+                var llmProvider = CreateLlmProvider(providerType, config, agentType);
+                return new WyrmPreAnalysisAgent(llmProvider, options);
+            }
 
             // Delegate all other agent types to DraCode.Agent.AgentFactory
             return AgentFactory.Create(providerType, options, config, agentType);

@@ -96,24 +96,56 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
-        /// Creates a new Wyrm agent for analyzing project specifications
+        /// Creates a new Wyrm task delegation agent (used by Drake for agent type selection).
         /// </summary>
         /// <param name="project">Project to analyze</param>
         /// <param name="options">Optional agent options override</param>
         /// <returns>Configured Wyrm agent</returns>
         public DraCode.Agent.Agents.Agent CreateWyrm(Project project, AgentOptions? options = null)
         {
-            // Get provider configuration for Wyrm
+            var (providerType, config, agentOptions) = GetProviderSettings(project, options);
+            var koboldLairConfig = BuildKoboldLairConfig(providerType);
+
+            var wyrm = KoboldLairAgentFactory.Create(providerType, koboldLairConfig, agentOptions, config, "wyrm");
+
+            RegisterWyrm(project.Id);
+
+            return wyrm;
+        }
+
+        /// <summary>
+        /// Creates a new Wyrm pre-analysis agent for specification analysis (JSON output).
+        /// This is distinct from CreateWyrm which creates the task delegation agent used by Drake.
+        /// </summary>
+        /// <param name="project">Project to analyze</param>
+        /// <param name="options">Optional agent options override</param>
+        /// <returns>Configured WyrmPreAnalysisAgent</returns>
+        public WyrmPreAnalysisAgent CreateWyrmPreAnalysisAgent(Project project, AgentOptions? options = null)
+        {
+            var (providerType, config, agentOptions) = GetProviderSettings(project, options);
+            var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(providerType, config, "wyrm-preanalysis");
+
+            var agent = new WyrmPreAnalysisAgent(llmProvider, agentOptions);
+
+            RegisterWyrm(project.Id);
+
+            return agent;
+        }
+
+        private (string providerType, Dictionary<string, string> config, AgentOptions agentOptions) GetProviderSettings(Project project, AgentOptions? options)
+        {
             var (providerType, config, agentOptions) = _providerConfigService.GetProviderSettingsForAgent(
                 "wyrm",
                 project.Paths.Output
             );
 
-            // Use provided options or default from service
             var finalOptions = options ?? agentOptions;
+            return (providerType, config, finalOptions);
+        }
 
-            // Get KoboldLair configuration
-            var koboldLairConfig = new KoboldLairConfiguration
+        private static KoboldLairConfiguration BuildKoboldLairConfig(string providerType)
+        {
+            return new KoboldLairConfiguration
             {
                 DefaultProvider = providerType,
                 Providers = new List<ProviderConfig>
@@ -126,15 +158,6 @@ namespace DraCode.KoboldLair.Factories
                     }
                 }
             };
-
-            // Create a generic coding agent for specification pre-analysis (JSON output).
-            // WyrmAgent (with select_agent tool) is a separate class used by Drake for task delegation.
-            var wyrm = KoboldLairAgentFactory.Create(providerType, koboldLairConfig, finalOptions, config, "coding");
-
-            // Register for tracking
-            RegisterWyrm(project.Id);
-
-            return wyrm;
         }
     }
 }

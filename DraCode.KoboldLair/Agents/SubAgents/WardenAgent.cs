@@ -40,6 +40,9 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly ProjectProgressTool? _projectProgressTool;
         private readonly ViewWorkspaceTool? _viewWorkspaceTool;
         private readonly DeleteProjectTool? _deleteProjectTool;
+        private readonly NotificationsTool? _notificationsTool;
+        private readonly UserSettingsTool? _userSettingsTool;
+        private readonly ViewAnalysisTool? _viewAnalysisTool;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -70,7 +73,10 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             ViewTaskDetailsTool? viewTaskDetailsTool = null,
             ProjectProgressTool? projectProgressTool = null,
             ViewWorkspaceTool? viewWorkspaceTool = null,
-            DeleteProjectTool? deleteProjectTool = null)
+            DeleteProjectTool? deleteProjectTool = null,
+            NotificationsTool? notificationsTool = null,
+            UserSettingsTool? userSettingsTool = null,
+            ViewAnalysisTool? viewAnalysisTool = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -98,6 +104,9 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _projectProgressTool = projectProgressTool;
             _viewWorkspaceTool = viewWorkspaceTool;
             _deleteProjectTool = deleteProjectTool;
+            _notificationsTool = notificationsTool;
+            _userSettingsTool = userSettingsTool;
+            _viewAnalysisTool = viewAnalysisTool;
             RebuildTools();
         }
 
@@ -131,6 +140,12 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 tools.Add(_viewWorkspaceTool);
             if (_deleteProjectTool != null)
                 tools.Add(_deleteProjectTool);
+            if (_notificationsTool != null)
+                tools.Add(_notificationsTool);
+            if (_userSettingsTool != null)
+                tools.Add(_userSettingsTool);
+            if (_viewAnalysisTool != null)
+                tools.Add(_viewAnalysisTool);
 
             return tools;
         }
@@ -150,10 +165,13 @@ Your role is to manage the workforce - the background agents that process projec
 6. **Retry failed analysis** - view and retry projects with failed Wyvern analysis
 7. **Retry failed tasks** - view and retry individual failed tasks from Kobolds
 8. **Control project execution** - pause, resume, suspend, or cancel project execution
+9. **View notifications** - check feature completion, project events, escalation alerts
+10. **Manage global settings** - view/change LLM provider assignments for all agent types
+11. **View analysis results** - inspect what Wyrm and Wyvern decided about a project
 
 ## Tools Available:
 - **agent_status**: View running agents per project (actions: list, project, summary)
-- **manage_agents**: View and manage agent configurations (actions: status, get, enable, disable, set_limit)
+- **manage_agents**: View and manage per-project agent configurations (actions: status, get, enable, disable, set_limit)
 - **manage_external_paths**: Control which external paths agents can access (actions: list, add, remove)
 - **retry_analysis**: View failed projects and retry Wyvern analysis (actions: list, retry, status)
 - **retry_failed_task**: View and retry failed Kobold tasks (actions: list, retry, retry_all)
@@ -166,6 +184,9 @@ Your role is to manage the workforce - the background agents that process projec
 - **resume_project**: Resume paused or suspended project
 - **suspend_project**: Long-term hold (awaiting external changes)
 - **cancel_project**: Permanently stop project (requires confirmation)
+- **view_notifications**: View and dismiss project notifications - feature completions, alerts, errors (actions: list, project, dismiss, dismiss_all)
+- **user_settings**: View and change global LLM provider settings for all agent types (actions: view, set_provider, set_kobold_type)
+- **view_analysis**: View Wyrm and Wyvern analysis results for a project (actions: wyrm, wyvern, summary)
 
 ## Agent Types You Oversee:
 - **Wyrm**: Pre-analyzes specifications, recommends languages/agent types/tech stack. Also used by Drake to select specialist Kobold types for each task.

@@ -609,7 +609,45 @@ namespace DraCode.KoboldLair.Server.Services
                 deleteProjectTool: new DeleteProjectTool(
                     getProject: id => _projectService.GetProject(id),
                     deleteProject: (id, deleteFiles) => DeleteProjectFromRegistry(id, deleteFiles),
-                    getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList()));
+                    getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList()),
+                notificationsTool: _notificationService != null ? new NotificationsTool(
+                    getPendingNotifications: projectName =>
+                    {
+                        var notifications = _notificationService.GetPendingNotifications(projectName);
+                        return notifications.Select(n => new NotificationInfo
+                        {
+                            Id = n.Id,
+                            Type = n.Type,
+                            Message = n.Message,
+                            Metadata = n.Metadata,
+                            CreatedAt = n.CreatedAt
+                        }).ToList();
+                    },
+                    markAsRead: (projectName, ids) => _notificationService.MarkAsRead(projectName, ids),
+                    getAllPendingCounts: () =>
+                    {
+                        var projects = _projectService.GetAllProjects();
+                        return projects
+                            .Select(p => (p.Name, Count: _notificationService.GetPendingNotifications(p.Name).Count))
+                            .Where(x => x.Count > 0)
+                            .ToList();
+                    }
+                ) : null,
+                userSettingsTool: new UserSettingsTool(
+                    getUserSettings: () => _providerConfigService.GetUserSettings(),
+                    setProviderForAgent: (agentType, provider, model) => _providerConfigService.SetProviderForAgent(agentType, provider, model),
+                    setProviderForKoboldAgentType: (agentType, provider, model) => _providerConfigService.SetProviderForKoboldAgentType(agentType, provider, model),
+                    getAvailableProviders: () => _providerConfigService.GetAvailableProviders().Select(p => p.Name).ToList()
+                ),
+                viewAnalysisTool: new ViewAnalysisTool(
+                    getProjectFolder: projectNameOrId =>
+                    {
+                        var project = _projectService.FindProjectByName(projectNameOrId)
+                            ?? _projectService.GetProject(projectNameOrId);
+                        return project?.Paths.Output;
+                    },
+                    getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList()
+                ));
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(
