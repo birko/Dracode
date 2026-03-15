@@ -1371,73 +1371,131 @@ Agents currently operate in a plan-execution loop. Adding self-reflection could 
 
 Identified during deep analysis of the KoboldLair Server execution pipeline. Items below require larger refactors.
 
-### Concurrency & Thread Safety
+### Already Fixed (2026-03-15) — 28 issues resolved in commit `402dbc1`
 
-- [ ] **Convert tool Execute methods from sync to async**
+<details>
+<summary>Click to expand fixed items</summary>
+
+1. ~~"Verified" status dead end~~ → now transitions to `Completed`
+2. ~~Spec modification doesn't stop Drakes~~ → stops all Drakes before `SpecificationModified`
+3. ~~Single failed task blocks entire area~~ → independent tasks continue
+4. ~~PowerShell hardcoded in verification~~ → cross-platform shell detection
+5. ~~No stuck project detection~~ → warns if projects stuck >2h
+6. ~~Escalations not cleared on retry~~ → `ClearEscalationsForTaskAsync()`
+7. ~~Escalation state lost on crash~~ → immediate save after handling
+8. ~~DrakeMonitoring file save unhandled~~ → try-catch with logging
+9. ~~Duplicate verification fix tasks~~ → deduplication by CheckType
+10. ~~Incomplete tech stack detection~~ → added Go, Rust, Java, C++
+11. ~~`_taskToKoboldMap` not thread-safe~~ → `ConcurrentDictionary`
+12. ~~WAL recovery fire-and-forget~~ → properly awaited with error handling
+13. ~~Non-blocking save on critical transitions~~ → Failed status uses async save
+14. ~~SharedPlanningContext not injected into Wyrm~~ → added to DI registration
+15. ~~No notification on project completion~~ → `NotifyProjectComplete()` called
+16. ~~Unknown errors default to Permanent~~ → changed to Transient
+17. ~~Escalation routing fails when no Drake~~ → retry 3x with 30s delay
+18. ~~Notifications not persisted on shutdown~~ → `PersistAll()` + shutdown hook
+19. ~~No config validation~~ → `Math.Clamp`/`Math.Max` on reflection settings
+20. ~~External path injection~~ → `Path.GetFullPath()` normalization
+21. ~~XSS in Dragon chat~~ → `escapeHtml()` on all message content
+22. ~~No circular dependency detection~~ → DFS cycle detection in Wyvern
+23. ~~Spec version drift~~ → content hash comparison + downgrade detection
+24. ~~Parallel step index out of bounds~~ → validation with warning
+25. ~~Plan resume stale checkpoint~~ → bounds check, discard invalid checkpoints
+26. ~~Worktree creation not verified~~ → `Directory.Exists()` after git command
+27. ~~Commit author email special chars~~ → regex sanitization
+28. ~~Error classification too aggressive~~ → unknown errors default to transient
+
+</details>
+
+### Remaining — Requires Larger Refactors
+
+#### Concurrency & Thread Safety
+
+- [ ] **Convert tool Execute methods from sync to async** 🔧 *Manual fix required*
   - Multiple tool `Execute()` methods use `.GetAwaiter().GetResult()` for async calls, causing thread pool starvation and potential deadlocks
   - **Affected**: `UpdatePlanStepTool.cs:259-281`, `ReflectionTool.cs:214-226`, `GitCommitTool.cs`
   - Requires changing base Tool interface from `string Execute(...)` to `Task<string> ExecuteAsync(...)`
+  - ⚠️ Birko.Framework does NOT resolve this — tool interface is DraCode-specific
 
-- [ ] **Add project-level mutex for git operations**
+- [ ] **Add project-level mutex for git operations** 🔧 *Manual fix required*
   - No locking when multiple Kobolds operate on the same git repo — `.git/index.lock` contention
   - Add `ConcurrentDictionary<string, SemaphoreSlim>` in `GitService.cs` keyed by project folder
   - Each git operation acquires the semaphore before executing
+  - ⚠️ Birko.Framework does NOT resolve this — git CLI interaction is OS-level
 
-- [ ] **Fix blocking .GetAwaiter().GetResult() calls in DragonService callbacks**
+- [ ] **Fix blocking .GetAwaiter().GetResult() calls in DragonService callbacks** 🔧 *Manual fix required*
   - `DragonService.cs` lines 567, 575, 775, 1754 use blocking sync wrappers around async calls
   - Risk: deadlocks when called from async context under high concurrency
   - Change callback signatures to `Func<..., Task>` or use `Task.Run()` wrapper
+  - ⚠️ Birko.Framework does NOT resolve this — callback design is DraCode-specific
 
-### Data Loss & Persistence
+#### Data Loss & Persistence
 
-- [ ] **Fix plan save debounce race condition**
+- [ ] **Fix plan save debounce race condition** 🗄️ *Resolved by Birko.Data.SQL migration*
   - `KoboldPlanService.cs:817-954` — Channel capacity=1 with `DropWrite` can lose intermediate plan states
-  - If step N+1 completes after debounced save but before next drain cycle, that state may not be persisted
-  - Replace with dirty-flag approach: set flag on each request, background loop checks after debounce interval
+  - **Birko fix**: PostgreSQL transactional writes eliminate debouncing entirely — each step update is an immediate atomic DB write
+  - **Interim fix** (before DB migration): Replace with dirty-flag approach
 
-- [ ] **Fix fire-and-forget history save race condition in Dragon sessions**
+- [ ] **Fix fire-and-forget history save race condition in Dragon sessions** 🗄️ *Resolved by Birko.Data.SQL migration*
   - `DragonService.cs:1627-1640` — history saved via `Task.Run()` with no synchronization
-  - `CurrentProjectFolder` can change between check and save; concurrent writes can interleave
-  - Use debounced save queue per session (similar to Drake's task save channel)
+  - **Birko fix**: Dragon history in PostgreSQL with transactional writes eliminates file I/O races
+  - **Interim fix** (before DB migration): Use debounced save queue per session
 
-- [ ] **Fix escalation not persisted before dispatch in ReflectionTool**
+- [ ] **Fix escalation not persisted before dispatch in ReflectionTool** 🗄️ *Resolved by Birko.Data.SQL migration*
   - `ReflectionTool.cs:178-210` — alert added to in-memory plan, callback invoked, then save is debounced
-  - If callback throws, debounced save may not execute — escalation lost on restart
-  - Save plan BEFORE invoking escalation callback
+  - **Birko fix**: Escalations stored in DB transactionally before callback dispatch — no debounced save needed
+  - **Interim fix** (before DB migration): Save plan BEFORE invoking escalation callback
 
-- [ ] **Persist circuit breaker state across server restarts**
+- [ ] **Persist circuit breaker state across server restarts** 🗄️ *Resolved by Birko.Data.SQL or Birko.Caching.Redis*
   - `ProviderCircuitBreaker.cs` stores all state in memory; lost on restart causing retry storms
-  - Add `SaveStateAsync()`/`LoadStateAsync()` persisting to `circuit-breaker-state.json`
-  - Add to graceful shutdown handler
+  - **Birko fix**: Circuit breaker state persisted to PostgreSQL or Redis with automatic load on startup
+  - **Interim fix** (before DB migration): Add `SaveStateAsync()`/`LoadStateAsync()` to JSON file
 
-### Git & Worktree Management
+#### Git & Worktree Management
 
-- [ ] **Add stale worktree cleanup on server startup**
+- [ ] **Add stale worktree cleanup on server startup** 🔧 *Partially helped by Birko.BackgroundJobs*
   - No detection/cleanup of orphaned `.worktrees/` directories after server crash
-  - Add startup task: iterate project folders, run `git worktree prune`, remove unregistered directories
   - Add `PruneStaleWorktreesAsync()` to `GitService.cs`, call in `Program.cs` startup
+  - **Birko partial help**: `Birko.BackgroundJobs` can run a persistent startup cleanup job, but git worktree logic stays manual
 
-- [ ] **Fix commit failure not propagating task failure status**
+- [ ] **Fix commit failure not propagating task failure status** 🔧 *Manual fix required*
   - `Drake.cs:1396-1459` — if `git commit` fails, task remains `Done` but code was never committed
   - At minimum add a warning flag; optionally retry or mark as `commit_pending`
+  - ⚠️ Birko.Framework does NOT resolve this — git commit logic is DraCode-specific
 
-### Client-Side
+#### Client-Side
 
-- [ ] **Fix event listener memory leak on view switch**
+- [ ] **Fix event listener memory leak on view switch** 🔧 *Manual fix required*
   - `dragon-view.js:603-649` — `onMount()` adds listeners without removing previous ones
   - Switching tabs accumulates duplicates: duplicate sends, memory leak, CPU increase
   - Use event delegation or track/remove listeners in `onUnmount()`
+  - ⚠️ Birko.Framework does NOT resolve this — client-side JavaScript
 
-- [ ] **Add notification deduplication on client reconnect**
+- [ ] **Add notification deduplication on client reconnect** 🔧 *Partially helped by Birko.Data.SQL*
   - `dragon-view.js:228-255` — reconnect replays messages, escalations added without dedup check
-  - Check `notificationStore` for existing ID before adding
+  - **Birko partial help**: Server-side notifications in PostgreSQL with unique constraints prevent duplicates at source; client-side dedup still needed
+  - **Interim fix**: Check `notificationStore` for existing ID before adding
 
-### Architecture
+#### Architecture
 
-- [ ] **Fix worktree file path confusion between parallel feature branches**
+- [ ] **Fix worktree file path confusion between parallel feature branches** 🔧 *Partially helped by Birko.Caching/EventBus*
   - `Kobold.cs:533-539, 615` — each Kobold only sees its own worktree's files and APIs
   - Cross-module API extraction misses exports from sibling feature branches
+  - **Birko partial help**: `Birko.Caching.Redis` for shared API registry, or `Birko.EventBus` for cross-branch API change notifications
   - SharedPlanningContextService should maintain a registry of exported APIs per feature branch
+
+### Birko.Framework Impact Summary
+
+| Category | Total | Fully Resolved by Birko | Partially Helped | Manual Fix Only |
+|----------|-------|------------------------|------------------|-----------------|
+| Concurrency | 3 | 0 | 0 | 3 |
+| Data Loss | 4 | 4 (via DB migration) | 0 | 0 |
+| Git/Worktree | 2 | 0 | 1 | 1 |
+| Client-Side | 2 | 0 | 1 | 1 |
+| Architecture | 1 | 0 | 1 | 0 |
+| **Total** | **12** | **4** | **3** | **5** |
+
+**Recommendation**: Prioritize Birko.Data.SQL migration (Phase 1) — it eliminates 4 of 12 remaining issues and reduces severity of 3 more. The 5 manual-fix items should be addressed independently.
 
 ---
 

@@ -608,3 +608,36 @@ curl http://localhost:5000/  # Health check
 - **Server Errors (5xx)**: Automatic retry with backoff
 - **Configuration Errors**: Immediate failure with clear error message
 - All providers use `SendWithRetryAsync` in `LlmProviderBase`
+
+## Known Issues & Architectural Debt (2026-03-15)
+
+28 execution pipeline gaps were fixed in commit `402dbc1`. 12 remaining items require larger refactors — tracked in `TODO.md` under "Execution Flow Gaps & Architectural Fixes".
+
+### Concurrency Issues (manual fix required)
+- **Blocking sync-over-async**: Tool `Execute()` methods and DragonService callbacks use `.GetAwaiter().GetResult()` — risk of thread pool starvation and deadlocks under concurrent load
+- **Git lock contention**: No project-level mutex for concurrent git operations — multiple Kobolds can contend on `.git/index.lock`
+
+### Data Persistence Issues (resolved by Birko.Data.SQL migration)
+- **Plan save debounce race**: `KoboldPlanService` debounced writes can lose intermediate plan states — PostgreSQL transactional writes eliminate this
+- **Dragon history race**: Fire-and-forget `Task.Run()` history saves can interleave — DB writes are atomic
+- **Escalation persistence gap**: Escalations added to in-memory plan before dispatch — DB transaction ensures persistence before callback
+- **Circuit breaker state lost**: In-memory only, reset on restart — DB/Redis persistence survives restarts
+
+### Git/Worktree Issues
+- **Stale worktrees on restart**: No cleanup of orphaned `.worktrees/` after crash — needs startup pruning
+- **Commit failure silent**: `git commit` failures don't propagate to task status — task marked Done despite uncommitted code
+
+### Client-Side Issues
+- **Event listener leak**: `dragon-view.js` `onMount()` accumulates duplicate listeners on view switch
+- **Notification dedup**: Reconnect replays can create duplicate escalation entries in notification store
+
+### Birko.Framework Migration Impact
+
+The planned Birko.Data.SQL migration (PostgreSQL) resolves 4 of 12 remaining issues by replacing file-based JSON storage with transactional database writes. See `TODO.md` for full mapping:
+
+| Birko Module | Resolves | Issues |
+|--------------|----------|--------|
+| `Birko.Data.SQL` (PostgreSQL) | Plan save race, history race, escalation persistence, circuit breaker state | 4 of 12 |
+| `Birko.BackgroundJobs` | Partial help with worktree cleanup (startup job) | 1 of 12 |
+| `Birko.Caching.Redis` / `Birko.EventBus` | Partial help with cross-branch API visibility, notification dedup | 2 of 12 |
+| *Not applicable* | Tool async interface, git mutex, DragonService callbacks, event listener leak, commit failure propagation | 5 of 12 |
