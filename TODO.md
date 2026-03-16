@@ -1385,11 +1385,11 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 
 #### Concurrency & Thread Safety
 
-- [ ] **Convert tool Execute methods from sync to async** 🔧 *Manual fix required*
-  - Multiple tool `Execute()` methods use `.GetAwaiter().GetResult()` for async calls, causing thread pool starvation and potential deadlocks
-  - **Affected**: `UpdatePlanStepTool.cs:259-281`, `ReflectionTool.cs:214-226`, `GitCommitTool.cs`
-  - Requires changing base Tool interface from `string Execute(...)` to `Task<string> ExecuteAsync(...)`
-  - ⚠️ Birko.Framework does NOT resolve this — tool interface is DraCode-specific
+- [x] **Convert tool Execute methods from sync to async** ✅ COMPLETED (2026-03-16)
+  - Added `virtual Task<string> ExecuteAsync(...)` to base `Tool` class (default wraps sync `Execute`)
+  - `Agent.cs` now calls `await tool.ExecuteAsync(...)` — all tools run in async context
+  - Converted 16 tools to proper async, eliminated all `.GetAwaiter().GetResult()` in tools
+  - Replaced `lock` with `SemaphoreSlim` in `UpdatePlanStepTool` and `ReflectionTool`
 
 - [x] **Add project-level mutex for git operations** ✅ COMPLETED (2026-03-16)
   - Added `static ConcurrentDictionary<string, SemaphoreSlim> _repoLocks` in `GitService.cs`
@@ -1397,11 +1397,11 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
   - Key is normalized absolute path (`Path.GetFullPath` + trimmed separators)
   - All git operations automatically serialized per working directory — prevents `.git/index.lock` contention
 
-- [ ] **Fix blocking .GetAwaiter().GetResult() calls in DragonService callbacks** 🔧 *Manual fix required*
-  - `DragonService.cs` lines 567, 575, 775, 1754 use blocking sync wrappers around async calls
-  - Risk: deadlocks when called from async context under high concurrency
-  - Change callback signatures to `Func<..., Task>` or use `Task.Run()` wrapper
-  - ⚠️ Birko.Framework does NOT resolve this — callback design is DraCode-specific
+- [x] **Fix blocking .GetAwaiter().GetResult() calls in DragonService callbacks** ✅ COMPLETED (2026-03-16)
+  - Callback signatures changed to async: `Func<..., Task>` / `Func<..., Task<T>>`
+  - Updated full chain: DragonService → DragonAgent → WardenAgent/SageAgent → Tools
+  - `GetProjectInfoList` → `GetProjectInfoListAsync` with proper async iteration
+  - Zero `.GetAwaiter().GetResult()` calls remaining in DragonService
 
 #### Data Loss & Persistence
 
@@ -1468,14 +1468,14 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 
 | Category | Total | Resolved | Fully Resolved by Birko | Partially Helped | Manual Fix Only |
 |----------|-------|----------|------------------------|------------------|-----------------|
-| Concurrency | 3 | **1** ✅ | 0 | 0 | 2 |
+| Concurrency | 3 | **3** ✅ | 0 | 0 | 0 |
 | Data Loss | 4 | **4** ✅ | 0 | 0 | 0 |
 | Git/Worktree | 2 | **2** ✅ | 0 | 0 | 0 |
 | Client-Side | 2 | **2** ✅ | 0 | 0 | 0 |
 | Architecture | 1 | **1** ✅ | 0 | 0 | 0 |
-| **Total** | **12** | **10** | **0** | **0** | **2** |
+| **Total** | **12** | **12** ✅ | **0** | **0** | **0** |
 
-**Status**: 10 of 12 fixed (2026-03-16). Remaining 2: async tool interface refactor + DragonService blocking callbacks (concurrency).
+**Status**: All 12 execution flow gaps resolved (2026-03-16).
 
 ---
 

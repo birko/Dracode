@@ -127,46 +127,59 @@ The modification will be logged and may require approval depending on configurat
             }
         }
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> parameters)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> parameters)
         {
+            // Gather state under lock, then perform async I/O outside the lock
+            bool allowModifications;
+            KoboldImplementationPlan? plan;
+            KoboldPlanService? planService;
+
             lock (_lockObject)
             {
-                if (!_allowModifications)
-                {
-                    return "Error: Plan modifications are not enabled. Set AllowPlanModifications=true in configuration.";
-                }
+                allowModifications = _allowModifications;
+                plan = _currentPlan;
+                planService = _planService;
+            }
 
-                if (_currentPlan == null)
-                {
-                    return "Error: No plan context registered. This tool can only be used within plan execution.";
-                }
+            if (!allowModifications)
+            {
+                return "Error: Plan modifications are not enabled. Set AllowPlanModifications=true in configuration.";
+            }
 
-                if (!parameters.TryGetValue("operation", out var operationObj) || operationObj is not string operation)
-                {
-                    return "Error: Missing or invalid 'operation' parameter.";
-                }
+            if (plan == null)
+            {
+                return "Error: No plan context registered. This tool can only be used within plan execution.";
+            }
 
-                if (!parameters.TryGetValue("reason", out var reasonObj) || reasonObj is not string reason)
-                {
-                    return "Error: Missing or invalid 'reason' parameter.";
-                }
+            if (!parameters.TryGetValue("operation", out var operationObj) || operationObj is not string operation)
+            {
+                return "Error: Missing or invalid 'operation' parameter.";
+            }
 
-                // Log the modification request
-                var modification = $"Operation: {operation}, Reason: {reason}";
-                _logger?.LogInformation("📝 Plan modification requested: {Modification}", modification);
-                _currentPlan.AddLogEntry($"Modification requested: {modification}");
+            if (!parameters.TryGetValue("reason", out var reasonObj) || reasonObj is not string reason)
+            {
+                return "Error: Missing or invalid 'reason' parameter.";
+            }
 
-                // Check auto-approval
-                if (!_autoApprove)
-                {
-                    _currentPlan.AddLogEntry($"Modification pending approval: {modification}");
-                    return $"Plan modification logged and pending approval:\n{operation}: {reason}\n\nThe modification has been recorded but not applied. Manual approval required.";
-                }
+            // Log the modification request
+            var modification = $"Operation: {operation}, Reason: {reason}";
+            _logger?.LogInformation("📝 Plan modification requested: {Modification}", modification);
+            plan.AddLogEntry($"Modification requested: {modification}");
 
-                // Execute the modification
-                try
+            // Check auto-approval
+            if (!_autoApprove)
+            {
+                plan.AddLogEntry($"Modification pending approval: {modification}");
+                return $"Plan modification logged and pending approval:\n{operation}: {reason}\n\nThe modification has been recorded but not applied. Manual approval required.";
+            }
+
+            // Execute the modification
+            try
+            {
+                string result;
+                lock (_lockObject)
                 {
-                    string result = operation switch
+                    result = operation switch
                     {
                         "skip" => HandleSkipStep(parameters, reason),
                         "combine" => HandleCombineSteps(parameters, reason),
@@ -174,20 +187,20 @@ The modification will be logged and may require approval depending on configurat
                         "add" => HandleAddStep(parameters, reason),
                         _ => $"Error: Unknown operation '{operation}'"
                     };
-
-                    // Save the modified plan (using async internally for non-blocking I/O)
-                    if (_planService != null && !result.StartsWith("Error"))
-                    {
-                        _planService.SavePlanAsync(_currentPlan).GetAwaiter().GetResult();
-                    }
-
-                    return result;
                 }
-                catch (Exception ex)
+
+                // Save the modified plan
+                if (planService != null && !result.StartsWith("Error"))
                 {
-                    _logger?.LogError(ex, "Failed to apply plan modification: {Operation}", operation);
-                    return $"Error: Failed to apply modification - {ex.Message}";
+                    await planService.SavePlanAsync(plan);
                 }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to apply plan modification: {Operation}", operation);
+                return $"Error: Failed to apply modification - {ex.Message}";
             }
         }
 

@@ -13,14 +13,14 @@ namespace DraCode.KoboldLair.Agents.Tools
         private readonly object _specificationsLock = new object();
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<string, string>? _getProjectFolder;
-        private readonly Func<string, string?>? _onProjectLoaded;
+        private readonly Func<string, Task<string?>>? _onProjectLoaded;
 
         public SpecificationManagementTool(
             Dictionary<string, Specification> specifications,
             Action<string>? onSpecificationUpdated = null,
             Func<string, string>? getProjectFolder = null,
             string? projectsPath = "./projects",
-            Func<string, string?>? onProjectLoaded = null)
+            Func<string, Task<string?>>? onProjectLoaded = null)
         {
             _specifications = specifications;
             _onSpecificationUpdated = onSpecificationUpdated;
@@ -59,7 +59,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("action", out var actionObj))
             {
@@ -73,11 +73,11 @@ namespace DraCode.KoboldLair.Agents.Tools
                 case "list":
                     return ListSpecifications();
                 case "load":
-                    return LoadSpecification(input);
+                    return await LoadSpecificationAsync(input);
                 case "create":
-                    return CreateSpecification(input);
+                    return await CreateSpecificationAsync(input);
                 case "update":
-                    return UpdateSpecification(input);
+                    return await UpdateSpecificationAsync(input);
                 default:
                     return $"Error: Unknown action '{action}'";
             }
@@ -110,7 +110,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             return $"Specifications:\n{list}";
         }
 
-        private string LoadSpecification(Dictionary<string, object> input)
+        private async Task<string> LoadSpecificationAsync(Dictionary<string, object> input)
         {
             if (!input.TryGetValue("name", out var nameObj))
             {
@@ -120,32 +120,36 @@ namespace DraCode.KoboldLair.Agents.Tools
             var name = nameObj.ToString() ?? "";
 
             // First check if we have the spec cached with its project folder (under lock)
+            Specification? existingSpec = null;
+            string? existingFilePath = null;
             lock (_specificationsLock)
             {
-                if (_specifications.TryGetValue(name, out var existingSpec) && !string.IsNullOrEmpty(existingSpec.FilePath))
+                if (_specifications.TryGetValue(name, out existingSpec) && !string.IsNullOrEmpty(existingSpec.FilePath))
                 {
-                    if (File.Exists(existingSpec.FilePath))
-                    {
-                        var content = File.ReadAllTextAsync(existingSpec.FilePath).GetAwaiter().GetResult();
-                        existingSpec.Content = content;
-
-                        // Load features from project folder
-                        var projectFolder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingSpec.FilePath) ?? "";
-                        if (!string.IsNullOrEmpty(projectFolder))
-                        {
-                            FeatureManagementTool.LoadFeatures(existingSpec, projectFolder);
-                        }
-
-                        var result = $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {existingSpec.Features.Count}";
-                        if (!string.IsNullOrEmpty(projectFolder))
-                        {
-                            var summary = _onProjectLoaded?.Invoke(projectFolder);
-                            if (!string.IsNullOrEmpty(summary))
-                                result += $"\n\n{summary}";
-                        }
-                        return result;
-                    }
+                    existingFilePath = existingSpec.FilePath;
                 }
+            }
+
+            if (existingSpec != null && existingFilePath != null && File.Exists(existingFilePath))
+            {
+                var content = await File.ReadAllTextAsync(existingFilePath);
+                existingSpec.Content = content;
+
+                // Load features from project folder
+                var projectFolder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingFilePath) ?? "";
+                if (!string.IsNullOrEmpty(projectFolder))
+                {
+                    await FeatureManagementTool.LoadFeaturesAsync(existingSpec, projectFolder);
+                }
+
+                var result = $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {existingSpec.Features.Count}";
+                if (!string.IsNullOrEmpty(projectFolder) && _onProjectLoaded != null)
+                {
+                    var summary = await _onProjectLoaded(projectFolder);
+                    if (!string.IsNullOrEmpty(summary))
+                        result += $"\n\n{summary}";
+                }
+                return result;
             }
 
             // Try consolidated structure: {projectsPath}/{name}/specification.md
@@ -159,7 +163,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                var content = File.ReadAllTextAsync(specPath).GetAwaiter().GetResult();
+                var content = await File.ReadAllTextAsync(specPath);
                 var spec = new Specification
                 {
                     Name = name,
@@ -174,12 +178,15 @@ namespace DraCode.KoboldLair.Agents.Tools
                 }
 
                 // Load features from project folder
-                FeatureManagementTool.LoadFeatures(spec, projectFolder2);
+                await FeatureManagementTool.LoadFeaturesAsync(spec, projectFolder2);
 
                 var result = $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {spec.Features.Count}";
-                var summary = _onProjectLoaded?.Invoke(projectFolder2);
-                if (!string.IsNullOrEmpty(summary))
-                    result += $"\n\n{summary}";
+                if (_onProjectLoaded != null)
+                {
+                    var summary = await _onProjectLoaded(projectFolder2);
+                    if (!string.IsNullOrEmpty(summary))
+                        result += $"\n\n{summary}";
+                }
                 return result;
             }
             catch (Exception ex)
@@ -198,7 +205,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             return sanitized.Trim().Replace(" ", "-").ToLowerInvariant();
         }
 
-        private string CreateSpecification(Dictionary<string, object> input)
+        private async Task<string> CreateSpecificationAsync(Dictionary<string, object> input)
         {
             if (!input.TryGetValue("name", out var nameObj) || !input.TryGetValue("content", out var contentObj))
             {
@@ -236,7 +243,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             try
             {
                 // Write file first (outside lock to avoid holding lock during I/O)
-                File.WriteAllTextAsync(fullPath, content).GetAwaiter().GetResult();
+                await File.WriteAllTextAsync(fullPath, content);
 
                 var spec = new Specification
                 {
@@ -263,7 +270,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string UpdateSpecification(Dictionary<string, object> input)
+        private async Task<string> UpdateSpecificationAsync(Dictionary<string, object> input)
         {
             if (!input.TryGetValue("name", out var nameObj) || !input.TryGetValue("content", out var contentObj))
             {
@@ -307,7 +314,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             try
             {
                 // Write file first (outside lock)
-                File.WriteAllTextAsync(fullPath, content).GetAwaiter().GetResult();
+                await File.WriteAllTextAsync(fullPath, content);
 
                 // Update spec under lock
                 lock (_specificationsLock)

@@ -21,7 +21,7 @@ namespace DraCode.KoboldLair.Agents.Tools
     /// </summary>
     public class UpdatePlanStepTool : Tool
     {
-        private static readonly object _lock = new();
+        private static readonly SemaphoreSlim _semaphore = new(1, 1);
         private static KoboldImplementationPlan? _currentPlan;
         private static KoboldPlanService? _planService;
         private static SharedPlanningContextService? _sharedPlanningContext;
@@ -68,7 +68,7 @@ Returns: Confirmation of the update with current plan progress.";
             required = new[] { "step_index", "status" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> arguments)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
         {
             try
             {
@@ -130,7 +130,8 @@ Returns: Confirmation of the update with current plan progress.";
                 };
 
                 // Update the plan
-                lock (_lock)
+                await _semaphore.WaitAsync();
+                try
                 {
                     if (_currentPlan == null)
                     {
@@ -224,17 +225,7 @@ Returns: Confirmation of the update with current plan progress.";
                         try
                         {
                             // Use debounced save (non-blocking, coalesces writes)
-                            _ = Task.Run(async () =>
-                            {
-                                try
-                                {
-                                    await _planService.SavePlanDebouncedAsync(_currentPlan);
-                                }
-                                catch (Exception ex)
-                                {
-                                    _logger?.LogWarning(ex, "Failed to enqueue plan save at {Timestamp:o}", DateTime.UtcNow);
-                                }
-                            });
+                            await _planService.SavePlanDebouncedAsync(_currentPlan);
                         }
                         catch (Exception ex)
                         {
@@ -256,12 +247,12 @@ Returns: Confirmation of the update with current plan progress.";
                                     step,
                                     _currentPlan.TaskDescription,
                                     isCreation: true);
-                                _sharedPlanningContext.UpdateFileMetadataAsync(
+                                await _sharedPlanningContext.UpdateFileMetadataAsync(
                                     _currentProjectId,
                                     filePath,
                                     purpose,
                                     _currentTaskId ?? _currentPlan.TaskId,
-                                    isCreation: true).GetAwaiter().GetResult();
+                                    isCreation: true);
                             }
 
                             // Update file registry for files modified in this step
@@ -272,12 +263,12 @@ Returns: Confirmation of the update with current plan progress.";
                                     step,
                                     _currentPlan.TaskDescription,
                                     isCreation: false);
-                                _sharedPlanningContext.UpdateFileMetadataAsync(
+                                await _sharedPlanningContext.UpdateFileMetadataAsync(
                                     _currentProjectId,
                                     filePath,
                                     purpose,
                                     _currentTaskId ?? _currentPlan.TaskId,
-                                    isCreation: false).GetAwaiter().GetResult();
+                                    isCreation: false);
                             }
 
                             // Register API signatures for cross-branch visibility
@@ -297,8 +288,8 @@ Returns: Confirmation of the update with current plan progress.";
                                     var signatures = Kobold.ExtractApiSignaturesFromContent(content, ext);
                                     if (signatures.Count > 0)
                                     {
-                                        _sharedPlanningContext.RegisterModuleExportsAsync(
-                                            _currentProjectId, filePath, signatures).GetAwaiter().GetResult();
+                                        await _sharedPlanningContext.RegisterModuleExportsAsync(
+                                            _currentProjectId, filePath, signatures);
                                     }
                                 }
                                 catch { /* best effort — don't fail step completion */ }
@@ -404,6 +395,10 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%)";
 
 Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextStepInfo}";
                 }
+                finally
+                {
+                    _semaphore.Release();
+                }
             }
             catch (Exception ex)
             {
@@ -423,7 +418,8 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
             string? projectId = null,
             string? taskId = null)
         {
-            lock (_lock)
+            _semaphore.Wait();
+            try
             {
                 _currentPlan = plan;
                 _planService = service;
@@ -431,6 +427,10 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
                 _sharedPlanningContext = sharedPlanningContext;
                 _currentProjectId = projectId ?? plan.ProjectId;
                 _currentTaskId = taskId ?? plan.TaskId;
+            }
+            finally
+            {
+                _semaphore.Release();
             }
         }
 
@@ -440,7 +440,8 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
         /// </summary>
         public static void ClearContext()
         {
-            lock (_lock)
+            _semaphore.Wait();
+            try
             {
                 _currentPlan = null;
                 _planService = null;
@@ -449,6 +450,10 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
                 _currentProjectId = null;
                 _currentTaskId = null;
             }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
 
         /// <summary>
@@ -456,9 +461,14 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
         /// </summary>
         public static KoboldImplementationPlan? GetCurrentPlan()
         {
-            lock (_lock)
+            _semaphore.Wait();
+            try
             {
                 return _currentPlan;
+            }
+            finally
+            {
+                _semaphore.Release();
             }
         }
 

@@ -19,8 +19,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<List<(string Id, string Name)>>? _getAllProjects;
         private readonly Action<string, string, bool>? _setAgentEnabled;
         private readonly Action<string, string, int>? _setAgentLimit;
-        private readonly Action<string, string>? _addExternalPath;
-        private readonly Func<string, string, bool>? _removeExternalPath;
+        private readonly Func<string, string, Task>? _addExternalPath;
+        private readonly Func<string, string, Task<bool>>? _removeExternalPath;
         private readonly Func<string, IReadOnlyList<string>>? _getExternalPaths;
         private readonly Func<string, (bool Success, string? ErrorMessage, string? Status)>? _getProjectStatus;
         private readonly Func<string, bool>? _retryAnalysis;
@@ -53,8 +53,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<List<(string Id, string Name)>>? getAllProjects = null,
             Action<string, string, bool>? setAgentEnabled = null,
             Action<string, string, int>? setAgentLimit = null,
-            Action<string, string>? addExternalPath = null,
-            Func<string, string, bool>? removeExternalPath = null,
+            Func<string, string, Task>? addExternalPath = null,
+            Func<string, string, Task<bool>>? removeExternalPath = null,
             Func<string, IReadOnlyList<string>>? getExternalPaths = null,
             Func<string, (bool Success, string? ErrorMessage, string? Status)>? getProjectStatus = null,
             Func<string, bool>? retryAnalysis = null,

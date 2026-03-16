@@ -48,7 +48,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "specification_name", "feature_name", "confirm" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("specification_name", out var specNameObj))
                 return "Error: specification_name is required";
@@ -93,13 +93,13 @@ namespace DraCode.KoboldLair.Agents.Tools
                 return result;
 
             // Save updated features
-            SaveFeatures(spec);
+            await SaveFeaturesAsync(spec);
 
             SendMessage("success", $"Feature deleted: {featureName}");
             return $"✅ Feature '{featureName}' has been deleted from specification '{specName}'.";
         }
 
-        private void SaveFeatures(Specification spec)
+        private async Task SaveFeaturesAsync(Specification spec)
         {
             var folder = spec.ProjectFolder;
             if (string.IsNullOrEmpty(folder) && !string.IsNullOrEmpty(spec.FilePath))
@@ -118,7 +118,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                     features = spec.Features
                 };
                 var json = JsonSerializer.Serialize(featuresData, options);
-                File.WriteAllTextAsync(featuresPath, json).GetAwaiter().GetResult();
+                await File.WriteAllTextAsync(featuresPath, json);
             }
             catch (Exception ex)
             {

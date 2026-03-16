@@ -55,7 +55,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "project_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_gitService == null)
                 return "Git integration is not available.";
@@ -73,22 +73,22 @@ namespace DraCode.KoboldLair.Agents.Tools
             if (string.IsNullOrEmpty(projectFolder))
                 return $"Error: Could not find project folder for '{projectName}'.";
 
-            if (!_gitService.IsGitInstalledAsync().GetAwaiter().GetResult())
+            if (!await _gitService.IsGitInstalledAsync())
                 return "Git is not installed on this system.";
 
-            if (!_gitService.IsRepositoryAsync(projectFolder).GetAwaiter().GetResult())
+            if (!await _gitService.IsRepositoryAsync(projectFolder))
                 return $"Project '{projectName}' does not have a git repository. Use git_status with action 'init' first.";
 
             return action switch
             {
-                "commit" => ExecuteCommitAll(projectFolder, projectName, input),
-                "stage" => ExecuteStage(projectFolder, projectName, input),
-                "commit_staged" => ExecuteCommitStaged(projectFolder, projectName, input),
+                "commit" => await ExecuteCommitAllAsync(projectFolder, projectName, input),
+                "stage" => await ExecuteStageAsync(projectFolder, projectName, input),
+                "commit_staged" => await ExecuteCommitStagedAsync(projectFolder, projectName, input),
                 _ => $"Unknown action: {action}. Use 'commit', 'stage', or 'commit_staged'."
             };
         }
 
-        private string ExecuteCommitAll(string projectFolder, string projectName, Dictionary<string, object> input)
+        private async Task<string> ExecuteCommitAllAsync(string projectFolder, string projectName, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("message", out var msgObj) || string.IsNullOrEmpty(msgObj?.ToString()))
                 return "Error: 'message' is required for commit.";
@@ -98,23 +98,23 @@ namespace DraCode.KoboldLair.Agents.Tools
             try
             {
                 // Check if there's anything to commit
-                var status = _gitService!.GetStatusAsync(projectFolder).GetAwaiter().GetResult();
+                var status = await _gitService!.GetStatusAsync(projectFolder);
                 if (string.IsNullOrWhiteSpace(status))
                     return $"Nothing to commit in '{projectName}'. Working tree is clean.";
 
                 // Stage all changes
-                var staged = _gitService.StageAllAsync(projectFolder).GetAwaiter().GetResult();
+                var staged = await _gitService.StageAllAsync(projectFolder);
                 if (!staged)
                     return $"Failed to stage changes in '{projectName}'.";
 
                 // Commit
-                var committed = _gitService.CommitChangesAsync(projectFolder, message).GetAwaiter().GetResult();
+                var committed = await _gitService.CommitChangesAsync(projectFolder, message);
                 if (!committed)
                     return $"Failed to commit changes in '{projectName}'.";
 
                 // Get the commit SHA
-                var sha = _gitService.GetLastCommitShaAsync(projectFolder).GetAwaiter().GetResult();
-                var branch = _gitService.GetCurrentBranchAsync(projectFolder).GetAwaiter().GetResult();
+                var sha = await _gitService.GetLastCommitShaAsync(projectFolder);
+                var branch = await _gitService.GetCurrentBranchAsync(projectFolder);
 
                 SendMessage("git_committed", $"Committed to '{projectName}': {message}");
                 return $"✅ Committed to `{branch}` in '{projectName}'\n**SHA:** `{sha?[..7] ?? "unknown"}`\n**Message:** {message}";
@@ -125,7 +125,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string ExecuteStage(string projectFolder, string projectName, Dictionary<string, object> input)
+        private async Task<string> ExecuteStageAsync(string projectFolder, string projectName, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("files", out var filesObj) || string.IsNullOrEmpty(filesObj?.ToString()))
                 return "Error: 'files' is required for stage action (comma-separated paths).";
@@ -136,7 +136,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                var staged = _gitService!.StageFilesAsync(projectFolder, files).GetAwaiter().GetResult();
+                var staged = await _gitService!.StageFilesAsync(projectFolder, files);
                 if (!staged)
                     return $"Failed to stage files in '{projectName}'.";
 
@@ -153,7 +153,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string ExecuteCommitStaged(string projectFolder, string projectName, Dictionary<string, object> input)
+        private async Task<string> ExecuteCommitStagedAsync(string projectFolder, string projectName, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("message", out var msgObj) || string.IsNullOrEmpty(msgObj?.ToString()))
                 return "Error: 'message' is required for commit.";
@@ -162,12 +162,12 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                var committed = _gitService!.CommitChangesAsync(projectFolder, message).GetAwaiter().GetResult();
+                var committed = await _gitService!.CommitChangesAsync(projectFolder, message);
                 if (!committed)
                     return $"Failed to commit staged changes in '{projectName}'. Are there any staged changes?";
 
-                var sha = _gitService.GetLastCommitShaAsync(projectFolder).GetAwaiter().GetResult();
-                var branch = _gitService.GetCurrentBranchAsync(projectFolder).GetAwaiter().GetResult();
+                var sha = await _gitService.GetLastCommitShaAsync(projectFolder);
+                var branch = await _gitService.GetCurrentBranchAsync(projectFolder);
 
                 SendMessage("git_committed", $"Committed staged changes to '{projectName}': {message}");
                 return $"✅ Committed staged changes to `{branch}` in '{projectName}'\n**SHA:** `{sha?[..7] ?? "unknown"}`\n**Message:** {message}";

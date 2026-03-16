@@ -522,7 +522,7 @@ namespace DraCode.KoboldLair.Server.Services
                 approveProject: name => _projectService.ApproveProject(name),
                 getProjectFolder: name => ResolveProjectFolder(session, name),
                 projectsPath: _projectsPath,
-                onProjectLoaded: projectFolder => OnProjectLoaded(session, projectFolder),
+                onProjectLoaded: projectFolder => OnProjectLoadedAsync(session, projectFolder),
                 getActiveProjectName: () => GetActiveProjectName(session));
 
             session.Seeker = new SeekerAgent(
@@ -566,7 +566,7 @@ namespace DraCode.KoboldLair.Server.Services
                     _projectConfigService.SetAgentLimit(id, type, limit);
                     _logger.LogInformation("Agent {Type} limit set to {Limit} for {Project}", type, limit, id);
                 },
-                addExternalPath: (id, path) =>
+                addExternalPath: async (id, path) =>
                 {
                     // Normalize path to prevent traversal attacks
                     var normalizedPath = Path.GetFullPath(path);
@@ -576,15 +576,15 @@ namespace DraCode.KoboldLair.Server.Services
                         return;
                     }
 
-                    _projectRepository.AddAllowedExternalPathAsync(id, normalizedPath).GetAwaiter().GetResult();
+                    await _projectRepository.AddAllowedExternalPathAsync(id, normalizedPath);
                     _logger.LogInformation("External path added for {Project}: {Path}", id, normalizedPath);
 
                     // Update Dragon's context if this is the current session's project
                     RefreshDragonContextForProject(session, id);
                 },
-                removeExternalPath: (id, path) =>
+                removeExternalPath: async (id, path) =>
                 {
-                    var removed = _projectRepository.RemoveAllowedExternalPathAsync(id, path).GetAwaiter().GetResult();
+                    var removed = await _projectRepository.RemoveAllowedExternalPathAsync(id, path);
                     if (removed)
                     {
                         _logger.LogInformation("External path removed for {Project}: {Path}", id, path);
@@ -665,7 +665,7 @@ namespace DraCode.KoboldLair.Server.Services
             session.Dragon = new DragonAgent(
                 llmProvider,
                 options,
-                getProjects: GetProjectInfoList,
+                getProjects: GetProjectInfoListAsync,
                 delegateToCouncil: (member, task) => DelegateToCouncilAsync(session, member, task));
         }
 
@@ -716,7 +716,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// Called when a project specification is loaded. Sets the session's project folder,
         /// loads conversation history, and returns a brief summary for the Dragon to present.
         /// </summary>
-        private string? OnProjectLoaded(DragonSession session, string projectFolder)
+        private async Task<string?> OnProjectLoadedAsync(DragonSession session, string projectFolder)
         {
             if (session.CurrentProjectFolder == projectFolder)
                 return null; // Already on this project
@@ -784,7 +784,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             try
             {
-                var history = DragonSession.LoadHistoryFromFileAsync(projectFolder, _logger).GetAwaiter().GetResult();
+                var history = await DragonSession.LoadHistoryFromFileAsync(projectFolder, _logger);
                 if (history == null || history.Count == 0)
                     return null;
 
@@ -1762,11 +1762,15 @@ namespace DraCode.KoboldLair.Server.Services
             });
         }
 
-        private List<ProjectInfo> GetProjectInfoList()
+        private async Task<List<ProjectInfo>> GetProjectInfoListAsync()
         {
-            return _projectService.GetAllProjects().Select(p =>
+            var projects = _projectService.GetAllProjects();
+            var result = new List<ProjectInfo>();
+            foreach (var p in projects)
             {
-                return new ProjectInfo
+                var hasGit = !string.IsNullOrEmpty(p.Paths.Output) &&
+                    await _gitService.IsRepositoryAsync(p.Paths.Output);
+                result.Add(new ProjectInfo
                 {
                     Id = p.Id,
                     Name = p.Name,
@@ -1776,11 +1780,11 @@ namespace DraCode.KoboldLair.Server.Services
                     PendingFeatureCount = GetPendingFeatureCountForProject(p),
                     CreatedAt = p.Timestamps.CreatedAt,
                     UpdatedAt = p.Timestamps.UpdatedAt,
-                    HasGitRepository = !string.IsNullOrEmpty(p.Paths.Output) &&
-                        _gitService.IsRepositoryAsync(p.Paths.Output).GetAwaiter().GetResult(), // Sync wrapper for projection
+                    HasGitRepository = hasGit,
                     AllowedExternalPaths = p.Security.AllowedExternalPaths.ToList()
-                };
-            }).ToList();
+                });
+            }
+            return result;
         }
 
         /// <summary>

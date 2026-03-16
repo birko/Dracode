@@ -19,7 +19,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<string, bool>? _approveProject;
         private readonly Func<string, string>? _getProjectFolder;
-        private readonly Func<string, string?>? _onProjectLoaded;
+        private readonly Func<string, Task<string?>>? _onProjectLoaded;
         private readonly Func<string?>? _getActiveProjectName;
 
         protected override string SystemPrompt => GetSageSystemPrompt();
@@ -32,7 +32,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<string, bool>? approveProject = null,
             Func<string, string>? getProjectFolder = null,
             string projectsPath = "./projects",
-            Func<string, string?>? onProjectLoaded = null,
+            Func<string, Task<string?>>? onProjectLoaded = null,
             Func<string?>? getActiveProjectName = null)
             : base(provider, options)
         {

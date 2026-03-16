@@ -53,7 +53,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "specification_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("action", out var actionObj) || !input.TryGetValue("specification_name", out var specNameObj))
             {
@@ -71,7 +71,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             return action switch
             {
                 "list" => ListDraftFeatures(spec),
-                "promote" => PromoteFeatures(spec, input),
+                "promote" => await PromoteFeaturesAsync(spec, input),
                 "update_spec" => TriggerSpecificationUpdate(spec),
                 _ => $"Error: Unknown action '{action}'"
             };
@@ -120,7 +120,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             return result.ToString();
         }
 
-        private string PromoteFeatures(Specification spec, Dictionary<string, object> input)
+        private async Task<string> PromoteFeaturesAsync(Specification spec, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("feature_names", out var namesObj))
             {
@@ -171,7 +171,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 }
             });
 
-            SaveFeatures(spec);
+            await SaveFeaturesAsync(spec);
 
             var result = new System.Text.StringBuilder();
 
@@ -231,7 +231,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         /// <summary>
         /// Saves features to a JSON file in the project folder
         /// </summary>
-        private void SaveFeatures(Specification spec)
+        private async Task SaveFeaturesAsync(Specification spec)
         {
             if (string.IsNullOrEmpty(spec.Name))
                 return;
@@ -257,7 +257,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                     features = spec.Features
                 };
                 var json = System.Text.Json.JsonSerializer.Serialize(featuresData, options);
-                File.WriteAllTextAsync(featuresPath, json).GetAwaiter().GetResult();
+                await File.WriteAllTextAsync(featuresPath, json);
             }
             catch (Exception ex)
             {

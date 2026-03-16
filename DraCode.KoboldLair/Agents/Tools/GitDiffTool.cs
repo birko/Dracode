@@ -54,7 +54,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "project_name", "branch_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_gitService == null)
                 return "Git integration is not available.";
@@ -77,26 +77,26 @@ namespace DraCode.KoboldLair.Agents.Tools
             if (string.IsNullOrEmpty(projectFolder))
                 return $"Error: Could not find project folder for '{projectName}'.";
 
-            if (!_gitService.IsGitInstalledAsync().GetAwaiter().GetResult())
+            if (!await _gitService.IsGitInstalledAsync())
                 return "Git is not installed on this system.";
 
-            if (!_gitService.IsRepositoryAsync(projectFolder).GetAwaiter().GetResult())
+            if (!await _gitService.IsRepositoryAsync(projectFolder))
                 return $"Project '{projectName}' does not have a git repository.";
 
             return action switch
             {
-                "diff" => ExecuteDiff(projectFolder, branchName, targetBranch),
-                "log" => ExecuteLog(projectFolder, branchName, targetBranch),
-                "summary" => ExecuteSummary(projectFolder, branchName, targetBranch),
+                "diff" => await ExecuteDiffAsync(projectFolder, branchName, targetBranch),
+                "log" => await ExecuteLogAsync(projectFolder, branchName, targetBranch),
+                "summary" => await ExecuteSummaryAsync(projectFolder, branchName, targetBranch),
                 _ => $"Unknown action: {action}. Use 'diff', 'log', or 'summary'."
             };
         }
 
-        private string ExecuteDiff(string projectFolder, string branchName, string targetBranch)
+        private async Task<string> ExecuteDiffAsync(string projectFolder, string branchName, string targetBranch)
         {
             try
             {
-                var (diff, stat, filesChanged) = _gitService!.GetBranchDiffAsync(projectFolder, branchName, targetBranch).GetAwaiter().GetResult();
+                var (diff, stat, filesChanged) = await _gitService!.GetBranchDiffAsync(projectFolder, branchName, targetBranch);
 
                 if (string.IsNullOrWhiteSpace(diff) && filesChanged == 0)
                     return $"No differences between `{branchName}` and `{targetBranch}`.";
@@ -141,11 +141,11 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string ExecuteLog(string projectFolder, string branchName, string targetBranch)
+        private async Task<string> ExecuteLogAsync(string projectFolder, string branchName, string targetBranch)
         {
             try
             {
-                var commits = _gitService!.GetBranchLogAsync(projectFolder, branchName, targetBranch).GetAwaiter().GetResult();
+                var commits = await _gitService!.GetBranchLogAsync(projectFolder, branchName, targetBranch);
 
                 if (commits.Count == 0)
                     return $"No commits in `{branchName}` that are not in `{targetBranch}`.";
@@ -173,13 +173,13 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string ExecuteSummary(string projectFolder, string branchName, string targetBranch)
+        private async Task<string> ExecuteSummaryAsync(string projectFolder, string branchName, string targetBranch)
         {
             try
             {
-                var (_, stat, filesChanged) = _gitService!.GetBranchDiffAsync(projectFolder, branchName, targetBranch).GetAwaiter().GetResult();
-                var commits = _gitService.GetBranchLogAsync(projectFolder, branchName, targetBranch).GetAwaiter().GetResult();
-                var mergeCheck = _gitService.CanMergeBranchAsync(projectFolder, branchName, targetBranch).GetAwaiter().GetResult();
+                var (_, stat, filesChanged) = await _gitService!.GetBranchDiffAsync(projectFolder, branchName, targetBranch);
+                var commits = await _gitService.GetBranchLogAsync(projectFolder, branchName, targetBranch);
+                var mergeCheck = await _gitService.CanMergeBranchAsync(projectFolder, branchName, targetBranch);
 
                 var sb = new StringBuilder();
                 sb.AppendLine($"## Branch Summary: `{branchName}` → `{targetBranch}`\n");

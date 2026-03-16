@@ -63,9 +63,8 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "council_member", "task" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
-            // This is a sync wrapper - actual delegation happens async in the service
             var councilMember = input.TryGetValue("council_member", out var memberObj) ? memberObj?.ToString()?.ToLowerInvariant() : null;
             var task = input.TryGetValue("task", out var taskObj) ? taskObj?.ToString() : null;
 
@@ -97,10 +96,9 @@ namespace DraCode.KoboldLair.Agents.Tools
             // Send status update before delegating
             SendStatus(councilMember!, "delegating");
 
-            // Execute async delegation (using async internally for non-blocking I/O)
             try
             {
-                var result = _delegateToSubAgent(councilMember, task).GetAwaiter().GetResult();
+                var result = await _delegateToSubAgent(councilMember, task);
 
                 // Send status update after completion
                 SendStatus(councilMember!, "complete");

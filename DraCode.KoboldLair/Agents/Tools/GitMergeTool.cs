@@ -48,7 +48,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "project_name", "branch_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_gitService == null)
             {
@@ -73,33 +73,33 @@ namespace DraCode.KoboldLair.Agents.Tools
                 return $"Error: Could not find project folder for '{projectName}'";
             }
 
-            // Check if git is available (using async internally for non-blocking I/O)
-            if (!_gitService.IsGitInstalledAsync().GetAwaiter().GetResult())
+            // Check if git is available
+            if (!await _gitService.IsGitInstalledAsync())
             {
                 return "Git is not installed on this system.";
             }
 
-            if (!_gitService.IsRepositoryAsync(projectFolder).GetAwaiter().GetResult())
+            if (!await _gitService.IsRepositoryAsync(projectFolder))
             {
                 return $"Project '{projectName}' does not have a git repository.";
             }
 
             return action switch
             {
-                "merge" => MergeBranch(projectFolder, projectName, branchName),
-                "delete" => DeleteBranch(projectFolder, projectName, branchName),
+                "merge" => await MergeBranchAsync(projectFolder, projectName, branchName),
+                "delete" => await DeleteBranchAsync(projectFolder, projectName, branchName),
                 _ => $"Error: Unknown action '{action}'"
             };
         }
 
-        private string MergeBranch(string projectFolder, string projectName, string branchName)
+        private async Task<string> MergeBranchAsync(string projectFolder, string projectName, string branchName)
         {
             var sb = new StringBuilder();
             sb.AppendLine($"## Merging {branchName} → main");
             sb.AppendLine();
 
             // First check if merge is possible
-            var canMerge = _gitService!.CanMergeBranchAsync(projectFolder, branchName).GetAwaiter().GetResult();
+            var canMerge = await _gitService!.CanMergeBranchAsync(projectFolder, branchName);
 
             if (!canMerge.CanMerge)
             {
@@ -121,7 +121,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
 
             // Proceed with merge
-            var result = _gitService.MergeBranchAsync(projectFolder, branchName).GetAwaiter().GetResult();
+            var result = await _gitService.MergeBranchAsync(projectFolder, branchName);
 
             if (result.Success)
             {
@@ -158,7 +158,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             return sb.ToString();
         }
 
-        private string DeleteBranch(string projectFolder, string projectName, string branchName)
+        private async Task<string> DeleteBranchAsync(string projectFolder, string projectName, string branchName)
         {
             var sb = new StringBuilder();
 
@@ -169,14 +169,14 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
 
             // Check current branch
-            var currentBranch = _gitService!.GetCurrentBranchAsync(projectFolder).GetAwaiter().GetResult();
+            var currentBranch = await _gitService!.GetCurrentBranchAsync(projectFolder);
             if (currentBranch == branchName)
             {
                 // Switch to main first
-                _gitService.CheckoutBranchAsync(projectFolder, "main").GetAwaiter().GetResult();
+                await _gitService.CheckoutBranchAsync(projectFolder, "main");
             }
 
-            var deleted = _gitService.DeleteBranchAsync(projectFolder, branchName).GetAwaiter().GetResult();
+            var deleted = await _gitService.DeleteBranchAsync(projectFolder, branchName);
 
             if (deleted)
             {

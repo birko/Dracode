@@ -9,21 +9,14 @@ namespace DraCode.KoboldLair.Agents.Tools
     public class ExternalPathTool : Tool
     {
         private readonly Func<string, IReadOnlyList<string>>? _getExternalPaths;
-        private readonly Action<string, string>? _addExternalPath;
-        private readonly Func<string, string, bool>? _removeExternalPath;
+        private readonly Func<string, string, Task>? _addExternalPath;
+        private readonly Func<string, string, Task<bool>>? _removeExternalPath;
         private readonly Func<List<(string Id, string Name)>>? _getAllProjects;
 
-        /// <summary>
-        /// Creates a new ExternalPathTool
-        /// </summary>
-        /// <param name="getExternalPaths">Function to get allowed external paths for a project</param>
-        /// <param name="addExternalPath">Action to add an external path (projectId, path)</param>
-        /// <param name="removeExternalPath">Function to remove an external path (projectId, path) => success</param>
-        /// <param name="getAllProjects">Function to get list of all projects (Id, Name)</param>
         public ExternalPathTool(
             Func<string, IReadOnlyList<string>>? getExternalPaths,
-            Action<string, string>? addExternalPath,
-            Func<string, string, bool>? removeExternalPath,
+            Func<string, string, Task>? addExternalPath,
+            Func<string, string, Task<bool>>? removeExternalPath,
             Func<List<(string Id, string Name)>>? getAllProjects)
         {
             _getExternalPaths = getExternalPaths;
@@ -64,7 +57,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "project" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;
@@ -78,8 +71,8 @@ namespace DraCode.KoboldLair.Agents.Tools
             return action switch
             {
                 "list" => ListExternalPaths(project),
-                "add" => AddExternalPath(project, path),
-                "remove" => RemoveExternalPath(project, path),
+                "add" => await AddExternalPathAsync(project, path),
+                "remove" => await RemoveExternalPathAsync(project, path),
                 _ => "Unknown action. Use 'list', 'add', or 'remove'."
             };
         }
@@ -130,7 +123,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string AddExternalPath(string project, string? path)
+        private async Task<string> AddExternalPathAsync(string project, string? path)
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -158,7 +151,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                            "Are you sure you want to add it? The path will be allowed but agents won't be able to access it until it's created.";
                 }
 
-                _addExternalPath(projectId, path);
+                await _addExternalPath(projectId, path);
 
                 var normalizedPath = Path.GetFullPath(path);
                 return $"✅ External path access granted for project '{project}':\n\n" +
@@ -171,7 +164,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string RemoveExternalPath(string project, string? path)
+        private async Task<string> RemoveExternalPathAsync(string project, string? path)
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -192,7 +185,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return $"Error: Project '{project}' not found.";
                 }
 
-                var removed = _removeExternalPath(projectId, path);
+                var removed = await _removeExternalPath(projectId, path);
 
                 if (removed)
                 {

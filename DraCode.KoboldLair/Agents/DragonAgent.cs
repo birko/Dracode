@@ -14,7 +14,7 @@ namespace DraCode.KoboldLair.Agents
     public class DragonAgent : OrchestratorAgent
     {
         private List<Message> _conversationHistory = new();
-        private readonly Func<List<ProjectInfo>>? _getProjects;
+        private readonly Func<Task<List<ProjectInfo>>>? _getProjects;
         private readonly Func<string, string, Task<string>>? _delegateToCouncil;
         private Action<string, string>? _statusCallback;
 
@@ -30,7 +30,7 @@ namespace DraCode.KoboldLair.Agents
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
-            Func<List<ProjectInfo>>? getProjects = null,
+            Func<Task<List<ProjectInfo>>>? getProjects = null,
             Func<string, string, Task<string>>? delegateToCouncil = null)
             : base(provider, options)
         {

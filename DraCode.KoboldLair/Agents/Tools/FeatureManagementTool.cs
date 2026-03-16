@@ -58,7 +58,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "specification_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("action", out var actionObj) || !input.TryGetValue("specification_name", out var specNameObj))
             {
@@ -76,9 +76,9 @@ namespace DraCode.KoboldLair.Agents.Tools
             switch (action)
             {
                 case "create":
-                    return CreateFeature(spec, input);
+                    return await CreateFeatureAsync(spec, input);
                 case "update":
-                    return UpdateFeature(spec, input);
+                    return await UpdateFeatureAsync(spec, input);
                 case "list":
                     return ListFeatures(spec);
                 default:
@@ -86,7 +86,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string CreateFeature(Specification spec, Dictionary<string, object> input)
+        private async Task<string> CreateFeatureAsync(Specification spec, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("feature_name", out var nameObj) || !input.TryGetValue("description", out var descObj))
             {
@@ -112,7 +112,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 spec.UpdatedAt = DateTime.UtcNow;
             });
 
-            SaveFeatures(spec);
+            await SaveFeaturesAsync(spec);
 
             SendMessage("success", $"Feature created: {name}");
             return $"✅ Feature '{name}' created with status 'Draft'\nID: {feature.Id}\nPriority: {priority}\n\n" +
@@ -120,7 +120,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                    $"Only 'Ready' features will be included when you update the specification.";
         }
 
-        private string UpdateFeature(Specification spec, Dictionary<string, object> input)
+        private async Task<string> UpdateFeatureAsync(Specification spec, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("feature_name", out var nameObj))
             {
@@ -164,8 +164,8 @@ namespace DraCode.KoboldLair.Agents.Tools
             
             if (result != null)
                 return result;
-                
-            SaveFeatures(spec);
+
+            await SaveFeaturesAsync(spec);
 
             SendMessage("success", $"Feature updated: {name}");
             return $"✅ Feature '{name}' updated successfully";
@@ -209,7 +209,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         /// Saves features to a JSON file in the project folder.
         /// Uses consolidated structure: {projectFolder}/specification.features.json
         /// </summary>
-        private void SaveFeatures(Specification spec)
+        private async Task SaveFeaturesAsync(Specification spec)
         {
             if (string.IsNullOrEmpty(spec.Name))
                 return;
@@ -238,7 +238,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                     features = spec.Features
                 };
                 var json = JsonSerializer.Serialize(featuresData, options);
-                File.WriteAllTextAsync(featuresPath, json).GetAwaiter().GetResult();
+                await File.WriteAllTextAsync(featuresPath, json);
             }
             catch (Exception ex)
             {
@@ -253,7 +253,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         /// </summary>
         /// <param name="spec">The specification to load features into</param>
         /// <param name="folderPath">The project folder path</param>
-        public static void LoadFeatures(Specification spec, string folderPath)
+        public static async Task LoadFeaturesAsync(Specification spec, string folderPath)
         {
             if (string.IsNullOrEmpty(folderPath))
                 return;
@@ -264,7 +264,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 if (File.Exists(featuresPath))
                 {
-                    var json = File.ReadAllTextAsync(featuresPath).GetAwaiter().GetResult();
+                    var json = await File.ReadAllTextAsync(featuresPath);
 
                     // Try new wrapped format first
                     using var doc = JsonDocument.Parse(json);

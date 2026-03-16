@@ -353,7 +353,7 @@ Reasoning approach: Balanced
 
                             var tool = _tools.FirstOrDefault(t => t.Name == block.Name);
                             var result = tool != null
-                                ? tool.Execute(_options.WorkingDirectory, block.Input ?? [])
+                                ? await tool.ExecuteAsync(_options.WorkingDirectory, block.Input ?? [])
                                 : $"Error: Unknown tool '{block.Name}'";
 
                             // Check if tool execution resulted in an error
@@ -504,7 +504,7 @@ Reasoning approach: Balanced
 
                             var tool = _tools.FirstOrDefault(t => t.Name == block.Name);
                             var result = tool != null
-                                ? tool.Execute(_options.WorkingDirectory, block.Input ?? [])
+                                ? await tool.ExecuteAsync(_options.WorkingDirectory, block.Input ?? [])
                                 : $"Error: Unknown tool '{block.Name}'";
 
                             // Check if tool execution resulted in an error

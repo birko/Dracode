@@ -14,7 +14,7 @@ namespace DraCode.KoboldLair.Agents.Tools
     /// </summary>
     public class ReflectionTool : Tool
     {
-        private static readonly object _lock = new();
+        private static readonly SemaphoreSlim _semaphore = new(1, 1);
         private static KoboldImplementationPlan? _currentPlan;
         private static KoboldPlanService? _planService;
         private static ILogger? _logger;
@@ -80,7 +80,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
             required = new[] { "progress_percent", "confidence_percent", "decision" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> arguments)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
         {
             try
             {
@@ -109,7 +109,8 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                     _ => null
                 };
 
-                lock (_lock)
+                await _semaphore.WaitAsync();
+                try
                 {
                     if (_currentPlan == null)
                     {
@@ -204,7 +205,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                         {
                             try
                             {
-                                _planService.SavePlanAsync(_currentPlan).GetAwaiter().GetResult();
+                                await _planService.SavePlanAsync(_currentPlan);
                             }
                             catch (Exception ex)
                             {
@@ -226,17 +227,14 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                     // Save plan (debounced) for non-escalation reflections
                     else if (_planService != null && !string.IsNullOrEmpty(_currentPlan.ProjectId))
                     {
-                        _ = Task.Run(async () =>
+                        try
                         {
-                            try
-                            {
-                                await _planService.SavePlanDebouncedAsync(_currentPlan);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger?.LogWarning(ex, "Failed to save plan after reflection");
-                            }
-                        });
+                            await _planService.SavePlanDebouncedAsync(_currentPlan);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogWarning(ex, "Failed to save plan after reflection");
+                        }
                     }
 
                     // Build guidance response
@@ -256,6 +254,10 @@ Confidence: {confidencePercent}%
 Decision: {decision}{pivotNote}{escalationStatus}
 
 Continue working on your current step. Call `update_plan_step` when complete.";
+                }
+                finally
+                {
+                    _semaphore.Release();
                 }
             }
             catch (Exception ex)
@@ -278,7 +280,8 @@ Continue working on your current step. Call `update_plan_step` when complete.";
             Action<EscalationAlert>? onEscalation,
             ReflectionConfiguration? config)
         {
-            lock (_lock)
+            _semaphore.Wait();
+            try
             {
                 _currentPlan = plan;
                 _planService = planService;
@@ -290,6 +293,10 @@ Continue working on your current step. Call `update_plan_step` when complete.";
                 _onEscalation = onEscalation;
                 _config = config;
             }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
 
         /// <summary>
@@ -297,7 +304,8 @@ Continue working on your current step. Call `update_plan_step` when complete.";
         /// </summary>
         public static void ClearContext()
         {
-            lock (_lock)
+            _semaphore.Wait();
+            try
             {
                 _currentPlan = null;
                 _planService = null;
@@ -308,6 +316,10 @@ Continue working on your current step. Call `update_plan_step` when complete.";
                 _agentType = null;
                 _onEscalation = null;
                 _config = null;
+            }
+            finally
+            {
+                _semaphore.Release();
             }
         }
 

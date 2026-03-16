@@ -8,9 +8,9 @@ namespace DraCode.KoboldLair.Agents.Tools
     /// </summary>
     public class ListProjectsTool : Tool
     {
-        private readonly Func<List<ProjectInfo>>? _getProjects;
+        private readonly Func<Task<List<ProjectInfo>>>? _getProjects;
 
-        public ListProjectsTool(Func<List<ProjectInfo>>? getProjects)
+        public ListProjectsTool(Func<Task<List<ProjectInfo>>>? getProjects)
         {
             _getProjects = getProjects;
         }
@@ -28,7 +28,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = Array.Empty<string>()
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_getProjects == null)
             {
@@ -37,7 +37,7 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                var projects = _getProjects();
+                var projects = await _getProjects();
 
                 if (projects.Count == 0)
                 {

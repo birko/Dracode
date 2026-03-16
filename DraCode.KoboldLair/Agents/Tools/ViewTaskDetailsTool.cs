@@ -67,7 +67,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "project" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var actionVal)
                 ? actionVal?.ToString()?.ToLowerInvariant()
@@ -84,7 +84,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             {
                 "list" => ExecuteList(projectIdOrName, input),
                 "detail" => ExecuteDetail(projectIdOrName, input),
-                "plan" => ExecutePlan(projectIdOrName, input),
+                "plan" => await ExecutePlanAsync(projectIdOrName, input),
                 _ => $"Unknown action: {action}. Use 'list', 'detail', or 'plan'."
             };
         }
@@ -276,7 +276,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string ExecutePlan(string projectIdOrName, Dictionary<string, object> input)
+        private async Task<string> ExecutePlanAsync(string projectIdOrName, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("task_id", out var taskIdVal) || string.IsNullOrEmpty(taskIdVal?.ToString()))
             {
@@ -300,7 +300,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var task = tasks?.FirstOrDefault(t => t.Id == taskId || t.Id.StartsWith(taskId));
                 if (task != null) taskId = task.Id;
 
-                var plan = _planService.LoadPlanAsync(project.Id, taskId).GetAwaiter().GetResult();
+                var plan = await _planService.LoadPlanAsync(project.Id, taskId);
                 if (plan == null)
                 {
                     return $"No implementation plan found for task '{taskId[..Math.Min(8, taskId.Length)]}' in project '{projectIdOrName}'.";

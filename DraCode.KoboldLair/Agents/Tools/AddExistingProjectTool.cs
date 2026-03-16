@@ -120,7 +120,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "path" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("action", out var actionObj))
             {
@@ -141,7 +141,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             switch (action)
             {
                 case "scan":
-                    return ScanDirectory(path, input);
+                    return await ScanDirectoryAsync(path, input);
                 case "register":
                     return RegisterProject(path, input);
                 default:
@@ -149,7 +149,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string ScanDirectory(string path, Dictionary<string, object> input)
+        private async Task<string> ScanDirectoryAsync(string path, Dictionary<string, object> input)
         {
             if (!Directory.Exists(path))
             {
@@ -162,7 +162,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 : Path.GetFileName(path);
 
             // Analyze the project
-            var analysis = AnalyzeDirectory(path);
+            var analysis = await AnalyzeDirectoryAsync(path);
 
             // Header with summary
             result.AppendLine($"**{projectName}** at `{path}`");
@@ -291,11 +291,11 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private ProjectAnalysis AnalyzeDirectory(string path)
+        private async Task<ProjectAnalysis> AnalyzeDirectoryAsync(string path)
         {
             var analysis = new ProjectAnalysis();
             AnalyzeDirectoryRecursive(path, analysis, 0);
-            DetectProjectIndicators(path, analysis);
+            await DetectProjectIndicatorsAsync(path, analysis);
             return analysis;
         }
 
@@ -400,7 +400,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             return false;
         }
 
-        private void DetectProjectIndicators(string path, ProjectAnalysis analysis)
+        private async Task DetectProjectIndicatorsAsync(string path, ProjectAnalysis analysis)
         {
             // Check for specific project types
             if (File.Exists(Path.Combine(path, "package.json")))
@@ -410,7 +410,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 // Try to read package.json for more info
                 try
                 {
-                    var packageJson = File.ReadAllTextAsync(Path.Combine(path, "package.json")).GetAwaiter().GetResult();
+                    var packageJson = await File.ReadAllTextAsync(Path.Combine(path, "package.json"));
                     if (packageJson.Contains("\"react\""))
                         analysis.ProjectIndicators.Add("React framework detected");
                     if (packageJson.Contains("\"vue\""))

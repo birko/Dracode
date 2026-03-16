@@ -48,7 +48,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "project_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_gitService == null)
             {
@@ -70,8 +70,8 @@ namespace DraCode.KoboldLair.Agents.Tools
                 return $"Error: Could not find project folder for '{projectName}'";
             }
 
-            // Check if git is available (using async internally for non-blocking I/O)
-            if (!_gitService.IsGitInstalledAsync().GetAwaiter().GetResult())
+            // Check if git is available
+            if (!await _gitService.IsGitInstalledAsync())
             {
                 return "Git is not installed on this system.";
             }
@@ -79,26 +79,26 @@ namespace DraCode.KoboldLair.Agents.Tools
             // For init action, we don't require an existing repository
             if (action == "init")
             {
-                return InitRepository(projectFolder, projectName);
+                return await InitRepositoryAsync(projectFolder, projectName);
             }
 
-            if (!_gitService.IsRepositoryAsync(projectFolder).GetAwaiter().GetResult())
+            if (!await _gitService.IsRepositoryAsync(projectFolder))
             {
                 return $"Project '{projectName}' does not have a git repository. Use the 'init' action to initialize one.";
             }
 
             return action switch
             {
-                "branches" => ListUnmergedBranches(projectFolder, projectName),
-                "status" => GetStatus(projectFolder, projectName),
-                "check_merge" => CheckMerge(projectFolder, projectName, input),
+                "branches" => await ListUnmergedBranchesAsync(projectFolder, projectName),
+                "status" => await GetStatusAsync(projectFolder, projectName),
+                "check_merge" => await CheckMergeAsync(projectFolder, projectName, input),
                 _ => $"Error: Unknown action '{action}'"
             };
         }
 
-        private string ListUnmergedBranches(string projectFolder, string projectName)
+        private async Task<string> ListUnmergedBranchesAsync(string projectFolder, string projectName)
         {
-            var branches = _gitService!.GetUnmergedBranchesAsync(projectFolder).GetAwaiter().GetResult();
+            var branches = await _gitService!.GetUnmergedBranchesAsync(projectFolder);
 
             if (branches.Count == 0)
             {
@@ -129,10 +129,10 @@ namespace DraCode.KoboldLair.Agents.Tools
             return text[..(maxLength - 2)] + "..";
         }
 
-        private string GetStatus(string projectFolder, string projectName)
+        private async Task<string> GetStatusAsync(string projectFolder, string projectName)
         {
-            var currentBranch = _gitService!.GetCurrentBranchAsync(projectFolder).GetAwaiter().GetResult();
-            var status = _gitService.GetStatusAsync(projectFolder).GetAwaiter().GetResult();
+            var currentBranch = await _gitService!.GetCurrentBranchAsync(projectFolder);
+            var status = await _gitService.GetStatusAsync(projectFolder);
 
             var sb = new StringBuilder();
             sb.AppendLine($"**{projectName}** on `{currentBranch ?? "unknown"}`");
@@ -151,7 +151,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             return sb.ToString();
         }
 
-        private string CheckMerge(string projectFolder, string projectName, Dictionary<string, object> input)
+        private async Task<string> CheckMergeAsync(string projectFolder, string projectName, Dictionary<string, object> input)
         {
             if (!input.TryGetValue("branch_name", out var branchNameObj))
             {
@@ -159,7 +159,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
 
             var branchName = branchNameObj.ToString() ?? "";
-            var result = _gitService!.CanMergeBranchAsync(projectFolder, branchName).GetAwaiter().GetResult();
+            var result = await _gitService!.CanMergeBranchAsync(projectFolder, branchName);
 
             if (!string.IsNullOrEmpty(result.ErrorMessage))
             {
@@ -178,16 +178,16 @@ namespace DraCode.KoboldLair.Agents.Tools
             return $"❌ `{branchName}` → main: Has conflicts.{conflicts}";
         }
 
-        private string InitRepository(string projectFolder, string projectName)
+        private async Task<string> InitRepositoryAsync(string projectFolder, string projectName)
         {
             // Check if already initialized
-            if (_gitService!.IsRepositoryAsync(projectFolder).GetAwaiter().GetResult())
+            if (await _gitService!.IsRepositoryAsync(projectFolder))
             {
                 return $"✅ Project '{projectName}' already has a git repository initialized.";
             }
 
             // Initialize the repository
-            var success = _gitService.InitRepositoryAsync(projectFolder).GetAwaiter().GetResult();
+            var success = await _gitService.InitRepositoryAsync(projectFolder);
 
             if (success)
             {
