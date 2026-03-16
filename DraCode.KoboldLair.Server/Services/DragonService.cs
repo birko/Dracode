@@ -161,6 +161,7 @@ namespace DraCode.KoboldLair.Server.Services
         // Request queue for non-blocking Dragon execution
         private readonly DragonRequestQueue _requestQueue;
         private readonly ProjectNotificationService? _notificationService;
+        private readonly DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? _historyRepository;
 
         // Cache for specification file enumeration to avoid frequent filesystem calls
         private List<string>? _specFilesCache;
@@ -181,7 +182,8 @@ namespace DraCode.KoboldLair.Server.Services
             DrakeFactory? drakeFactory = null,
             KoboldPlanService? planService = null,
             int maxConcurrentDragonRequests = 5,
-            ProjectNotificationService? notificationService = null)
+            ProjectNotificationService? notificationService = null,
+            DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? historyRepository = null)
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
@@ -195,6 +197,7 @@ namespace DraCode.KoboldLair.Server.Services
             _drakeFactory = drakeFactory;
             _planService = planService;
             _notificationService = notificationService;
+            _historyRepository = historyRepository;
             _projectsPath = config.ProjectsPath ?? "./projects";
 
             // Initialize the request queue for non-blocking execution
@@ -1632,20 +1635,34 @@ namespace DraCode.KoboldLair.Server.Services
                     session.MessageHistory.RemoveRange(0, excess);
             }
 
-            // Fire-and-forget async save if project folder is set
+            // Persist history — prefer SQL (serialized, no race) with file as fallback
             if (!string.IsNullOrEmpty(session.CurrentProjectFolder))
             {
-                _ = Task.Run(async () =>
+                if (_historyRepository != null)
                 {
-                    try
+                    // SQL write is serialized via semaphore — safe for concurrent messages
+                    List<SessionMessage> snapshot;
+                    lock (session._historyLock)
                     {
-                        await session.SaveHistoryToFileAsync(session.CurrentProjectFolder, _logger);
+                        snapshot = new List<SessionMessage>(session.MessageHistory);
                     }
-                    catch (Exception ex)
+                    _ = _historyRepository.SaveHistoryAsync(session.CurrentProjectFolder, snapshot);
+                }
+                else
+                {
+                    // Fallback: fire-and-forget file save (legacy, has race condition)
+                    _ = Task.Run(async () =>
                     {
-                        _logger.LogError(ex, "Failed to persist Dragon history for session {SessionId}", session.SessionId);
-                    }
-                });
+                        try
+                        {
+                            await session.SaveHistoryToFileAsync(session.CurrentProjectFolder, _logger);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to persist Dragon history for session {SessionId}", session.SessionId);
+                        }
+                    });
+                }
             }
         }
 

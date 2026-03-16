@@ -1,10 +1,15 @@
 using System.Collections.Concurrent;
+using Birko.Data.SQL.Repositories;
+using Birko.Data.Stores;
+using DraCode.KoboldLair.Data.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Services
 {
     /// <summary>
     /// Implements circuit breaker pattern to prevent retrying tasks when a provider is experiencing widespread failures.
     /// Tracks failure rates per provider and temporarily pauses retries when threshold is exceeded.
+    /// Optionally persists state to SQLite so circuit state survives server restarts.
     /// </summary>
     public class ProviderCircuitBreaker
     {
@@ -44,6 +49,8 @@ namespace DraCode.KoboldLair.Services
         private readonly int _failureThreshold;
         private readonly TimeSpan _openDuration;
         private readonly TimeSpan _resetAfterSuccess;
+        private AsyncSqLiteModelRepository<CircuitBreakerEntity>? _repository;
+        private readonly ILogger? _logger;
 
         /// <summary>
         /// Creates a new circuit breaker
@@ -54,11 +61,94 @@ namespace DraCode.KoboldLair.Services
         public ProviderCircuitBreaker(
             int failureThreshold = 3,
             TimeSpan? openDuration = null,
-            TimeSpan? resetAfterSuccess = null)
+            TimeSpan? resetAfterSuccess = null,
+            ILogger? logger = null)
         {
             _failureThreshold = failureThreshold;
             _openDuration = openDuration ?? TimeSpan.FromMinutes(10);
             _resetAfterSuccess = resetAfterSuccess ?? TimeSpan.FromMinutes(5);
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Initializes SQLite persistence for circuit breaker state.
+        /// Call once at startup after database is configured.
+        /// </summary>
+        public async Task InitializePersistenceAsync(string dbPath)
+        {
+            _repository = new AsyncSqLiteModelRepository<CircuitBreakerEntity>();
+            var dbDir = Path.GetDirectoryName(dbPath) ?? ".";
+            var dbFile = Path.GetFileName(dbPath);
+            _repository.SetSettings(new PasswordSettings(dbDir, dbFile));
+            await _repository.CreateSchemaAsync();
+
+            // Load persisted state
+            var entities = await _repository.ReadAsync(filter: null, orderBy: null, limit: null, offset: null);
+            foreach (var entity in entities)
+            {
+                var circuit = _circuits.GetOrAdd(entity.Provider, _ => new ProviderCircuit());
+                lock (circuit)
+                {
+                    circuit.State = (CircuitState)entity.State;
+                    circuit.ConsecutiveFailures = entity.ConsecutiveFailures;
+                    circuit.OpenedAt = entity.OpenedAt;
+                    circuit.LastFailureAt = entity.LastFailureAt;
+                }
+            }
+
+            _logger?.LogInformation("Loaded circuit breaker state for {Count} provider(s)", entities.Count());
+        }
+
+        /// <summary>
+        /// Persists the current state of a provider circuit to the database.
+        /// </summary>
+        private void PersistCircuitState(string provider, ProviderCircuit circuit)
+        {
+            if (_repository == null) return;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // Find existing entity or create new
+                    var existing = await _repository.ReadAsync(
+                        e => e.Provider == provider, CancellationToken.None);
+
+                    if (existing != null)
+                    {
+                        lock (circuit)
+                        {
+                            existing.State = (int)circuit.State;
+                            existing.ConsecutiveFailures = circuit.ConsecutiveFailures;
+                            existing.OpenedAt = circuit.OpenedAt;
+                            existing.LastFailureAt = circuit.LastFailureAt;
+                            existing.UpdatedAt = DateTime.UtcNow;
+                        }
+                        await _repository.UpdateAsync(existing);
+                    }
+                    else
+                    {
+                        var entity = new CircuitBreakerEntity
+                        {
+                            Provider = provider,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        lock (circuit)
+                        {
+                            entity.State = (int)circuit.State;
+                            entity.ConsecutiveFailures = circuit.ConsecutiveFailures;
+                            entity.OpenedAt = circuit.OpenedAt;
+                            entity.LastFailureAt = circuit.LastFailureAt;
+                        }
+                        await _repository.CreateAsync(entity);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to persist circuit breaker state for {Provider}", provider);
+                }
+            });
         }
 
         /// <summary>
@@ -72,7 +162,8 @@ namespace DraCode.KoboldLair.Services
                 return;
             }
 
-            var circuit = _circuits.GetOrAdd(provider.ToLowerInvariant(), _ => new ProviderCircuit());
+            var key = provider.ToLowerInvariant();
+            var circuit = _circuits.GetOrAdd(key, _ => new ProviderCircuit());
 
             lock (circuit)
             {
@@ -80,7 +171,7 @@ namespace DraCode.KoboldLair.Services
                 circuit.LastFailureAt = DateTime.UtcNow;
 
                 // Open circuit if threshold exceeded
-                if (circuit.State == CircuitState.Closed && 
+                if (circuit.State == CircuitState.Closed &&
                     circuit.ConsecutiveFailures >= _failureThreshold)
                 {
                     circuit.State = CircuitState.Open;
@@ -93,6 +184,8 @@ namespace DraCode.KoboldLair.Services
                     circuit.OpenedAt = DateTime.UtcNow;
                 }
             }
+
+            PersistCircuitState(key, circuit);
         }
 
         /// <summary>
@@ -106,7 +199,8 @@ namespace DraCode.KoboldLair.Services
                 return;
             }
 
-            var circuit = _circuits.GetOrAdd(provider.ToLowerInvariant(), _ => new ProviderCircuit());
+            var key = provider.ToLowerInvariant();
+            var circuit = _circuits.GetOrAdd(key, _ => new ProviderCircuit());
 
             lock (circuit)
             {
@@ -115,6 +209,8 @@ namespace DraCode.KoboldLair.Services
                 circuit.State = CircuitState.Closed;
                 circuit.OpenedAt = null;
             }
+
+            PersistCircuitState(key, circuit);
         }
 
         /// <summary>

@@ -99,7 +99,7 @@ namespace DraCode.KoboldLair.Data
             return repo;
         }
 
-        private static string ResolveSqLitePath(DataStorageConfig config)
+        public static string ResolveSqLitePath(DataStorageConfig config)
         {
             if (Path.IsPathRooted(config.SqLitePath))
                 return config.SqLitePath;

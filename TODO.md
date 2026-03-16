@@ -1405,25 +1405,28 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 
 #### Data Loss & Persistence
 
-- [ ] **Fix plan save debounce race condition** 🗄️ *Resolved by Birko.Data.SQL migration*
-  - `KoboldPlanService.cs:817-954` — Channel capacity=1 with `DropWrite` can lose intermediate plan states
-  - **Birko fix**: PostgreSQL transactional writes eliminate debouncing entirely — each step update is an immediate atomic DB write
-  - **Interim fix** (before DB migration): Replace with dirty-flag approach
+- [x] **Fix plan save debounce race condition** ✅ COMPLETED (2026-03-16)
+  - Created `SqlPlanRepository` with `PlanEntity` — immediate atomic SQLite writes on every `SavePlanAsync()`
+  - `KoboldPlanService` takes optional `SqlPlanRepository` — writes to DB immediately, file debounce remains for human-readable output
+  - `LoadPlanAsync()` reads from SQLite first (most up-to-date), falls back to file
+  - Registered in DI with `SqlPlanRepository` wired to `KoboldPlanService`
 
-- [ ] **Fix fire-and-forget history save race condition in Dragon sessions** 🗄️ *Resolved by Birko.Data.SQL migration*
-  - `DragonService.cs:1627-1640` — history saved via `Task.Run()` with no synchronization
-  - **Birko fix**: Dragon history in PostgreSQL with transactional writes eliminates file I/O races
-  - **Interim fix** (before DB migration): Use debounced save queue per session
+- [x] **Fix fire-and-forget history save race condition in Dragon sessions** ✅ COMPLETED (2026-03-16)
+  - Created `SqlHistoryRepository` with `DragonHistoryEntity` — serialized writes via `SemaphoreSlim`
+  - `DragonService.TrackMessage()` uses SQL write when available, file fallback otherwise
+  - History keyed by normalized project folder path, stores full message array as JSON
+  - Registered in DI and wired into `DragonService` constructor
 
-- [ ] **Fix escalation not persisted before dispatch in ReflectionTool** 🗄️ *Resolved by Birko.Data.SQL migration*
-  - `ReflectionTool.cs:178-210` — alert added to in-memory plan, callback invoked, then save is debounced
-  - **Birko fix**: Escalations stored in DB transactionally before callback dispatch — no debounced save needed
-  - **Interim fix** (before DB migration): Save plan BEFORE invoking escalation callback
+- [x] **Fix escalation not persisted before dispatch in ReflectionTool** ✅ COMPLETED (2026-03-16)
+  - `ReflectionTool` now calls `SavePlanAsync()` (immediate, not debounced) BEFORE invoking escalation callback
+  - Non-escalation reflections continue to use debounced save
+  - Ensures plan with escalation data is persisted even if callback fails or server crashes
 
-- [ ] **Persist circuit breaker state across server restarts** 🗄️ *Resolved by Birko.Data.SQL or Birko.Caching.Redis*
-  - `ProviderCircuitBreaker.cs` stores all state in memory; lost on restart causing retry storms
-  - **Birko fix**: Circuit breaker state persisted to PostgreSQL or Redis with automatic load on startup
-  - **Interim fix** (before DB migration): Add `SaveStateAsync()`/`LoadStateAsync()` to JSON file
+- [x] **Persist circuit breaker state across server restarts** ✅ COMPLETED (2026-03-16)
+  - Created `CircuitBreakerEntity` table in SQLite with provider, state, failures, timestamps
+  - `ProviderCircuitBreaker.InitializePersistenceAsync()` loads state from DB on startup
+  - `RecordFailure()` and `RecordSuccess()` persist state changes to DB (fire-and-forget, non-blocking)
+  - Initialized in `Program.cs` after SQLite migration, before services start
 
 #### Git & Worktree Management
 
@@ -1464,13 +1467,13 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 | Category | Total | Resolved | Fully Resolved by Birko | Partially Helped | Manual Fix Only |
 |----------|-------|----------|------------------------|------------------|-----------------|
 | Concurrency | 3 | **1** ✅ | 0 | 0 | 2 |
-| Data Loss | 4 | 0 | 4 (via DB migration) | 0 | 0 |
+| Data Loss | 4 | **4** ✅ | 0 | 0 | 0 |
 | Git/Worktree | 2 | **2** ✅ | 0 | 0 | 0 |
 | Client-Side | 2 | **2** ✅ | 0 | 0 | 0 |
 | Architecture | 1 | 0 | 0 | 1 | 0 |
-| **Total** | **12** | **5** | **4** | **1** | **2** |
+| **Total** | **12** | **9** | **0** | **1** | **2** |
 
-**Status**: 5 of 12 fixed (2026-03-16). Remaining 7: 4 resolved by DB migration, 2 concurrency (async refactor), 1 architecture (cross-branch API).
+**Status**: 9 of 12 fixed (2026-03-16). Remaining 3: 2 concurrency (async tool interface + DragonService callbacks), 1 architecture (cross-branch API visibility).
 
 ---
 

@@ -34,7 +34,11 @@ builder.Services.AddSingleton<ProviderConfigurationService>();
 builder.Services.AddSingleton<ProjectConfigurationService>();
 
 // Register provider circuit breaker for failure tracking
-builder.Services.AddSingleton<ProviderCircuitBreaker>();
+builder.Services.AddSingleton(sp =>
+{
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("ProviderCircuitBreaker");
+    return new ProviderCircuitBreaker(logger: logger);
+});
 
 // Register git service for version control integration
 builder.Services.AddSingleton<GitService>();
@@ -86,14 +90,30 @@ builder.Services.AddSingleton<ITaskRepository?>(sp =>
     return null; // TaskTracker falls back to JSON file persistence
 });
 
+// Register SQL plan repository (null when not using SQLite)
+builder.Services.AddSingleton<SqlPlanRepository?>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlPlanRepository>();
+        var repo = new SqlPlanRepository(dbPath, logger);
+        repo.InitializeAsync().GetAwaiter().GetResult();
+        return repo;
+    }
+    return null;
+});
+
 // Register plan service for implementation plan persistence
 builder.Services.AddSingleton<KoboldPlanService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<KoboldPlanService>>();
     var projectRepository = sp.GetRequiredService<IProjectRepository>();
+    var planRepository = sp.GetService<SqlPlanRepository>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var debounceIntervalMs = config.Planning?.PlanSaveDebounceIntervalMs ?? 2500;
-    return new KoboldPlanService(config.ProjectsPath ?? "./projects", logger, projectRepository, debounceIntervalMs);
+    return new KoboldPlanService(config.ProjectsPath ?? "./projects", logger, projectRepository, debounceIntervalMs, planRepository);
 });
 
 // Register shared planning context service for cross-agent coordination
@@ -218,6 +238,21 @@ builder.Services.AddSingleton<WyrmService>(sp =>
     return new WyrmService(logger, providerConfigService, config, commandHandler);
 });
 
+// Register SQL history repository (null when not using SQLite)
+builder.Services.AddSingleton<SqlHistoryRepository?>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlHistoryRepository>();
+        var repo = new SqlHistoryRepository(dbPath, logger);
+        repo.InitializeAsync().GetAwaiter().GetResult();
+        return repo;
+    }
+    return null;
+});
+
 // Register Dragon request queue before DragonService
 builder.Services.AddSingleton<DragonRequestQueue>(sp =>
 {
@@ -242,7 +277,8 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var maxConcurrent = config.Limits?.MaxConcurrentDragonRequests ?? 5;
     var notificationService = sp.GetRequiredService<ProjectNotificationService>();
-    return new DragonService(logger, providerConfigService, projectConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService);
+    var historyRepository = sp.GetService<SqlHistoryRepository>();
+    return new DragonService(logger, providerConfigService, projectConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository);
 });
 
 // Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)
@@ -406,6 +442,26 @@ using (var scope = app.Services.CreateScope())
         else if (File.Exists(migrationMarker))
         {
             logger.LogDebug("SQLite migration already completed, skipping");
+        }
+    }
+}
+
+// Initialize circuit breaker persistence (uses same SQLite database)
+{
+    var dataConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var cbLogger = app.Services.GetRequiredService<ILogger<Program>>();
+        var circuitBreaker = app.Services.GetRequiredService<ProviderCircuitBreaker>();
+        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
+        try
+        {
+            await circuitBreaker.InitializePersistenceAsync(dbPath);
+            cbLogger.LogInformation("Circuit breaker state loaded from SQLite");
+        }
+        catch (Exception ex)
+        {
+            cbLogger.LogWarning(ex, "Failed to initialize circuit breaker persistence - using in-memory only");
         }
     }
 }

@@ -198,6 +198,20 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                             "Escalation raised for Kobold {KoboldId}: {Type} - {Summary}",
                             _koboldId.ToString()[..8], autoEscalationType, escalationReason);
 
+                        // Persist plan IMMEDIATELY before invoking callback to prevent
+                        // escalation data loss if callback fails or server crashes
+                        if (_planService != null && !string.IsNullOrEmpty(_currentPlan.ProjectId))
+                        {
+                            try
+                            {
+                                _planService.SavePlanAsync(_currentPlan).GetAwaiter().GetResult();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogWarning(ex, "Failed to persist plan before escalation dispatch");
+                            }
+                        }
+
                         try
                         {
                             _onEscalation?.Invoke(alert);
@@ -209,9 +223,8 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
 
                         escalationStatus = $"\n\n⚠️ ESCALATION RAISED: {autoEscalationType} - {escalationReason}\nDrake has been notified and may intervene.";
                     }
-
-                    // Save plan (debounced)
-                    if (_planService != null && !string.IsNullOrEmpty(_currentPlan.ProjectId))
+                    // Save plan (debounced) for non-escalation reflections
+                    else if (_planService != null && !string.IsNullOrEmpty(_currentPlan.ProjectId))
                     {
                         _ = Task.Run(async () =>
                         {

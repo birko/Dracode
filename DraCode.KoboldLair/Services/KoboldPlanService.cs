@@ -7,6 +7,7 @@ using System.Threading.Channels;
 using DraCode.Agent;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Data.Repositories.Sql;
 using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Services
@@ -21,6 +22,7 @@ namespace DraCode.KoboldLair.Services
     {
         private readonly string _projectsPath;
         private readonly IProjectRepository? _projectRepository;
+        private readonly SqlPlanRepository? _planRepository;
         private readonly ILogger<KoboldPlanService>? _logger;
         private readonly JsonSerializerOptions _jsonOptions;
         private readonly SemaphoreSlim _indexLock = new SemaphoreSlim(1, 1);
@@ -38,10 +40,12 @@ namespace DraCode.KoboldLair.Services
             string projectsPath,
             ILogger<KoboldPlanService>? logger = null,
             IProjectRepository? projectRepository = null,
-            int debounceIntervalMs = DefaultDebounceIntervalMs)
+            int debounceIntervalMs = DefaultDebounceIntervalMs,
+            SqlPlanRepository? planRepository = null)
         {
             _projectsPath = projectsPath;
             _projectRepository = projectRepository;
+            _planRepository = planRepository;
             _logger = logger;
             _debounceIntervalMs = debounceIntervalMs;
             _jsonOptions = new JsonSerializerOptions
@@ -276,6 +280,19 @@ namespace DraCode.KoboldLair.Services
                 throw new ArgumentException("Plan must have ProjectId and TaskId set");
             }
 
+            // Immediate atomic write to SQLite (no debounce, no race)
+            if (_planRepository != null)
+            {
+                try
+                {
+                    await _planRepository.SavePlanAsync(plan);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to persist plan to SQLite for task {TaskId}", plan.TaskId);
+                }
+            }
+
             var plansDir = GetPlansDirectory(plan.ProjectId);
             Directory.CreateDirectory(plansDir);
 
@@ -311,9 +328,28 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         public async Task<KoboldImplementationPlan?> LoadPlanAsync(string projectId, string taskId)
         {
-            // Check the index for human-readable filename
+            // Try SQLite first (most up-to-date, no debounce delay)
+            if (_planRepository != null)
+            {
+                try
+                {
+                    var dbPlan = await _planRepository.LoadPlanAsync(projectId, taskId);
+                    if (dbPlan != null)
+                    {
+                        _logger?.LogDebug("Loaded plan for task {TaskId} from SQLite",
+                            taskId[..Math.Min(8, taskId.Length)]);
+                        return dbPlan;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to load plan from SQLite for task {TaskId}, falling back to file", taskId);
+                }
+            }
+
+            // Fallback to file-based loading
             var index = await LoadPlanIndexAsync(projectId);
-            
+
             if (!index.TryGetValue(taskId, out var planFilename))
             {
                 return null;
