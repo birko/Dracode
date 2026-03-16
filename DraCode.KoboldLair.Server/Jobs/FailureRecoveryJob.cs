@@ -1,3 +1,5 @@
+using Birko.BackgroundJobs;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
@@ -6,41 +8,36 @@ using DraCode.KoboldLair.Services;
 using static DraCode.KoboldLair.Server.Helpers.LogFormatHelper;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
-namespace DraCode.KoboldLair.Server.Services
+namespace DraCode.KoboldLair.Server.Jobs
 {
     /// <summary>
-    /// Background service that automatically retries failed tasks with transient errors.
+    /// Background job that automatically retries failed tasks with transient errors.
     /// Uses exponential backoff and circuit breaker pattern to handle provider outages.
-    ///
-    /// DEPRECATED: This service has been superseded by FailureRecoveryJob (in Jobs/ folder)
-    /// which runs via Birko.BackgroundJobs infrastructure. This class is retained for reference
-    /// but is no longer registered as a hosted service in Program.cs.
+    /// Replaces the legacy FailureRecoveryService hosted service.
     /// </summary>
-    [Obsolete("Superseded by FailureRecoveryJob. Retained for reference only.")]
-    public class FailureRecoveryService : PeriodicBackgroundService
+    public class FailureRecoveryJob : IJob
     {
-        private readonly ILogger<FailureRecoveryService> _logger;
+        private readonly ILogger<FailureRecoveryJob> _logger;
+        private readonly IProjectRepository _projectRepository;
         private readonly ProjectService _projectService;
-        private readonly DrakeFactory _drakeFactory;
         private readonly ProviderCircuitBreaker _circuitBreaker;
+        private readonly DrakeFactory _drakeFactory;
         private readonly int _maxRetryAttempts;
         private readonly TimeSpan[] _retryBackoffSchedule;
 
-        protected override ILogger Logger => _logger;
-
-        public FailureRecoveryService(
-            ILogger<FailureRecoveryService> logger,
+        public FailureRecoveryJob(
+            ILogger<FailureRecoveryJob> logger,
+            IProjectRepository projectRepository,
             ProjectService projectService,
-            DrakeFactory drakeFactory,
             ProviderCircuitBreaker circuitBreaker,
-            int checkIntervalSeconds = 300,
+            DrakeFactory drakeFactory,
             int maxRetryAttempts = 5)
-            : base(TimeSpan.FromSeconds(checkIntervalSeconds), initialDelay: TimeSpan.FromMinutes(1))
         {
             _logger = logger;
+            _projectRepository = projectRepository;
             _projectService = projectService;
-            _drakeFactory = drakeFactory;
             _circuitBreaker = circuitBreaker;
+            _drakeFactory = drakeFactory;
             _maxRetryAttempts = maxRetryAttempts;
 
             // Exponential backoff schedule: 1min, 2min, 5min, 15min, 30min
@@ -55,9 +52,10 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Processes all failed tasks across all projects and retries eligible ones
+        /// Executes the failure recovery cycle: scans all in-progress projects for failed tasks
+        /// and retries eligible ones based on error classification, retry count, and backoff timing.
         /// </summary>
-        protected override async Task ExecuteCycleAsync(CancellationToken cancellationToken)
+        public async Task ExecuteAsync(JobContext context, CancellationToken cancellationToken = default)
         {
             var projects = _projectService.GetAllProjects()
                 .Where(p => p.Status == ProjectStatus.InProgress
@@ -97,14 +95,14 @@ namespace DraCode.KoboldLair.Server.Services
             if (totalRetried > 0 || totalSkipped > 0)
             {
                 _logger.LogInformation(
-                    "🔄 Recovery cycle complete: {Retried} tasks retried, {Skipped} tasks skipped",
+                    "Recovery cycle complete: {Retried} tasks retried, {Skipped} tasks skipped",
                     totalRetried,
                     totalSkipped);
             }
         }
 
         /// <summary>
-        /// Processes failed tasks for a specific project
+        /// Processes failed tasks for a specific project.
         /// </summary>
         private async Task<(int retried, int skipped)> ProcessProjectFailedTasksAsync(
             Project project,
@@ -139,7 +137,7 @@ namespace DraCode.KoboldLair.Server.Services
                     }
 
                     var shouldRetry = ShouldRetryTask(task);
-                    
+
                     if (shouldRetry)
                     {
                         await RetryTaskAsync(drake, task);
@@ -156,7 +154,7 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Determines if a task should be retried based on error category, retry count, and timing
+        /// Determines if a task should be retried based on error category, retry count, and timing.
         /// </summary>
         private bool ShouldRetryTask(TaskRecord task)
         {
@@ -216,14 +214,14 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Retries a failed task by resetting it to Unassigned status
+        /// Retries a failed task by resetting it to Unassigned status.
         /// </summary>
         private async Task RetryTaskAsync(Drake drake, TaskRecord task)
         {
             var taskPreview = Truncate(task.Task);
-            
+
             _logger.LogInformation(
-                "🔄 Retrying task {TaskId} (attempt {Attempt}/{Max})\n" +
+                "Retrying task {TaskId} (attempt {Attempt}/{Max})\n" +
                 "  Provider: {Provider}\n" +
                 "  Task: {Task}\n" +
                 "  Last error: {Error}",
@@ -237,7 +235,7 @@ namespace DraCode.KoboldLair.Server.Services
             // Update retry metadata
             task.RetryCount++;
             task.LastRetryAttempt = DateTime.UtcNow;
-            
+
             // Calculate next retry time using exponential backoff
             var backoffIndex = Math.Min(task.RetryCount, _retryBackoffSchedule.Length) - 1;
             task.NextRetryAt = DateTime.UtcNow + _retryBackoffSchedule[backoffIndex];

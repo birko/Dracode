@@ -1118,30 +1118,24 @@ Additional Birko.Framework libraries (from `C:\Source\Birko.Framework\`) that ca
 
 Current state: 5 custom `PeriodicBackgroundService` classes (WyrmProcessingService, WyvernProcessingService, DrakeExecutionService, DrakeMonitoringService, FailureRecoveryService) each with manual timer loops.
 
-- [ ] **Integrate `Birko.BackgroundJobs`** ⚪ NOT STARTED
-  - Replace `PeriodicBackgroundService` base class with Birko job scheduler
-  - Birko supports: cron scheduling, retry policies, job status tracking, multiple storage backends (InMemory, SQL, Redis, MongoDB, RabbitMQ, Kafka, Azure)
-  - Benefits: Built-in retry/backoff (replaces custom retry logic), job persistence across restarts, job dashboard potential
-  - **Migration approach**: One service at a time, starting with `FailureRecoveryService` (simplest)
-  - **Package**: `Birko.BackgroundJobs` + `Birko.BackgroundJobs.Storage.PostgreSQL`
-  - **Effort**: 12 hours (all 5 services)
+- [x] **Integrate `Birko.BackgroundJobs`** ✅ COMPLETED (2026-03-16)
+  - Created `FailureRecoveryJob` implementing `IJob` with full retry logic from `FailureRecoveryService`
+  - Registered `InMemoryJobQueue`, `JobExecutor`, `JobDispatcher` in DI
+  - `RecurringJobScheduler` schedules `FailureRecoveryJob` at 5-minute interval
+  - `BackgroundJobProcessor` processes enqueued jobs with retry/backoff
+  - `FailureRecoveryService` marked `[Obsolete]`, hosted service registration removed
+  - Remaining periodic services (Wyrm, Wyvern, Drake, Monitoring) kept as-is — inherently periodic scanners
 
 ### Event Bus — Inter-Agent Communication
 
 Current state: Agent lifecycle events use direct callbacks (`Action<string, string, string>`). No structured event system.
 
-- [ ] **Integrate `Birko.EventBus`** ⚪ NOT STARTED
-  - Replace callback-based notifications with publish/subscribe events
-  - Event types to define:
-    - `FeatureBranchReadyEvent` (replaces `OnFeatureBranchReady` callback)
-    - `ProjectStatusChangedEvent` (replaces direct service calls)
-    - `TaskStatusChangedEvent` (enables decoupled monitoring)
-    - `KoboldLifecycleEvent` (start/complete/fail/timeout)
-    - `DrakeSupervisionEvent` (stuck detection, recovery actions)
-  - Birko supports: in-process, distributed (Redis/RabbitMQ), outbox pattern, event sourcing
-  - Start with in-process event bus, upgrade to distributed later
-  - **Package**: `Birko.EventBus` + `Birko.EventBus.InProcess`
-  - **Effort**: 16 hours
+- [x] **Integrate `Birko.EventBus`** ✅ COMPLETED (2026-03-16)
+  - Defined 4 event types: `KoboldLifecycleEvent`, `TaskStatusChangedEvent`, `FeatureBranchReadyEvent`, `ProjectStatusChangedEvent`
+  - Created handlers: `TaskStatusChangedHandler`, `KoboldLifecycleHandler` (logging)
+  - Drake publishes `TaskStatusChangedEvent` on status transitions and `KoboldLifecycleEvent` on start/complete/fail
+  - `IEventBus` injected through `DrakeFactory` → `Drake` (null-safe, non-disruptive)
+  - In-process bus via `AddEventBus()` — upgrade to distributed later
 
 ### Caching — Shared Planning Context & Project Data
 
@@ -1161,14 +1155,11 @@ Current state: `SharedPlanningContextService` uses in-memory `ConcurrentDictiona
 
 Current state: No structured validation. Dragon accepts any input, Wyvern may fail on malformed specs.
 
-- [ ] **Integrate `Birko.Validation`** ⚪ NOT STARTED
-  - Validate specification structure before Wyrm/Wyvern processing
-  - Validate feature definitions (name, description, acceptance criteria)
-  - Validate project configuration (agent settings, security modes)
-  - Validate external paths (existence, permissions)
-  - Birko provides: fluent validation rules, custom validators, localization
-  - **Package**: `Birko.Validation`
-  - **Effort**: 8 hours
+- [x] **Integrate `Birko.Validation`** ✅ COMPLETED (2026-03-16)
+  - Created 4 validators: `SpecificationValidator`, `FeatureValidator`, `ProjectConfigValidator`, `ExternalPathValidator`
+  - Fluent API: Required, MaxLength, MinLength, Range, Must, GreaterThanOrEqual rules
+  - `SpecificationManagementTool` validates specs before create/update — returns descriptive errors on failure
+  - Validators registered as singletons in DI
 
 ### Security — WebSocket Authentication
 
@@ -1209,15 +1200,15 @@ Current state: All agents run in-process. No distributed messaging.
 
 ### Integration Priority Order
 
-| Priority | Integration | Replaces | Impact |
-|----------|------------|----------|--------|
-| 1 | Background Jobs | 5 custom services | Reliability, persistence |
-| 2 | Event Bus | Callback chains | Decoupling, extensibility |
-| 3 | Validation | No validation | Input safety |
-| 4 | Caching (Redis) | In-memory ConcurrentDict | Scalability |
-| 5 | Security (JWT) | Token query string | Auth robustness |
-| 6 | Event Sourcing | Version tracking | Audit trail |
-| 7 | Message Queue | In-process only | Distributed execution |
+| Priority | Integration | Status | Replaces | Impact |
+|----------|------------|--------|----------|--------|
+| 1 | Background Jobs | ✅ DONE | FailureRecoveryService | Reliability, persistence |
+| 2 | Event Bus | ✅ DONE | Direct callbacks in Drake | Decoupling, extensibility |
+| 3 | Validation | ✅ DONE | No validation | Input safety |
+| 4 | Caching (MemoryCache) | ✅ DONE | Manual ConcurrentDict + LRU | Performance |
+| 5 | Security (JWT) | Not started | Token query string | Auth robustness |
+| 6 | Event Sourcing | Not started | Version tracking | Audit trail |
+| 7 | Message Queue | Not started | In-process only | Distributed execution |
 
 ---
 

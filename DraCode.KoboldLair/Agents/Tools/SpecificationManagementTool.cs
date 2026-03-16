@@ -1,3 +1,4 @@
+using Birko.Validation;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Models.Projects;
 
@@ -14,19 +15,22 @@ namespace DraCode.KoboldLair.Agents.Tools
         private readonly Action<string>? _onSpecificationUpdated;
         private readonly Func<string, string>? _getProjectFolder;
         private readonly Func<string, Task<string?>>? _onProjectLoaded;
+        private readonly IValidator<Specification>? _specificationValidator;
 
         public SpecificationManagementTool(
             Dictionary<string, Specification> specifications,
             Action<string>? onSpecificationUpdated = null,
             Func<string, string>? getProjectFolder = null,
             string? projectsPath = "./projects",
-            Func<string, Task<string?>>? onProjectLoaded = null)
+            Func<string, Task<string?>>? onProjectLoaded = null,
+            IValidator<Specification>? specificationValidator = null)
         {
             _specifications = specifications;
             _onSpecificationUpdated = onSpecificationUpdated;
             _getProjectFolder = getProjectFolder;
             _projectsPath = projectsPath ?? "./projects";
             _onProjectLoaded = onProjectLoaded;
+            _specificationValidator = specificationValidator;
         }
 
         public override string Name => "manage_specification";
@@ -242,9 +246,6 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                // Write file first (outside lock to avoid holding lock during I/O)
-                await File.WriteAllTextAsync(fullPath, content);
-
                 var spec = new Specification
                 {
                     Name = name,
@@ -254,6 +255,20 @@ namespace DraCode.KoboldLair.Agents.Tools
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+
+                // Validate before persisting
+                if (_specificationValidator != null)
+                {
+                    var validation = _specificationValidator.Validate(spec);
+                    if (!validation.IsValid)
+                    {
+                        var errors = string.Join("; ", validation.Errors.Select(e => $"{e.PropertyName}: {e.Message}"));
+                        return $"Error: Specification validation failed — {errors}";
+                    }
+                }
+
+                // Write file (outside lock to avoid holding lock during I/O)
+                await File.WriteAllTextAsync(fullPath, content);
 
                 // Update dictionary under lock
                 lock (_specificationsLock)
@@ -313,7 +328,24 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                // Write file first (outside lock)
+                // Validate before persisting
+                if (_specificationValidator != null)
+                {
+                    var tempSpec = new Specification
+                    {
+                        Name = name,
+                        FilePath = fullPath,
+                        Content = content
+                    };
+                    var validation = _specificationValidator.Validate(tempSpec);
+                    if (!validation.IsValid)
+                    {
+                        var errors = string.Join("; ", validation.Errors.Select(e => $"{e.PropertyName}: {e.Message}"));
+                        return $"Error: Specification validation failed — {errors}";
+                    }
+                }
+
+                // Write file (outside lock)
                 await File.WriteAllTextAsync(fullPath, content);
 
                 // Update spec under lock

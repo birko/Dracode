@@ -1,14 +1,25 @@
 using Birko.Communication.WebSocket.Middleware;
 using Birko.Communication.WebSocket.Services;
 using DraCode.Agent;
+using Birko.EventBus;
+using Birko.EventBus.Extensions;
 using DraCode.KoboldLair.Data;
 using DraCode.KoboldLair.Data.Migrations;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Data.Repositories.Sql;
+using DraCode.KoboldLair.Events;
+using DraCode.KoboldLair.Events.Handlers;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Services;
+using Birko.BackgroundJobs;
+using Birko.BackgroundJobs.Processing;
+using DraCode.KoboldLair.Server.Jobs;
 using DraCode.KoboldLair.Server.Services;
+using Birko.Validation;
+using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +33,11 @@ builder.AddServiceDefaults();
 builder.Services.Configure<WebSocketAuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication"));
 builder.Services.AddSingleton<WebSocketAuthenticationService>();
+
+// Register Birko.Validation validators
+builder.Services.AddSingleton<IValidator<Specification>, SpecificationValidator>();
+builder.Services.AddSingleton<IValidator<Feature>, FeatureValidator>();
+builder.Services.AddSingleton<IValidator<AgentsConfig>, ProjectConfigValidator>();
 
 // Configure KoboldLair settings (providers, defaults, limits - all in one place)
 builder.Services.Configure<KoboldLairConfiguration>(
@@ -148,9 +164,10 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
     var sharedPlanningContext = sp.GetRequiredService<SharedPlanningContextService>();
     var taskRepository = sp.GetService<ITaskRepository>();
+    var eventBus = sp.GetService<IEventBus>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var factory = new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config,
-        loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext, taskRepository);
+        loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext, taskRepository, eventBus);
 
     // Wire feature completion notifications so users get notified when branches are ready for merge
     var notificationService = sp.GetRequiredService<ProjectNotificationService>();
@@ -365,21 +382,45 @@ builder.Services.AddHostedService<ReasoningMonitorService>(sp =>
         monitorIntervalSeconds: reflectionConfig.MonitorIntervalSeconds);
 });
 
-// Register Failure Recovery Service (auto-retries transient failures, checks every 5 minutes)
-builder.Services.AddHostedService<FailureRecoveryService>(sp =>
+// Register FailureRecoveryJob for DI resolution by JobExecutor
+builder.Services.AddTransient<FailureRecoveryJob>(sp =>
 {
-    var logger = sp.GetRequiredService<ILogger<FailureRecoveryService>>();
+    var logger = sp.GetRequiredService<ILogger<FailureRecoveryJob>>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var projectService = sp.GetRequiredService<ProjectService>();
-    var drakeFactory = sp.GetRequiredService<DrakeFactory>();
     var circuitBreaker = sp.GetRequiredService<ProviderCircuitBreaker>();
-    return new FailureRecoveryService(
-        logger,
-        projectService,
-        drakeFactory,
-        circuitBreaker,
-        checkIntervalSeconds: 300, // 5 minutes
-        maxRetryAttempts: 5);
+    var drakeFactory = sp.GetRequiredService<DrakeFactory>();
+    return new FailureRecoveryJob(logger, projectRepository, projectService, circuitBreaker, drakeFactory, maxRetryAttempts: 5);
 });
+
+// Register Birko.BackgroundJobs infrastructure
+builder.Services.AddSingleton<IJobQueue>(new InMemoryJobQueue());
+builder.Services.AddSingleton<IJobExecutor>(sp =>
+    new JobExecutor(type => sp.GetRequiredService(type)));
+builder.Services.AddSingleton<JobDispatcher>(sp =>
+    new JobDispatcher(sp.GetRequiredService<IJobQueue>()));
+
+// Register RecurringJobScheduler as hosted service with FailureRecoveryJob at 5-minute interval
+builder.Services.AddHostedService(sp =>
+{
+    var scheduler = new RecurringJobScheduler(sp.GetRequiredService<IJobQueue>());
+    scheduler.Register<FailureRecoveryJob>("failure-recovery", TimeSpan.FromMinutes(5));
+    return new RecurringJobSchedulerHostedService(scheduler);
+});
+
+// Register BackgroundJobProcessor as hosted service to process enqueued jobs
+builder.Services.AddHostedService(sp =>
+{
+    var processor = new BackgroundJobProcessor(
+        sp.GetRequiredService<IJobQueue>(),
+        sp.GetRequiredService<IJobExecutor>());
+    return new BackgroundJobProcessorHostedService(processor);
+});
+
+// Register Birko.EventBus (in-process) and event handlers
+builder.Services.AddEventBus();
+builder.Services.AddEventHandler<TaskStatusChangedEvent, TaskStatusChangedHandler>();
+builder.Services.AddEventHandler<KoboldLifecycleEvent, KoboldLifecycleHandler>();
 
 // Add CORS for web client
 builder.Services.AddCors(options =>

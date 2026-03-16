@@ -1,3 +1,4 @@
+using Birko.EventBus;
 using DraCode.Agent;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.KoboldLair.Agents;
@@ -25,6 +26,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly GitService? _gitService;
         private readonly ProviderCircuitBreaker? _circuitBreaker;
         private readonly SharedPlanningContextService? _sharedPlanningContext;
+        private readonly IEventBus? _eventBus;
         private readonly ILoggerFactory? _loggerFactory;
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly string _projectsPath;
@@ -71,7 +73,8 @@ namespace DraCode.KoboldLair.Factories
             IProjectRepository? projectRepository = null,
             ProviderCircuitBreaker? circuitBreaker = null,
             SharedPlanningContextService? sharedPlanningContext = null,
-            ITaskRepository? taskRepository = null)
+            ITaskRepository? taskRepository = null,
+            IEventBus? eventBus = null)
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
@@ -83,7 +86,8 @@ namespace DraCode.KoboldLair.Factories
             _gitService = gitService;
             _circuitBreaker = circuitBreaker;
             _sharedPlanningContext = sharedPlanningContext;
-            
+            _eventBus = eventBus;
+
             // Extract configuration values from koboldLairConfig
             _projectsPath = koboldLairConfig.ProjectsPath ?? "./projects";
             _planningEnabled = koboldLairConfig.Planning?.Enabled ?? true;
@@ -228,7 +232,8 @@ namespace DraCode.KoboldLair.Factories
                 implementationService,
                 _koboldLairConfig.Planning,
                 OnFeatureBranchReady,
-                OnEscalation
+                OnEscalation,
+                _eventBus
             );
 
             // Lock only for dictionary insertion, with race condition check

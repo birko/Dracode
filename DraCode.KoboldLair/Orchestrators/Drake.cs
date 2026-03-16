@@ -1,6 +1,8 @@
 using System.Threading.Channels;
+using Birko.EventBus;
 using DraCode.Agent;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Events;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Tasks;
@@ -46,6 +48,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly Models.Configuration.PlanningConfiguration? _planningConfig;
         private readonly Action<string, string, string>? _onFeatureBranchReady;
         private readonly Action<string, EscalationAlert, string>? _onEscalationNotify;
+        private readonly IEventBus? _eventBus;
         private Wyvern? _wyvern;
         private WyrmRecommendation? _wyrmRecommendation;
 
@@ -112,7 +115,8 @@ namespace DraCode.KoboldLair.Orchestrators
             ProjectImplementationService? implementationService = null,
             Models.Configuration.PlanningConfiguration? planningConfig = null,
             Action<string, string, string>? onFeatureBranchReady = null,
-            Action<string, EscalationAlert, string>? onEscalationNotify = null)
+            Action<string, EscalationAlert, string>? onEscalationNotify = null,
+            IEventBus? eventBus = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -135,6 +139,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _planningConfig = planningConfig;
             _onFeatureBranchReady = onFeatureBranchReady;
             _onEscalationNotify = onEscalationNotify;
+            _eventBus = eventBus;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
@@ -336,6 +341,26 @@ namespace DraCode.KoboldLair.Orchestrators
             if (!string.IsNullOrEmpty(projectId) && _sharedPlanningContext != null)
             {
                 _ = _sharedPlanningContext.RegisterAgentAsync(kobold.Id.ToString(), projectId, task.Id.ToString(), agentType);
+            }
+
+            // Publish Kobold lifecycle started event
+            if (_eventBus != null)
+            {
+                try
+                {
+                    _ = _eventBus.PublishAsync(new KoboldLifecycleEvent
+                    {
+                        ProjectId = projectId ?? "unknown",
+                        TaskId = task.Id,
+                        AgentType = agentType,
+                        KoboldId = kobold.Id,
+                        Action = KoboldLifecycleAction.Started
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug(ex, "Failed to publish KoboldLifecycleEvent.Started for kobold {KoboldId}", kobold.Id);
+                }
             }
 
             // Load specification context if available
@@ -1097,13 +1122,39 @@ namespace DraCode.KoboldLair.Orchestrators
             await UpdateTaskWithWalAsync(task, taskStatus, task.AssignedAgent, kobold.HasError ? (kobold.ErrorMessage ?? "Unknown error") : null);
 
             // Unregister agent from shared planning context when done or failed
-            if ((taskStatus == TaskStatus.Done || taskStatus == TaskStatus.Failed) && 
+            if ((taskStatus == TaskStatus.Done || taskStatus == TaskStatus.Failed) &&
                 !string.IsNullOrEmpty(_projectId) && _sharedPlanningContext != null)
             {
                 _ = _sharedPlanningContext.UnregisterAgentAsync(
-                    kobold.Id.ToString(), 
-                    taskStatus == TaskStatus.Done, 
+                    kobold.Id.ToString(),
+                    taskStatus == TaskStatus.Done,
                     kobold.ErrorMessage);
+            }
+
+            // Publish Kobold lifecycle terminal event (Completed/Failed/TimedOut)
+            if ((taskStatus == TaskStatus.Done || taskStatus == TaskStatus.Failed) && _eventBus != null)
+            {
+                var action = taskStatus == TaskStatus.Done
+                    ? KoboldLifecycleAction.Completed
+                    : (kobold.ErrorMessage?.Contains("timed out", StringComparison.OrdinalIgnoreCase) == true
+                        ? KoboldLifecycleAction.TimedOut
+                        : KoboldLifecycleAction.Failed);
+
+                try
+                {
+                    _ = _eventBus.PublishAsync(new KoboldLifecycleEvent
+                    {
+                        ProjectId = _projectId ?? "unknown",
+                        TaskId = task.Id,
+                        AgentType = task.AssignedAgent ?? "unknown",
+                        KoboldId = kobold.Id,
+                        Action = action
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug(ex, "Failed to publish KoboldLifecycleEvent.{Action} for kobold {KoboldId}", action, kobold.Id);
+                }
             }
 
             // Clean up conversation checkpoint when task reaches terminal state
@@ -1130,7 +1181,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 _circuitBreaker?.RecordSuccess(task.Provider);
             }
 
-            // Log status transition if changed
+            // Log status transition if changed and publish event
             if (previousStatus != taskStatus)
             {
                 var projectInfo = _projectId ?? "unknown project";
@@ -1141,6 +1192,26 @@ namespace DraCode.KoboldLair.Orchestrators
                     "  Task ID: {TaskId}\n" +
                     "  Task: {TaskDescription}",
                     previousStatus, taskStatus, projectInfo, task.Id[..Math.Min(8, task.Id.Length)], taskPreview);
+
+                // Publish task status changed event
+                if (_eventBus != null)
+                {
+                    try
+                    {
+                        _ = _eventBus.PublishAsync(new TaskStatusChangedEvent
+                        {
+                            ProjectId = _projectId ?? "unknown",
+                            TaskId = task.Id,
+                            OldStatus = previousStatus.ToString(),
+                            NewStatus = taskStatus.ToString(),
+                            ErrorMessage = kobold.HasError ? kobold.ErrorMessage : null
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogDebug(ex, "Failed to publish TaskStatusChangedEvent for task {TaskId}", task.Id[..Math.Min(8, task.Id.Length)]);
+                    }
+                }
             }
 
             // Use immediate save for critical state transitions to prevent race condition with ReloadTasksFromFileAsync
