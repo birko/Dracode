@@ -1391,11 +1391,11 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
   - Requires changing base Tool interface from `string Execute(...)` to `Task<string> ExecuteAsync(...)`
   - ⚠️ Birko.Framework does NOT resolve this — tool interface is DraCode-specific
 
-- [ ] **Add project-level mutex for git operations** 🔧 *Manual fix required*
-  - No locking when multiple Kobolds operate on the same git repo — `.git/index.lock` contention
-  - Add `ConcurrentDictionary<string, SemaphoreSlim>` in `GitService.cs` keyed by project folder
-  - Each git operation acquires the semaphore before executing
-  - ⚠️ Birko.Framework does NOT resolve this — git CLI interaction is OS-level
+- [x] **Add project-level mutex for git operations** ✅ COMPLETED (2026-03-16)
+  - Added `static ConcurrentDictionary<string, SemaphoreSlim> _repoLocks` in `GitService.cs`
+  - `RunGitCommandAsync()` acquires per-directory semaphore before executing, releases in `finally`
+  - Key is normalized absolute path (`Path.GetFullPath` + trimmed separators)
+  - All git operations automatically serialized per working directory — prevents `.git/index.lock` contention
 
 - [ ] **Fix blocking .GetAwaiter().GetResult() calls in DragonService callbacks** 🔧 *Manual fix required*
   - `DragonService.cs` lines 567, 575, 775, 1754 use blocking sync wrappers around async calls
@@ -1463,14 +1463,14 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 
 | Category | Total | Resolved | Fully Resolved by Birko | Partially Helped | Manual Fix Only |
 |----------|-------|----------|------------------------|------------------|-----------------|
-| Concurrency | 3 | 0 | 0 | 0 | 3 |
+| Concurrency | 3 | **1** ✅ | 0 | 0 | 2 |
 | Data Loss | 4 | 0 | 4 (via DB migration) | 0 | 0 |
 | Git/Worktree | 2 | **2** ✅ | 0 | 0 | 0 |
 | Client-Side | 2 | **2** ✅ | 0 | 0 | 0 |
 | Architecture | 1 | 0 | 0 | 1 | 0 |
-| **Total** | **12** | **4** | **4** | **1** | **3** |
+| **Total** | **12** | **5** | **4** | **1** | **2** |
 
-**Status**: 4 of 12 fixed (2026-03-16). Remaining 8: 4 resolved by DB migration, 3 concurrency (async refactor), 1 architecture (cross-branch API).
+**Status**: 5 of 12 fixed (2026-03-16). Remaining 7: 4 resolved by DB migration, 2 concurrency (async refactor), 1 architecture (cross-branch API).
 
 ---
 

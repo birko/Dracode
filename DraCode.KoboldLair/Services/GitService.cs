@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using DraCode.KoboldLair.Models.Git;
@@ -12,9 +13,21 @@ namespace DraCode.KoboldLair.Services
         private readonly ILogger<GitService> _logger;
         private bool? _gitInstalled;
 
+        /// <summary>
+        /// Per-project mutex to prevent concurrent git operations on the same repository.
+        /// Keyed by normalized absolute path of the git working directory.
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> _repoLocks = new();
+
         public GitService(ILogger<GitService> logger)
         {
             _logger = logger;
+        }
+
+        private static SemaphoreSlim GetRepoLock(string workingDirectory)
+        {
+            var key = Path.GetFullPath(workingDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return _repoLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
         }
 
         /// <summary>
@@ -689,10 +702,14 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Runs a git command and returns the result
+        /// Runs a git command and returns the result.
+        /// Acquires a per-directory semaphore to prevent concurrent git operations
+        /// on the same repository, avoiding .git/index.lock contention.
         /// </summary>
         private async Task<(bool Success, string Output, string Error)> RunGitCommandAsync(string workingDirectory, params string[] args)
         {
+            var repoLock = GetRepoLock(workingDirectory);
+            await repoLock.WaitAsync();
             try
             {
                 var psi = new ProcessStartInfo
@@ -726,6 +743,10 @@ namespace DraCode.KoboldLair.Services
             catch (Exception ex)
             {
                 return (false, "", ex.Message);
+            }
+            finally
+            {
+                repoLock.Release();
             }
         }
     }
