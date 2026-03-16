@@ -150,7 +150,8 @@ namespace DraCode.KoboldLair.Agents.Tools
                         var deps = task.Dependencies.Count > 0 ? string.Join(", ", task.Dependencies.Take(3)) : "-";
                         if (task.Dependencies.Count > 3) deps += $" +{task.Dependencies.Count - 3}";
 
-                        sb.AppendLine($"| {statusIcon} {task.Status} | {prioIcon} {task.Priority} | {task.Id[..8]} | {desc} | {agent} | {deps} |");
+                        var commitWarn = task.CommitFailed ? " ⚠️" : "";
+                        sb.AppendLine($"| {statusIcon} {task.Status}{commitWarn} | {prioIcon} {task.Priority} | {task.Id[..8]} | {desc} | {agent} | {deps} |");
                     }
                 }
                 else
@@ -255,7 +256,13 @@ namespace DraCode.KoboldLair.Agents.Tools
                 }
 
                 // Commit info
-                if (!string.IsNullOrEmpty(task.CommitSha))
+                if (task.CommitFailed)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("⚠️ **COMMIT FAILED** — Task completed but code was not committed to git.");
+                    sb.AppendLine("Use `git_commit` tool to manually commit the changes, or `retry_failed_task` to re-run.");
+                }
+                else if (!string.IsNullOrEmpty(task.CommitSha))
                 {
                     sb.AppendLine();
                     sb.AppendLine($"**Commit:** `{task.CommitSha}`");

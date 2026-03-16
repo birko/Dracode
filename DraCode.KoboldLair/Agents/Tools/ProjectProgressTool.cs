@@ -134,6 +134,20 @@ namespace DraCode.KoboldLair.Agents.Tools
                 sb.AppendLine($"- ❌ Failed: {failed}");
                 sb.AppendLine($"- 🚫 Blocked: {blocked}");
 
+                // Warn about uncommitted tasks
+                var uncommitted = tasks.Where(t => t.CommitFailed).ToList();
+                if (uncommitted.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"⚠️ **{uncommitted.Count} task(s) completed but git commit failed:**");
+                    foreach (var t in uncommitted)
+                    {
+                        var preview = t.Task.Length > 60 ? t.Task[..60] + "..." : t.Task;
+                        sb.AppendLine($"  - `{t.Id[..Math.Min(8, t.Id.Length)]}` — {preview}");
+                    }
+                    sb.AppendLine("  Use `view_task_details` then `git_commit` to manually commit.");
+                }
+
                 // Success rate
                 var attempted = done + failed;
                 if (attempted > 0)

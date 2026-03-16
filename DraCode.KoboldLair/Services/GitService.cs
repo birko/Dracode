@@ -639,6 +639,56 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Prunes stale git worktrees for a project directory.
+        /// Removes orphaned .worktrees/ entries that may remain after a server crash.
+        /// </summary>
+        public async Task PruneStaleWorktreesAsync(string projectFolder)
+        {
+            if (!await IsRepositoryAsync(projectFolder))
+                return;
+
+            var worktreesDir = Path.Combine(projectFolder, ".worktrees");
+            if (!Directory.Exists(worktreesDir))
+                return;
+
+            // Run git worktree prune to clean up stale entries from git's tracking
+            await RunGitCommandAsync(projectFolder, "worktree", "prune");
+
+            // Check each remaining worktree subdirectory
+            string[] subdirs;
+            try
+            {
+                subdirs = Directory.GetDirectories(worktreesDir);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to enumerate worktrees directory: {Path}", worktreesDir);
+                return;
+            }
+
+            foreach (var dir in subdirs)
+            {
+                // Verify if the worktree is still valid by checking git
+                var checkResult = await RunGitCommandAsync(dir, "rev-parse", "--git-dir");
+                if (!checkResult.Success)
+                {
+                    _logger.LogInformation("Removing orphaned worktree: {Path}", dir);
+                    await RemoveWorktreeAsync(projectFolder, dir);
+                }
+            }
+
+            // Remove .worktrees/ if now empty
+            try
+            {
+                if (Directory.Exists(worktreesDir) && Directory.GetFileSystemEntries(worktreesDir).Length == 0)
+                {
+                    Directory.Delete(worktreesDir);
+                }
+            }
+            catch { /* best effort */ }
+        }
+
+        /// <summary>
         /// Runs a git command and returns the result
         /// </summary>
         private async Task<(bool Success, string Output, string Error)> RunGitCommandAsync(string workingDirectory, params string[] args)

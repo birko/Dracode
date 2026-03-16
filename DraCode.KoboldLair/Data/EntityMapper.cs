@@ -150,6 +150,7 @@ namespace DraCode.KoboldLair.Data
                 LastRetryAttempt = task.LastRetryAttempt,
                 NextRetryAt = task.NextRetryAt,
                 Provider = task.Provider,
+                CommitFailed = task.CommitFailed,
                 DependenciesJson = JsonSerializer.Serialize(task.Dependencies, JsonOptions),
                 OutputFilesJson = JsonSerializer.Serialize(task.OutputFiles, JsonOptions),
                 CreatedAt = task.CreatedAt,
@@ -179,6 +180,7 @@ namespace DraCode.KoboldLair.Data
                 LastRetryAttempt = entity.LastRetryAttempt,
                 NextRetryAt = entity.NextRetryAt,
                 Provider = entity.Provider,
+                CommitFailed = entity.CommitFailed,
                 Dependencies = DeserializeOrDefault(entity.DependenciesJson, new List<string>()),
                 OutputFiles = DeserializeOrDefault(entity.OutputFilesJson, new List<string>())
             };
@@ -208,6 +210,7 @@ namespace DraCode.KoboldLair.Data
             entity.LastRetryAttempt = task.LastRetryAttempt;
             entity.NextRetryAt = task.NextRetryAt;
             entity.Provider = task.Provider;
+            entity.CommitFailed = task.CommitFailed;
             entity.DependenciesJson = JsonSerializer.Serialize(task.Dependencies, JsonOptions);
             entity.OutputFilesJson = JsonSerializer.Serialize(task.OutputFiles, JsonOptions);
             entity.UpdatedAt = DateTime.UtcNow;

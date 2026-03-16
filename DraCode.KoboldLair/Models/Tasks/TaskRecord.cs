@@ -75,5 +75,11 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// LLM provider used for this task (for circuit breaker tracking)
         /// </summary>
         public string? Provider { get; set; }
+
+        /// <summary>
+        /// Warning flag set when task completed but git commit failed.
+        /// Code output exists in workspace but was never committed to the repository.
+        /// </summary>
+        public bool CommitFailed { get; set; }
     }
 }

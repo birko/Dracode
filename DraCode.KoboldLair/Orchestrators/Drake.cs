@@ -1451,11 +1451,20 @@ namespace DraCode.KoboldLair.Orchestrators
                         await RegisterOutputFilesWithContextAsync(kobold, task);
                     }
                 }
+                else
+                {
+                    _logger?.LogWarning(
+                        "Git commit returned false for task {TaskId} - code is staged but uncommitted",
+                        task.Id[..Math.Min(8, task.Id.Length)]);
+                    task.CommitFailed = true;
+                    SaveTasksToFile();
+                }
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Failed to commit task completion for task {TaskId}", task.Id);
-                // Don't fail the workflow if git commit fails
+                _logger?.LogWarning(ex, "Git commit failed for task {TaskId} - task remains Done but code is uncommitted", task.Id);
+                task.CommitFailed = true;
+                SaveTasksToFile();
             }
         }
 

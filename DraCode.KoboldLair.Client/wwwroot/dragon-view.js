@@ -605,6 +605,7 @@ export class DragonView {
             session.connect();
         });
 
+        this.detachEventListeners();
         this.attachEventListeners();
         this.attachTabEventListeners();
 
@@ -623,6 +624,25 @@ export class DragonView {
     }
 
     attachEventListeners() {
+        // Store bound handlers so we can remove them later
+        this._handlers = {
+            send: () => this.sendMessage(),
+            keydown: (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            },
+            reload: () => this.reloadAgent(),
+            clear: () => this.clearContext(),
+            download: () => this.downloadConversation(),
+            providerChange: (e) => {
+                this.selectedProvider = e.target.value;
+                this.reloadAgent();
+            },
+            addTab: () => this.addNewTab()
+        };
+
         const sendBtn = document.getElementById('dragonSendBtn');
         const input = document.getElementById('dragonInput');
         const reloadBtn = document.getElementById('dragonReloadBtn');
@@ -631,42 +651,57 @@ export class DragonView {
         const providerSelect = document.getElementById('dragonProviderSelect');
         const addTabBtn = document.getElementById('dragonAddTab');
 
-        sendBtn?.addEventListener('click', () => this.sendMessage());
-        input?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.sendMessage();
-            }
-        });
-        reloadBtn?.addEventListener('click', () => this.reloadAgent());
-        clearBtn?.addEventListener('click', () => this.clearContext());
-        downloadBtn?.addEventListener('click', () => this.downloadConversation());
-        providerSelect?.addEventListener('change', (e) => {
-            this.selectedProvider = e.target.value;
-            this.reloadAgent();
-        });
-        addTabBtn?.addEventListener('click', () => this.addNewTab());
+        sendBtn?.addEventListener('click', this._handlers.send);
+        input?.addEventListener('keydown', this._handlers.keydown);
+        reloadBtn?.addEventListener('click', this._handlers.reload);
+        clearBtn?.addEventListener('click', this._handlers.clear);
+        downloadBtn?.addEventListener('click', this._handlers.download);
+        providerSelect?.addEventListener('change', this._handlers.providerChange);
+        addTabBtn?.addEventListener('click', this._handlers.addTab);
+    }
+
+    detachEventListeners() {
+        if (!this._handlers) return;
+
+        document.getElementById('dragonSendBtn')?.removeEventListener('click', this._handlers.send);
+        document.getElementById('dragonInput')?.removeEventListener('keydown', this._handlers.keydown);
+        document.getElementById('dragonReloadBtn')?.removeEventListener('click', this._handlers.reload);
+        document.getElementById('dragonClearBtn')?.removeEventListener('click', this._handlers.clear);
+        document.getElementById('dragonDownloadBtn')?.removeEventListener('click', this._handlers.download);
+        document.getElementById('dragonProviderSelect')?.removeEventListener('change', this._handlers.providerChange);
+        document.getElementById('dragonAddTab')?.removeEventListener('click', this._handlers.addTab);
+
+        this._handlers = null;
     }
 
     attachTabEventListeners() {
-        // Tab click handlers
-        document.querySelectorAll('.dragon-tab').forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                // Don't switch if clicking close button
-                if (e.target.classList.contains('tab-close')) return;
+        // Use event delegation on the tab container to avoid per-element listeners
+        const tabContainer = document.querySelector('.dragon-tabs');
+        if (!tabContainer) return;
+
+        // Remove previous delegated handler if any
+        if (this._tabClickHandler) {
+            tabContainer.removeEventListener('click', this._tabClickHandler);
+        }
+
+        this._tabClickHandler = (e) => {
+            // Close button
+            const closeBtn = e.target.closest('.tab-close');
+            if (closeBtn) {
+                e.stopPropagation();
+                const sessionId = parseInt(closeBtn.dataset.sessionId);
+                this.closeSession(sessionId);
+                return;
+            }
+            // Tab click
+            const tab = e.target.closest('.dragon-tab');
+            if (tab) {
                 const sessionId = parseInt(tab.dataset.sessionId);
                 this.switchToSession(sessionId);
-            });
-        });
+            }
+        };
 
-        // Close button handlers
-        document.querySelectorAll('.dragon-tab .tab-close').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const sessionId = parseInt(btn.dataset.sessionId);
-                this.closeSession(sessionId);
-            });
-        });
+        tabContainer.addEventListener('click', this._tabClickHandler);
     }
 
     addNewTab() {
@@ -677,6 +712,16 @@ export class DragonView {
     }
 
     onUnmount() {
+        // Remove event listeners to prevent accumulation on view switch
+        this.detachEventListeners();
+
+        // Remove delegated tab handler
+        if (this._tabClickHandler) {
+            const tabContainer = document.querySelector('.dragon-tabs');
+            tabContainer?.removeEventListener('click', this._tabClickHandler);
+            this._tabClickHandler = null;
+        }
+
         // Don't disconnect WebSocket connections when switching views
         // This preserves in-flight LLM requests and session state
         // WebSocket will be properly cleaned up on page unload

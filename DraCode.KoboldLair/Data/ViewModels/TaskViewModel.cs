@@ -29,6 +29,7 @@ namespace DraCode.KoboldLair.Data
         public DateTime? LastRetryAttempt { get; set; }
         public DateTime? NextRetryAt { get; set; }
         public string? Provider { get; set; }
+        public bool CommitFailed { get; set; }
         public string DependenciesJson { get; set; } = "[]";
         public string OutputFilesJson { get; set; } = "[]";
 
@@ -56,6 +57,7 @@ namespace DraCode.KoboldLair.Data
                 LastRetryAttempt = data.LastRetryAttempt;
                 NextRetryAt = data.NextRetryAt;
                 Provider = data.Provider;
+                CommitFailed = data.CommitFailed;
                 DependenciesJson = data.DependenciesJson;
                 OutputFilesJson = data.OutputFilesJson;
             }
@@ -85,6 +87,7 @@ namespace DraCode.KoboldLair.Data
                 LastRetryAttempt = data.LastRetryAttempt;
                 NextRetryAt = data.NextRetryAt;
                 Provider = data.Provider;
+                CommitFailed = data.CommitFailed;
                 DependenciesJson = data.DependenciesJson;
                 OutputFilesJson = data.OutputFilesJson;
             }

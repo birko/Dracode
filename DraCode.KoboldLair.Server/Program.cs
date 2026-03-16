@@ -2,7 +2,9 @@ using Birko.Communication.WebSocket.Middleware;
 using Birko.Communication.WebSocket.Services;
 using DraCode.Agent;
 using DraCode.KoboldLair.Data;
+using DraCode.KoboldLair.Data.Migrations;
 using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Data.Repositories.Sql;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Services;
@@ -356,6 +358,58 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Auto-migrate JSON → SQLite on first startup when SQLite backend is enabled
+using (var scope = app.Services.CreateScope())
+{
+    var dataConfig = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    var koboldConfig = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    dataConfig.ProjectsPath = koboldConfig.ProjectsPath ?? "./projects";
+
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var dbPath = Path.IsPathRooted(dataConfig.SqLitePath)
+            ? dataConfig.SqLitePath
+            : Path.Combine(dataConfig.ProjectsPath, dataConfig.SqLitePath);
+
+        var projectsJsonPath = Path.Combine(dataConfig.ProjectsPath, "projects.json");
+        var migrationMarker = dbPath + ".migrated";
+
+        // Only migrate if projects.json exists and we haven't migrated yet
+        if (File.Exists(projectsJsonPath) && !File.Exists(migrationMarker))
+        {
+            logger.LogInformation("SQLite backend enabled — migrating existing JSON data...");
+            try
+            {
+                var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+                var migration = await JsonToSqlMigration.CreateAsync(dataConfig, loggerFactory);
+                var result = await migration.MigrateAsync();
+
+                logger.LogInformation(
+                    "Migration complete: {Projects} projects, {Tasks} tasks migrated. Errors: {Errors}",
+                    result.ProjectsMigrated, result.TasksMigrated, result.Errors.Count);
+
+                foreach (var error in result.Errors)
+                {
+                    logger.LogWarning("Migration error: {Error}", error);
+                }
+
+                // Write marker so we don't re-migrate on every restart
+                await File.WriteAllTextAsync(migrationMarker,
+                    $"Migrated at {DateTime.UtcNow:O} — {result.ProjectsMigrated} projects, {result.TasksMigrated} tasks");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "JSON → SQLite migration failed. Falling back to JSON storage.");
+            }
+        }
+        else if (File.Exists(migrationMarker))
+        {
+            logger.LogDebug("SQLite migration already completed, skipping");
+        }
+    }
+}
+
 // Initialize project configurations on startup
 using (var scope = app.Services.CreateScope())
 {
@@ -374,6 +428,42 @@ using (var scope = app.Services.CreateScope())
     {
         logger.LogInformation("Configuration initialization complete");
     }
+
+    // Prune stale git worktrees left by previous crashes
+    var gitService = scope.ServiceProvider.GetRequiredService<GitService>();
+    foreach (var project in projectService.GetAllProjects())
+    {
+        try
+        {
+            // Resolve the git root: external SourcePath or KoboldLair project folder
+            string? projectFolder = null;
+            if (project.Metadata.TryGetValue("IsExistingProject", out var isExisting) &&
+                isExisting == "true" &&
+                project.Metadata.TryGetValue("SourcePath", out var sourcePath) &&
+                Directory.Exists(sourcePath))
+            {
+                projectFolder = sourcePath;
+            }
+            else
+            {
+                // For new projects: resolve from specification path
+                var specDir = Path.GetDirectoryName(
+                    Path.IsPathRooted(project.Paths.Specification)
+                        ? project.Paths.Specification
+                        : Path.Combine(projectService.ProjectsPath, project.Paths.Specification));
+                if (!string.IsNullOrEmpty(specDir) && Directory.Exists(specDir))
+                    projectFolder = specDir;
+            }
+
+            if (!string.IsNullOrEmpty(projectFolder))
+                await gitService.PruneStaleWorktreesAsync(projectFolder);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to prune worktrees for project {ProjectName}", project.Name);
+        }
+    }
+    logger?.LogInformation("Stale worktree cleanup complete");
 }
 
 // Register shutdown hook for graceful shutdown

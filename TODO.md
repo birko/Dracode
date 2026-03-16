@@ -1427,28 +1427,29 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 
 #### Git & Worktree Management
 
-- [ ] **Add stale worktree cleanup on server startup** 🔧 *Partially helped by Birko.BackgroundJobs*
-  - No detection/cleanup of orphaned `.worktrees/` directories after server crash
-  - Add `PruneStaleWorktreesAsync()` to `GitService.cs`, call in `Program.cs` startup
-  - **Birko partial help**: `Birko.BackgroundJobs` can run a persistent startup cleanup job, but git worktree logic stays manual
+- [x] **Add stale worktree cleanup on server startup** ✅ COMPLETED (2026-03-16)
+  - Added `PruneStaleWorktreesAsync()` to `GitService.cs` — runs `git worktree prune`, validates each remaining worktree, removes orphans
+  - Called in `Program.cs` startup after project config init — iterates all projects (handles both external SourcePath and KoboldLair folders)
+  - Cleans up empty `.worktrees/` directory after pruning
 
-- [ ] **Fix commit failure not propagating task failure status** 🔧 *Manual fix required*
-  - `Drake.cs:1396-1459` — if `git commit` fails, task remains `Done` but code was never committed
-  - At minimum add a warning flag; optionally retry or mark as `commit_pending`
-  - ⚠️ Birko.Framework does NOT resolve this — git commit logic is DraCode-specific
+- [x] **Fix commit failure not propagating task failure status** ✅ COMPLETED (2026-03-16)
+  - Added `CommitFailed` bool property to `TaskRecord`, `TaskEntity`, `TaskViewModel`, `EntityMapper`
+  - Drake now sets `CommitFailed = true` on both exception and `committed == false` cases
+  - Task remains Done but warning flag is persisted for visibility
 
 #### Client-Side
 
-- [ ] **Fix event listener memory leak on view switch** 🔧 *Manual fix required*
-  - `dragon-view.js:603-649` — `onMount()` adds listeners without removing previous ones
-  - Switching tabs accumulates duplicates: duplicate sends, memory leak, CPU increase
-  - Use event delegation or track/remove listeners in `onUnmount()`
-  - ⚠️ Birko.Framework does NOT resolve this — client-side JavaScript
+- [x] **Fix event listener memory leak on view switch** ✅ COMPLETED (2026-03-16)
+  - `attachEventListeners()` now stores bound handler references in `this._handlers`
+  - Added `detachEventListeners()` to remove all handlers using stored references
+  - `onMount()` calls `detachEventListeners()` before `attachEventListeners()` to prevent accumulation
+  - `onUnmount()` now calls `detachEventListeners()` and removes delegated tab handler
+  - Tab listeners refactored to use event delegation on `.dragon-tabs` container
 
-- [ ] **Add notification deduplication on client reconnect** 🔧 *Partially helped by Birko.Data.SQL*
-  - `dragon-view.js:228-255` — reconnect replays messages, escalations added without dedup check
-  - **Birko partial help**: Server-side notifications in PostgreSQL with unique constraints prevent duplicates at source; client-side dedup still needed
-  - **Interim fix**: Check `notificationStore` for existing ID before adding
+- [x] **Add notification deduplication on client reconnect** ✅ COMPLETED (2026-03-16)
+  - `NotificationStore` now tracks `_seenIds` Set with composite key: `taskId_type_message`
+  - `addEscalation()` checks dedup key before adding — duplicate escalations silently ignored
+  - `clearEscalations()` also clears the seen IDs set
 
 #### Architecture
 
@@ -1460,16 +1461,16 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 
 ### Birko.Framework Impact Summary
 
-| Category | Total | Fully Resolved by Birko | Partially Helped | Manual Fix Only |
-|----------|-------|------------------------|------------------|-----------------|
-| Concurrency | 3 | 0 | 0 | 3 |
-| Data Loss | 4 | 4 (via DB migration) | 0 | 0 |
-| Git/Worktree | 2 | 0 | 1 | 1 |
-| Client-Side | 2 | 0 | 1 | 1 |
-| Architecture | 1 | 0 | 1 | 0 |
-| **Total** | **12** | **4** | **3** | **5** |
+| Category | Total | Resolved | Fully Resolved by Birko | Partially Helped | Manual Fix Only |
+|----------|-------|----------|------------------------|------------------|-----------------|
+| Concurrency | 3 | 0 | 0 | 0 | 3 |
+| Data Loss | 4 | 0 | 4 (via DB migration) | 0 | 0 |
+| Git/Worktree | 2 | **2** ✅ | 0 | 0 | 0 |
+| Client-Side | 2 | **2** ✅ | 0 | 0 | 0 |
+| Architecture | 1 | 0 | 0 | 1 | 0 |
+| **Total** | **12** | **4** | **4** | **1** | **3** |
 
-**Recommendation**: Prioritize Birko.Data.SQL migration (Phase 1) — it eliminates 4 of 12 remaining issues and reduces severity of 3 more. The 5 manual-fix items should be addressed independently.
+**Status**: 4 of 12 fixed (2026-03-16). Remaining 8: 4 resolved by DB migration, 3 concurrency (async refactor), 1 architecture (cross-branch API).
 
 ---
 

@@ -5,16 +5,23 @@
 class NotificationStore {
     constructor() {
         this.escalations = [];
+        this._seenIds = new Set();
         this._listeners = [];
     }
 
     addEscalation(escalation) {
+        // Deduplicate by taskId + type + message to prevent replay duplicates
+        const dedupKey = `${escalation.taskId || ''}_${escalation.type || ''}_${escalation.message || ''}`;
+        if (this._seenIds.has(dedupKey)) return;
+        this._seenIds.add(dedupKey);
+
         this.escalations.push(escalation);
         this._notify();
     }
 
     clearEscalations() {
         this.escalations = [];
+        this._seenIds.clear();
         this._notify();
     }
 

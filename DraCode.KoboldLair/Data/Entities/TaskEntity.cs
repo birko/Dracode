@@ -58,6 +58,8 @@ namespace DraCode.KoboldLair.Data.Entities
         [MaxLengthField(50)]
         public string? Provider { get; set; }
 
+        public bool CommitFailed { get; set; }
+
         // List fields stored as JSON
         public string DependenciesJson { get; set; } = "[]";
         public string OutputFilesJson { get; set; } = "[]";
@@ -85,6 +87,7 @@ namespace DraCode.KoboldLair.Data.Entities
             target.LastRetryAttempt = LastRetryAttempt;
             target.NextRetryAt = NextRetryAt;
             target.Provider = Provider;
+            target.CommitFailed = CommitFailed;
             target.DependenciesJson = DependenciesJson;
             target.OutputFilesJson = OutputFilesJson;
             return target;
@@ -114,6 +117,7 @@ namespace DraCode.KoboldLair.Data.Entities
                 LastRetryAttempt = vm.LastRetryAttempt;
                 NextRetryAt = vm.NextRetryAt;
                 Provider = vm.Provider;
+                CommitFailed = vm.CommitFailed;
                 DependenciesJson = vm.DependenciesJson;
                 OutputFilesJson = vm.OutputFilesJson;
             }
