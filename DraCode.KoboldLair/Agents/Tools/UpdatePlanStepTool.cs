@@ -280,6 +280,30 @@ Returns: Confirmation of the update with current plan progress.";
                                     isCreation: false).GetAwaiter().GetResult();
                             }
 
+                            // Register API signatures for cross-branch visibility
+                            var apiExtensions = new HashSet<string> { ".ts", ".js", ".cs", ".py" };
+                            foreach (var filePath in step.FilesToCreate.Concat(step.FilesToModify))
+                            {
+                                var ext = Path.GetExtension(filePath).ToLowerInvariant();
+                                if (!apiExtensions.Contains(ext)) continue;
+
+                                // Try to read the file from the working directory
+                                var fullPath = Path.Combine(workingDirectory, filePath);
+                                if (!File.Exists(fullPath)) continue;
+
+                                try
+                                {
+                                    var content = File.ReadAllText(fullPath);
+                                    var signatures = Kobold.ExtractApiSignaturesFromContent(content, ext);
+                                    if (signatures.Count > 0)
+                                    {
+                                        _sharedPlanningContext.RegisterModuleExportsAsync(
+                                            _currentProjectId, filePath, signatures).GetAwaiter().GetResult();
+                                    }
+                                }
+                                catch { /* best effort — don't fail step completion */ }
+                            }
+
                             _logger?.LogDebug(
                                 "Planning context updated after step {StepIndex} completion (created: {CreatedCount}, modified: {ModifiedCount})",
                                 stepIndex, step.FilesToCreate.Count, step.FilesToModify.Count);

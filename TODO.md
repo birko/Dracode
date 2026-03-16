@@ -1456,11 +1456,13 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 
 #### Architecture
 
-- [ ] **Fix worktree file path confusion between parallel feature branches** 🔧 *Partially helped by Birko.Caching/EventBus*
-  - `Kobold.cs:533-539, 615` — each Kobold only sees its own worktree's files and APIs
-  - Cross-module API extraction misses exports from sibling feature branches
-  - **Birko partial help**: `Birko.Caching.Redis` for shared API registry, or `Birko.EventBus` for cross-branch API change notifications
-  - SharedPlanningContextService should maintain a registry of exported APIs per feature branch
+- [x] **Fix worktree file path confusion between parallel feature branches** ✅ COMPLETED (2026-03-16)
+  - Added `ModuleApiRegistry` (ConcurrentDictionary) to `ProjectPlanningContext` — stores exported API signatures per file
+  - Added `RegisterModuleExportsAsync()` and `GetAllModuleExportsAsync()` to `SharedPlanningContextService`
+  - `UpdatePlanStepTool` registers API signatures after each step completion (reads created/modified files, extracts exports)
+  - `Kobold.EnsurePlanAsync()` merges cross-branch APIs from `SharedPlanningContextService` into local `ExtractModuleApis()` results
+  - Local workspace APIs take precedence; cross-branch APIs fill in missing files
+  - Added `Kobold.ExtractApiSignaturesFromContent()` static helper for single-file signature extraction
 
 ### Birko.Framework Impact Summary
 
@@ -1470,10 +1472,10 @@ Identified during deep analysis of the KoboldLair Server execution pipeline. Ite
 | Data Loss | 4 | **4** ✅ | 0 | 0 | 0 |
 | Git/Worktree | 2 | **2** ✅ | 0 | 0 | 0 |
 | Client-Side | 2 | **2** ✅ | 0 | 0 | 0 |
-| Architecture | 1 | 0 | 0 | 1 | 0 |
-| **Total** | **12** | **9** | **0** | **1** | **2** |
+| Architecture | 1 | **1** ✅ | 0 | 0 | 0 |
+| **Total** | **12** | **10** | **0** | **0** | **2** |
 
-**Status**: 9 of 12 fixed (2026-03-16). Remaining 3: 2 concurrency (async tool interface + DragonService callbacks), 1 architecture (cross-branch API visibility).
+**Status**: 10 of 12 fixed (2026-03-16). Remaining 2: async tool interface refactor + DragonService blocking callbacks (concurrency).
 
 ---
 

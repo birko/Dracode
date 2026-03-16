@@ -626,6 +626,7 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             // Extract public API signatures from existing workspace files for cross-module awareness
+            // Also merge APIs from other feature branches via SharedPlanningContextService
             Dictionary<string, List<string>>? moduleApis = null;
             try
             {
@@ -633,6 +634,27 @@ You are working on a task that is part of a larger project. Below is the project
                 if (Directory.Exists(workspacePath))
                 {
                     moduleApis = ExtractModuleApis(workspacePath);
+                }
+
+                // Merge cross-branch APIs from SharedPlanningContextService
+                if (_sharedPlanningContext != null && !string.IsNullOrEmpty(ProjectId))
+                {
+                    var crossBranchApis = await _sharedPlanningContext.GetAllModuleExportsAsync(ProjectId);
+                    if (crossBranchApis.Count > 0)
+                    {
+                        moduleApis ??= new Dictionary<string, List<string>>();
+                        foreach (var (filePath, signatures) in crossBranchApis)
+                        {
+                            // Don't overwrite local APIs — local workspace has the freshest data
+                            if (!moduleApis.ContainsKey(filePath))
+                            {
+                                moduleApis[filePath] = signatures;
+                            }
+                        }
+                        _logger?.LogDebug(
+                            "Merged {Count} cross-branch API files into planning context",
+                            crossBranchApis.Count);
+                    }
                 }
             }
             catch (Exception ex)
@@ -2286,6 +2308,35 @@ If step is complete, call `update_plan_step` with status 'completed' instead.
             }
 
             return apis;
+        }
+
+        /// <summary>
+        /// Extracts API signatures from a single file's content.
+        /// Used to register exports with SharedPlanningContextService for cross-branch visibility.
+        /// </summary>
+        internal static List<string> ExtractApiSignaturesFromContent(string content, string ext)
+        {
+            var signatures = new List<string>();
+            foreach (var line in content.Split('\n'))
+            {
+                var trimmed = line.Trim();
+                if (ext is ".ts" or ".js")
+                {
+                    if (trimmed.StartsWith("export ") || trimmed.StartsWith("export{"))
+                        signatures.Add(trimmed.Length > 120 ? trimmed[..120] + "..." : trimmed);
+                }
+                else if (ext == ".cs")
+                {
+                    if (trimmed.StartsWith("public ") && (trimmed.Contains("class ") || trimmed.Contains("interface ") || trimmed.Contains("(") || trimmed.Contains("enum ")))
+                        signatures.Add(trimmed.Length > 120 ? trimmed[..120] + "..." : trimmed);
+                }
+                else if (ext == ".py")
+                {
+                    if ((trimmed.StartsWith("def ") || trimmed.StartsWith("class ")) && !trimmed.StartsWith("def _"))
+                        signatures.Add(trimmed.Length > 120 ? trimmed[..120] + "..." : trimmed);
+                }
+            }
+            return signatures.Take(20).ToList();
         }
 
         private string GetFileCategoryForDisplay(string filePath)

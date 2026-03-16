@@ -318,6 +318,40 @@ public class SharedPlanningContextService
     }
 
     /// <summary>
+    /// Registers public API signatures exported by a file.
+    /// Called by Kobolds after creating/modifying source files so that Kobolds on other
+    /// feature branches can discover cross-module APIs during planning.
+    /// </summary>
+    public async Task RegisterModuleExportsAsync(
+        string projectId,
+        string relativeFilePath,
+        List<string> signatures)
+    {
+        if (string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(relativeFilePath) || signatures.Count == 0)
+            return;
+
+        var projectContext = await GetProjectContextAsync(projectId);
+        projectContext.ModuleApiRegistry[relativeFilePath] = signatures;
+
+        _logger?.LogDebug(
+            "Registered {Count} API signatures for {File} in project {ProjectId}",
+            signatures.Count, relativeFilePath, projectId);
+
+        await PersistProjectContextAsync(projectId);
+    }
+
+    /// <summary>
+    /// Gets all registered module API exports for a project across all feature branches.
+    /// Returns a dictionary mapping relative file path → list of exported signatures.
+    /// Used by Kobolds to supplement local workspace API extraction with cross-branch APIs.
+    /// </summary>
+    public async Task<Dictionary<string, List<string>>> GetAllModuleExportsAsync(string projectId)
+    {
+        var projectContext = await GetProjectContextAsync(projectId);
+        return new Dictionary<string, List<string>>(projectContext.ModuleApiRegistry);
+    }
+
+    /// <summary>
     /// Generates a meaningful purpose description for a file based on its path, step context, and task
     /// </summary>
     public string GenerateFilePurpose(
@@ -886,6 +920,13 @@ public class ProjectPlanningContext
     public ConcurrentDictionary<string, string> ActiveAgents { get; set; } = new();
     public List<PlanningInsight> Insights { get; set; } = new();
     public ConcurrentDictionary<string, FileMetadata> FileRegistry { get; set; } = new();
+
+    /// <summary>
+    /// Cross-branch API registry: maps relative file path → list of exported API signatures.
+    /// Populated by Kobolds after file creation, read by KoboldPlanner for cross-module awareness.
+    /// This allows Kobolds on different feature branches to see each other's public APIs.
+    /// </summary>
+    public ConcurrentDictionary<string, List<string>> ModuleApiRegistry { get; set; } = new();
 }
 
 /// <summary>
