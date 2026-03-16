@@ -19,5 +19,16 @@
   <Import Project="..\..\Birko.Communication\Birko.Communication.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Security\Birko.Security.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.EventBus\Birko.EventBus.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Validation\Birko.Validation.projitems" Label="Shared" />
+
+  <!-- Exclude integration files that depend on Birko.Data and Birko.Rules -->
+  <ItemGroup>
+    <Compile Remove="..\..\Birko.Validation\Integration\ValidatingStoreWrapper.cs" />
+    <Compile Remove="..\..\Birko.Validation\Integration\AsyncValidatingStoreWrapper.cs" />
+    <Compile Remove="..\..\Birko.Validation\Integration\AsyncValidatingBulkStoreWrapper.cs" />
+    <Compile Remove="..\..\Birko.Validation\Integration\RuleBasedValidator.cs" />
+    <Compile Remove="..\..\Birko.EventBus\Pipeline\RuleFilterBehavior.cs" />
+  </ItemGroup>
 
 </Project>

@@ -1,7 +1,11 @@
 using Birko.Communication.WebSocket.Middleware;
 using Birko.Communication.WebSocket.Services;
+using Birko.EventBus;
+using Birko.EventBus.Extensions;
+using Birko.Validation;
 using DraCode.WebSocket.Models;
 using DraCode.WebSocket.Services;
+using DraCode.WebSocket.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +15,10 @@ builder.AddServiceDefaults();
 // Bind Agent configuration from appsettings.json
 builder.Services.Configure<AgentConfiguration>(
     builder.Configuration.GetSection("Agent"));
+
+// Add Birko services
+builder.Services.AddEventBus();
+builder.Services.AddSingleton<IValidator<WebSocketMessage>, WebSocketMessageValidator>();
 
 // Add services to the container
 builder.Services.AddSingleton<AgentConnectionManager>();

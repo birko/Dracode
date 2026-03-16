@@ -1,5 +1,8 @@
+using Birko.EventBus;
+using Birko.Validation;
 using DraCode.Agent;
 using DraCode.Agent.Agents;
+using DraCode.WebSocket.Events;
 using DraCode.WebSocket.Models;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
@@ -15,11 +18,19 @@ namespace DraCode.WebSocket.Services
         private readonly ConcurrentDictionary<string, AgentConnection> _agents = new();
         private readonly ILogger<AgentConnectionManager> _logger;
         private readonly AgentConfiguration _config;
+        private readonly IValidator<WebSocketMessage> _validator;
+        private readonly IEventBus _eventBus;
 
-        public AgentConnectionManager(ILogger<AgentConnectionManager> logger, IOptions<AgentConfiguration> config)
+        public AgentConnectionManager(
+            ILogger<AgentConnectionManager> logger,
+            IOptions<AgentConfiguration> config,
+            IValidator<WebSocketMessage> validator,
+            IEventBus eventBus)
         {
             _logger = logger;
             _config = config.Value;
+            _validator = validator;
+            _eventBus = eventBus;
         }
 
         public async Task HandleWebSocketAsync(System.Net.WebSockets.WebSocket webSocket, string connectionId)
@@ -86,7 +97,22 @@ namespace DraCode.WebSocket.Services
                     return;
                 }
 
-                _logger.LogInformation("Command: {Command}, AgentId: {AgentId}, PromptId: {PromptId}", 
+                // Validate the incoming message
+                var validationResult = _validator.Validate(request);
+                if (!validationResult.IsValid)
+                {
+                    var errors = string.Join("; ", validationResult.Errors.Select(e => e.Message));
+                    _logger.LogWarning("Validation failed for message from {ConnectionId}: {Errors}", connectionId, errors);
+                    await SendResponseAsync(webSocket, new WebSocketResponse
+                    {
+                        Status = "error",
+                        Error = $"Validation failed: {errors}",
+                        AgentId = request.AgentId
+                    });
+                    return;
+                }
+
+                _logger.LogInformation("Command: {Command}, AgentId: {AgentId}, PromptId: {PromptId}",
                     request.Command, request.AgentId, request.PromptId);
 
                 switch (request.Command?.ToLowerInvariant())
@@ -250,6 +276,8 @@ namespace DraCode.WebSocket.Services
                     Message = $"Agent initialized with provider: {provider}",
                     AgentId = request.AgentId
                 });
+
+                await PublishConnectionEventAsync(connectionId, request.AgentId, provider, AgentConnectionAction.Connected);
             }
             catch (Exception ex)
             {
@@ -419,6 +447,8 @@ namespace DraCode.WebSocket.Services
                     Message = "Agent disposed successfully",
                     AgentId = request.AgentId
                 });
+
+                await PublishConnectionEventAsync(connectionId, request.AgentId, "unknown", AgentConnectionAction.Disconnected);
             }
             else
             {
@@ -464,6 +494,8 @@ namespace DraCode.WebSocket.Services
                         Message = "Agent reinitialized successfully",
                         AgentId = request.AgentId
                     });
+
+                    await PublishConnectionEventAsync(connectionId, request.AgentId, provider, AgentConnectionAction.Reset);
                 }
                 catch (Exception ex)
                 {
@@ -800,6 +832,26 @@ namespace DraCode.WebSocket.Services
                     Error = $"No pending prompt found with ID: {request.PromptId}",
                     AgentId = request.AgentId
                 });
+            }
+        }
+
+        private async Task PublishConnectionEventAsync(string connectionId, string agentId, string agentType, AgentConnectionAction action)
+        {
+            try
+            {
+                if (_eventBus == null) return;
+
+                await _eventBus.PublishAsync(new AgentConnectionEvent
+                {
+                    ConnectionId = connectionId,
+                    AgentId = agentId,
+                    AgentType = agentType,
+                    Action = action
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to publish {Action} event for agent {AgentId}", action, agentId);
             }
         }
 
