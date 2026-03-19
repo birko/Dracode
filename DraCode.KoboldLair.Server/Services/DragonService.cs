@@ -663,7 +663,8 @@ namespace DraCode.KoboldLair.Server.Services
                         return project?.Paths.Output;
                     },
                     getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList()
-                ));
+                ),
+                resetProject: async (name, keepHistory) => await _projectService.ResetProjectAsync(name, keepHistory));
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(

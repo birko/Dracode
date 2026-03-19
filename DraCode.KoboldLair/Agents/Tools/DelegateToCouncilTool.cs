@@ -41,7 +41,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             "Delegate a task to a specialized member of the Dragon Council. " +
             "Use this to route tasks to the appropriate specialist: " +
             "Sage (specifications/features/delete features), Seeker (scan projects), " +
-            "Sentinel (git status/init/diff/commit/merge), Warden (agent config/task details/progress/workspace/project deletion).";
+            "Sentinel (git status/init/diff/commit/merge), Warden (agent config/task details/progress/workspace/project deletion/reset project).";
 
         public override object? InputSchema => new
         {

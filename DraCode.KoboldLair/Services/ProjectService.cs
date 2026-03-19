@@ -567,6 +567,151 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Resets a project to its initial state (Prototype) so it can be reprocessed from the beginning.
+        /// Stops all active agents, clears analysis/tasks/plans/workspace, preserves the project registration
+        /// and the specification file.
+        /// </summary>
+        /// <param name="projectIdOrName">Project ID or name</param>
+        /// <param name="keepHistory">If true, preserves dragon-history.json for conversation context</param>
+        /// <returns>Success message or error</returns>
+        public async Task<(bool Success, string Message)> ResetProjectAsync(string projectIdOrName, bool keepHistory = false)
+        {
+            var project = _repository.GetById(projectIdOrName) ?? _repository.GetByName(projectIdOrName);
+            if (project == null)
+                return (false, $"Project '{projectIdOrName}' not found.");
+
+            // Cannot reset a cancelled project
+            if (project.ExecutionState == ProjectExecutionState.Cancelled)
+                return (false, $"Cannot reset cancelled project '{project.Name}'. Delete and recreate instead.");
+
+            _logger.LogInformation("🔄 Resetting project '{ProjectName}' to initial state...", project.Name);
+
+            // 1. Stop all active Drakes (which stops their Kobolds)
+            if (_drakeFactory != null)
+            {
+                var removedCount = _drakeFactory.RemoveAllDrakesForProject(project.Id);
+                if (removedCount > 0)
+                    _logger.LogInformation("🛑 Stopped {Count} Drake(s) for project '{ProjectName}'", removedCount, project.Name);
+            }
+
+            // 2. Clear Wyvern assignment
+            if (project.Tracking.WyvernId != null)
+            {
+                _wyvernFactory.RemoveWyvern(project.Name);
+                project.Tracking.WyvernId = null;
+            }
+
+            // 3. Resolve project folder
+            var projectFolder = ResolveProjectFolder(project);
+            if (string.IsNullOrEmpty(projectFolder) || !Directory.Exists(projectFolder))
+                return (false, $"Project folder not found for '{project.Name}'.");
+
+            // 4. Delete generated files (tasks, analysis, plans, workspace, wyrm)
+            var deletedItems = new List<string>();
+            void TryDelete(string path, string label)
+            {
+                try
+                {
+                    if (File.Exists(path)) { File.Delete(path); deletedItems.Add(label); }
+                    else if (Directory.Exists(path)) { Directory.Delete(path, true); deletedItems.Add(label); }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete {Label} at {Path}", label, path);
+                }
+            }
+
+            TryDelete(Path.Combine(projectFolder, "wyrm-recommendation.json"), "wyrm-recommendation");
+            TryDelete(Path.Combine(projectFolder, "analysis.md"), "analysis.md");
+            TryDelete(Path.Combine(projectFolder, "analysis.json"), "analysis.json");
+            TryDelete(Path.Combine(projectFolder, "tasks"), "tasks/");
+            TryDelete(Path.Combine(projectFolder, "kobold-plans"), "kobold-plans/");
+            TryDelete(Path.Combine(projectFolder, "planning-context.json"), "planning-context");
+            TryDelete(Path.Combine(projectFolder, "notifications.json"), "notifications");
+            TryDelete(Path.Combine(projectFolder, "specification.features.json"), "features");
+            // Keep specification.md — user wants to preserve the spec and restart processing
+
+            // Optionally clear workspace
+            var workspacePath = Path.Combine(projectFolder, "workspace");
+            TryDelete(workspacePath, "workspace/");
+
+            // Optionally clear git worktrees
+            var worktreesPath = Path.Combine(projectFolder, ".worktrees");
+            if (Directory.Exists(worktreesPath))
+            {
+                try
+                {
+                    await _gitService.PruneStaleWorktreesAsync(projectFolder);
+                    TryDelete(worktreesPath, ".worktrees/");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to clean up worktrees for '{ProjectName}'", project.Name);
+                }
+            }
+
+            if (!keepHistory)
+                TryDelete(Path.Combine(projectFolder, "dragon-history.json"), "dragon-history");
+
+            // 5. Reset project model — spec is preserved, so go back to New (ready for Wyrm)
+            project.Status = ProjectStatus.New;
+            project.ExecutionState = ProjectExecutionState.Running;
+            project.Paths.Analysis = null;
+            project.Paths.TaskFiles.Clear();
+            project.Tracking.ErrorMessage = null;
+            project.Tracking.PendingAreas.Clear();
+            project.Tracking.LastProcessedContentHash = null;
+            project.Tracking.SpecificationId = null;
+            project.Tracking.WyvernId = null;
+            project.Timestamps.AnalyzedAt = null;
+            project.Timestamps.LastProcessedAt = null;
+            project.Timestamps.UpdatedAt = DateTime.UtcNow;
+            project.VerificationStatus = VerificationStatus.NotStarted;
+            project.VerificationStartedAt = null;
+            project.VerificationCompletedAt = null;
+            project.VerificationReport = null;
+            project.VerificationChecks.Clear();
+
+            _repository.Update(project);
+
+            var summary = deletedItems.Count > 0
+                ? $"Cleared: {string.Join(", ", deletedItems)}"
+                : "No files to clear";
+
+            _logger.LogInformation("✅ Project '{ProjectName}' reset to New state. {Summary}", project.Name, summary);
+
+            return (true, $"Project '{project.Name}' has been reset. {summary}.\n\nSpecification preserved. Wyrm will pick it up for re-analysis on the next cycle.");
+        }
+
+        private string? ResolveProjectFolder(Project project)
+        {
+            // External projects use SourcePath
+            if (project.Metadata.TryGetValue("IsExistingProject", out var isExisting) &&
+                isExisting == "true" &&
+                project.Metadata.TryGetValue("SourcePath", out var sourcePath) &&
+                Directory.Exists(sourcePath))
+            {
+                return sourcePath;
+            }
+
+            // Standard projects: resolve from specification path
+            var specPath = project.Paths.Specification;
+            if (!string.IsNullOrEmpty(specPath))
+            {
+                var fullPath = Path.IsPathRooted(specPath) ? specPath : Path.Combine(_projectsPath, specPath);
+                var dir = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    return dir;
+            }
+
+            // Fallback: projects path + sanitized name
+            var sanitized = string.Join("_", project.Name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries))
+                .Trim().Replace(" ", "-").ToLowerInvariant();
+            var fallback = Path.Combine(_projectsPath, sanitized);
+            return Directory.Exists(fallback) ? fallback : null;
+        }
+
+        /// <summary>
         /// Marks a project's specification as modified, triggering reprocessing by Wyvern.
         /// Called when Dragon updates an existing specification.
         /// </summary>

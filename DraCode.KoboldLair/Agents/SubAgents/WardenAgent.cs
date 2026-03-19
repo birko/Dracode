@@ -43,6 +43,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly NotificationsTool? _notificationsTool;
         private readonly UserSettingsTool? _userSettingsTool;
         private readonly ViewAnalysisTool? _viewAnalysisTool;
+        private readonly Func<string, bool, Task<(bool Success, string Message)>>? _resetProject;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
 
@@ -76,7 +77,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             DeleteProjectTool? deleteProjectTool = null,
             NotificationsTool? notificationsTool = null,
             UserSettingsTool? userSettingsTool = null,
-            ViewAnalysisTool? viewAnalysisTool = null)
+            ViewAnalysisTool? viewAnalysisTool = null,
+            Func<string, bool, Task<(bool Success, string Message)>>? resetProject = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -107,6 +109,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _notificationsTool = notificationsTool;
             _userSettingsTool = userSettingsTool;
             _viewAnalysisTool = viewAnalysisTool;
+            _resetProject = resetProject;
             RebuildTools();
         }
 
@@ -146,6 +149,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 tools.Add(_userSettingsTool);
             if (_viewAnalysisTool != null)
                 tools.Add(_viewAnalysisTool);
+            if (_resetProject != null)
+                tools.Add(new ResetProjectTool(_resetProject));
 
             return tools;
         }
@@ -187,6 +192,7 @@ Your role is to manage the workforce - the background agents that process projec
 - **view_notifications**: View and dismiss project notifications - feature completions, alerts, errors (actions: list, project, dismiss, dismiss_all)
 - **user_settings**: View and change global LLM provider settings for all agent types (actions: view, set_provider, set_kobold_type)
 - **view_analysis**: View Wyrm and Wyvern analysis results for a project (actions: wyrm, wyvern, summary)
+- **reset_project**: Reset a project to initial state — clears analysis, tasks, plans, workspace. Specification is preserved and will be re-analyzed by Wyrm/Wyvern. Requires confirmation.
 
 ## Agent Types You Oversee:
 - **Wyrm**: Pre-analyzes specifications, recommends languages/agent types/tech stack. Also used by Drake to select specialist Kobold types for each task.
