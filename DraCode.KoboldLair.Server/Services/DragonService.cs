@@ -2046,7 +2046,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             return _projectService.GetAllProjects()
                 .Where(p => p.Status == ProjectStatus.AwaitingVerification || p.VerificationStatus == VerificationStatus.Failed)
-                .Select(p => (p.Id, p.Name, p.Status.ToString(), p.VerificationStatus.ToString()))
+                .Select(p => (Id: p.Id, Name: p.Name, Status: p.Status.ToString(), VerificationStatus: (string?)p.VerificationStatus.ToString()))
                 .ToList();
         }
 

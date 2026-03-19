@@ -127,7 +127,7 @@ builder.Services.AddSingleton<IProjectRepository>(sp =>
 });
 
 // Register ITaskRepository - uses SQLite when configured, null otherwise (TaskTracker uses JSON fallback)
-builder.Services.AddSingleton<ITaskRepository?>(sp =>
+builder.Services.AddSingleton<ITaskRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     var koboldConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
@@ -140,11 +140,11 @@ builder.Services.AddSingleton<ITaskRepository?>(sp =>
         return repo;
     }
 
-    return null; // TaskTracker falls back to JSON file persistence
+    return null!; // TaskTracker falls back to JSON file persistence
 });
 
 // Register SQL plan repository (null when not using SQLite)
-builder.Services.AddSingleton<SqlPlanRepository?>(sp =>
+builder.Services.AddSingleton<SqlPlanRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend == StorageBackend.SqLite)
@@ -155,11 +155,11 @@ builder.Services.AddSingleton<SqlPlanRepository?>(sp =>
         repo.InitializeAsync().GetAwaiter().GetResult();
         return repo;
     }
-    return null;
+    return null!;
 });
 
 // Register Birko.Data.EventSourcing event store (SQLite-backed specification audit trail)
-builder.Services.AddSingleton<SqlEventStoreRepository?>(sp =>
+builder.Services.AddSingleton<SqlEventStoreRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend == StorageBackend.SqLite)
@@ -170,14 +170,14 @@ builder.Services.AddSingleton<SqlEventStoreRepository?>(sp =>
         repo.InitializeAsync().GetAwaiter().GetResult();
         return repo;
     }
-    return null;
+    return null!;
 });
 
 // Register SpecificationEventService for recording specification change events
-builder.Services.AddSingleton<SpecificationEventService?>(sp =>
+builder.Services.AddSingleton<SpecificationEventService>(sp =>
 {
     var eventStore = sp.GetService<SqlEventStoreRepository>();
-    if (eventStore == null) return null;
+    if (eventStore == null) return null!;
     var logger = sp.GetRequiredService<ILogger<SpecificationEventService>>();
     return new SpecificationEventService(eventStore, logger);
 });
@@ -317,7 +317,7 @@ builder.Services.AddSingleton<WyrmService>(sp =>
 });
 
 // Register SQL history repository (null when not using SQLite)
-builder.Services.AddSingleton<SqlHistoryRepository?>(sp =>
+builder.Services.AddSingleton<SqlHistoryRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend == StorageBackend.SqLite)
@@ -328,7 +328,7 @@ builder.Services.AddSingleton<SqlHistoryRepository?>(sp =>
         repo.InitializeAsync().GetAwaiter().GetResult();
         return repo;
     }
-    return null;
+    return null!;
 });
 
 // Register Dragon request queue before DragonService

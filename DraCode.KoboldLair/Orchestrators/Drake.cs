@@ -661,6 +661,21 @@ namespace DraCode.KoboldLair.Orchestrators
                 specificationVersion,
                 _specificationPath);
 
+            // Pass combined project constraints to Kobold for constraint-aware planning
+            var combinedConstraints = new List<string>();
+            if (_wyrmRecommendation?.Constraints?.Any() == true)
+                combinedConstraints.AddRange(_wyrmRecommendation.Constraints);
+            if (_wyvern?.Analysis?.Constraints?.Any() == true)
+                combinedConstraints.AddRange(_wyvern.Analysis.Constraints.Where(c => !combinedConstraints.Contains(c)));
+            if (_wyrmRecommendation?.OutOfScope?.Any() == true)
+                combinedConstraints.AddRange(_wyrmRecommendation.OutOfScope.Select(o => $"OUT OF SCOPE: {o}"));
+            if (_wyvern?.Analysis?.OutOfScope?.Any() == true)
+                combinedConstraints.AddRange(_wyvern.Analysis.OutOfScope
+                    .Where(o => !combinedConstraints.Any(c => c.EndsWith(o)))
+                    .Select(o => $"OUT OF SCOPE: {o}"));
+            if (combinedConstraints.Any())
+                kobold.SetProjectConstraints(combinedConstraints);
+
             // Add dependency context if task has dependencies
 
             // GAP FIX 1 & 4: Load full Specification and update feature context
@@ -702,6 +717,14 @@ namespace DraCode.KoboldLair.Orchestrators
                     "Added dependency context to Kobold {KoboldId} for task {TaskId}",
                     kobold.Id.ToString()[..8], task.Id.ToString()[..8]);
             }
+
+            // Gaps 1-3 & 7 fix: Pass task metadata (name, priority, complexity, structured dependencies) to Kobold
+            var wyvernTask = FindWyvernTask(task);
+            kobold.SetTaskMetadata(
+                taskName: wyvernTask?.Name,
+                taskPriority: wyvernTask?.Priority ?? task.Priority.ToString().ToLower(),
+                taskComplexity: wyvernTask?.Complexity,
+                taskDependencies: task.Dependencies?.Count > 0 ? task.Dependencies : null);
 
             // Track the mapping
             _taskToKoboldMap[task.Id] = kobold.Id;
@@ -1695,6 +1718,33 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Finds the original WyvernTask for a TaskRecord by matching the task ID embedded in the description.
+        /// Task descriptions are formatted as "[AREA-001] Task name (depends on: ...)" by Wyvern.
+        /// Returns null if Wyvern analysis is not available or task is not found.
+        /// </summary>
+        private WyvernTask? FindWyvernTask(TaskRecord task)
+        {
+            if (_wyvern?.Analysis == null)
+                return null;
+
+            // Extract WyvernTask ID from task description: [AREA-001] Task name...
+            var idMatch = System.Text.RegularExpressions.Regex.Match(task.Task, @"^\[([a-zA-Z]+-\d+)\]");
+            if (idMatch.Success)
+            {
+                var wyvernTaskId = idMatch.Groups[1].Value;
+                foreach (var area in _wyvern.Analysis.Areas)
+                {
+                    var found = area.Tasks.FirstOrDefault(t =>
+                        string.Equals(t.Id, wyvernTaskId, StringComparison.OrdinalIgnoreCase));
+                    if (found != null)
+                        return found;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Extracts dependency task IDs from a task description.
         /// Format: "Task name (depends on: dep1, dep2)"
         /// </summary>
@@ -2019,7 +2069,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 // Reload plan to get updated step statuses
                 if (_planService != null && !string.IsNullOrEmpty(plan.ProjectId) && !string.IsNullOrEmpty(plan.PlanFilename))
                 {
-                    plan = await _planService.LoadPlanAsync(plan.PlanFilename, plan.ProjectId);
+                    plan = await _planService.LoadPlanAsync(plan.PlanFilename!, plan.ProjectId!) ?? plan;
                 }
 
                 // If any step failed, skip remaining groups
@@ -3081,7 +3131,7 @@ namespace DraCode.KoboldLair.Orchestrators
                         try
                         {
                             // Load the plan for this dependency to get execution details
-                            var depPlan = await _planService?.LoadPlanAsync(depTask.ProjectId, depTask.Id);
+                            var depPlan = _planService != null ? await _planService.LoadPlanAsync(depTask.ProjectId, depTask.Id) : null;
                             if (depPlan != null)
                             {
                                 var totalIterations = depPlan.Steps.Sum(s => s.Metrics.IterationsUsed);
@@ -3102,11 +3152,12 @@ namespace DraCode.KoboldLair.Orchestrators
                                         .Select(s => s.LastErrorMessage)
                                         .Where(e => !string.IsNullOrEmpty(e))
                                         .Distinct()
-                                        .Take(2);
+                                        .Take(2)
+                                        .ToList();
 
-                                    if (errorsEncountered.Any())
+                                    if (errorsEncountered.Count > 0)
                                     {
-                                        var errorSummaries = errorsEncountered.Select(e => e.Length > 60 ? e.Substring(0, 60) + "..." : e);
+                                        var errorSummaries = errorsEncountered.Select(e => e!.Length > 60 ? e.Substring(0, 60) + "..." : e);
                                         sb.AppendLine($"  - Issues overcome: {string.Join("; ", errorSummaries)}");
                                     }
                                 }

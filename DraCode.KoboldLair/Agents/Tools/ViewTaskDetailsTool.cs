@@ -200,7 +200,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 }
 
                 // Calculate overall project progress for context
-                var total = tasks.Count;
+                var total = tasks!.Count;
                 var done = tasks.Count(t => t.Status == TaskStatus.Done);
                 var percent = total > 0 ? (done * 100.0 / total) : 0;
 

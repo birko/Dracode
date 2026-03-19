@@ -336,7 +336,7 @@ The modification will be logged and may require approval depending on configurat
 
             if (position < 1 || position > _currentPlan!.Steps.Count + 1)
             {
-                return $"Error: position must be between 1 and {_currentPlan.Steps.Count + 1}.";
+                return $"Error: position must be between 1 and {_currentPlan!.Steps.Count + 1}.";
             }
 
             // Create new step

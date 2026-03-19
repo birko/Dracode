@@ -135,6 +135,42 @@ namespace DraCode.KoboldLair.Models.Agents
         public KoboldImplementationPlan? ImplementationPlan { get; internal set; }
 
         /// <summary>
+        /// Short task name from Wyvern analysis (e.g., "Create User model").
+        /// Helps the planner focus on the essence of the task.
+        /// </summary>
+        public string? TaskName { get; private set; }
+
+        /// <summary>
+        /// Task priority from Wyvern analysis ("critical", "high", "normal", "low").
+        /// Allows the planner to adjust plan granularity based on importance.
+        /// </summary>
+        public string? TaskPriority { get; private set; }
+
+        /// <summary>
+        /// Task complexity from Wyvern analysis ("low", "medium", "high").
+        /// Allows the planner to calibrate step count and iteration budget.
+        /// </summary>
+        public string? TaskComplexity { get; private set; }
+
+        /// <summary>
+        /// Structured list of task IDs this task depends on.
+        /// Passed to planner as explicit dependency info, not just embedded in description text.
+        /// </summary>
+        public List<string>? TaskDependencies { get; private set; }
+
+        /// <summary>
+        /// Module API signatures extracted during planning, preserved for execution.
+        /// Allows the executing Kobold to verify imports match actual module exports.
+        /// </summary>
+        public Dictionary<string, List<string>>? ModuleApis { get; private set; }
+
+        /// <summary>
+        /// Project constraints from Wyrm and Wyvern that must not be violated.
+        /// Passed to KoboldPlannerAgent during plan creation for constraint-aware planning.
+        /// </summary>
+        public List<string>? ProjectConstraints { get; private set; }
+
+        /// <summary>
         /// Callback invoked when an escalation alert is raised during execution.
         /// Drake wires this to route escalations to the appropriate upstream agent.
         /// </summary>
@@ -169,6 +205,38 @@ namespace DraCode.KoboldLair.Models.Agents
         public void SetSharedPlanningContext(SharedPlanningContextService? sharedPlanningContext)
         {
             _sharedPlanningContext = sharedPlanningContext;
+        }
+
+        /// <summary>
+        /// Sets project constraints for this Kobold (from Wyrm and Wyvern analysis).
+        /// These are passed to the KoboldPlannerAgent during plan creation.
+        /// </summary>
+        public void SetProjectConstraints(List<string>? constraints)
+        {
+            ProjectConstraints = constraints;
+        }
+
+        /// <summary>
+        /// Sets task metadata from Wyvern analysis for richer planning context.
+        /// Gaps 1-3 fix: passes task name, priority, complexity, and structured dependencies
+        /// to the planner so it can adjust plan granularity accordingly.
+        /// </summary>
+        public void SetTaskMetadata(string? taskName, string? taskPriority, string? taskComplexity, List<string>? taskDependencies)
+        {
+            TaskName = taskName;
+            TaskPriority = taskPriority;
+            TaskComplexity = taskComplexity;
+            TaskDependencies = taskDependencies;
+        }
+
+        /// <summary>
+        /// Stores module API signatures for use during execution.
+        /// Gap 4 fix: preserves APIs discovered during planning so the executing
+        /// Kobold can verify imports match actual module exports.
+        /// </summary>
+        public void SetModuleApis(Dictionary<string, List<string>>? moduleApis)
+        {
+            ModuleApis = moduleApis;
         }
 
         /// <summary>
@@ -432,7 +500,7 @@ namespace DraCode.KoboldLair.Models.Agents
             try
             {
                 // Build the full task prompt with specification context if available
-                var fullTaskPrompt = TaskDescription;
+                var fullTaskPrompt = TaskDescription!;
 
                 // Track LLM call timing
                 var llmStart = DateTime.UtcNow;
@@ -679,7 +747,18 @@ You are working on a task that is part of a larger project. Below is the project
                 relatedPlans,
                 similarTaskInsights,
                 bestPractices,
-                moduleApis: moduleApis);
+                moduleApis: moduleApis,
+                projectConstraints: ProjectConstraints,
+                taskName: TaskName,
+                taskPriority: TaskPriority,
+                taskComplexity: TaskComplexity,
+                taskDependencies: TaskDependencies);
+
+            // Gap 4 fix: Store module APIs on Kobold for use during execution
+            if (moduleApis != null && moduleApis.Count > 0)
+            {
+                SetModuleApis(moduleApis);
+            }
 
             // Save the plan
             await planService.SavePlanAsync(plan);
@@ -1486,6 +1565,31 @@ If step is complete, call `update_plan_step` with status 'completed' instead.
             // Add execution insights from similar tasks - helps avoid repeating mistakes
             await AppendExecutionInsightsAsync(sb, sharedPlanningContext);
 
+            // Gap 4 fix: Include module API signatures so executing Kobold can verify imports
+            if (ModuleApis != null && ModuleApis.Count > 0)
+            {
+                sb.AppendLine("## Module APIs (for import verification)");
+                sb.AppendLine();
+                sb.AppendLine("These are the PUBLIC APIs of existing modules. When importing or using these modules,");
+                sb.AppendLine("you MUST use their ACTUAL signatures below. Do NOT assume or guess function signatures.");
+                sb.AppendLine();
+
+                foreach (var module in ModuleApis.OrderBy(m => m.Key))
+                {
+                    sb.AppendLine($"### `{module.Key}`");
+                    sb.AppendLine("```");
+                    foreach (var sig in module.Value)
+                    {
+                        sb.AppendLine(sig);
+                    }
+                    sb.AppendLine("```");
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+
             // Add specification context if available
             if (!string.IsNullOrEmpty(SpecificationContext))
             {
@@ -1510,7 +1614,7 @@ If step is complete, call `update_plan_step` with status 'completed' instead.
                     sb.AppendLine("## Implementation Plan (Parallel Execution Mode)");
                     sb.AppendLine();
                     sb.AppendLine($"You are executing a SUBSET of steps from a larger implementation plan.");
-                    sb.AppendLine($"Your assigned steps: {_assignedStepIndices.Count} out of {ImplementationPlan.Steps.Count} total steps.");
+                    sb.AppendLine($"Your assigned steps: {_assignedStepIndices!.Count} out of {ImplementationPlan.Steps.Count} total steps.");
                     sb.AppendLine();
                     sb.AppendLine("**CRITICAL**: After completing each step, you MUST call the `update_plan_step` tool to mark it as completed.");
                     sb.AppendLine("This saves your progress and allows the task to be resumed if interrupted.");

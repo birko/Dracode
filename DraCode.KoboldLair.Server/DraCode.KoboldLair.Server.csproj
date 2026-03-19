@@ -16,7 +16,7 @@
   <!-- Birko.MessageQueue is imported by DraCode.KoboldLair (library project) -->
   <Import Project="..\..\Birko.Security\Birko.Security.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Security.Jwt\Birko.Security.Jwt.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.Time\Birko.Time.projitems" Label="Shared" />
+  <!-- Birko.Time is imported by DraCode.KoboldLair (library project) -->
   <Import Project="..\..\Birko.Communication\Birko.Communication.projitems" Label="Shared" />
   <Import Project="..\..\Birko.BackgroundJobs\Birko.BackgroundJobs.projitems" Label="Shared" />
   <Import Project="..\..\Birko.MessageQueue.InMemory\Birko.MessageQueue.InMemory.projitems" Label="Shared" />
