@@ -131,6 +131,10 @@ export class ApiClient {
         return this.sendCommand('get_stats');
     }
 
+    async getMetrics(timeRangeHours = 24) {
+        return this.sendCommand('get_metrics', { timeRangeHours });
+    }
+
     async getProjects() {
         return this.sendCommand('get_projects');
     }
