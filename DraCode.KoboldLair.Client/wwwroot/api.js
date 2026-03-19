@@ -135,6 +135,10 @@ export class ApiClient {
         return this.sendCommand('get_metrics', { timeRangeHours });
     }
 
+    async getComparison(projectId) {
+        return this.sendCommand('get_comparison', { projectId });
+    }
+
     async getProjects() {
         return this.sendCommand('get_projects');
     }
