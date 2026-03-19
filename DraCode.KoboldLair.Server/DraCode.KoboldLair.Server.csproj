@@ -13,9 +13,16 @@
 
   <Import Project="..\..\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Communication.SSE\Birko.Communication.SSE.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.MessageQueue\Birko.MessageQueue.projitems" Label="Shared" />
+  <!-- Birko.MessageQueue is imported by DraCode.KoboldLair (library project) -->
   <Import Project="..\..\Birko.Security\Birko.Security.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Security.Jwt\Birko.Security.Jwt.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Time\Birko.Time.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Communication\Birko.Communication.projitems" Label="Shared" />
   <Import Project="..\..\Birko.BackgroundJobs\Birko.BackgroundJobs.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.MessageQueue.InMemory\Birko.MessageQueue.InMemory.projitems" Label="Shared" />
+
+  <ItemGroup>
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.7.0" />
+  </ItemGroup>
 
 </Project>
