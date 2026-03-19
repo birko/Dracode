@@ -586,14 +586,13 @@ Nice to have. Can be deferred without impacting core functionality.
 
 ### From Phase H - Quality of Life
 
-- [ ] **Batch Task Operations**
-  - Dragon tools for bulk operations:
-    - `retry_all_failed_tasks(project_id)` - Retry all failed tasks at once
-    - `reset_blocked_tasks(project_id)` - Unblock tasks waiting on failed deps
-    - `reassign_task(task_id, new_agent_type)` - Change agent for stuck task
-  - Status: Currently must retry one-by-one via `retry_failed_task`
-  - Impact: Efficiency for large projects with cascading failures
-  - Effort: Low (~2 days)
+- [x] **Batch Task Operations** ✅ COMPLETED (2026-03-19)
+  - `retry_all` action already existed in `RetryFailedTaskTool`
+  - New `BatchTaskTool` with 3 actions: `list_blocked`, `reset_blocked`, `reassign`
+  - `reset_blocked` — resets all BlockedByFailure tasks to Unassigned in a project
+  - `reassign` — changes agent type for a task and resets it for execution
+  - Dual-access pattern: in-memory Drake first, file fallback for restarts
+  - Registered as `batch_task_operations` Dragon tool via WardenAgent
 
 ### From Phase I - Context Preservation
 

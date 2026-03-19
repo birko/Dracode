@@ -185,6 +185,7 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `suspend_project` - Long-term hold for projects awaiting external changes
 - `cancel_project` - Permanently cancel project (terminal state, requires confirmation)
 - `view_cost_report` - View LLM usage costs, budgets, and rate limit status (NEW - 2026-03-19)
+- `batch_task_operations` - Batch task ops: list/reset blocked tasks, reassign agent type (NEW - 2026-03-19)
 
 ### Kobold Planner Tool (1)
 
