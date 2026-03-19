@@ -31,6 +31,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProviderCommandHandler _providers;
         private readonly ProjectConfigCommandHandler _projectConfig;
         private readonly OperationsCommandHandler _operations;
+        private readonly MetricsCommandHandler _metrics;
 
         public WebSocketCommandHandler(
             ILogger<WebSocketCommandHandler> logger,
@@ -40,7 +41,9 @@ namespace DraCode.KoboldLair.Server.Services
             IProjectRepository projectRepository,
             DrakeFactory drakeFactory,
             WyvernFactory wyvernFactory,
-            DragonRequestQueue? dragonRequestQueue = null)
+            DragonRequestQueue? dragonRequestQueue = null,
+            CostTrackingService? costTracker = null,
+            ProviderRateLimiter? rateLimiter = null)
         {
             _logger = logger;
 
@@ -51,6 +54,7 @@ namespace DraCode.KoboldLair.Server.Services
                 logger,
                 projectService,
                 dragonRequestQueue ?? throw new ArgumentNullException(nameof(dragonRequestQueue)));
+            _metrics = new MetricsCommandHandler(projectService, costTracker, rateLimiter);
         }
 
         public async Task HandleCommandAsync(WebSocket webSocket, string messageText)
@@ -99,6 +103,9 @@ namespace DraCode.KoboldLair.Server.Services
                     "retry_analysis" => await _operations.RetryAnalysisAsync(message.Data),
                     "cancel_dragon_request" => await _operations.CancelDragonRequestAsync(message.Data),
                     "get_implementation_summary" => await _operations.GetImplementationSummaryAsync(message.Data),
+
+                    // Metrics & Cost Tracking
+                    "get_metrics" => await _metrics.GetMetricsAsync(message.Data),
 
                     _ => throw new InvalidOperationException($"Unknown command: {message.Command}")
                 };
