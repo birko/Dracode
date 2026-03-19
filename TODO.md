@@ -342,7 +342,7 @@ All critical blocking operations and race conditions have been resolved as of 20
 
 - [ ] **Web UI Improvements** 🔜 NEXT SESSION
   - [ ] **Side-by-side comparison view** — Compare outputs from different agents/providers (both DraCode.Web and KoboldLair.Client)
-  - [ ] **Agent performance metrics** — Token usage, response times, cost per task (both clients)
+  - [x] **Agent performance metrics** — Token usage, response times, cost per task ✅ COMPLETED (2026-03-19)
   - [x] ~~Export conversation histories~~ — Already implemented in KoboldLair.Client (`downloadConversation()`)
   - Drag-and-drop tab reordering (low priority, polish)
   - Save/load workspace configurations (low priority, polish)
