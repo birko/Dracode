@@ -22,6 +22,8 @@ namespace DraCode.KoboldLair.Factories
         private readonly Func<string?, int> _getProjectMaxParallelKobolds;
         private readonly ILoggerFactory _loggerFactory;
         private readonly KoboldLairConfiguration _koboldLairConfig;
+        private readonly ProviderRateLimiter? _rateLimiter;
+        private readonly CostTrackingService? _costTracker;
 
         /// <summary>
         /// Gets the total number of Kobolds managed by this factory
@@ -37,7 +39,9 @@ namespace DraCode.KoboldLair.Factories
             KoboldLairConfiguration koboldLairConfig,
             Func<string?, int>? getProjectMaxParallelKobolds = null,
             AgentOptions? defaultOptions = null,
-            Dictionary<string, string>? defaultConfig = null)
+            Dictionary<string, string>? defaultConfig = null,
+            ProviderRateLimiter? rateLimiter = null,
+            CostTrackingService? costTracker = null)
         {
             _kobolds = new ConcurrentDictionary<Guid, KoboldModel>();
             _projectConfigService = projectConfigService;
@@ -46,6 +50,8 @@ namespace DraCode.KoboldLair.Factories
             _getProjectMaxParallelKobolds = getProjectMaxParallelKobolds ?? ((projectId) => projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty));
             _defaultOptions = defaultOptions;
             _defaultConfig = defaultConfig;
+            _rateLimiter = rateLimiter;
+            _costTracker = costTracker;
         }
 
         /// <summary>
@@ -62,12 +68,16 @@ namespace DraCode.KoboldLair.Factories
             AgentOptions? options = null,
             Dictionary<string, string>? config = null)
         {
+            var trackingLogger = _loggerFactory.CreateLogger<TrackedLlmProvider>();
             var agent = KoboldLairAgentFactory.Create(
                 provider,
                 _koboldLairConfig,
                 options ?? _defaultOptions,
                 config ?? _defaultConfig,
-                agentType
+                agentType,
+                _rateLimiter,
+                _costTracker,
+                trackingLogger
             );
 
             var logger = _loggerFactory.CreateLogger<KoboldModel>();

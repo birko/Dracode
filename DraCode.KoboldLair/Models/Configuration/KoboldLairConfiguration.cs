@@ -45,6 +45,16 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Configuration for message queue-based task dispatch
         /// </summary>
         public MessagingConfiguration Messaging { get; set; } = new();
+
+        /// <summary>
+        /// Configuration for per-provider rate limiting
+        /// </summary>
+        public RateLimitConfiguration RateLimiting { get; set; } = new();
+
+        /// <summary>
+        /// Configuration for LLM cost tracking and budgeting
+        /// </summary>
+        public CostTrackingConfiguration CostTracking { get; set; } = new();
     }
 
     /// <summary>
@@ -276,5 +286,95 @@ namespace DraCode.KoboldLair.Models.Configuration
             get => _maxFileWriteRepetitions;
             set => _maxFileWriteRepetitions = Math.Max(1, value);
         }
+    }
+
+    /// <summary>
+    /// Configuration for per-provider rate limiting.
+    /// </summary>
+    public class RateLimitConfiguration
+    {
+        /// <summary>
+        /// Whether rate limiting is enabled (default: false)
+        /// </summary>
+        public bool Enabled { get; set; } = false;
+
+        /// <summary>
+        /// Per-provider rate limit settings
+        /// </summary>
+        public List<ProviderRateLimit> ProviderLimits { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Rate limit settings for a specific provider.
+    /// </summary>
+    public class ProviderRateLimit
+    {
+        public string Provider { get; set; } = "";
+
+        /// <summary>Requests per minute (0 = no limit)</summary>
+        public int RequestsPerMinute { get; set; } = 60;
+
+        /// <summary>Tokens per minute (0 = no limit)</summary>
+        public int TokensPerMinute { get; set; } = 0;
+
+        /// <summary>Requests per day (0 = no limit)</summary>
+        public int RequestsPerDay { get; set; } = 0;
+
+        /// <summary>Tokens per day (0 = no limit)</summary>
+        public int TokensPerDay { get; set; } = 0;
+    }
+
+    /// <summary>
+    /// Configuration for LLM cost tracking and budgeting.
+    /// </summary>
+    public class CostTrackingConfiguration
+    {
+        /// <summary>
+        /// Whether cost tracking is enabled (default: true)
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Per-provider/model pricing table (cost per million tokens)
+        /// </summary>
+        public List<ProviderPricing> Pricing { get; set; } = new();
+
+        /// <summary>
+        /// Budget thresholds and limits
+        /// </summary>
+        public BudgetConfiguration Budget { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Pricing for a specific provider/model combination.
+    /// </summary>
+    public class ProviderPricing
+    {
+        public string Provider { get; set; } = "";
+        public string Model { get; set; } = "*";
+
+        /// <summary>Cost in USD per million input tokens</summary>
+        public double InputPricePerMillionTokens { get; set; }
+
+        /// <summary>Cost in USD per million output tokens</summary>
+        public double OutputPricePerMillionTokens { get; set; }
+    }
+
+    /// <summary>
+    /// Budget thresholds for cost alerts.
+    /// </summary>
+    public class BudgetConfiguration
+    {
+        /// <summary>Daily budget in USD (0 = no limit)</summary>
+        public double DailyBudgetUsd { get; set; } = 0;
+
+        /// <summary>Monthly budget in USD (0 = no limit)</summary>
+        public double MonthlyBudgetUsd { get; set; } = 0;
+
+        /// <summary>Per-project budget in USD (0 = no limit)</summary>
+        public double ProjectBudgetUsd { get; set; } = 0;
+
+        /// <summary>Warning threshold as percentage of budget (default: 80%)</summary>
+        public double WarningThresholdPercent { get; set; } = 80;
     }
 }

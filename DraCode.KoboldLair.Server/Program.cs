@@ -93,6 +93,38 @@ builder.Services.AddSingleton(sp =>
     return new ProviderCircuitBreaker(logger: logger);
 });
 
+// Register rate limiter
+builder.Services.AddSingleton(sp =>
+{
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("ProviderRateLimiter");
+    return new ProviderRateLimiter(config.RateLimiting, logger);
+});
+
+// Register SQL usage repository (null when not using SQLite)
+builder.Services.AddSingleton<SqlUsageRepository>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlUsageRepository>();
+        var repo = new SqlUsageRepository(dbPath, logger);
+        repo.InitializeAsync().GetAwaiter().GetResult();
+        return repo;
+    }
+    return null!;
+});
+
+// Register cost tracking service
+builder.Services.AddSingleton<CostTrackingService>(sp =>
+{
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    var logger = sp.GetRequiredService<ILogger<CostTrackingService>>();
+    var usageRepo = sp.GetService<SqlUsageRepository>();
+    return new CostTrackingService(config.CostTracking, logger, usageRepo);
+});
+
 // Register git service for version control integration
 builder.Services.AddSingleton<GitService>();
 
@@ -279,7 +311,10 @@ builder.Services.AddSingleton<KoboldFactory>(sp =>
         return projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty);
     };
 
-    return new KoboldFactory(projectConfigService, loggerFactory, config, getMaxParallel);
+    var rateLimiter = sp.GetRequiredService<ProviderRateLimiter>();
+    var costTracker = sp.GetRequiredService<CostTrackingService>();
+    return new KoboldFactory(projectConfigService, loggerFactory, config, getMaxParallel,
+        rateLimiter: rateLimiter, costTracker: costTracker);
 });
 builder.Services.AddSingleton<WyrmFactory>(sp =>
 {

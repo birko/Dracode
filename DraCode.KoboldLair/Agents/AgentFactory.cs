@@ -2,6 +2,8 @@ using DraCode.Agent;
 using DraCode.Agent.Agents;
 using DraCode.Agent.LLMs.Providers;
 using DraCode.KoboldLair.Models.Configuration;
+using DraCode.KoboldLair.Services;
+using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Agents
 {
@@ -13,19 +15,17 @@ namespace DraCode.KoboldLair.Agents
     {
         /// <summary>
         /// Create an Agent with a specific provider name and configuration using AgentOptions.
+        /// Optionally wraps the LLM provider with rate limiting and cost tracking.
         /// </summary>
-        /// <param name="provider">LLM provider (see AgentFactory.SupportedProviders)</param>
-        /// <param name="koboldLairConfig">KoboldLair configuration for provider settings</param>
-        /// <param name="options">Agent options (working directory, verbose, etc.)</param>
-        /// <param name="config">Provider configuration (API keys, models, etc.)</param>
-        /// <param name="agentType">Type of agent: "dragon", "wyvern", "wyrm", or any DraCode.Agent type</param>
-        /// <returns>Agent instance</returns>
         public static Agent.Agents.Agent Create(
             string provider,
             KoboldLairConfiguration koboldLairConfig,
             AgentOptions? options = null,
             Dictionary<string, string>? config = null,
-            string agentType = "coding")
+            string agentType = "coding",
+            ProviderRateLimiter? rateLimiter = null,
+            CostTrackingService? costTracker = null,
+            ILogger? logger = null)
         {
             options ??= new AgentOptions();
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -35,38 +35,67 @@ namespace DraCode.KoboldLair.Agents
             // Handle KoboldLair-specific agents locally
             if (agentType.Equals("wyrm", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
                 return new WyrmAgent(llmProvider, options, provider, config);
             }
             else if (agentType.Equals("dragon", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
                 return new DragonAgent(llmProvider, options);
             }
             else if (agentType.Equals("wyvern", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
                 return new WyvernAgent(llmProvider, options);
             }
             else if (agentType.Equals("kobold-planner", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
                 return new KoboldPlannerAgent(llmProvider, options);
             }
             else if (agentType.Equals("wyrm-preanalysis", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
                 return new WyrmPreAnalysisAgent(llmProvider, options);
             }
 
             // Delegate all other agent types to DraCode.Agent.AgentFactory
+            // Wrap with tracking if services are provided
+            if (rateLimiter != null || costTracker != null)
+            {
+                var baseProvider = AgentFactory.CreateLlmProvider(providerType, config, agentType);
+                var trackedProvider = new TrackedLlmProvider(baseProvider, rateLimiter, costTracker, logger)
+                {
+                    AgentType = agentType
+                };
+                return AgentFactory.Create(trackedProvider, options, agentType);
+            }
+
             return AgentFactory.Create(providerType, options, config, agentType);
         }
 
         /// <summary>
-        /// Creates an LLM provider instance. Delegates to DraCode.Agent.AgentFactory.CreateLlmProvider.
+        /// Creates an LLM provider instance, optionally wrapped with rate limiting and cost tracking.
         /// </summary>
-        public static ILlmProvider CreateLlmProvider(string provider, Dictionary<string, string> config, string? agentType = null)
-            => AgentFactory.CreateLlmProvider(provider, config, agentType);
+        public static ILlmProvider CreateLlmProvider(
+            string provider,
+            Dictionary<string, string> config,
+            string? agentType = null,
+            ProviderRateLimiter? rateLimiter = null,
+            CostTrackingService? costTracker = null,
+            ILogger? logger = null)
+        {
+            var baseProvider = AgentFactory.CreateLlmProvider(provider, config, agentType);
+
+            if (rateLimiter != null || costTracker != null)
+            {
+                return new TrackedLlmProvider(baseProvider, rateLimiter, costTracker, logger)
+                {
+                    AgentType = agentType
+                };
+            }
+
+            return baseProvider;
+        }
     }
 }
