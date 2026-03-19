@@ -162,6 +162,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly DragonRequestQueue _requestQueue;
         private readonly ProjectNotificationService? _notificationService;
         private readonly DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? _historyRepository;
+        private readonly DraCode.KoboldLair.Services.EventSourcing.SpecificationEventService? _specEventService;
 
         // Cache for specification file enumeration to avoid frequent filesystem calls
         private List<string>? _specFilesCache;
@@ -183,7 +184,8 @@ namespace DraCode.KoboldLair.Server.Services
             KoboldPlanService? planService = null,
             int maxConcurrentDragonRequests = 5,
             ProjectNotificationService? notificationService = null,
-            DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? historyRepository = null)
+            DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? historyRepository = null,
+            DraCode.KoboldLair.Services.EventSourcing.SpecificationEventService? specEventService = null)
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
@@ -198,6 +200,7 @@ namespace DraCode.KoboldLair.Server.Services
             _planService = planService;
             _notificationService = notificationService;
             _historyRepository = historyRepository;
+            _specEventService = specEventService;
             _projectsPath = config.ProjectsPath ?? "./projects";
 
             // Initialize the request queue for non-blocking execution
@@ -523,7 +526,8 @@ namespace DraCode.KoboldLair.Server.Services
                 getProjectFolder: name => ResolveProjectFolder(session, name),
                 projectsPath: _projectsPath,
                 onProjectLoaded: projectFolder => OnProjectLoadedAsync(session, projectFolder),
-                getActiveProjectName: () => GetActiveProjectName(session));
+                getActiveProjectName: () => GetActiveProjectName(session),
+                eventService: _specEventService);
 
             session.Seeker = new SeekerAgent(
                 llmProvider,

@@ -42,4 +42,12 @@
   <!-- Birko.Validation Framework -->
   <Import Project="..\..\Birko.Validation\Birko.Validation.projitems" Label="Shared" />
 
+  <!-- Birko.Data.EventSourcing Framework -->
+  <Import Project="..\..\Birko.Serialization\Birko.Serialization.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Time\Birko.Time.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.EventSourcing\Birko.Data.EventSourcing.projitems" Label="Shared" />
+
+  <!-- Birko.MessageQueue Framework (interfaces for ITaskDispatcher) -->
+  <Import Project="..\..\Birko.MessageQueue\Birko.MessageQueue.projitems" Label="Shared" />
+
 </Project>

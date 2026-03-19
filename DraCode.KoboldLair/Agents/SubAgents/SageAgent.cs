@@ -4,6 +4,7 @@ using DraCode.Agent.LLMs.Providers;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Services.EventSourcing;
 using AgentBase = DraCode.Agent.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents.SubAgents
@@ -21,6 +22,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly Func<string, string>? _getProjectFolder;
         private readonly Func<string, Task<string?>>? _onProjectLoaded;
         private readonly Func<string?>? _getActiveProjectName;
+        private readonly SpecificationEventService? _eventService;
 
         protected override string SystemPrompt => GetSageSystemPrompt();
 
@@ -33,7 +35,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             Func<string, string>? getProjectFolder = null,
             string projectsPath = "./projects",
             Func<string, Task<string?>>? onProjectLoaded = null,
-            Func<string?>? getActiveProjectName = null)
+            Func<string?>? getActiveProjectName = null,
+            SpecificationEventService? eventService = null)
             : base(provider, options)
         {
             _projectsPath = projectsPath ?? "./projects";
@@ -43,6 +46,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _getProjectFolder = getProjectFolder;
             _onProjectLoaded = onProjectLoaded;
             _getActiveProjectName = getActiveProjectName;
+            _eventService = eventService;
             RebuildTools();
         }
 
@@ -50,9 +54,9 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         {
             var tools = new List<Tool>
             {
-                new SpecificationManagementTool(_specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath, _onProjectLoaded),
-                new FeatureManagementTool(_specifications),
-                new DeleteFeatureTool(_specifications),
+                new SpecificationManagementTool(_specifications, _onSpecificationUpdated, _getProjectFolder, _projectsPath, _onProjectLoaded, eventService: _eventService),
+                new FeatureManagementTool(_specifications, _eventService),
+                new DeleteFeatureTool(_specifications, _eventService),
                 new ProcessFeaturesTool(_specifications, _onSpecificationUpdated),
                 new SpecificationHistoryTool(_specifications),
                 new ProjectApprovalTool(_approveProject)

@@ -1,6 +1,7 @@
 using Birko.Validation;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Services.EventSourcing;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -16,6 +17,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         private readonly Func<string, string>? _getProjectFolder;
         private readonly Func<string, Task<string?>>? _onProjectLoaded;
         private readonly IValidator<Specification>? _specificationValidator;
+        private readonly SpecificationEventService? _eventService;
 
         public SpecificationManagementTool(
             Dictionary<string, Specification> specifications,
@@ -23,7 +25,8 @@ namespace DraCode.KoboldLair.Agents.Tools
             Func<string, string>? getProjectFolder = null,
             string? projectsPath = "./projects",
             Func<string, Task<string?>>? onProjectLoaded = null,
-            IValidator<Specification>? specificationValidator = null)
+            IValidator<Specification>? specificationValidator = null,
+            SpecificationEventService? eventService = null)
         {
             _specifications = specifications;
             _onSpecificationUpdated = onSpecificationUpdated;
@@ -31,6 +34,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             _projectsPath = projectsPath ?? "./projects";
             _onProjectLoaded = onProjectLoaded;
             _specificationValidator = specificationValidator;
+            _eventService = eventService;
         }
 
         public override string Name => "manage_specification";
@@ -276,6 +280,13 @@ namespace DraCode.KoboldLair.Agents.Tools
                     _specifications[name] = spec;
                 }
 
+                // Record event sourcing audit trail
+                if (_eventService != null)
+                {
+                    try { await _eventService.RecordSpecificationCreatedAsync(spec.Id, name, content, spec.ProjectId); }
+                    catch { /* Event recording is non-critical */ }
+                }
+
                 SendMessage("success", $"Specification created: {name}");
                 return $"✅ Specification '{name}' created successfully at: {fullPath}";
             }
@@ -365,11 +376,28 @@ namespace DraCode.KoboldLair.Agents.Tools
                     _specifications[name] = spec;
                 }
 
+                // Record event sourcing audit trail
+                if (_eventService != null)
+                {
+                    string specId;
+                    int specVersion;
+                    string prevHash;
+                    lock (_specificationsLock)
+                    {
+                        var s = _specifications[name];
+                        specId = s.Id;
+                        specVersion = s.Version;
+                        prevHash = s.ContentHash;
+                    }
+                    try { await _eventService.RecordSpecificationUpdatedAsync(specId, content, prevHash, specVersion); }
+                    catch { /* Event recording is non-critical */ }
+                }
+
                 // Notify that specification was updated (triggers Wyvern reprocessing)
                 _onSpecificationUpdated?.Invoke(fullPath);
 
                 SendMessage("success", $"Specification updated: {name}");
-                
+
                 int version;
                 lock (_specificationsLock)
                 {

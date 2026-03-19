@@ -20,6 +20,7 @@
   <Import Project="..\..\Birko.Security\Birko.Security.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
   <Import Project="..\..\Birko.EventBus\Birko.EventBus.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Time\Birko.Time.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Validation\Birko.Validation.projitems" Label="Shared" />
 
   <!-- Exclude integration files that depend on Birko.Data and Birko.Rules -->

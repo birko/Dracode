@@ -2,6 +2,7 @@ using System.Text.Json;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Services.EventSourcing;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -11,10 +12,12 @@ namespace DraCode.KoboldLair.Agents.Tools
     public class DeleteFeatureTool : Tool
     {
         private readonly Dictionary<string, Specification> _specifications;
+        private readonly SpecificationEventService? _eventService;
 
-        public DeleteFeatureTool(Dictionary<string, Specification> specifications)
+        public DeleteFeatureTool(Dictionary<string, Specification> specifications, SpecificationEventService? eventService = null)
         {
             _specifications = specifications;
+            _eventService = eventService;
         }
 
         public override string Name => "delete_feature";
@@ -94,6 +97,13 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             // Save updated features
             await SaveFeaturesAsync(spec);
+
+            // Record event sourcing audit trail
+            if (_eventService != null)
+            {
+                try { await _eventService.RecordFeatureRemovedAsync(spec.Id, featureName, featureName, "User requested deletion"); }
+                catch { /* Event recording is non-critical */ }
+            }
 
             SendMessage("success", $"Feature deleted: {featureName}");
             return $"✅ Feature '{featureName}' has been deleted from specification '{specName}'.";

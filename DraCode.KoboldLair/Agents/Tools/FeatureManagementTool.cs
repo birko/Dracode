@@ -2,6 +2,7 @@ using System.Text.Json;
 using DraCode.Agent.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Services.EventSourcing;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -11,10 +12,12 @@ namespace DraCode.KoboldLair.Agents.Tools
     public class FeatureManagementTool : Tool
     {
         private readonly Dictionary<string, Specification> _specifications;
+        private readonly SpecificationEventService? _eventService;
 
-        public FeatureManagementTool(Dictionary<string, Specification> specifications)
+        public FeatureManagementTool(Dictionary<string, Specification> specifications, SpecificationEventService? eventService = null)
         {
             _specifications = specifications;
+            _eventService = eventService;
         }
 
         public override string Name => "manage_feature";
@@ -114,6 +117,13 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             await SaveFeaturesAsync(spec);
 
+            // Record event sourcing audit trail
+            if (_eventService != null)
+            {
+                try { await _eventService.RecordFeatureAddedAsync(spec.Id, feature); }
+                catch { /* Event recording is non-critical */ }
+            }
+
             SendMessage("success", $"Feature created: {name}");
             return $"✅ Feature '{name}' created with status 'Draft'\nID: {feature.Id}\nPriority: {priority}\n\n" +
                    $"**⚠️ Next Step:** Use `process_features` to mark this feature as 'Ready' when you want it to be processed. " +
@@ -130,6 +140,12 @@ namespace DraCode.KoboldLair.Agents.Tools
             var name = nameObj.ToString() ?? "";
 
             string? result = null;
+            string? featureId = null;
+            string? prevDesc = null;
+            string? prevPriority = null;
+            string? newDesc = null;
+            string? newPriority = null;
+
             spec.WithFeatures(features =>
             {
                 var feature = features.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -148,6 +164,10 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return;
                 }
 
+                featureId = feature.Id;
+                prevDesc = feature.Description;
+                prevPriority = feature.Priority;
+
                 if (input.TryGetValue("description", out var descObj))
                 {
                     feature.Description = descObj.ToString() ?? feature.Description;
@@ -158,14 +178,23 @@ namespace DraCode.KoboldLair.Agents.Tools
                     feature.Priority = prioObj.ToString() ?? feature.Priority;
                 }
 
+                newDesc = feature.Description;
+                newPriority = feature.Priority;
                 feature.UpdatedAt = DateTime.UtcNow;
                 spec.UpdatedAt = DateTime.UtcNow;
             });
-            
+
             if (result != null)
                 return result;
 
             await SaveFeaturesAsync(spec);
+
+            // Record event sourcing audit trail
+            if (_eventService != null && featureId != null)
+            {
+                try { await _eventService.RecordFeatureModifiedAsync(spec.Id, featureId, name, newDesc, newPriority, prevDesc, prevPriority); }
+                catch { /* Event recording is non-critical */ }
+            }
 
             SendMessage("success", $"Feature updated: {name}");
             return $"✅ Feature '{name}' updated successfully";

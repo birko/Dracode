@@ -1,8 +1,14 @@
 using Birko.Communication.WebSocket.Middleware;
 using Birko.Communication.WebSocket.Services;
+using Birko.Security;
+using Birko.Security.Authorization;
+using Birko.Security.Jwt;
+using Birko.Security.Hashing;
 using DraCode.Agent;
 using Birko.EventBus;
 using Birko.EventBus.Extensions;
+using Birko.MessageQueue;
+using Birko.MessageQueue.InMemory;
 using DraCode.KoboldLair.Data;
 using DraCode.KoboldLair.Data.Migrations;
 using DraCode.KoboldLair.Data.Repositories;
@@ -20,6 +26,11 @@ using Birko.Validation;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Validation;
+using DraCode.KoboldLair.Server.Auth;
+using DraCode.KoboldLair.Events.Specification;
+using DraCode.KoboldLair.Services.EventSourcing;
+using DraCode.KoboldLair.Messages;
+using DraCode.KoboldLair.MessageQueue;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,10 +40,36 @@ builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, relo
 // Add services
 builder.AddServiceDefaults();
 
-// Register Birko.Communication authentication service
+// Register Birko.Communication authentication service (legacy token auth)
 builder.Services.Configure<WebSocketAuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication"));
 builder.Services.AddSingleton<WebSocketAuthenticationService>();
+
+// Register Birko.Security.Jwt authentication
+builder.Services.Configure<JwtAuthenticationConfiguration>(
+    builder.Configuration.GetSection("Authentication:Jwt"));
+builder.Services.AddSingleton<ITokenProvider>(sp =>
+{
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
+    var secret = config.ResolveSecret();
+    if (string.IsNullOrEmpty(secret))
+    {
+        // Use a development-only key when no secret is configured
+        secret = "KoboldLair-Development-Secret-Key-Do-Not-Use-In-Production!";
+    }
+    return new JwtTokenProvider(new TokenOptions
+    {
+        Secret = secret,
+        Issuer = config.Issuer,
+        Audience = config.Audience,
+        ExpirationMinutes = config.ExpirationMinutes,
+        RefreshExpirationDays = config.RefreshExpirationDays
+    });
+});
+builder.Services.AddSingleton<IPasswordHasher>(new Pbkdf2PasswordHasher());
+builder.Services.AddSingleton<IRoleProvider, KoboldLairRoleProvider>();
+builder.Services.AddSingleton<IPermissionChecker, KoboldLairPermissionChecker>();
+builder.Services.AddSingleton<RefreshTokenStore>();
 
 // Register Birko.Validation validators
 builder.Services.AddSingleton<IValidator<Specification>, SpecificationValidator>();
@@ -119,6 +156,30 @@ builder.Services.AddSingleton<SqlPlanRepository?>(sp =>
         return repo;
     }
     return null;
+});
+
+// Register Birko.Data.EventSourcing event store (SQLite-backed specification audit trail)
+builder.Services.AddSingleton<SqlEventStoreRepository?>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlEventStoreRepository>();
+        var repo = new SqlEventStoreRepository(dbPath, logger);
+        repo.InitializeAsync().GetAwaiter().GetResult();
+        return repo;
+    }
+    return null;
+});
+
+// Register SpecificationEventService for recording specification change events
+builder.Services.AddSingleton<SpecificationEventService?>(sp =>
+{
+    var eventStore = sp.GetService<SqlEventStoreRepository>();
+    if (eventStore == null) return null;
+    var logger = sp.GetRequiredService<ILogger<SpecificationEventService>>();
+    return new SpecificationEventService(eventStore, logger);
 });
 
 // Register plan service for implementation plan persistence
@@ -295,7 +356,8 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var maxConcurrent = config.Limits?.MaxConcurrentDragonRequests ?? 5;
     var notificationService = sp.GetRequiredService<ProjectNotificationService>();
     var historyRepository = sp.GetService<SqlHistoryRepository>();
-    return new DragonService(logger, providerConfigService, projectConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository);
+    var specEventService = sp.GetService<SpecificationEventService>();
+    return new DragonService(logger, providerConfigService, projectConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService);
 });
 
 // Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)
@@ -394,16 +456,17 @@ builder.Services.AddTransient<FailureRecoveryJob>(sp =>
 });
 
 // Register Birko.BackgroundJobs infrastructure
-builder.Services.AddSingleton<IJobQueue>(new InMemoryJobQueue());
+var clock = new Birko.Time.SystemDateTimeProvider();
+builder.Services.AddSingleton<IJobQueue>(new InMemoryJobQueue(clock));
 builder.Services.AddSingleton<IJobExecutor>(sp =>
     new JobExecutor(type => sp.GetRequiredService(type)));
 builder.Services.AddSingleton<JobDispatcher>(sp =>
-    new JobDispatcher(sp.GetRequiredService<IJobQueue>()));
+    new JobDispatcher(sp.GetRequiredService<IJobQueue>(), clock));
 
 // Register RecurringJobScheduler as hosted service with FailureRecoveryJob at 5-minute interval
 builder.Services.AddHostedService(sp =>
 {
-    var scheduler = new RecurringJobScheduler(sp.GetRequiredService<IJobQueue>());
+    var scheduler = new RecurringJobScheduler(sp.GetRequiredService<IJobQueue>(), clock);
     scheduler.Register<FailureRecoveryJob>("failure-recovery", TimeSpan.FromMinutes(5));
     return new RecurringJobSchedulerHostedService(scheduler);
 });
@@ -421,6 +484,50 @@ builder.Services.AddHostedService(sp =>
 builder.Services.AddEventBus();
 builder.Services.AddEventHandler<TaskStatusChangedEvent, TaskStatusChangedHandler>();
 builder.Services.AddEventHandler<KoboldLifecycleEvent, KoboldLifecycleHandler>();
+
+// Register Birko.MessageQueue (InMemory for dev, MQTT for production)
+{
+    var koboldConfig = builder.Configuration.GetSection("KoboldLair").Get<KoboldLairConfiguration>() ?? new KoboldLairConfiguration();
+    var messagingConfig = koboldConfig.Messaging ?? new MessagingConfiguration();
+
+    if (messagingConfig.Enabled)
+    {
+        // Register InMemory message queue (default for dev)
+        builder.Services.AddSingleton<IMessageQueue>(sp =>
+        {
+            var queue = new InMemoryMessageQueue();
+            queue.ConnectAsync().GetAwaiter().GetResult();
+            return queue;
+        });
+        builder.Services.AddSingleton(sp => sp.GetRequiredService<IMessageQueue>().Producer);
+        builder.Services.AddSingleton(sp => sp.GetRequiredService<IMessageQueue>().Consumer);
+
+        // Register queue-based dispatcher
+        builder.Services.AddSingleton<ITaskDispatcher>(sp =>
+        {
+            var producer = sp.GetRequiredService<IMessageProducer>();
+            var logger = sp.GetRequiredService<ILogger<QueueTaskDispatcher>>();
+            return new QueueTaskDispatcher(producer, messagingConfig.Queues.TaskAssignment, logger);
+        });
+
+        // Register task completion handler
+        builder.Services.AddSingleton<TaskCompletionHandler>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<TaskCompletionHandler>>();
+            var eventBus = sp.GetService<IEventBus>();
+            return new TaskCompletionHandler(logger, eventBus);
+        });
+    }
+    else
+    {
+        // Default: direct in-process dispatcher (no message queue)
+        builder.Services.AddSingleton<ITaskDispatcher>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<DirectTaskDispatcher>>();
+            return new DirectTaskDispatcher(logger: logger);
+        });
+    }
+}
 
 // Add CORS for web client
 builder.Services.AddCors(options =>
@@ -615,6 +722,15 @@ app.MapDefaultEndpoints();
 
 // Enable CORS
 app.UseCors();
+
+// Map JWT auth endpoints (login, refresh, logout)
+{
+    var jwtConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
+    if (jwtConfig.Enabled)
+    {
+        app.MapAuthEndpoints();
+    }
+}
 
 // Enable WebSocket with keep-alive
 var webSocketOptions = new WebSocketOptions
