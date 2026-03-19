@@ -342,7 +342,8 @@ builder.Services.AddSingleton<WebSocketCommandHandler>(sp =>
     var dragonRequestQueue = sp.GetRequiredService<DragonRequestQueue>();
     var costTracker = sp.GetRequiredService<CostTrackingService>();
     var rateLimiter = sp.GetRequiredService<ProviderRateLimiter>();
-    return new WebSocketCommandHandler(logger, projectService, dragonService, providerConfigService, projectRepository, drakeFactory, wyvernFactory, dragonRequestQueue, costTracker, rateLimiter);
+    var planService = sp.GetRequiredService<KoboldPlanService>();
+    return new WebSocketCommandHandler(logger, projectService, dragonService, providerConfigService, projectRepository, drakeFactory, wyvernFactory, dragonRequestQueue, costTracker, rateLimiter, planService);
 });
 builder.Services.AddSingleton<WyrmService>(sp =>
 {

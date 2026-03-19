@@ -43,7 +43,8 @@ namespace DraCode.KoboldLair.Server.Services
             WyvernFactory wyvernFactory,
             DragonRequestQueue? dragonRequestQueue = null,
             CostTrackingService? costTracker = null,
-            ProviderRateLimiter? rateLimiter = null)
+            ProviderRateLimiter? rateLimiter = null,
+            KoboldPlanService? planService = null)
         {
             _logger = logger;
 
@@ -54,7 +55,7 @@ namespace DraCode.KoboldLair.Server.Services
                 logger,
                 projectService,
                 dragonRequestQueue ?? throw new ArgumentNullException(nameof(dragonRequestQueue)));
-            _metrics = new MetricsCommandHandler(projectService, costTracker, rateLimiter);
+            _metrics = new MetricsCommandHandler(projectService, costTracker, rateLimiter, drakeFactory, planService);
         }
 
         public async Task HandleCommandAsync(WebSocket webSocket, string messageText)
@@ -106,6 +107,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                     // Metrics & Cost Tracking
                     "get_metrics" => await _metrics.GetMetricsAsync(message.Data),
+                    "get_comparison" => await _metrics.GetComparisonAsync(message.Data),
 
                     _ => throw new InvalidOperationException($"Unknown command: {message.Command}")
                 };
