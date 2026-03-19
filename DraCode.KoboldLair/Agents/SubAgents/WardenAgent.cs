@@ -43,6 +43,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly NotificationsTool? _notificationsTool;
         private readonly UserSettingsTool? _userSettingsTool;
         private readonly ViewAnalysisTool? _viewAnalysisTool;
+        private readonly BatchTaskTool? _batchTaskTool;
         private readonly Func<string, bool, Task<(bool Success, string Message)>>? _resetProject;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
@@ -78,6 +79,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             NotificationsTool? notificationsTool = null,
             UserSettingsTool? userSettingsTool = null,
             ViewAnalysisTool? viewAnalysisTool = null,
+            BatchTaskTool? batchTaskTool = null,
             Func<string, bool, Task<(bool Success, string Message)>>? resetProject = null)
             : base(provider, options)
         {
@@ -109,6 +111,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _notificationsTool = notificationsTool;
             _userSettingsTool = userSettingsTool;
             _viewAnalysisTool = viewAnalysisTool;
+            _batchTaskTool = batchTaskTool;
             _resetProject = resetProject;
             RebuildTools();
         }
@@ -149,6 +152,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 tools.Add(_userSettingsTool);
             if (_viewAnalysisTool != null)
                 tools.Add(_viewAnalysisTool);
+            if (_batchTaskTool != null)
+                tools.Add(_batchTaskTool);
             if (_resetProject != null)
                 tools.Add(new ResetProjectTool(_resetProject));
 

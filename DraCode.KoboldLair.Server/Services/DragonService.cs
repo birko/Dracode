@@ -664,6 +664,7 @@ namespace DraCode.KoboldLair.Server.Services
                     },
                     getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList()
                 ),
+                batchTaskTool: _drakeFactory != null ? new BatchTaskTool(_drakeFactory, _projectService) : null,
                 resetProject: async (name, keepHistory) => await _projectService.ResetProjectAsync(name, keepHistory));
 
             // Create Dragon coordinator with delegation function
