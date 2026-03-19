@@ -6,6 +6,11 @@ namespace DraCode.Agent
         public List<ContentBlock>? Content { get; set; }
 
         /// <summary>
+        /// Token usage data from the API response (prompt + completion tokens).
+        /// </summary>
+        public TokenUsage? Usage { get; set; }
+
+        /// <summary>
         /// Detailed error message from the LLM provider when StopReason is "error".
         /// Includes the actual API error (e.g., "Insufficient balance", "Rate limit exceeded").
         /// </summary>

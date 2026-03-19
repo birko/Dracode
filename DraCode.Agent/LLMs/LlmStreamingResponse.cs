@@ -39,5 +39,10 @@ namespace DraCode.Agent
         /// Populated during streaming by providers that support it.
         /// </summary>
         public string? AccumulatedText { get; set; }
+
+        /// <summary>
+        /// Token usage data from the streaming response (populated after stream completes).
+        /// </summary>
+        public TokenUsage? Usage { get; set; }
     }
 }

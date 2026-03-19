@@ -272,12 +272,14 @@ namespace DraCode.Agent.LLMs.Providers
                     }
                 }
 
-                // Log usage if available
+                // Extract token usage
                 if (result.TryGetProperty("usage", out var usage))
                 {
-                    var promptTokens = usage.TryGetProperty("prompt_tokens", out var pt) ? pt.GetInt32() : 0;
-                    var completionTokens = usage.TryGetProperty("completion_tokens", out var ct) ? ct.GetInt32() : 0;
-                    SendMessage("usage", $"Tokens - Prompt: {promptTokens}, Completion: {completionTokens}, Total: {promptTokens + completionTokens}");
+                    llmResponse.Usage = new TokenUsage
+                    {
+                        PromptTokens = usage.TryGetProperty("prompt_tokens", out var pt) ? pt.GetInt32() : 0,
+                        CompletionTokens = usage.TryGetProperty("completion_tokens", out var ct) ? ct.GetInt32() : 0
+                    };
                 }
 
                 return llmResponse;

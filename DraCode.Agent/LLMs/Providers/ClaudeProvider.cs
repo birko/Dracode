@@ -159,6 +159,16 @@ namespace DraCode.Agent.LLMs.Providers
                     }
                 }
 
+                // Extract token usage (Claude: input_tokens, output_tokens)
+                if (result.TryGetProperty("usage", out var usage))
+                {
+                    llmResponse.Usage = new TokenUsage
+                    {
+                        PromptTokens = usage.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0,
+                        CompletionTokens = usage.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0
+                    };
+                }
+
                 return llmResponse;
             }
             catch (Exception ex)
@@ -324,6 +334,7 @@ namespace DraCode.Agent.LLMs.Providers
             var toolInputBuilder = new StringBuilder();
             var textBuilder = new StringBuilder();
             string? stopReason = null;
+            TokenUsage? tokenUsage = null;
 
             await foreach (var chunk in sseChunks)
             {
@@ -344,6 +355,18 @@ namespace DraCode.Agent.LLMs.Providers
 
                 switch (eventType)
                 {
+                    case "message_start":
+                        // Initial message event contains input token count
+                        if (json.TryGetProperty("message", out var msgStart) &&
+                            msgStart.TryGetProperty("usage", out var startUsage))
+                        {
+                            tokenUsage = new TokenUsage
+                            {
+                                PromptTokens = startUsage.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0
+                            };
+                        }
+                        break;
+
                     case "content_block_start":
                         // New content block starting
                         if (json.TryGetProperty("content_block", out var contentBlock))
@@ -428,11 +451,19 @@ namespace DraCode.Agent.LLMs.Providers
                         break;
 
                     case "message_delta":
-                        // Message-level delta, contains stop_reason
+                        // Message-level delta, contains stop_reason and output token usage
                         if (json.TryGetProperty("delta", out var msgDelta) &&
                             msgDelta.TryGetProperty("stop_reason", out var sr))
                         {
                             stopReason = sr.GetString();
+                        }
+                        if (json.TryGetProperty("usage", out var deltaUsage))
+                        {
+                            var outputTokens = deltaUsage.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0;
+                            if (tokenUsage != null)
+                                tokenUsage.CompletionTokens = outputTokens;
+                            else
+                                tokenUsage = new TokenUsage { CompletionTokens = outputTokens };
                         }
                         break;
 
@@ -459,10 +490,12 @@ namespace DraCode.Agent.LLMs.Providers
             streamingResponse.FinalResponse = new LlmResponse
             {
                 StopReason = stopReason ?? "end_turn",
-                Content = finalContent
+                Content = finalContent,
+                Usage = tokenUsage
             };
             streamingResponse.StopReason = stopReason ?? "end_turn";
             streamingResponse.AccumulatedText = accumulatedText;
+            streamingResponse.Usage = tokenUsage;
             streamingResponse.IsComplete = true;
         }
     }

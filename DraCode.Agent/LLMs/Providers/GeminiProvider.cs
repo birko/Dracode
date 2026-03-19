@@ -285,6 +285,16 @@ namespace DraCode.Agent.LLMs.Providers
                     llmResponse.StopReason = "end_turn";
                 }
 
+                // Extract token usage (Gemini: usageMetadata)
+                if (result.TryGetProperty("usageMetadata", out var usageMeta))
+                {
+                    llmResponse.Usage = new TokenUsage
+                    {
+                        PromptTokens = usageMeta.TryGetProperty("promptTokenCount", out var ptc) ? ptc.GetInt32() : 0,
+                        CompletionTokens = usageMeta.TryGetProperty("candidatesTokenCount", out var ctc) ? ctc.GetInt32() : 0
+                    };
+                }
+
                 return llmResponse;
             }
             catch (Exception ex)
@@ -411,6 +421,7 @@ namespace DraCode.Agent.LLMs.Providers
             var textBuilder = new System.Text.StringBuilder();
             var toolCalls = new List<ContentBlock>();
             string? finishReason = null;
+            TokenUsage? tokenUsage = null;
 
             await foreach (var chunk in sseChunks)
             {
@@ -425,6 +436,16 @@ namespace DraCode.Agent.LLMs.Providers
                 catch
                 {
                     continue;
+                }
+
+                // Capture usage metadata from any chunk (Gemini includes it in the final chunk)
+                if (json.TryGetProperty("usageMetadata", out var usageMeta))
+                {
+                    tokenUsage = new TokenUsage
+                    {
+                        PromptTokens = usageMeta.TryGetProperty("promptTokenCount", out var ptc) ? ptc.GetInt32() : 0,
+                        CompletionTokens = usageMeta.TryGetProperty("candidatesTokenCount", out var ctc) ? ctc.GetInt32() : 0
+                    };
                 }
 
                 if (!json.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
@@ -512,10 +533,12 @@ namespace DraCode.Agent.LLMs.Providers
             streamingResponse.FinalResponse = new LlmResponse
             {
                 StopReason = stopReason,
-                Content = finalContent
+                Content = finalContent,
+                Usage = tokenUsage
             };
             streamingResponse.StopReason = stopReason;
             streamingResponse.AccumulatedText = accumulatedText;
+            streamingResponse.Usage = tokenUsage;
             streamingResponse.IsComplete = true;
         }
     }

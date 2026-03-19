@@ -132,6 +132,42 @@ namespace DraCode.Agent.Agents
             };
         }
 
+        /// <summary>
+        /// Create an Agent with a pre-configured LLM provider (e.g., wrapped with tracking).
+        /// </summary>
+        public static Agents.Agent Create(
+            ILlmProvider llmProvider,
+            AgentOptions? options = null,
+            string agentType = "coding")
+        {
+            options ??= new AgentOptions();
+
+            return agentType.ToLowerInvariant() switch
+            {
+                "coding" or "general" => new CodingAgent(llmProvider, options),
+                "csharp" => new CSharpCodingAgent(llmProvider, options),
+                "cpp" => new CppCodingAgent(llmProvider, options),
+                "assembler" => new AssemblerCodingAgent(llmProvider, options),
+                "javascript" or "typescript" => new JavaScriptTypeScriptCodingAgent(llmProvider, options),
+                "css" => new CssCodingAgent(llmProvider, options),
+                "html" => new HtmlCodingAgent(llmProvider, options),
+                "react" => new ReactCodingAgent(llmProvider, options),
+                "angular" => new AngularCodingAgent(llmProvider, options),
+                "php" => new PhpCodingAgent(llmProvider, options),
+                "python" => new PythonCodingAgent(llmProvider, options),
+                "documentation" or "docs" => new DocumentationAgent(llmProvider, options),
+                "debug" or "debugging" => new DebugAgent(llmProvider, options),
+                "refactor" or "refactoring" => new RefactorAgent(llmProvider, options),
+                "test" or "testing" => new TestAgent(llmProvider, options),
+                "diagramming" or "diagram" => new DiagrammingAgent(llmProvider, options),
+                "media" => new MediaAgent(llmProvider, options),
+                "image" => new ImageAgent(llmProvider, options),
+                "svg" => new SvgAgent(llmProvider, options),
+                "bitmap" => new BitmapAgent(llmProvider, options),
+                _ => throw new ArgumentException($"Unknown agent type '{agentType}'. Supported: {string.Join(", ", SupportedAgentTypes)}")
+            };
+        }
+
         // Legacy overload for backward compatibility
         [Obsolete("Use Create method with AgentOptions instead")]
         public static Agents.Agent Create(
