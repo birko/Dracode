@@ -318,10 +318,11 @@ All critical blocking operations and race conditions have been resolved as of 20
   - **Coverage**: Name/Description validation, Execute behavior, error handling, edge cases
   - **Effort**: Completed
 
-- [ ] **Rate Limiting** - Agent/Providers
-  - Per-provider quota enforcement
-  - Configurable limits per provider
-  - Effort: Medium (~2-3 days)
+- [x] **Rate Limiting** - Agent/Providers ✅ COMPLETED (2026-03-19)
+  - Per-provider quota enforcement via `ProviderRateLimiter` (sliding window)
+  - Configurable RPM/TPM/daily limits per provider in `appsettings.json`
+  - `TrackedLlmProvider` decorator wraps all providers transparently
+  - Disabled by default — zero behavior change for existing installs
 
 ---
 
@@ -354,11 +355,13 @@ All critical blocking operations and race conditions have been resolved as of 20
   - Shared task context: cross-branch API registry, dependency context passing, file conflict detection
   - Task broadcasting: Drake supervises parallel Kobolds, Wyvern distributes tasks across areas
 
-- [ ] **Cost Tracking**
-  - Token usage monitoring per provider
-  - Budgeting and alerts
-  - Per-user/project tracking
-  - Effort: Medium (~1 week)
+- [x] **Cost Tracking** ✅ COMPLETED (2026-03-19)
+  - Token usage extraction from all 10 LLM providers via `TokenUsage` model
+  - `CostTrackingService` with configurable pricing table and budget enforcement
+  - Per-call usage records persisted to SQLite via `SqlUsageRepository`
+  - Budget alerts: daily, monthly, and per-project limits with warning thresholds
+  - Dragon tool: `view_cost_report` (summary, daily, project, budget, rate_limits)
+  - `TrackedLlmProvider` decorator auto-records usage after every API call
 
 ### From Phase E - Enterprise Features
 

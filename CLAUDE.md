@@ -184,6 +184,7 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `resume_project` - Resume paused or suspended project
 - `suspend_project` - Long-term hold for projects awaiting external changes
 - `cancel_project` - Permanently cancel project (terminal state, requires confirmation)
+- `view_cost_report` - View LLM usage costs, budgets, and rate limit status (NEW - 2026-03-19)
 
 ### Kobold Planner Tool (1)
 
@@ -527,6 +528,53 @@ Controls Kobold self-reflection and escalation behavior:
 - **MonitorIntervalSeconds**: ReasoningMonitorService check interval (default: 45)
 - **NoProgressTimeoutMinutes**: Minutes without step completion before monitor flags stall (default: 10)
 - **MaxFileWriteRepetitions**: Repeated file writes before monitor flags stuck loop (default: 3)
+
+### Rate Limiting Configuration (NEW - 2026-03-19)
+
+Per-provider rate limiting to prevent API quota exhaustion:
+
+```json
+{
+  "KoboldLair": {
+    "RateLimiting": {
+      "Enabled": false,
+      "ProviderLimits": [
+        { "Provider": "openai", "RequestsPerMinute": 60, "TokensPerMinute": 150000, "RequestsPerDay": 0, "TokensPerDay": 0 }
+      ]
+    }
+  }
+}
+```
+
+### Cost Tracking Configuration (NEW - 2026-03-19)
+
+LLM usage tracking with per-call token recording, cost estimation, and budget enforcement:
+
+```json
+{
+  "KoboldLair": {
+    "CostTracking": {
+      "Enabled": true,
+      "Pricing": [
+        { "Provider": "openai", "Model": "gpt-4o", "InputPricePerMillionTokens": 2.50, "OutputPricePerMillionTokens": 10.00 },
+        { "Provider": "claude", "Model": "*", "InputPricePerMillionTokens": 3.00, "OutputPricePerMillionTokens": 15.00 }
+      ],
+      "Budget": {
+        "DailyBudgetUsd": 50,
+        "MonthlyBudgetUsd": 500,
+        "ProjectBudgetUsd": 100,
+        "WarningThresholdPercent": 80
+      }
+    }
+  }
+}
+```
+
+- **Token Usage Extraction**: All 10 providers now return `TokenUsage` (prompt + completion tokens) in `LlmResponse`
+- **TrackedLlmProvider**: Decorator that wraps any provider with rate limiting + cost tracking
+- **Budget Enforcement**: Blocks LLM calls when daily/monthly/project budgets are exceeded
+- **Dragon Tool**: `view_cost_report` with actions: summary, daily, project, budget, rate_limits
+- **Storage**: Usage records persisted to SQLite via `SqlUsageRepository` (same DB as other entities)
 
 ### Allowed External Paths
 
