@@ -130,6 +130,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
         /// <param name="similarTaskInsights">Insights from similar task executions</param>
         /// <param name="bestPractices">Best practices learned for this agent type</param>
         /// <param name="moduleApis">Extracted public API signatures from existing workspace modules</param>
+        /// <param name="projectConstraints">Project constraints from Wyrm and Wyvern that must not be violated</param>
         /// <param name="maxIterations">Maximum iterations for plan generation</param>
         /// <returns>The generated implementation plan</returns>
         public async Task<KoboldImplementationPlan> CreatePlanAsync(
@@ -148,6 +149,11 @@ After analyzing the task, use the create_implementation_plan tool to output your
             List<PlanningInsight>? similarTaskInsights = null,
             Dictionary<string, string>? bestPractices = null,
             Dictionary<string, List<string>>? moduleApis = null,
+            List<string>? projectConstraints = null,
+            string? taskName = null,
+            string? taskPriority = null,
+            string? taskComplexity = null,
+            List<string>? taskDependencies = null,
             int maxIterations = 5)
         {
             // Clear any previous plan
@@ -157,7 +163,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
             var specificationContext = BuildSpecificationContext(specification, featureId, featureName, featureDescription);
 
             // Build the prompt
-            var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure, workspaceFiles, filesInUse, fileMetadata, relatedPlans, similarTaskInsights, bestPractices, moduleApis);
+            var prompt = BuildPlanningPrompt(taskDescription, specificationContext, projectStructure, workspaceFiles, filesInUse, fileMetadata, relatedPlans, similarTaskInsights, bestPractices, moduleApis, projectConstraints, taskName, taskPriority, taskComplexity, taskDependencies);
 
             // Run the agent to generate the plan
             await RunAsync(prompt, maxIterations);
@@ -318,7 +324,12 @@ After analyzing the task, use the create_implementation_plan tool to output your
             List<KoboldImplementationPlan>? relatedPlans,
             List<PlanningInsight>? similarTaskInsights,
             Dictionary<string, string>? bestPractices,
-            Dictionary<string, List<string>>? moduleApis = null)
+            Dictionary<string, List<string>>? moduleApis = null,
+            List<string>? projectConstraints = null,
+            string? taskName = null,
+            string? taskPriority = null,
+            string? taskComplexity = null,
+            List<string>? taskDependencies = null)
         {
             var prompt = new System.Text.StringBuilder();
             prompt.AppendLine("Please create an implementation plan for the following task.");
@@ -547,11 +558,72 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 prompt.AppendLine();
             }
 
+            // Add project constraints prominently before specification
+            if (projectConstraints != null && projectConstraints.Any())
+            {
+                prompt.AppendLine("## ⛔ PROJECT CONSTRAINTS (MUST NOT VIOLATE)");
+                prompt.AppendLine();
+                prompt.AppendLine("Your implementation plan MUST respect these constraints. Do NOT create steps that violate them:");
+                prompt.AppendLine();
+                foreach (var constraint in projectConstraints)
+                {
+                    prompt.AppendLine($"- {constraint}");
+                }
+                prompt.AppendLine();
+                prompt.AppendLine("---");
+                prompt.AppendLine();
+            }
+
             // Add specification context if available
             if (!string.IsNullOrEmpty(specificationContext))
             {
                 prompt.AppendLine("## Project Specification");
                 prompt.AppendLine(specificationContext);
+                prompt.AppendLine();
+                prompt.AppendLine("---");
+                prompt.AppendLine();
+            }
+
+            // Add task metadata (Gaps 1-3 fix: name, priority, complexity, structured dependencies)
+            var hasTaskMetadata = !string.IsNullOrEmpty(taskName) || !string.IsNullOrEmpty(taskPriority) ||
+                                  !string.IsNullOrEmpty(taskComplexity) || (taskDependencies != null && taskDependencies.Any());
+            if (hasTaskMetadata)
+            {
+                prompt.AppendLine("## Task Metadata");
+                prompt.AppendLine();
+
+                if (!string.IsNullOrEmpty(taskName))
+                    prompt.AppendLine($"**Task Name:** {taskName}");
+
+                if (!string.IsNullOrEmpty(taskPriority))
+                {
+                    prompt.AppendLine($"**Priority:** {taskPriority}");
+                    prompt.AppendLine(taskPriority.ToLower() switch
+                    {
+                        "critical" => "This is a **critical** task — keep steps minimal and focused on getting it working correctly.",
+                        "low" => "This is a **low-priority** task — a simpler plan with fewer steps is preferred.",
+                        _ => ""
+                    });
+                }
+
+                if (!string.IsNullOrEmpty(taskComplexity))
+                {
+                    prompt.AppendLine($"**Complexity:** {taskComplexity}");
+                    prompt.AppendLine(taskComplexity.ToLower() switch
+                    {
+                        "low" => "Low complexity — aim for 2-4 concise steps.",
+                        "high" => "High complexity — plan for thorough steps with validation, but keep each step atomic.",
+                        _ => "Medium complexity — aim for a balanced number of steps."
+                    });
+                }
+
+                if (taskDependencies != null && taskDependencies.Any())
+                {
+                    prompt.AppendLine();
+                    prompt.AppendLine($"**Dependencies (must be completed first):** {string.Join(", ", taskDependencies)}");
+                    prompt.AppendLine("Ensure your plan accounts for outputs from these dependency tasks being available.");
+                }
+
                 prompt.AppendLine();
                 prompt.AppendLine("---");
                 prompt.AppendLine();

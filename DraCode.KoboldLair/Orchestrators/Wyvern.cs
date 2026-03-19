@@ -598,7 +598,27 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 {
                     prompt += $"**Additional Notes:** {wyrmRecommendation.Notes}\n\n";
                 }
-                
+
+                if (wyrmRecommendation.Constraints.Any())
+                {
+                    prompt += "**⛔ Constraints (from pre-analysis — MUST be preserved in your analysis):**\n";
+                    foreach (var constraint in wyrmRecommendation.Constraints)
+                    {
+                        prompt += $"- {constraint}\n";
+                    }
+                    prompt += "\n";
+                }
+
+                if (wyrmRecommendation.OutOfScope.Any())
+                {
+                    prompt += "**Out of Scope (do NOT create tasks for these):**\n";
+                    foreach (var item in wyrmRecommendation.OutOfScope)
+                    {
+                        prompt += $"- {item}\n";
+                    }
+                    prompt += "\n";
+                }
+
                 prompt += "Use these recommendations as guidance for your analysis, but feel free to adjust based on the full specification.\n\n";
             }
 
@@ -630,6 +650,33 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                         .Where(f => f.Status == FeatureStatus.AssignedToWyvern)
                         .Select(f => f.Id)
                         .ToList();
+                }
+
+                // Gap 9 fix: Programmatic constraint merge — if Wyvern's LLM failed to preserve
+                // Wyrm constraints in its analysis, copy them over directly to guarantee propagation.
+                if (wyrmRecommendation != null)
+                {
+                    if (wyrmRecommendation.Constraints.Any())
+                    {
+                        foreach (var constraint in wyrmRecommendation.Constraints)
+                        {
+                            if (!_analysis.Constraints.Contains(constraint, StringComparer.OrdinalIgnoreCase))
+                            {
+                                _analysis.Constraints.Add(constraint);
+                            }
+                        }
+                    }
+
+                    if (wyrmRecommendation.OutOfScope.Any())
+                    {
+                        foreach (var item in wyrmRecommendation.OutOfScope)
+                        {
+                            if (!_analysis.OutOfScope.Contains(item, StringComparer.OrdinalIgnoreCase))
+                            {
+                                _analysis.OutOfScope.Add(item);
+                            }
+                        }
+                    }
                 }
 
                 // Validate and fix task dependencies

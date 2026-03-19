@@ -37,7 +37,7 @@ namespace DraCode.KoboldLair.Data.Entities
             return target;
         }
 
-        public override void LoadFrom(ModelViewModel data)
+        public override void LoadFrom(IGuidEntity data)
         {
             base.LoadFrom(data);
             if (data is CircuitBreakerViewModel vm)

@@ -1,6 +1,7 @@
 using Birko.Data.EventSourcing.Events;
 using Birko.Data.SQL.Repositories;
 using Birko.Data.Stores;
+using Birko.Configuration;
 using DraCode.KoboldLair.Data.Entities;
 using Microsoft.Extensions.Logging;
 

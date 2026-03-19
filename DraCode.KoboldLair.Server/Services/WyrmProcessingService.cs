@@ -65,6 +65,41 @@ namespace DraCode.KoboldLair.Server.Services
                     ? await File.ReadAllTextAsync(project.Paths.Specification, stoppingToken)
                     : "";
 
+                // Include features context so Wyrm can factor feature priorities into its analysis
+                var specFolder = Path.GetDirectoryName(project.Paths.Specification) ?? "";
+                var featuresPath = Path.Combine(specFolder, "specification.features.json");
+                if (File.Exists(featuresPath))
+                {
+                    try
+                    {
+                        var featuresJson = await File.ReadAllTextAsync(featuresPath, stoppingToken);
+                        using var doc = JsonDocument.Parse(featuresJson);
+                        if (doc.RootElement.TryGetProperty("features", out var featuresArray))
+                        {
+                            var featureLines = new List<string>();
+                            foreach (var feature in featuresArray.EnumerateArray())
+                            {
+                                var name = feature.TryGetProperty("name", out var n) ? n.GetString() : null;
+                                var priority = feature.TryGetProperty("priority", out var p) ? p.GetString() : null;
+                                var description = feature.TryGetProperty("description", out var d) ? d.GetString() : null;
+                                var status = feature.TryGetProperty("status", out var s) ? s.GetString() : null;
+                                if (!string.IsNullOrEmpty(name) && status is "Ready" or "Draft")
+                                {
+                                    featureLines.Add($"- **{name}** (Priority: {priority ?? "Normal"}): {description ?? ""}");
+                                }
+                            }
+                            if (featureLines.Any())
+                            {
+                                spec += "\n\n## Defined Features:\n\n" + string.Join("\n", featureLines);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Could not load features for Wyrm analysis of {ProjectName}", project.Name);
+                    }
+                }
+
                 // GAP 2 FIX: Build cross-project insights context
                 var crossProjectContext = await BuildCrossProjectContextAsync(project.Id);
 
