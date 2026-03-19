@@ -40,6 +40,11 @@ namespace DraCode.KoboldLair.Models.Configuration
         /// Configuration for agent iteration limits
         /// </summary>
         public IterationLimits Iterations { get; set; } = new();
+
+        /// <summary>
+        /// Configuration for message queue-based task dispatch
+        /// </summary>
+        public MessagingConfiguration Messaging { get; set; } = new();
     }
 
     /// <summary>

@@ -339,18 +339,20 @@ All critical blocking operations and race conditions have been resolved as of 20
   - Tool marketplace concept
   - Effort: High (~2 weeks)
 
-- [ ] **Web UI Improvements**
-  - Drag-and-drop tab reordering
-  - Save/load workspace configurations
-  - Export conversation histories
-  - Side-by-side comparison view
-  - Agent performance metrics
-  - Effort: Medium (ongoing)
+- [ ] **Web UI Improvements** 🔜 NEXT SESSION
+  - [ ] **Side-by-side comparison view** — Compare outputs from different agents/providers (both DraCode.Web and KoboldLair.Client)
+  - [ ] **Agent performance metrics** — Token usage, response times, cost per task (both clients)
+  - [x] ~~Export conversation histories~~ — Already implemented in KoboldLair.Client (`downloadConversation()`)
+  - Drag-and-drop tab reordering (low priority, polish)
+  - Save/load workspace configurations (low priority, polish)
+  - Effort: Medium
 
-- [ ] **Multi-Agent Collaboration**
-  - Agent-to-agent communication protocol
-  - Shared task broadcasting
-  - Effort: High (~2-3 weeks)
+- [x] **Multi-Agent Collaboration** ✅ SUPERSEDED by KoboldLair
+  - Original scope: agent-to-agent communication for DraCode.WebSocket simple agent API
+  - Now fully realized by KoboldLair's multi-agent hierarchy (Dragon→Wyrm→Wyvern→Drake→Kobold)
+  - Agent communication: EventBus pub/sub (2026-03-16), SharedPlanningContextService coordination
+  - Shared task context: cross-branch API registry, dependency context passing, file conflict detection
+  - Task broadcasting: Drake supervises parallel Kobolds, Wyvern distributes tasks across areas
 
 - [ ] **Cost Tracking**
   - Token usage monitoring per provider
@@ -1165,38 +1167,46 @@ Current state: No structured validation. Dragon accepts any input, Wyvern may fa
 
 Current state: Simple token-based auth via query string (`?token=your-token`).
 
-- [ ] **Integrate `Birko.Security.Jwt`** ⚪ NOT STARTED
-  - Replace simple token auth with JWT-based authentication
-  - Token refresh support for long Dragon sessions
-  - Role-based access: admin (all projects), user (own projects), viewer (read-only)
-  - Birko provides: JWT generation/validation, refresh tokens, RBAC, AES encryption
-  - **Package**: `Birko.Security` + `Birko.Security.Jwt`
-  - **Effort**: 12 hours
+- [x] **Integrate `Birko.Security.Jwt`** ✅ COMPLETED (2026-03-19)
+  - JWT-based authentication with access tokens, refresh tokens, role-based access
+  - Roles: admin (all permissions), user (manage projects + execute), viewer (read-only)
+  - Auth endpoints: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
+  - `JwtAuthenticationConfiguration` with embedded user store, env var expansion for secrets
+  - `KoboldLairRoleProvider` and `KoboldLairPermissionChecker` implementing Birko.Security.Authorization
+  - `RefreshTokenStore` with in-memory storage, token rotation, auto-cleanup
+  - Backward compatible: disabled by default, old token auth preserved
+  - **New Files**: `Auth/JwtAuthenticationConfiguration.cs`, `Auth/KoboldLairRoleProvider.cs`, `Auth/KoboldLairPermissionChecker.cs`, `Auth/RefreshTokenStore.cs`, `Auth/AuthEndpoints.cs`
+  - **Package**: `Birko.Security` + `Birko.Security.Jwt` + `System.IdentityModel.Tokens.Jwt`
 
 ### Event Sourcing — Specification Audit Trail
 
 Current state: `Specification.VersionHistory` tracks versions but loses intermediate state.
 
-- [ ] **Integrate `Birko.Data.EventSourcing`** ⚪ NOT STARTED
-  - Full audit trail of specification changes (who, what, when)
-  - Replay capability: reconstruct spec at any point in time
-  - Event types: FeatureAdded, FeatureModified, FeatureRemoved, SpecApproved
-  - Complements existing version tracking (adds replay + audit)
-  - **Package**: `Birko.Data.EventSourcing`
-  - **Prerequisite**: Database persistence (Phase 2 above)
-  - **Effort**: 10 hours
+- [x] **Integrate `Birko.Data.EventSourcing`** ✅ COMPLETED (2026-03-19)
+  - Full audit trail of specification changes stored in SQLite `domain_events` table
+  - 7 event types: SpecificationCreated, SpecificationUpdated, SpecificationApproved, FeatureAdded, FeatureModified, FeatureRemoved, FeatureStatusChanged
+  - `SqlEventStoreRepository` implements `IAsyncEventStore` with SQLite persistence
+  - `SpecificationEventService` wraps event store with specification-specific operations
+  - Events recorded in `SpecificationManagementTool` (create/update), `FeatureManagementTool` (add/modify), `DeleteFeatureTool` (remove)
+  - `SpecificationHistoryTool` shows rich event audit trail when event store available, falls back to VersionHistory
+  - Event recording is non-critical (try/catch, never blocks tool execution)
+  - **New Files**: `Events/Specification/SpecificationEvents.cs`, `Data/Entities/DomainEventEntity.cs`, `Data/Repositories/Sql/SqlEventStoreRepository.cs`, `Services/EventSourcing/SpecificationEventService.cs`
 
-### Message Queue — Distributed Agent Messaging (Future)
+### Message Queue — Distributed Agent Messaging
 
 Current state: All agents run in-process. No distributed messaging.
 
-- [ ] **Integrate `Birko.MessageQueue`** ⚪ NOT STARTED
-  - Enables distributed Kobold execution across multiple machines
-  - Drake publishes task assignments to queue, Kobold workers consume
-  - Supports: InMemory (dev), MQTT (lightweight), RabbitMQ (production)
-  - **Prerequisite**: Event Bus integration (above)
-  - **Package**: `Birko.MessageQueue` + `Birko.MessageQueue.MQTT`
-  - **Effort**: 20 hours
+- [x] **Integrate `Birko.MessageQueue`** ✅ COMPLETED (2026-03-19)
+  - `ITaskDispatcher` abstraction decouples Drake from Kobold creation mechanism
+  - `DirectTaskDispatcher` preserves current in-process behavior (default)
+  - `QueueTaskDispatcher` publishes task assignments via `IMessageProducer`
+  - `TaskAssignmentMessage`, `TaskCompletionMessage`, `KoboldHeartbeatMessage` DTOs
+  - `TaskCompletionHandler` implements `IMessageHandler<TaskCompletionMessage>` with EventBus bridge
+  - `MessagingConfiguration` with `Enabled` flag, backend selection (InMemory/MQTT), queue names
+  - InMemory queue via `Birko.MessageQueue.InMemory` for dev/testing
+  - Disabled by default — zero behavior change for existing installs
+  - **New Files**: `Messages/TaskAssignmentMessage.cs`, `Messages/TaskCompletionMessage.cs`, `Messages/KoboldHeartbeatMessage.cs`, `MessageQueue/ITaskDispatcher.cs`, `MessageQueue/DirectTaskDispatcher.cs`, `MessageQueue/QueueTaskDispatcher.cs`, `MessageQueue/TaskCompletionHandler.cs`, `Models/Configuration/MessagingConfiguration.cs`
+  - **Package**: `Birko.MessageQueue` + `Birko.MessageQueue.InMemory`
 
 ### Integration Priority Order
 
@@ -1206,9 +1216,9 @@ Current state: All agents run in-process. No distributed messaging.
 | 2 | Event Bus | ✅ DONE | Direct callbacks in Drake | Decoupling, extensibility |
 | 3 | Validation | ✅ DONE | No validation | Input safety |
 | 4 | Caching (MemoryCache) | ✅ DONE | Manual ConcurrentDict + LRU | Performance |
-| 5 | Security (JWT) | Not started | Token query string | Auth robustness |
-| 6 | Event Sourcing | Not started | Version tracking | Audit trail |
-| 7 | Message Queue | Not started | In-process only | Distributed execution |
+| 5 | Security (JWT) | ✅ DONE | Token query string | Auth robustness |
+| 6 | Event Sourcing | ✅ DONE | Version tracking | Audit trail |
+| 7 | Message Queue | ✅ DONE | In-process only | Distributed execution |
 
 ---
 
