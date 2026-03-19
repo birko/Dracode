@@ -403,7 +403,9 @@ namespace DraCode.KoboldLair.Agents.Tools
                 {
                     version = _specifications[name].Version;
                 }
-                return $"✅ Specification '{name}' updated successfully (version {version}). Wyvern will reprocess changes.";
+                return $"✅ Specification '{name}' updated successfully (version {version}). Wyvern will reprocess changes.\n\n" +
+                       $"💡 **Tip**: If you want to restart the project from scratch with this new specification, " +
+                       $"ask Warden to use `reset_project` to clear all existing analysis, tasks, and workspace.";
             }
             catch (Exception ex)
             {
