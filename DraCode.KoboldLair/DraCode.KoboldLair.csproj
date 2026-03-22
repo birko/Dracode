@@ -28,6 +28,8 @@
   <!-- Birko.Data Framework - Core data access layer -->
   <Import Project="..\..\Birko.Helpers\Birko.Helpers.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Data.Core\Birko.Data.Core.projitems" Label="Shared" />
+  <!-- Birko.Models.Contracts for domain interfaces (ICatalogItem, IPriceable, IHierarchical, etc.) -->
+  <Import Project="..\..\Birko.Models.Contracts\Birko.Models.Contracts.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Models\Birko.Models.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Data.Stores\Birko.Data.Stores.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Data.Repositories\Birko.Data.Repositories.projitems" Label="Shared" />

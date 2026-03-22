@@ -9,7 +9,15 @@
       "Bash(do sed -i 's/namespace DraCode\\\\.KoboldLair\\\\.Server\\\\.Models$/namespace DraCode.KoboldLair.Server.Models.Projects/' \"$f\")",
       "Bash(done)",
       "Bash(do sed -i 's/namespace DraCode\\\\.KoboldLair\\\\.Server\\\\.Models$/namespace DraCode.KoboldLair.Server.Models.Tasks/' \"$f\")",
-      "Bash(do sed -i 's/namespace DraCode\\\\.KoboldLair\\\\.Server\\\\.Models$/namespace DraCode.KoboldLair.Server.Models.Configuration/' \"$f\")"
+      "Bash(do sed -i 's/namespace DraCode\\\\.KoboldLair\\\\.Server\\\\.Models$/namespace DraCode.KoboldLair.Server.Models.Configuration/' \"$f\")",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(ls:*)",
+      "Bash(xargs cat:*)",
+      "Bash(dotnet test:*)",
+      "Bash(sed:*)"
     ]
   }
 }
