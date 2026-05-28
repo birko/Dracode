@@ -1,11 +1,12 @@
-using DraCode.Agent;
-using DraCode.Agent.Agents;
-using DraCode.Agent.LLMs.Providers;
-using DraCode.Agent.Tools;
+using Birko.AI;
+using Birko.AI.Agents;
+using Birko.AI.Models;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services.EventSourcing;
-using AgentBase = DraCode.Agent.Agents.Agent;
+using AgentBase = Birko.AI.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents.SubAgents
 {
@@ -66,9 +67,11 @@ namespace DraCode.KoboldLair.Agents.SubAgents
 
         private string GetSageSystemPrompt()
         {
-            var prompt = @"You are Sage 📜, the Lore Keeper of the Dragon Council.
+            var prompt = $@"You are Sage 📜, the Lore Keeper of the Dragon Council.
 
 Your role is to manage project specifications and features. You are a specialist in documentation and requirements.
+
+{GetDepthGuidance()}
 
 ## Your Responsibilities:
 1. **Create specifications** for new projects

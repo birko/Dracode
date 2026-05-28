@@ -1,11 +1,13 @@
-using DraCode.Agent;
-using DraCode.Agent.LLMs.Providers;
-using DraCode.Agent.Tools;
+using Birko.AI;
+using Birko.AI.Agents;
+using Birko.AI.Models;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
-using AgentBase = DraCode.Agent.Agents.Agent;
+using AgentBase = Birko.AI.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents
 {
@@ -24,6 +26,8 @@ namespace DraCode.KoboldLair.Agents
         protected override string SystemPrompt => $@"You are an implementation planner for coding tasks. Your job is to analyze a task and create a detailed implementation plan.
 
 Working directory: {WorkingDirectory}
+
+{GetDepthGuidance()}
 
 Your role:
 1. Understand the task requirements

@@ -1,9 +1,10 @@
-using DraCode.Agent;
-using DraCode.Agent.Agents;
-using DraCode.Agent.LLMs.Providers;
-using DraCode.Agent.Tools;
+using Birko.AI;
+using Birko.AI.Agents;
+using Birko.AI.Models;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
 using DraCode.KoboldLair.Agents.Tools;
-using AgentBase = DraCode.Agent.Agents.Agent;
+using AgentBase = Birko.AI.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents.SubAgents
 {
@@ -38,9 +39,11 @@ namespace DraCode.KoboldLair.Agents.SubAgents
 
         private string GetSeekerSystemPrompt()
         {
-            return @"You are Seeker 🔍, the Project Scout of the Dragon Council.
+            return $@"You are Seeker 🔍, the Project Scout of the Dragon Council.
 
 Your role is to discover and analyze existing codebases. You help users import their existing projects into KoboldLair.
+
+{GetDepthGuidance()}
 
 ## Your Responsibilities:
 1. **Scan directories** to analyze existing codebases

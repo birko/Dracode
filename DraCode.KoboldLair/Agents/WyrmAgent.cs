@@ -1,7 +1,7 @@
-using DraCode.Agent;
-using DraCode.Agent.Agents;
-using DraCode.Agent.LLMs.Providers;
-using DraCode.Agent.Tools;
+using Birko.AI;
+using Birko.AI.Agents;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 
 namespace DraCode.KoboldLair.Agents
@@ -72,53 +72,21 @@ Analyze task descriptions and select the optimal specialist agent. Your decision
 
 {GetDepthGuidance()}
 
-## Selection Strategy:
+## Selection Rules (apply in order):
 
-**Technology-Driven Selection** (highest priority):
-- Task mentions ""React"" → **react**
-- Task mentions ""C#"" or "".NET"" → **csharp**
-- Task mentions ""Python"" → **python**
-- Task mentions specific tech → choose that specialist
+1. **Technology-first**: If the task names a specific tech, pick that specialist.
+   - ""React"" → **react** · ""C#""/"".NET"" → **csharp** · ""Python"" → **python** · ""Angular"" → **angular** · etc.
+2. **File extension**: `.tsx`/`.jsx` → **react** · `.html` → **html** · `.css` → **css** · `.svg` → **svg**
+3. **Goal-driven** (when no clear tech): diagrams → **diagramming** · styling/layout → **css** (or **html** if structure) · icons/illustrations → **svg** · photo editing → **bitmap** · video/audio → **media**
+4. **Quality/process**: testing/QA → **test** · debugging → **debug** · restructuring → **refactor** · README/docs → **documentation**
+5. **Multi-tech tasks**: pick the PRIMARY tech.
+   - ""React component with CSS"" → **react** (CSS is secondary)
+   - ""TypeScript React app"" → **react** (framework wins over language)
+   - ""Node.js API with TypeScript"" → **typescript** (no framework, language wins)
+   - ""Python script to generate SVG"" → **python** (SVG is output, Python is the implementation)
+6. **Fallback**: truly ambiguous, multi-language, or no specialist fits → **coding**
 
-**Goal-Driven Selection** (when technology unclear):
-- Creating diagrams/models → **diagramming**
-- Styling/layout/design → **css** (or **html** if structure-focused)
-- Icons/illustrations → **svg**
-- Photo/image editing → **bitmap**
-- Video/audio → **media**
-
-**Quality & Process Selection**:
-- Testing/QA tasks → **test** (test automation specialist)
-- Debugging/troubleshooting → **debug** (root cause analysis)
-- Code restructuring → **refactor** (design improvement)
-- Documentation/README → **documentation** (technical writing)
-
-**Fallback Selection**:
-- Multi-language or unclear → **coding** (generalist)
-
-## Decision Rules:
-1. **Be decisive**: Choose ONE agent, the best fit
-2. **Prefer specialists**: Use 'coding' only when no specialist fits
-3. **Match frameworks**: React task → react agent, not javascript
-4. **Consider file types**: .tsx/.jsx → react, .html → html, .css → css
-5. **Trust the task description**: If it says ""React component"", choose react
-
-## Resolving Conflicts:
-When a task mentions multiple technologies, pick the PRIMARY one:
-- ""React component with CSS styling"" → **react** (CSS is secondary to the component)
-- ""TypeScript React app"" → **react** (React is the framework, TS is the language)
-- ""Node.js API with TypeScript"" → **typescript** (no framework, just language)
-- ""Python script to generate SVG"" → **python** (SVG is output, Python is implementation)
-- If truly ambiguous with no clear primary tech → **coding** (generalist handles it safely)
-
-## Your Output:
-Call the **select_agent** tool with your chosen agent type. The selected Kobold will then receive:
-- The task description
-- Project specification context
-- File structure guidelines
-- Implementation plan (if planning is enabled)
-
-You must call the 'select_agent' tool to make your decision.";
+Be decisive. Call **select_agent** with exactly one type. The selected Kobold receives the task, spec context, file structure guidelines, and implementation plan (if planning is enabled).";
             }
         }
 

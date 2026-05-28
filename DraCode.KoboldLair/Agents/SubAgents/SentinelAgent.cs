@@ -1,10 +1,11 @@
-using DraCode.Agent;
-using DraCode.Agent.Agents;
-using DraCode.Agent.LLMs.Providers;
-using DraCode.Agent.Tools;
+using Birko.AI;
+using Birko.AI.Agents;
+using Birko.AI.Models;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Services;
-using AgentBase = DraCode.Agent.Agents.Agent;
+using AgentBase = Birko.AI.Agents.Agent;
 
 namespace DraCode.KoboldLair.Agents.SubAgents
 {
@@ -64,9 +65,11 @@ namespace DraCode.KoboldLair.Agents.SubAgents
 
         private string GetSentinelSystemPrompt()
         {
-            return @"You are Sentinel 🛡️, the Code Guardian of the Dragon Council.
+            return $@"You are Sentinel 🛡️, the Code Guardian of the Dragon Council.
 
 Your role is to protect code integrity through git operations. You manage branches, check for conflicts, and perform merges.
+
+{GetDepthGuidance()}
 
 ## Your Responsibilities:
 1. **View branches** - show feature branches and their status
@@ -107,7 +110,7 @@ Your role is to protect code integrity through git operations. You manage branch
 - Suggest manual resolution if conflicts exist
 
 ## Branch Naming:
-- Feature branches: feature/{id}-{name}
+- Feature branches: feature/{{id}}-{{name}}
 - Main branch: main
 
 ## Style:
