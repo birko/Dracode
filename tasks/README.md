@@ -1,13 +1,13 @@
 # Tasks — DraCode
 
-_Generated 2026-05-28 by `/tasks import` from `TODO.md`. `IMPLEMENTATION_PLAN.md` was kept in place (mostly reference docs — Testing Strategy / Deployment / Maintenance / Risk Management). Last updated 2026-05-28 by `/tasks new` adding EPIC-009/010/011 (Anthropic-article gap epics). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-05-28 by `/tasks import` from `TODO.md`. `IMPLEMENTATION_PLAN.md` was kept in place (mostly reference docs — Testing Strategy / Deployment / Maintenance / Risk Management). Last updated 2026-05-28 by `/tasks new` adding EPIC-012/013 (backend consolidation + multi-platform clients rework) — supersedes & removes EPIC-003 and EPIC-007. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
-| planned      | 11    | 13      | —     |
-| todo         | —     | —       | 17    |
+| planned      | 11    | 22      | —     |
+| todo         | —     | —       | 12    |
 | in-progress  | 0     | 0       | 0     |
 | blocked      | —     | —       | 0     |
 | done         | 0     | 0       | 0     |
@@ -24,9 +24,6 @@ _None — start with `/tasks pick` or pick by reading the tree below._
   - [ ] [TASK-002](EPIC-001-token-storage-auth/TASK-002-oauth-integration.md) OAuth integration (Google, GitHub) (P2)
 - **EPIC-002** [Plugin & extensibility](EPIC-002-plugin-extensibility/EPIC.md) — planned (0/1)
   - [ ] [TASK-003](EPIC-002-plugin-extensibility/TASK-003-plugin-system.md) Plugin system for custom tools (P2)
-- **EPIC-003** [Web UI polish](EPIC-003-web-ui-polish/EPIC.md) — planned (0/2)
-  - [ ] [TASK-004](EPIC-003-web-ui-polish/TASK-004-drag-drop-tab-reorder.md) Drag-and-drop tab reordering (P2)
-  - [ ] [TASK-005](EPIC-003-web-ui-polish/TASK-005-workspace-config-save-load.md) Save/load workspace configurations (P2)
 - **EPIC-004** [Team & compliance](EPIC-004-team-compliance/EPIC.md) — planned (0/3)
   - STORY-001 [Enterprise features](EPIC-004-team-compliance/STORY-001-enterprise-features/STORY.md) — planned (0/3)
     - [ ] [TASK-006](EPIC-004-team-compliance/STORY-001-enterprise-features/TASK-006-team-collaboration.md) Team collaboration + RBAC (P1)
@@ -40,11 +37,6 @@ _None — start with `/tasks pick` or pick by reading the tree below._
   - STORY-003 [Structured reasoning tools](EPIC-006-self-reasoning-option-2/STORY-003-structured-reasoning-tools/STORY.md) — planned (0/2)
     - [ ] [TASK-011](EPIC-006-self-reasoning-option-2/STORY-003-structured-reasoning-tools/TASK-011-reflection-tool.md) ReflectionTool (P2)
     - [ ] [TASK-012](EPIC-006-self-reasoning-option-2/STORY-003-structured-reasoning-tools/TASK-012-reasoning-monitor-service.md) ReasoningMonitorService (P2)
-- **EPIC-007** [Multi-platform clients](EPIC-007-multi-platform-clients/EPIC.md) — planned (0/3)
-  - STORY-004 [Alternative clients](EPIC-007-multi-platform-clients/STORY-004-alternative-clients/STORY.md) — planned (0/3)
-    - [ ] [TASK-013](EPIC-007-multi-platform-clients/STORY-004-alternative-clients/TASK-013-cli-client.md) KoboldLair CLI client (P2)
-    - [ ] [TASK-014](EPIC-007-multi-platform-clients/STORY-004-alternative-clients/TASK-014-vscode-extension.md) VS Code extension (P2)
-    - [ ] [TASK-015](EPIC-007-multi-platform-clients/STORY-004-alternative-clients/TASK-015-python-sdk.md) Python SDK (P2)
 - **EPIC-008** [Research / advanced ML](EPIC-008-research-advanced-ml/EPIC.md) — planned (0/2)
   - [ ] [TASK-016](EPIC-008-research-advanced-ml/TASK-016-rag-codebase-understanding.md) RAG for codebase understanding (P2)
   - [ ] [TASK-017](EPIC-008-research-advanced-ml/TASK-017-fine-tuned-models.md) Fine-tuned models (P2)
@@ -60,3 +52,15 @@ _None — start with `/tasks pick` or pick by reading the tree below._
   - STORY-011 [Design EvaluatorAgent](EPIC-011-tight-evaluator-optimizer/STORY-011-design-evaluator-agent/STORY.md) — planned
   - STORY-012 [Integrate EvaluatorAgent into the Kobold tool loop](EPIC-011-tight-evaluator-optimizer/STORY-012-integrate-evaluator-into-kobold/STORY.md) — planned (blocked on STORY-011)
   - STORY-013 [Measure: does external evaluator catch failures the reflect tool misses?](EPIC-011-tight-evaluator-optimizer/STORY-013-measure-evaluator-vs-reflect/STORY.md) — planned (blocked on STORY-012)
+- **EPIC-012** [Backend consolidation — unify on KoboldLair.Server](EPIC-012-backend-consolidation/EPIC.md) — planned (supersedes parts of EPIC-003 + EPIC-007)
+  - STORY-014 [Retire DraCode.WebSocket and DraCode.Web](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/STORY.md) — planned
+  - STORY-015 [/kobold endpoint — ad-hoc + project-scoped Kobold execution](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/STORY.md) — planned
+  - STORY-016 [REST + SSE facade for non-streaming clients](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/STORY.md) — planned
+  - STORY-017 [OAuth/OIDC authentication and per-caller identity](EPIC-012-backend-consolidation/STORY-017-oauth-identity/STORY.md) — planned
+  - STORY-018 [Daemon mode for KoboldLair.Server](EPIC-012-backend-consolidation/STORY-018-daemon-mode/STORY.md) — planned
+- **EPIC-013** [Multi-platform clients on the unified backend](EPIC-013-multi-platform-clients/EPIC.md) — planned (depends on EPIC-012; supersedes EPIC-007)
+  - STORY-019 [DraCode.KoboldLair.Cli — single-file binary CLI client](EPIC-013-multi-platform-clients/STORY-019-cli-client/STORY.md) — planned
+  - STORY-020 [Discord bot client](EPIC-013-multi-platform-clients/STORY-020-discord-bot/STORY.md) — planned
+  - STORY-021 [VSCode extension client](EPIC-013-multi-platform-clients/STORY-021-vscode-extension/STORY.md) — planned
+  - STORY-022 [Python SDK](EPIC-013-multi-platform-clients/STORY-022-python-sdk/STORY.md) — planned
+  - STORY-023 [Web client polish (reclaimed from old EPIC-003)](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/STORY.md) — planned
