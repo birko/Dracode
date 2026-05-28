@@ -587,6 +587,39 @@ Per-project access control for directories outside workspace:
 
 ## Important Patterns
 
+### Agent System Prompt Conventions
+
+All agents in `DraCode.KoboldLair/Agents/` and `DraCode.Agent/Agents/` follow the same conventions inherited from `Birko.AI.Agent.cs`. Apply these when adding or editing any agent prompt; they are based on Anthropic's "Building Effective Agents" principles (simplicity, transparency, well-documented tools).
+
+**Required interpolations** in the `SystemPrompt` getter (use `$@"..."` raw-interpolated strings):
+- `{WorkingDirectory}` — if the agent uses file/shell tools, identify the sandboxed directory
+- `{GetDepthGuidance()}` — virtual on `Agent`/`OrchestratorAgent`; tunes reasoning style based on `Options.ModelDepth` (1–10). Override the method, do NOT inline a `switch` in the prompt body
+- `{GetFileOperationGuidelines()}` — include if the agent has any of `read_file` / `list_files` / `write_file` / `edit_file` / `append_to_file` / `search_code` tools
+- `{GetCommonBestPractices()}` — include for agents that produce executable artifacts (code, tests); omit for pure-JSON analyzers or chat orchestrators where it doesn't apply
+
+**Structure** (mirror `WyrmPreAnalysisAgent` as the exemplar):
+1. One-line role statement with emoji and pipeline position
+2. `{GetDepthGuidance()}` early (model sees reasoning style before content)
+3. Process / responsibilities as a numbered list with a clear stop condition
+4. Decision rules in priority order — be decisive, no "consider X then maybe Y"
+5. Domain expertise as specific bullets (not "good at programming")
+6. Closing instruction — what tool to call, or what format to emit
+
+**Anti-patterns to avoid**:
+- 🚫 Inline `Options.ModelDepth switch` in the prompt body — override `GetDepthGuidance()` instead
+- 🚫 JSON output schemas inside `SystemPrompt` — put schemas in the user message (see `WyrmPreAnalysisAgent.AnalyzeSpecificationAsync`)
+- 🚫 Tool descriptions duplicated in the prompt — tool docs live on the `Tool` class itself (Anthropic ACI principle)
+- 🚫 Prompts over ~80 lines — attention dilutes; split into SystemPrompt (role + rules) + user message (data + format)
+- 🚫 Plain `@"..."` when the prompt needs `{WorkingDirectory}` or any helper interpolation
+- 🚫 Unreachable instructions like "test in different browsers" when the agent has no browser — write only steps the available tools can actually perform
+
+**Inheritance**:
+- `OrchestratorAgent` for agents that route or coordinate (Dragon, Wyrm, Wyvern) — gets `GetOrchestratorGuidance()`, `ExtractTextFromContent()`, `ExtractJson()`
+- `Agent` (direct) for specialist workers and council sub-agents (Sage, Sentinel, Seeker, Warden, KoboldPlanner)
+- `CodingAgent` / `MediaAgent` for language- or media-specialized agents (in `DraCode.Agent`)
+
+Realignment audit was applied 2026-05-28 — see commit history for `DraCode.KoboldLair/Agents/`.
+
 ### Factory Pattern
 - `AgentFactory.Create(provider, options, config, agentType)` - Creates specialized agents
 - `AgentFactory` (in `Agents/`) - Creates Dragon, Wyrm, Drake agents with system prompts
@@ -660,25 +693,25 @@ curl http://localhost:5000/  # Health check
 
 ## Known Issues & Architectural Debt (2026-03-15)
 
-28 execution pipeline gaps were fixed in commit `402dbc1`. 12 remaining items were tracked under "Execution Flow Gaps & Architectural Fixes" — **all resolved as of 2026-03-16** (see `git log` of the former `TODO.md` for the full audit trail). The summaries below are kept for historical context.
+28 execution pipeline gaps were fixed in commit `402dbc1`. 12 remaining items — all **resolved as of 2026-03-16** (see `git log` of the former `TODO.md`). Verified against current code 2026-05-28. The descriptions below capture the *original* issue shape; each line ends with how it was resolved.
 
-### Concurrency Issues (manual fix required)
-- **Blocking sync-over-async**: Tool `Execute()` methods and DragonService callbacks use `.GetAwaiter().GetResult()` — risk of thread pool starvation and deadlocks under concurrent load
-- **Git lock contention**: No project-level mutex for concurrent git operations — multiple Kobolds can contend on `.git/index.lock`
+### Concurrency Issues — resolved
+- **Blocking sync-over-async** → Tool base class added `virtual Task<string> ExecuteAsync(...)`; DragonService callbacks converted to `Func<..., Task>`; zero `.GetAwaiter().GetResult()` calls remain in DragonService.
+- **Git lock contention** → `static ConcurrentDictionary<string, SemaphoreSlim> _repoLocks` in `GitService.cs` — all git ops serialized per working directory.
 
-### Data Persistence Issues (resolved by Birko.Data.SQL migration)
-- **Plan save debounce race**: `KoboldPlanService` debounced writes can lose intermediate plan states — PostgreSQL transactional writes eliminate this
-- **Dragon history race**: Fire-and-forget `Task.Run()` history saves can interleave — DB writes are atomic
-- **Escalation persistence gap**: Escalations added to in-memory plan before dispatch — DB transaction ensures persistence before callback
-- **Circuit breaker state lost**: In-memory only, reset on restart — DB/Redis persistence survives restarts
+### Data Persistence Issues — resolved by Birko.Data.SQL migration
+- **Plan save debounce race** → `SqlPlanRepository` writes immediately on every `SavePlanAsync`; file debounce kept only for human-readable output.
+- **Dragon history race** → `SqlHistoryRepository` with `SemaphoreSlim`-serialized writes.
+- **Escalation persistence gap** → `ReflectionTool` now awaits `SavePlanAsync` (immediate, not debounced) before invoking the escalation callback.
+- **Circuit breaker state lost** → `CircuitBreakerEntity` table; `ProviderCircuitBreaker.InitializePersistenceAsync()` rehydrates on startup.
 
-### Git/Worktree Issues
-- **Stale worktrees on restart**: No cleanup of orphaned `.worktrees/` after crash — needs startup pruning
-- **Commit failure silent**: `git commit` failures don't propagate to task status — task marked Done despite uncommitted code
+### Git/Worktree Issues — resolved
+- **Stale worktrees on restart** → `GitService.PruneStaleWorktreesAsync()` invoked from `Program.cs` startup, iterates all projects.
+- **Commit failure silent** → `CommitFailed` bool added to `TaskRecord` / `TaskEntity` / `TaskViewModel` / `EntityMapper`; Drake sets it on commit failure.
 
-### Client-Side Issues
-- **Event listener leak**: `dragon-view.js` `onMount()` accumulates duplicate listeners on view switch
-- **Notification dedup**: Reconnect replays can create duplicate escalation entries in notification store
+### Client-Side Issues — resolved
+- **Event listener leak** → moot in the new UI: dragon-view rewritten as a Shadow DOM `BaseComponent` (from `birko-web-core`), which handles connectedCallback/disconnectedCallback lifecycle automatically. Old vanilla-JS `dragon-view.js` (now in `wwwroot/archive/old-vanilla-ui/`) had the explicit `_handlers` / `detachEventListeners` fix.
+- **Notification dedup** → `seenIds` Set in the current `stores/notification-store.js` (composite key `taskId_type_message`) silently drops duplicates.
 
 ### Birko.Framework Migration Impact
 
