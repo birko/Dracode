@@ -1239,18 +1239,11 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
             }
 
-            // Use immediate save for critical state transitions to prevent race condition with ReloadTasksFromFileAsync
-            // (debounced save could be overwritten by reload before it executes)
-            if (taskStatus == TaskStatus.Done || taskStatus == TaskStatus.Failed)
-            {
-                await SaveTasksToFileAsync();
-            }
-            else
-            {
-                SaveTasksToFile();
-            }
-
-            // Run post-task verification when task completes successfully
+            // Bug A fix — run side-effects (verification + commit) BEFORE persisting Done to disk.
+            // The WAL entry from UpdateTaskWithWalAsync above gives us crash-recovery semantics if we
+            // crash between here and the final save; the WAL replay path can re-run the verify+commit.
+            // If we saved Done to disk before commit ran, a mid-flow crash would leave a permanent Done
+            // status with no commit in git history and no recovery trigger.
             if (previousStatus != TaskStatus.Done && taskStatus == TaskStatus.Done && kobold.IsSuccess)
             {
                 var verificationPassed = await RunPostTaskVerificationAsync(kobold, task, worktreePath);
@@ -1261,8 +1254,20 @@ namespace DraCode.KoboldLair.Orchestrators
                         task.Id[..Math.Min(8, task.Id.Length)]);
                 }
 
-                // Commit changes to git
+                // CommitTaskCompletionAsync may demote task.Status to Failed on commit failure (Option 1).
                 await CommitTaskCompletionAsync(kobold, task, worktreePath);
+            }
+
+            // Persist final state. Read task.Status (not the local taskStatus) since side-effects above
+            // may have demoted Done -> Failed. Immediate save for terminal states prevents race with
+            // ReloadTasksFromFileAsync; debounced save is fine for in-flight transitions.
+            if (task.Status == TaskStatus.Done || task.Status == TaskStatus.Failed)
+            {
+                await SaveTasksToFileAsync();
+            }
+            else
+            {
+                SaveTasksToFile();
             }
         }
 
@@ -2771,8 +2776,23 @@ namespace DraCode.KoboldLair.Orchestrators
                     // Apply the state transition
                     if (Enum.TryParse<TaskStatus>(entry.NewStatus, out var newStatus))
                     {
+                        // Bug A residual fix — if WAL says Done but the task has no CommitSha,
+                        // the original execution crashed between WAL-append and commit completion.
+                        // Demote to Failed so FailureRecoveryService re-runs the task instead of
+                        // accepting an unverified Done that may have never committed to git.
+                        if (newStatus == TaskStatus.Done && string.IsNullOrEmpty(task.CommitSha))
+                        {
+                            _taskTracker.UpdateTask(task, TaskStatus.Failed, entry.AssignedAgent);
+                            _taskTracker.SetError(task,
+                                "WAL recovery: task reached Done in WAL but no commit was recorded — likely crashed mid-flow. Retrying.");
+                            _logger?.LogWarning(
+                                "WAL recovery: {TaskId} Done→Failed (no CommitSha — crash before commit completed)",
+                                entry.TaskId);
+                            continue;
+                        }
+
                         _taskTracker.UpdateTask(task, newStatus, entry.AssignedAgent);
-                        
+
                         if (!string.IsNullOrEmpty(entry.ErrorMessage))
                         {
                             _taskTracker.SetError(task, entry.ErrorMessage);
