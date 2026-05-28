@@ -1,12 +1,12 @@
 # Tasks — DraCode
 
-_Generated 2026-05-28 by `/tasks import` from `TODO.md`. `IMPLEMENTATION_PLAN.md` was kept in place (mostly reference docs — Testing Strategy / Deployment / Maintenance / Risk Management). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-05-28 by `/tasks import` from `TODO.md`. `IMPLEMENTATION_PLAN.md` was kept in place (mostly reference docs — Testing Strategy / Deployment / Maintenance / Risk Management). Last updated 2026-05-28 by `/tasks new` adding EPIC-009/010/011 (Anthropic-article gap epics). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
-| planned      | 8     | 4       | —     |
+| planned      | 11    | 13      | —     |
 | todo         | —     | —       | 17    |
 | in-progress  | 0     | 0       | 0     |
 | blocked      | —     | —       | 0     |
@@ -48,3 +48,15 @@ _None — start with `/tasks pick` or pick by reading the tree below._
 - **EPIC-008** [Research / advanced ML](EPIC-008-research-advanced-ml/EPIC.md) — planned (0/2)
   - [ ] [TASK-016](EPIC-008-research-advanced-ml/TASK-016-rag-codebase-understanding.md) RAG for codebase understanding (P2)
   - [ ] [TASK-017](EPIC-008-research-advanced-ml/TASK-017-fine-tuned-models.md) Fine-tuned models (P2)
+- **EPIC-009** [Simplicity audit — collapse over-stacked agent tiers](EPIC-009-simplicity-audit-agent-tiers/EPIC.md) — planned (research/spike, no tasks yet)
+  - STORY-005 [Evaluate merging Wyrm + Wyvern into one analyzer](EPIC-009-simplicity-audit-agent-tiers/STORY-005-merge-wyrm-wyvern/STORY.md) — planned
+  - STORY-006 [Evaluate folding KoboldPlanner into Kobold](EPIC-009-simplicity-audit-agent-tiers/STORY-006-fold-koboldplanner-into-kobold/STORY.md) — planned
+  - STORY-007 [Evaluate collapsing Drake periodic services](EPIC-009-simplicity-audit-agent-tiers/STORY-007-collapse-drake-services/STORY.md) — planned
+- **EPIC-010** [Add voting parallelization to high-stakes decisions](EPIC-010-voting-parallelization/EPIC.md) — planned (research/spike, no tasks yet)
+  - STORY-008 [Wyvern task breakdown voting](EPIC-010-voting-parallelization/STORY-008-wyvern-task-breakdown-voting/STORY.md) — planned
+  - STORY-009 [WyrmAgent agent-type selection voting](EPIC-010-voting-parallelization/STORY-009-wyrmagent-selection-voting/STORY.md) — planned
+  - STORY-010 [KoboldPlanner plan voting](EPIC-010-voting-parallelization/STORY-010-koboldplanner-plan-voting/STORY.md) — planned (blocked on STORY-006)
+- **EPIC-011** [Tight evaluator-optimizer loop for Kobold actions](EPIC-011-tight-evaluator-optimizer/EPIC.md) — planned (research/spike, no tasks yet)
+  - STORY-011 [Design EvaluatorAgent](EPIC-011-tight-evaluator-optimizer/STORY-011-design-evaluator-agent/STORY.md) — planned
+  - STORY-012 [Integrate EvaluatorAgent into the Kobold tool loop](EPIC-011-tight-evaluator-optimizer/STORY-012-integrate-evaluator-into-kobold/STORY.md) — planned (blocked on STORY-011)
+  - STORY-013 [Measure: does external evaluator catch failures the reflect tool misses?](EPIC-011-tight-evaluator-optimizer/STORY-013-measure-evaluator-vs-reflect/STORY.md) — planned (blocked on STORY-012)
