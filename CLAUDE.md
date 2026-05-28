@@ -660,7 +660,7 @@ curl http://localhost:5000/  # Health check
 
 ## Known Issues & Architectural Debt (2026-03-15)
 
-28 execution pipeline gaps were fixed in commit `402dbc1`. 12 remaining items require larger refactors — tracked in `TODO.md` under "Execution Flow Gaps & Architectural Fixes".
+28 execution pipeline gaps were fixed in commit `402dbc1`. 12 remaining items were tracked under "Execution Flow Gaps & Architectural Fixes" — **all resolved as of 2026-03-16** (see `git log` of the former `TODO.md` for the full audit trail). The summaries below are kept for historical context.
 
 ### Concurrency Issues (manual fix required)
 - **Blocking sync-over-async**: Tool `Execute()` methods and DragonService callbacks use `.GetAwaiter().GetResult()` — risk of thread pool starvation and deadlocks under concurrent load
@@ -682,7 +682,7 @@ curl http://localhost:5000/  # Health check
 
 ### Birko.Framework Migration Impact
 
-The planned Birko.Data.SQL migration (PostgreSQL) resolves 4 of 12 remaining issues by replacing file-based JSON storage with transactional database writes. See `TODO.md` for full mapping:
+The Birko.Data.SQL migration (PostgreSQL) resolved 4 of the 12 remaining issues by replacing file-based JSON storage with transactional database writes. Mapping:
 
 | Birko Module | Resolves | Issues |
 |--------------|----------|--------|
