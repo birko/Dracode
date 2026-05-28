@@ -6,6 +6,20 @@ using DraCode.KoboldLair.Models.Git;
 namespace DraCode.KoboldLair.Services
 {
     /// <summary>
+    /// Result of a commit attempt. Tri-state so callers can distinguish "actually committed"
+    /// from "nothing to commit" (which is suspicious when the agent claimed success).
+    /// </summary>
+    public enum CommitResult
+    {
+        /// <summary>A new commit was created.</summary>
+        Committed,
+        /// <summary>Working tree was clean — no commit was made. Suspicious if the caller expected changes.</summary>
+        NoChanges,
+        /// <summary>git commit failed (non-zero exit, error output, or exception).</summary>
+        Failed
+    }
+
+    /// <summary>
     /// Service for git operations on project repositories
     /// </summary>
     public class GitService
@@ -190,14 +204,14 @@ namespace DraCode.KoboldLair.Services
         /// <param name="projectFolder">Repository path</param>
         /// <param name="message">Commit message</param>
         /// <param name="authorName">Optional author name (defaults to KoboldLair)</param>
-        public async Task<bool> CommitChangesAsync(string projectFolder, string message, string? authorName = null)
+        public async Task<CommitResult> CommitChangesAsync(string projectFolder, string message, string? authorName = null)
         {
             // Check if there are changes to commit
             var statusResult = await RunGitCommandAsync(projectFolder, "status", "--porcelain");
             if (string.IsNullOrWhiteSpace(statusResult.Output))
             {
                 _logger.LogDebug("No changes to commit in {Path}", projectFolder);
-                return true; // No changes is not an error
+                return CommitResult.NoChanges;
             }
 
             var author = authorName ?? "KoboldLair";
@@ -208,13 +222,11 @@ namespace DraCode.KoboldLair.Services
             if (result.Success)
             {
                 _logger.LogInformation("Created commit in {Path}: {Message}", projectFolder, message.Split('\n')[0]);
-            }
-            else
-            {
-                _logger.LogError("Failed to commit: {Error}", result.Error);
+                return CommitResult.Committed;
             }
 
-            return result.Success;
+            _logger.LogError("Failed to commit: {Error}", result.Error);
+            return CommitResult.Failed;
         }
 
         /// <summary>

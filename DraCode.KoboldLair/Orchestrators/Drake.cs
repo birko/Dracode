@@ -1,9 +1,11 @@
 using System.Threading.Channels;
+using Birko.AI.Models;
 using Birko.EventBus;
-using DraCode.Agent;
+using Birko.AI;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Events;
 using DraCode.KoboldLair.Factories;
+using Birko.AI.Resilience.Services;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Models.Projects;
@@ -1516,9 +1518,9 @@ namespace DraCode.KoboldLair.Orchestrators
 
                 // Commit with Kobold agent type as author
                 var authorName = $"Kobold-{kobold.AgentType}";
-                var committed = await _gitService.CommitChangesAsync(commitFolder, commitMessage, authorName);
+                var commitResult = await _gitService.CommitChangesAsync(commitFolder, commitMessage, authorName);
 
-                if (committed)
+                if (commitResult == CommitResult.Committed)
                 {
                     var projectInfo = _projectId ?? "unknown project";
                     var taskSummary = task.Task.Length > 50 ? task.Task[..50] + "..." : task.Task;
@@ -1545,20 +1547,36 @@ namespace DraCode.KoboldLair.Orchestrators
                         await RegisterOutputFilesWithContextAsync(kobold, task);
                     }
                 }
-                else
+                else if (commitResult == CommitResult.NoChanges)
                 {
-                    _logger?.LogWarning(
-                        "Git commit returned false for task {TaskId} - code is staged but uncommitted",
+                    // Kobold reported success but produced no diff — this is wrong_approach territory.
+                    // Demote the task to Failed so it gets retried / escalated instead of treated as Done.
+                    _logger?.LogError(
+                        "Task {TaskId} marked Done by Kobold but produced no committable changes — demoting to Failed",
                         task.Id[..Math.Min(8, task.Id.Length)]);
                     task.CommitFailed = true;
-                    SaveTasksToFile();
+                    task.Status = TaskStatus.Failed;
+                    task.ErrorMessage = "Kobold reported success but workspace produced no diff. The task description may be impossible to satisfy or the Kobold wrote to the wrong location.";
+                    await SaveTasksToFileAsync();
+                }
+                else // CommitResult.Failed
+                {
+                    _logger?.LogError(
+                        "git commit failed for task {TaskId} — code is staged but uncommitted; demoting to Failed",
+                        task.Id[..Math.Min(8, task.Id.Length)]);
+                    task.CommitFailed = true;
+                    task.Status = TaskStatus.Failed;
+                    task.ErrorMessage = "git commit failed. Code may exist in the worktree (preserved for manual recovery) but is not in git history.";
+                    await SaveTasksToFileAsync();
                 }
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Git commit failed for task {TaskId} - task remains Done but code is uncommitted", task.Id);
+                _logger?.LogError(ex, "Git commit threw for task {TaskId} — demoting to Failed", task.Id);
                 task.CommitFailed = true;
-                SaveTasksToFile();
+                task.Status = TaskStatus.Failed;
+                task.ErrorMessage = $"git commit threw an exception: {ex.Message}";
+                await SaveTasksToFileAsync();
             }
         }
 
@@ -1967,10 +1985,20 @@ namespace DraCode.KoboldLair.Orchestrators
             // Final sync of task status from Kobold (commits happen here if task completed)
             await SyncTaskFromKoboldAsync(kobold, worktreePath);
 
-            // Clean up worktree after commit is done
+            // Clean up worktree after commit is done — but PRESERVE it on commit failure
+            // so the work isn't destroyed and a human can recover it manually.
             if (worktreePath != null)
             {
-                await CleanupWorktreeAsync(worktreePath);
+                if (task.CommitFailed)
+                {
+                    _logger?.LogWarning(
+                        "Preserving worktree {Path} for task {TaskId} due to commit failure — manual recovery required",
+                        worktreePath, task.Id[..Math.Min(8, task.Id.Length)]);
+                }
+                else
+                {
+                    await CleanupWorktreeAsync(worktreePath);
+                }
             }
 
             // Update feature status if Wyvern is available

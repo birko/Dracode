@@ -1,5 +1,5 @@
 using System.Text;
-using DraCode.Agent.Tools;
+using Birko.AI.Tools;
 using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Agents.Tools
@@ -108,8 +108,10 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return $"Failed to stage changes in '{projectName}'.";
 
                 // Commit
-                var committed = await _gitService.CommitChangesAsync(projectFolder, message);
-                if (!committed)
+                var commitResult = await _gitService.CommitChangesAsync(projectFolder, message);
+                if (commitResult == CommitResult.NoChanges)
+                    return $"Nothing to commit in '{projectName}' — staging produced no diff.";
+                if (commitResult == CommitResult.Failed)
                     return $"Failed to commit changes in '{projectName}'.";
 
                 // Get the commit SHA
@@ -162,9 +164,11 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             try
             {
-                var committed = await _gitService!.CommitChangesAsync(projectFolder, message);
-                if (!committed)
-                    return $"Failed to commit staged changes in '{projectName}'. Are there any staged changes?";
+                var commitResult = await _gitService!.CommitChangesAsync(projectFolder, message);
+                if (commitResult == CommitResult.NoChanges)
+                    return $"No staged changes to commit in '{projectName}'.";
+                if (commitResult == CommitResult.Failed)
+                    return $"Failed to commit staged changes in '{projectName}'.";
 
                 var sha = await _gitService.GetLastCommitShaAsync(projectFolder);
                 var branch = await _gitService.GetCurrentBranchAsync(projectFolder);

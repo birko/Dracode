@@ -1112,14 +1112,23 @@ namespace DraCode.KoboldLair.Services
                 await _gitService.StageAllAsync(project.Paths.Output);
 
                 // Create initial commit
-                var committed = await _gitService.CommitChangesAsync(
+                var commitResult = await _gitService.CommitChangesAsync(
                     project.Paths.Output,
                     $"Initial commit: {project.Name} specification\n\nProject approved and ready for development.",
                     "Dragon");
 
-                if (committed)
+                if (commitResult == CommitResult.Committed)
                 {
                     _logger.LogInformation("Created initial git commit for project: {ProjectName}", project.Name);
+                }
+                else if (commitResult == CommitResult.NoChanges)
+                {
+                    // Spec file may already be tracked from a prior approval — not an error here
+                    _logger.LogDebug("Initial commit: nothing to commit for {ProjectName} (already up to date)", project.Name);
+                }
+                else
+                {
+                    _logger.LogWarning("Initial git commit failed for project {ProjectName}", project.Name);
                 }
             }
             catch (Exception ex)
