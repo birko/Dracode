@@ -7,7 +7,7 @@ _Generated 2026-05-28 by `/tasks import` from `TODO.md`. `IMPLEMENTATION_PLAN.md
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 11    | 22      | —     |
-| todo         | —     | —       | 12    |
+| todo         | —     | —       | 13    |
 | in-progress  | 0     | 0       | 0     |
 | blocked      | —     | —       | 0     |
 | done         | 0     | 0       | 0     |
@@ -58,6 +58,7 @@ _None — start with `/tasks pick` or pick by reading the tree below._
   - STORY-016 [REST + SSE facade for non-streaming clients](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/STORY.md) — planned
   - STORY-017 [OAuth/OIDC authentication and per-caller identity](EPIC-012-backend-consolidation/STORY-017-oauth-identity/STORY.md) — planned
   - STORY-018 [Daemon mode for KoboldLair.Server](EPIC-012-backend-consolidation/STORY-018-daemon-mode/STORY.md) — planned
+  - [ ] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` (P2)
 - **EPIC-013** [Multi-platform clients on the unified backend](EPIC-013-multi-platform-clients/EPIC.md) — planned (depends on EPIC-012; supersedes EPIC-007)
   - STORY-019 [DraCode.KoboldLair.Cli — single-file binary CLI client](EPIC-013-multi-platform-clients/STORY-019-cli-client/STORY.md) — planned
   - STORY-020 [Discord bot client](EPIC-013-multi-platform-clients/STORY-020-discord-bot/STORY.md) — planned
