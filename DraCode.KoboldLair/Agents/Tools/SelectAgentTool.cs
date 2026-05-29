@@ -49,23 +49,23 @@ Returns: Information about the selected agent and confirmation that it will hand
             required = new[] { "agent_type", "reasoning", "task" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> arguments)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
         {
             try
             {
                 if (!arguments.TryGetValue("agent_type", out var agentTypeObj) || agentTypeObj == null)
                 {
-                    return "Error: 'agent_type' parameter is required";
+                    return Task.FromResult("Error: 'agent_type' parameter is required");
                 }
 
                 if (!arguments.TryGetValue("reasoning", out var reasoningObj) || reasoningObj == null)
                 {
-                    return "Error: 'reasoning' parameter is required";
+                    return Task.FromResult("Error: 'reasoning' parameter is required");
                 }
 
                 if (!arguments.TryGetValue("task", out var taskObj) || taskObj == null)
                 {
-                    return "Error: 'task' parameter is required";
+                    return Task.FromResult("Error: 'task' parameter is required");
                 }
 
                 var agentType = agentTypeObj.ToString()!;
@@ -75,7 +75,7 @@ Returns: Information about the selected agent and confirmation that it will hand
                 // Validate agent type using shared validator
                 if (!AgentTypeValidator.IsValid(agentType))
                 {
-                    return $"Error: Invalid agent_type '{agentType}'. Must be one of: {AgentTypeValidator.GetValidTypesString()}";
+                    return Task.FromResult($"Error: Invalid agent_type '{agentType}'. Must be one of: {AgentTypeValidator.GetValidTypesString()}");
                 }
 
                 // Normalize to lowercase
@@ -96,11 +96,11 @@ Original Task: {(task.Length > 200 ? task.Substring(0, 200) + "..." : task)}
 
 To execute this selection, the system will now instantiate the {agentType} agent and pass it the task.";
 
-                return result;
+                return Task.FromResult(result);
             }
             catch (Exception ex)
             {
-                return $"Error selecting agent: {ex.Message}";
+                return Task.FromResult($"Error selecting agent: {ex.Message}");
             }
         }
 

@@ -42,21 +42,21 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project_name", "confirmation" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_approveProject == null)
             {
-                return "Error: Project approval is not configured.";
+                return Task.FromResult("Error: Project approval is not configured.");
             }
 
             if (!input.TryGetValue("project_name", out var nameObj))
             {
-                return "Error: project_name is required";
+                return Task.FromResult("Error: project_name is required");
             }
 
             if (!input.TryGetValue("confirmation", out var confirmObj))
             {
-                return "Error: confirmation is required. Ask the user to confirm the specification first.";
+                return Task.FromResult("Error: confirmation is required. Ask the user to confirm the specification first.");
             }
 
             var projectName = nameObj.ToString() ?? "";
@@ -66,7 +66,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             var validConfirmations = new[] { "yes", "confirmed", "approved", "correct", "looks good" };
             if (!validConfirmations.Contains(confirmation))
             {
-                return $"Error: Invalid confirmation '{confirmation}'. User must explicitly confirm the specification is correct.";
+                return Task.FromResult($"Error: Invalid confirmation '{confirmation}'. User must explicitly confirm the specification is correct.");
             }
 
             try
@@ -74,19 +74,19 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var success = _approveProject(projectName);
                 if (success)
                 {
-                    return $"✅ Project '{projectName}' has been approved!\n\n" +
+                    return Task.FromResult($"✅ Project '{projectName}' has been approved!\n\n" +
                            "The specification is now ready for processing. Wyvern will analyze it and create tasks for the Kobolds.\n" +
-                           "You can continue refining other projects or wait for the analysis to complete.";
+                           "You can continue refining other projects or wait for the analysis to complete.");
                 }
                 else
                 {
-                    return $"Error: Could not approve project '{projectName}'. " +
-                           "Make sure the project exists and is in 'Prototype' status.";
+                    return Task.FromResult($"Error: Could not approve project '{projectName}'. " +
+                           "Make sure the project exists and is in 'Prototype' status.");
                 }
             }
             catch (Exception ex)
             {
-                return $"Error approving project: {ex.Message}";
+                return Task.FromResult($"Error approving project: {ex.Message}");
             }
         }
     }

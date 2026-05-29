@@ -53,7 +53,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "project" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var actionVal)
                 ? actionVal?.ToString()?.ToLowerInvariant()
@@ -61,32 +61,32 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             if (!input.TryGetValue("project", out var projectVal) || string.IsNullOrEmpty(projectVal?.ToString()))
             {
-                return "Error: 'project' parameter is required.";
+                return Task.FromResult("Error: 'project' parameter is required.");
             }
 
             var projectIdOrName = projectVal.ToString()!;
             var project = FindProject(projectIdOrName);
             if (project == null)
-                return $"Project '{projectIdOrName}' not found.";
+                return Task.FromResult($"Project '{projectIdOrName}' not found.");
 
             var workspacePath = project.Paths?.Output;
             if (string.IsNullOrEmpty(workspacePath))
-                return $"No workspace path configured for project '{project.Name}'.";
+                return Task.FromResult($"No workspace path configured for project '{project.Name}'.");
 
             var resolvedPath = Path.IsPathRooted(workspacePath)
                 ? workspacePath
                 : Path.Combine(_projectService.ProjectsPath, workspacePath);
 
             if (!Directory.Exists(resolvedPath))
-                return $"Workspace directory does not exist yet: `{workspacePath}`\nKobolds will create it when they start working on tasks.";
+                return Task.FromResult($"Workspace directory does not exist yet: `{workspacePath}`\nKobolds will create it when they start working on tasks.");
 
-            return action switch
+            return Task.FromResult(action switch
             {
                 "tree" => ExecuteTree(resolvedPath, input),
                 "stats" => ExecuteStats(resolvedPath),
                 "recent" => ExecuteRecent(resolvedPath),
                 _ => $"Unknown action: {action}. Use 'tree', 'stats', or 'recent'."
-            };
+            });
         }
 
         private string ExecuteTree(string basePath, Dictionary<string, object> input)

@@ -41,16 +41,16 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_setExecutionState == null)
             {
-                return "Error: Execution state control is not configured.";
+                return Task.FromResult("Error: Execution state control is not configured.");
             }
 
             if (!input.TryGetValue("project_name", out var nameObj))
             {
-                return "Error: project_name is required";
+                return Task.FromResult("Error: project_name is required");
             }
 
             var projectName = nameObj.ToString() ?? "";
@@ -63,24 +63,24 @@ namespace DraCode.KoboldLair.Agents.Tools
                 {
                     var message = $"⏸️ Project '{projectName}' has been paused.\n\n" +
                                   "Task execution has been temporarily halted. ";
-                    
+
                     if (!string.IsNullOrEmpty(reason))
                     {
                         message += $"Reason: {reason}\n\n";
                     }
-                    
+
                     message += "Use 'resume_project' when ready to continue.";
-                    return message;
+                    return Task.FromResult(message);
                 }
                 else
                 {
-                    return $"Error: Could not pause project '{projectName}'. " +
-                           "Make sure the project exists and is not already paused or cancelled.";
+                    return Task.FromResult($"Error: Could not pause project '{projectName}'. " +
+                           "Make sure the project exists and is not already paused or cancelled.");
                 }
             }
             catch (Exception ex)
             {
-                return $"Error pausing project: {ex.Message}";
+                return Task.FromResult($"Error pausing project: {ex.Message}");
             }
         }
     }

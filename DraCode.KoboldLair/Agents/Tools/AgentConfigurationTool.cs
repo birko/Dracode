@@ -100,14 +100,14 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;
             var agentType = input.TryGetValue("agent_type", out var agentObj) ? agentObj?.ToString()?.ToLowerInvariant() : null;
             var limit = input.TryGetValue("limit", out var limitObj) ? Convert.ToInt32(limitObj) : 0;
 
-            return action switch
+            return Task.FromResult(action switch
             {
                 "status" => GetAllProjectsStatus(),
                 "get" => GetProjectDetails(project),
@@ -115,7 +115,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 "disable" => SetAgentEnabled(project, agentType, false),
                 "set_limit" => SetAgentLimit(project, agentType, limit),
                 _ => "Unknown action. Use 'status', 'get', 'enable', 'disable', or 'set_limit'."
-            };
+            });
         }
 
         private string GetAllProjectsStatus()

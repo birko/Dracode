@@ -48,18 +48,18 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var actionVal)
                 ? actionVal?.ToString()?.ToLowerInvariant()
                 : "overview";
 
-            return action switch
+            return Task.FromResult(action switch
             {
                 "overview" => ExecuteOverview(input),
                 "all" => ExecuteAll(),
                 _ => $"Unknown action: {action}. Use 'overview' or 'all'."
-            };
+            });
         }
 
         private string ExecuteOverview(Dictionary<string, object> input)

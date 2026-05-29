@@ -41,16 +41,16 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_setExecutionState == null)
             {
-                return "Error: Execution state control is not configured.";
+                return Task.FromResult("Error: Execution state control is not configured.");
             }
 
             if (!input.TryGetValue("project_name", out var nameObj))
             {
-                return "Error: project_name is required";
+                return Task.FromResult("Error: project_name is required");
             }
 
             var projectName = nameObj.ToString() ?? "";
@@ -63,24 +63,24 @@ namespace DraCode.KoboldLair.Agents.Tools
                 {
                     var message = $"⏹️ Project '{projectName}' has been suspended.\n\n" +
                                   "This is a long-term hold. ";
-                    
+
                     if (!string.IsNullOrEmpty(reason))
                     {
                         message += $"Reason: {reason}\n\n";
                     }
-                    
+
                     message += "Use 'resume_project' when ready to continue.";
-                    return message;
+                    return Task.FromResult(message);
                 }
                 else
                 {
-                    return $"Error: Could not suspend project '{projectName}'. " +
-                           "Make sure the project exists.";
+                    return Task.FromResult($"Error: Could not suspend project '{projectName}'. " +
+                           "Make sure the project exists.");
                 }
             }
             catch (Exception ex)
             {
-                return $"Error suspending project: {ex.Message}";
+                return Task.FromResult($"Error suspending project: {ex.Message}");
             }
         }
     }

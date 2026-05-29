@@ -55,16 +55,16 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project", "confirm" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_getProject == null || _deleteProject == null)
-                return "Delete project functionality is not available.";
+                return Task.FromResult("Delete project functionality is not available.");
 
             if (!input.TryGetValue("project", out var projectVal) || string.IsNullOrEmpty(projectVal?.ToString()))
-                return "Error: 'project' parameter is required.";
+                return Task.FromResult("Error: 'project' parameter is required.");
 
             if (!input.TryGetValue("confirm", out var confirmVal) || confirmVal?.ToString()?.ToLower() != "confirmed")
-                return "Error: Confirmation required. Set confirm to 'confirmed' to permanently delete this project.";
+                return Task.FromResult("Error: Confirmation required. Set confirm to 'confirmed' to permanently delete this project.");
 
             var projectIdOrName = projectVal.ToString()!;
             var deleteFiles = input.TryGetValue("delete_files", out var deleteFilesVal) &&
@@ -87,13 +87,13 @@ namespace DraCode.KoboldLair.Agents.Tools
                 }
 
                 if (project == null)
-                    return $"Project '{projectIdOrName}' not found.";
+                    return Task.FromResult($"Project '{projectIdOrName}' not found.");
 
                 // Only allow deleting cancelled projects
                 if (project.ExecutionState != ProjectExecutionState.Cancelled)
                 {
-                    return $"Cannot delete project '{project.Name}': Execution state is '{project.ExecutionState}'.\n" +
-                           "Only cancelled projects can be deleted. Use `cancel_project` first to cancel it.";
+                    return Task.FromResult($"Cannot delete project '{project.Name}': Execution state is '{project.ExecutionState}'.\n" +
+                           "Only cancelled projects can be deleted. Use `cancel_project` first to cancel it.");
                 }
 
                 var projectName = project.Name;
@@ -101,16 +101,16 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 var success = _deleteProject(projectId, deleteFiles);
                 if (!success)
-                    return $"Failed to delete project '{projectName}'.";
+                    return Task.FromResult($"Failed to delete project '{projectName}'.");
 
                 SendMessage("success", $"Project deleted: {projectName}");
 
                 var filesMsg = deleteFiles ? " Project files have also been removed from disk." : " Project files remain on disk.";
-                return $"✅ Project '{projectName}' has been permanently deleted from the registry.{filesMsg}";
+                return Task.FromResult($"✅ Project '{projectName}' has been permanently deleted from the registry.{filesMsg}");
             }
             catch (Exception ex)
             {
-                return $"Error deleting project: {ex.Message}";
+                return Task.FromResult($"Error deleting project: {ex.Message}");
             }
         }
     }

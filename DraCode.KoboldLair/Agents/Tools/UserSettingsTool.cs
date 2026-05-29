@@ -66,20 +66,20 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var agentType = input.TryGetValue("agent_type", out var atObj) ? atObj?.ToString()?.ToLowerInvariant() : null;
             var provider = input.TryGetValue("provider", out var provObj) ? provObj?.ToString()?.ToLowerInvariant() : null;
             var model = input.TryGetValue("model", out var modelObj) ? modelObj?.ToString() : null;
 
-            return action switch
+            return Task.FromResult(action switch
             {
                 "view" => ViewSettings(),
                 "set_provider" => SetProvider(agentType, provider, model),
                 "set_kobold_type" => SetKoboldTypeProvider(agentType, provider, model),
                 _ => "Unknown action. Use 'view', 'set_provider', or 'set_kobold_type'."
-            };
+            });
         }
 
         private string ViewSettings()

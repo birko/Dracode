@@ -35,18 +35,18 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;
 
             if (string.IsNullOrEmpty(project))
             {
-                return "Error: 'project' parameter is required.";
+                return Task.FromResult("Error: 'project' parameter is required.");
             }
 
             if (_getVerificationReport == null)
             {
-                return "Error: Verification report service not available.";
+                return Task.FromResult("Error: Verification report service not available.");
             }
 
             try
@@ -55,23 +55,23 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 if (!success)
                 {
-                    return $"❌ Project '{project}' not found.";
+                    return Task.FromResult($"❌ Project '{project}' not found.");
                 }
 
                 if (string.IsNullOrEmpty(report))
                 {
-                    return $"⚠️ No verification report available for '{project}'.\n\n" +
+                    return Task.FromResult($"⚠️ No verification report available for '{project}'.\n\n" +
                            "This can happen if:\n" +
                            "- Verification has not been run yet\n" +
                            "- Verification is currently in progress\n\n" +
-                           "Use the 'retry_verification' tool with action='status' to check verification status.";
+                           "Use the 'retry_verification' tool with action='status' to check verification status.");
                 }
 
-                return report;
+                return Task.FromResult(report);
             }
             catch (Exception ex)
             {
-                return $"Error retrieving verification report: {ex.Message}";
+                return Task.FromResult($"Error retrieving verification report: {ex.Message}");
             }
         }
     }

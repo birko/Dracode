@@ -35,16 +35,16 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project_name" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_setExecutionState == null)
             {
-                return "Error: Execution state control is not configured.";
+                return Task.FromResult("Error: Execution state control is not configured.");
             }
 
             if (!input.TryGetValue("project_name", out var nameObj))
             {
-                return "Error: project_name is required";
+                return Task.FromResult("Error: project_name is required");
             }
 
             var projectName = nameObj.ToString() ?? "";
@@ -54,19 +54,19 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var success = _setExecutionState(projectName, ProjectExecutionState.Running);
                 if (success)
                 {
-                    return $"▶️ Project '{projectName}' has been resumed.\n\n" +
-                           "Drake will continue processing tasks in the next execution cycle (within 30 seconds).";
+                    return Task.FromResult($"▶️ Project '{projectName}' has been resumed.\n\n" +
+                           "Drake will continue processing tasks in the next execution cycle (within 30 seconds).");
                 }
                 else
                 {
-                    return $"Error: Could not resume project '{projectName}'. " +
+                    return Task.FromResult($"Error: Could not resume project '{projectName}'. " +
                            "Make sure the project exists and is not cancelled. " +
-                           "Cancelled projects cannot be resumed.";
+                           "Cancelled projects cannot be resumed.");
                 }
             }
             catch (Exception ex)
             {
-                return $"Error resuming project: {ex.Message}";
+                return Task.FromResult($"Error resuming project: {ex.Message}");
             }
         }
     }

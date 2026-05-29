@@ -42,21 +42,21 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project_name", "confirmation" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             if (_setExecutionState == null)
             {
-                return "Error: Execution state control is not configured.";
+                return Task.FromResult("Error: Execution state control is not configured.");
             }
 
             if (!input.TryGetValue("project_name", out var nameObj))
             {
-                return "Error: project_name is required";
+                return Task.FromResult("Error: project_name is required");
             }
 
             if (!input.TryGetValue("confirmation", out var confirmObj))
             {
-                return "Error: confirmation is required. Ask the user to confirm cancellation first.";
+                return Task.FromResult("Error: confirmation is required. Ask the user to confirm cancellation first.");
             }
 
             var projectName = nameObj.ToString() ?? "";
@@ -66,7 +66,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             var validConfirmations = new[] { "yes", "confirmed" };
             if (!validConfirmations.Contains(confirmation))
             {
-                return $"Error: Invalid confirmation '{confirmation}'. User must explicitly confirm cancellation.";
+                return Task.FromResult($"Error: Invalid confirmation '{confirmation}'. User must explicitly confirm cancellation.");
             }
 
             try
@@ -74,19 +74,19 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var success = _setExecutionState(projectName, ProjectExecutionState.Cancelled);
                 if (success)
                 {
-                    return $"❌ Project '{projectName}' has been cancelled.\n\n" +
+                    return Task.FromResult($"❌ Project '{projectName}' has been cancelled.\n\n" +
                            "This is a permanent action - the project will not be processed again. " +
-                           "The project files remain on disk but execution is permanently disabled.";
+                           "The project files remain on disk but execution is permanently disabled.");
                 }
                 else
                 {
-                    return $"Error: Could not cancel project '{projectName}'. " +
-                           "Make sure the project exists.";
+                    return Task.FromResult($"Error: Could not cancel project '{projectName}'. " +
+                           "Make sure the project exists.");
                 }
             }
             catch (Exception ex)
             {
-                return $"Error cancelling project: {ex.Message}";
+                return Task.FromResult($"Error cancelling project: {ex.Message}");
             }
         }
     }

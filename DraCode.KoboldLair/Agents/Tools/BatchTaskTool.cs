@@ -63,23 +63,23 @@ Examples:
             required = new[] { "action" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             try
             {
                 var action = input.TryGetValue("action", out var a) ? a?.ToString()?.ToLowerInvariant() : null;
 
-                return action switch
+                return Task.FromResult(action switch
                 {
                     "list_blocked" => ListBlocked(),
                     "reset_blocked" => ResetBlocked(input),
                     "reassign" => ReassignTask(input),
                     _ => $"Error: Unknown action '{action}'. Use: list_blocked, reset_blocked, reassign"
-                };
+                });
             }
             catch (Exception ex)
             {
-                return $"Error: {ex.Message}";
+                return Task.FromResult($"Error: {ex.Message}");
             }
         }
 

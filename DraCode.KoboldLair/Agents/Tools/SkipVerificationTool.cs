@@ -36,18 +36,18 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;
 
             if (string.IsNullOrEmpty(project))
             {
-                return "Error: 'project' parameter is required.";
+                return Task.FromResult("Error: 'project' parameter is required.");
             }
 
             if (_skipVerification == null)
             {
-                return "Error: Verification skip service not available.";
+                return Task.FromResult("Error: Verification skip service not available.");
             }
 
             try
@@ -56,22 +56,22 @@ namespace DraCode.KoboldLair.Agents.Tools
 
                 if (success)
                 {
-                    return $"✅ **Verification skipped for '{project}'**\n\n" +
+                    return Task.FromResult($"✅ **Verification skipped for '{project}'**\n\n" +
                            "The project has been marked as Verified without running checks.\n" +
-                           "Project status has been updated to 'Verified'.";
+                           "Project status has been updated to 'Verified'.");
                 }
                 else
                 {
-                    return $"❌ Could not skip verification for '{project}'.\n\n" +
+                    return Task.FromResult($"❌ Could not skip verification for '{project}'.\n\n" +
                            "This can happen if:\n" +
                            "- The project doesn't exist\n" +
                            "- The project is not in 'AwaitingVerification' status\n\n" +
-                           "Use the 'retry_verification' tool with action='list' to see projects eligible for verification skip.";
+                           "Use the 'retry_verification' tool with action='list' to see projects eligible for verification skip.");
                 }
             }
             catch (Exception ex)
             {
-                return $"Error skipping verification: {ex.Message}";
+                return Task.FromResult($"Error skipping verification: {ex.Message}");
             }
         }
     }

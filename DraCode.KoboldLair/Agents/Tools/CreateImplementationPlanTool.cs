@@ -79,19 +79,19 @@ Returns: Confirmation of the created plan with summary.";
             required = new[] { "steps" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> arguments)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
         {
             try
             {
                 if (!arguments.TryGetValue("steps", out var stepsObj) || stepsObj == null)
                 {
-                    return "Error: 'steps' parameter is required";
+                    return Task.FromResult("Error: 'steps' parameter is required");
                 }
 
                 var steps = ParseSteps(stepsObj);
                 if (steps.Count == 0)
                 {
-                    return "Error: At least one step is required in the implementation plan";
+                    return Task.FromResult("Error: At least one step is required in the implementation plan");
                 }
 
                 // Create the plan
@@ -112,7 +112,7 @@ Returns: Confirmation of the created plan with summary.";
                 var filesToCreate = steps.Sum(s => s.FilesToCreate.Count);
                 var filesToModify = steps.Sum(s => s.FilesToModify.Count);
 
-                return $@"Implementation Plan Created
+                return Task.FromResult($@"Implementation Plan Created
 
 Steps: {steps.Count}
 Files to create: {filesToCreate}
@@ -121,11 +121,11 @@ Files to modify: {filesToModify}
 Step Summary:
 {string.Join("\n", steps.Select(s => $"  {s.Index}. {s.Title}"))}
 
-The plan is ready for execution. Each step will be processed in order.";
+The plan is ready for execution. Each step will be processed in order.");
             }
             catch (Exception ex)
             {
-                return $"Error creating implementation plan: {ex.Message}";
+                return Task.FromResult($"Error creating implementation plan: {ex.Message}");
             }
         }
 

@@ -63,28 +63,28 @@ Examples:
             required = new[] { "action" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> arguments)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
         {
             try
             {
                 if (!arguments.TryGetValue("action", out var actionObj))
                 {
-                    return "Error: Missing required 'action' parameter";
+                    return Task.FromResult("Error: Missing required 'action' parameter");
                 }
 
                 var action = actionObj.ToString()?.ToLowerInvariant();
 
-                return action switch
+                return Task.FromResult(action switch
                 {
                     "list" => ListFailedTasks(),
                     "retry" => RetryTask(arguments),
                     "retry_all" => RetryAllProjectTasks(arguments),
                     _ => $"Error: Unknown action '{action}'. Use 'list', 'retry', or 'retry_all'"
-                };
+                });
             }
             catch (Exception ex)
             {
-                return $"Error: {ex.Message}";
+                return Task.FromResult($"Error: {ex.Message}");
             }
         }
 

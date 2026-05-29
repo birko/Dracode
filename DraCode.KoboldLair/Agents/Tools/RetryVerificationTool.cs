@@ -49,18 +49,18 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;
 
-            return action switch
+            return Task.FromResult(action switch
             {
                 "list" => ListProjectsNeedingVerification(),
                 "run" => TriggerVerification(project),
                 "status" => GetVerificationStatus(project),
                 _ => "Unknown action. Use 'list', 'run', or 'status'."
-            };
+            });
         }
 
         private string ListProjectsNeedingVerification()

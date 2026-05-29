@@ -696,7 +696,7 @@ curl http://localhost:5000/  # Health check
 28 execution pipeline gaps were fixed in commit `402dbc1`. 12 remaining items — all **resolved as of 2026-03-16** (see `git log` of the former `TODO.md`). Verified against current code 2026-05-28. The descriptions below capture the *original* issue shape; each line ends with how it was resolved.
 
 ### Concurrency Issues — resolved
-- **Blocking sync-over-async** → Tool base class added `virtual Task<string> ExecuteAsync(...)`; DragonService callbacks converted to `Func<..., Task>`; zero `.GetAwaiter().GetResult()` calls remain in DragonService.
+- **Blocking sync-over-async** → Fully resolved as of TASK-018 (2026-05-29): `Tool` base class is `ExecuteAsync`-only (sync `Execute` removed; `ExecuteAsync` promoted to `abstract` in `Birko.AI.Contracts\Tools\Tool.cs`); all 23 DraCode tools + 9 Birko.AI tools migrated to async-only; `Kobold.cs:1344` second caller migrated to `await tool.ExecuteAsync(...)`; `AskUserTool`'s internal `Task.WhenAny+GetAwaiter().GetResult()` rewritten as proper `await`; DragonService callbacks remain `Func<..., Task>`. Zero `.GetAwaiter().GetResult()` in either DragonService or `Agents/Tools/` (DraCode or Birko.AI).
 - **Git lock contention** → `static ConcurrentDictionary<string, SemaphoreSlim> _repoLocks` in `GitService.cs` — all git ops serialized per working directory.
 
 ### Data Persistence Issues — resolved by Birko.Data.SQL migration

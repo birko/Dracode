@@ -46,21 +46,6 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
-        {
-            var action = input.TryGetValue("action", out var a) ? a?.ToString() ?? "summary" : "summary";
-
-            return action.ToLowerInvariant() switch
-            {
-                "summary" => ExecuteSummaryAsync().GetAwaiter().GetResult(),
-                "daily" => ExecuteDailyAsync().GetAwaiter().GetResult(),
-                "project" => ExecuteProjectAsync(input).GetAwaiter().GetResult(),
-                "budget" => ExecuteBudgetAsync().GetAwaiter().GetResult(),
-                "rate_limits" => ExecuteRateLimits(),
-                _ => $"Unknown action: {action}. Use: summary, daily, project, budget, rate_limits"
-            };
-        }
-
         public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var a) ? a?.ToString() ?? "summary" : "summary";

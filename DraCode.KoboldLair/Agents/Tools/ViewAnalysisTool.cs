@@ -56,25 +56,25 @@ namespace DraCode.KoboldLair.Agents.Tools
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
         {
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;
 
             if (string.IsNullOrEmpty(project))
-                return "Error: 'project' parameter is required.";
+                return Task.FromResult("Error: 'project' parameter is required.");
 
             var folder = ResolveProjectFolder(project);
             if (folder == null)
-                return $"Error: Project '{project}' not found.";
+                return Task.FromResult($"Error: Project '{project}' not found.");
 
-            return action switch
+            return Task.FromResult(action switch
             {
                 "wyrm" => ViewWyrmAnalysis(folder, project),
                 "wyvern" => ViewWyvernAnalysis(folder, project),
                 "summary" => ViewSummary(folder, project),
                 _ => "Unknown action. Use 'wyrm', 'wyvern', or 'summary'."
-            };
+            });
         }
 
         private string? ResolveProjectFolder(string projectNameOrId)

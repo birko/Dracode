@@ -1341,7 +1341,7 @@ If step is complete, call `update_plan_step` with status 'completed' instead.
 
                             var tool = Agent.Tools.FirstOrDefault(t => t.Name == block.Name);
                             var result = tool != null
-                                ? tool.Execute(Agent.Options.WorkingDirectory, block.Input ?? new Dictionary<string, object>())
+                                ? await tool.ExecuteAsync(Agent.Options.WorkingDirectory, block.Input ?? new Dictionary<string, object>())
                                 : $"Error: Unknown tool '{block.Name}'";
 
                             var preview = result.Length > 500 ? string.Concat(result.AsSpan(0, 500), "...") : result;

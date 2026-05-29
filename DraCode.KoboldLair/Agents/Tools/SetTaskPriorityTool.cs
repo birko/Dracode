@@ -59,18 +59,18 @@ complete, regardless of priority.";
             required = new[] { "task_id", "priority" }
         };
 
-        public override string Execute(string workingDirectory, Dictionary<string, object> arguments)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
         {
             try
             {
                 if (!arguments.TryGetValue("task_id", out var taskIdObj))
                 {
-                    return "Error: Missing required 'task_id' parameter";
+                    return Task.FromResult("Error: Missing required 'task_id' parameter");
                 }
 
                 if (!arguments.TryGetValue("priority", out var priorityObj))
                 {
-                    return "Error: Missing required 'priority' parameter";
+                    return Task.FromResult("Error: Missing required 'priority' parameter");
                 }
 
                 var taskId = taskIdObj.ToString();
@@ -78,12 +78,12 @@ complete, regardless of priority.";
 
                 if (string.IsNullOrEmpty(taskId))
                 {
-                    return "Error: Invalid task_id";
+                    return Task.FromResult("Error: Invalid task_id");
                 }
 
                 if (string.IsNullOrEmpty(priorityStr))
                 {
-                    return "Error: Invalid priority";
+                    return Task.FromResult("Error: Invalid priority");
                 }
 
                 // Parse priority
@@ -98,7 +98,7 @@ complete, regardless of priority.";
 
                 if (priority == null)
                 {
-                    return $"Error: Invalid priority '{priorityStr}'. Must be one of: critical, high, normal, low";
+                    return Task.FromResult($"Error: Invalid priority '{priorityStr}'. Must be one of: critical, high, normal, low");
                 }
 
                 // Find the task across all projects
@@ -117,7 +117,7 @@ complete, regardless of priority.";
                         {
                             if (task.Status == TaskStatus.Done)
                             {
-                                return $"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is already completed. Cannot change priority.";
+                                return Task.FromResult($"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is already completed. Cannot change priority.");
                             }
 
                             var oldPriority = task.Priority;
@@ -125,7 +125,7 @@ complete, regardless of priority.";
 
                             drake.UpdateTasksFile();
 
-                            return FormatSuccess(project.Name, taskId, task.Task, oldPriority, priority.Value, task.Status);
+                            return Task.FromResult(FormatSuccess(project.Name, taskId, task.Task, oldPriority, priority.Value, task.Status));
                         }
                     }
 
@@ -135,16 +135,16 @@ complete, regardless of priority.";
                         var result = SetPriorityFromFile(project, taskId, priority.Value);
                         if (result != null)
                         {
-                            return result;
+                            return Task.FromResult(result);
                         }
                     }
                 }
 
-                return $"❌ Task {taskId[..Math.Min(8, taskId.Length)]} not found in any project";
+                return Task.FromResult($"❌ Task {taskId[..Math.Min(8, taskId.Length)]} not found in any project");
             }
             catch (Exception ex)
             {
-                return $"Error: {ex.Message}";
+                return Task.FromResult($"Error: {ex.Message}");
             }
         }
 
