@@ -134,6 +134,14 @@ $RECYCLE.BIN/
 .env.local
 .env.*.local
 
+# TypeScript/Node.js build artifacts
+node_modules/
+**/wwwroot/dist/
+**/wwwroot/src/
+**/wwwroot/DraCode/
+
+# Keep package.json and build.js - they're source files
+
 # IDE
 *.swp
 *.swo

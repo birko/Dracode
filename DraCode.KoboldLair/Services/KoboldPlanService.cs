@@ -1,10 +1,11 @@
 using System.Security.Cryptography;
+using Birko.AI.Models;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
-using DraCode.Agent;
+using Birko.AI;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Data.Repositories.Sql;

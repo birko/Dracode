@@ -18,9 +18,14 @@
     <Project Path="../Birko.Data.SQL.ViewModel/Birko.Data.SQL.ViewModel.shproj" Id="a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d" />
     <Project Path="../Birko.Data.SQL.SqLite/Birko.Data.SQL.SqLite.shproj" Id="a00e9b88-4e24-40e4-aee1-f3833453aaa5" />
   </Folder>
-  <Project Path="DraCode.Agent.Tests/DraCode.Agent.Tests.csproj" />
+  <Folder Name="/Birko.Web/">
+    <!-- Birko.Web Framework - TypeScript packages (referenced via path aliases, not .csproj) -->
+    <Folder Name=".core" Description="Birko.Web.Core - Base web component framework" />
+    <Folder Name=".components" Description="Birko.Web.Components - 31 Shadow DOM components" />
+    <Folder Name=".shell" Description="Birko.Web.Shell - Application shell framework" />
+  </Folder>
+  <Project Path="DraCode.Birko/DraCode.Birko.csproj" />
   <Project Path="DraCode.KoboldLair.Tests/DraCode.KoboldLair.Tests.csproj" />
-  <Project Path="DraCode.Agent/DraCode.Agent.csproj" />
   <Project Path="DraCode.AppHost/DraCode.AppHost.csproj" />
   <Project Path="DraCode.KoboldLair.Client/DraCode.KoboldLair.Client.csproj" />
   <Project Path="DraCode.KoboldLair.Server/DraCode.KoboldLair.Server.csproj" />

@@ -1,4 +1,5 @@
-using DraCode.Agent;
+using Birko.AI;
+using Birko.AI.Agents;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
@@ -101,7 +102,7 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="project">Project to analyze</param>
         /// <param name="options">Optional agent options override</param>
         /// <returns>Configured Wyrm agent</returns>
-        public DraCode.Agent.Agents.Agent CreateWyrm(Project project, AgentOptions? options = null)
+        public Agent CreateWyrm(Project project, AgentOptions? options = null)
         {
             var (providerType, config, agentOptions) = GetProviderSettings(project, options);
             var koboldLairConfig = BuildKoboldLairConfig(providerType);

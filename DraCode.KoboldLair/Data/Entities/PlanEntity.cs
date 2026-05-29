@@ -1,6 +1,5 @@
 using Birko.Data.Models;
 using Birko.Data.SQL.Attributes;
-using Birko.Data.ViewModels;
 
 namespace DraCode.KoboldLair.Data.Entities
 {
@@ -77,63 +76,6 @@ namespace DraCode.KoboldLair.Data.Entities
         public override void LoadFrom(IGuidEntity data)
         {
             base.LoadFrom(data);
-            if (data is PlanViewModel vm)
-            {
-                TaskId = vm.TaskId;
-                ProjectId = vm.ProjectId;
-                PlanFilename = vm.PlanFilename;
-                TaskDescription = vm.TaskDescription;
-                Status = vm.Status;
-                CurrentStepIndex = vm.CurrentStepIndex;
-                ErrorMessage = vm.ErrorMessage;
-                SpecificationVersion = vm.SpecificationVersion;
-                SpecificationContentHash = vm.SpecificationContentHash;
-                FeatureId = vm.FeatureId;
-                FeatureName = vm.FeatureName;
-                PlanCreatedAt = vm.PlanCreatedAt;
-                PlanUpdatedAt = vm.PlanUpdatedAt;
-                PlanDataJson = vm.PlanDataJson;
-            }
-        }
-    }
-
-    public class PlanViewModel : LogViewModel
-    {
-        public string TaskId { get; set; } = "";
-        public string ProjectId { get; set; } = "";
-        public string? PlanFilename { get; set; }
-        public string TaskDescription { get; set; } = "";
-        public int Status { get; set; } = 0;
-        public int CurrentStepIndex { get; set; } = 0;
-        public string? ErrorMessage { get; set; }
-        public int SpecificationVersion { get; set; } = 1;
-        public string? SpecificationContentHash { get; set; }
-        public string? FeatureId { get; set; }
-        public string? FeatureName { get; set; }
-        public DateTime PlanCreatedAt { get; set; }
-        public DateTime PlanUpdatedAt { get; set; }
-        public string PlanDataJson { get; set; } = "{}";
-
-        public void LoadFrom(PlanEntity data)
-        {
-            base.LoadFrom((AbstractModel)data);
-            if (data != null)
-            {
-                TaskId = data.TaskId;
-                ProjectId = data.ProjectId;
-                PlanFilename = data.PlanFilename;
-                TaskDescription = data.TaskDescription;
-                Status = data.Status;
-                CurrentStepIndex = data.CurrentStepIndex;
-                ErrorMessage = data.ErrorMessage;
-                SpecificationVersion = data.SpecificationVersion;
-                SpecificationContentHash = data.SpecificationContentHash;
-                FeatureId = data.FeatureId;
-                FeatureName = data.FeatureName;
-                PlanCreatedAt = data.PlanCreatedAt;
-                PlanUpdatedAt = data.PlanUpdatedAt;
-                PlanDataJson = data.PlanDataJson;
-            }
         }
     }
 }

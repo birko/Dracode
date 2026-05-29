@@ -3,17 +3,25 @@
     "target": "ES2020",
     "module": "ES2020",
     "lib": ["ES2020", "DOM"],
-    "outDir": "./wwwroot",
-    "rootDir": "./wwwroot",
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "birko-web-core": ["../../Birko.Web.Core/src/index.ts"],
+      "birko-web-core/*": ["../../Birko.Web.Core/src/*/index.ts"],
+      "birko-web-components": ["../../Birko.Web.Components/src/index.ts"],
+      "birko-web-components/*": ["../../Birko.Web.Components/src/*/index.ts"],
+      "birko-web-shell": ["../../Birko.Web.Shell/src/index.ts"],
+      "birko-web-shell/*": ["../../Birko.Web.Shell/src/*/index.ts"]
+    },
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "noEmit": false
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
-  "include": ["wwwroot/**/*.ts"],
+  "include": ["src/**/*.ts", "wwwroot/**/*.ts"],
   "exclude": ["node_modules"]
 }

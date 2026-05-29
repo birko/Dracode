@@ -1,4 +1,7 @@
-using DraCode.Agent.Agents;
+using Birko.AI;
+using Birko.AI.Agents;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
 using Spectre.Console;
 using System.Text.Json;
 
@@ -482,7 +485,7 @@ if (resolvedTasks.Count > 0)
         AnsiConsole.WriteLine();
         
         // Create agent options
-        var agentOptions = new DraCode.Agent.AgentOptions
+        var agentOptions = new AgentOptions
         {
             WorkingDirectory = workingDirectory,
             Interactive = interactive,
@@ -494,7 +497,7 @@ if (resolvedTasks.Count > 0)
         };
         
         // Create new agent instance for this task
-        var agent = AgentFactory.Create(type, agentOptions, providerConfig);
+        var agent = AgentRegistration.Create(type, agentOptions, providerConfig);
         
         // Set up message callback to render with AnsiConsole
         agent.SetMessageCallback((messageType, content) =>
@@ -505,7 +508,7 @@ if (resolvedTasks.Count > 0)
         // Set up AskUser prompt handler for console mode (only in interactive mode)
         if (interactive)
         {
-            var askUserTool = agent.Tools.OfType<DraCode.Agent.Tools.AskUser>().FirstOrDefault();
+            var askUserTool = agent.Tools.OfType<AskUserTool>().FirstOrDefault();
             if (askUserTool != null)
             {
                 askUserTool.PromptCallback = async (question, context) =>

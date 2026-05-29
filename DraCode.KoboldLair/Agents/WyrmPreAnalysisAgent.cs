@@ -1,7 +1,7 @@
-using DraCode.Agent;
-using DraCode.Agent.Agents;
-using DraCode.Agent.LLMs.Providers;
-using DraCode.Agent.Tools;
+using Birko.AI;
+using Birko.AI.Agents;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
 
 namespace DraCode.KoboldLair.Agents
 {

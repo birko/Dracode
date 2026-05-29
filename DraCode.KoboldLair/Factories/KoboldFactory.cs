@@ -1,9 +1,10 @@
-using DraCode.Agent;
+using Birko.AI;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Services;
 using Microsoft.Extensions.Logging;
+using Birko.AI.Resilience.Services;
 using System.Collections.Concurrent;
 using KoboldModel = DraCode.KoboldLair.Models.Agents.Kobold;
 

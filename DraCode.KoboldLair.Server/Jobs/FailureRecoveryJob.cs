@@ -1,4 +1,5 @@
 using Birko.BackgroundJobs;
+using Birko.AI.Resilience.Services;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Projects;

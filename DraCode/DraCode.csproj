@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DraCode.Agent\DraCode.Agent.csproj" />
+    <ProjectReference Include="..\DraCode.Birko\DraCode.Birko.csproj" />
   </ItemGroup>
 
   <ItemGroup>

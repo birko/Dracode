@@ -1,3 +1,5 @@
+using Birko.AI.Resilience.Services;
+using Birko.AI.Resilience.Stores;
 using DraCode.KoboldLair.Data.Repositories.Sql;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Tasks;
@@ -49,7 +51,7 @@ namespace DraCode.KoboldLair.Server.Services.CommandHandlers
                 ? await _costTracker.GetUsageSummaryAsync(from, to)
                 : new List<ProviderUsageSummary>();
 
-            var totalRequests = providerSummary.Sum(s => s.RequestCount);
+            var totalRequests = providerSummary.Sum(s => s.TotalRequests);
             var totalTokens = providerSummary.Sum(s => s.TotalTokens);
             var totalCost = providerSummary.Sum(s => s.TotalCostUsd);
 
@@ -62,16 +64,14 @@ namespace DraCode.KoboldLair.Server.Services.CommandHandlers
                 foreach (var project in projects.Take(20)) // Limit to avoid heavy queries
                 {
                     var usage = await _costTracker.GetProjectUsageAsync(project.Id, from, to);
-                    if (usage != null && usage.RequestCount > 0)
+                    if (usage != null && usage.TotalRequests > 0)
                     {
                         projectMetrics.Add(new
                         {
                             projectId = project.Id,
                             projectName = project.Name,
-                            requests = usage.RequestCount,
+                            requests = usage.TotalRequests,
                             totalTokens = usage.TotalTokens,
-                            promptTokens = usage.TotalPromptTokens,
-                            completionTokens = usage.TotalCompletionTokens,
                             costUsd = usage.TotalCostUsd
                         });
                     }
@@ -120,7 +120,7 @@ namespace DraCode.KoboldLair.Server.Services.CommandHandlers
                     dailyBreakdown.Add(new
                     {
                         date = dayStart.ToString("yyyy-MM-dd"),
-                        requests = daySummary.Sum(s => s.RequestCount),
+                        requests = daySummary.Sum(s => s.TotalRequests),
                         tokens = daySummary.Sum(s => s.TotalTokens),
                         costUsd = daySummary.Sum(s => s.TotalCostUsd)
                     });
@@ -140,9 +140,7 @@ namespace DraCode.KoboldLair.Server.Services.CommandHandlers
                 byProvider = providerSummary.Select(s => new
                 {
                     provider = s.Provider,
-                    requests = s.RequestCount,
-                    promptTokens = s.TotalPromptTokens,
-                    completionTokens = s.TotalCompletionTokens,
+                    requests = s.TotalRequests,
                     totalTokens = s.TotalTokens,
                     costUsd = s.TotalCostUsd
                 }),

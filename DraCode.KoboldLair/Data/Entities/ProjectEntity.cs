@@ -88,32 +88,6 @@ namespace DraCode.KoboldLair.Data.Entities
         public override void LoadFrom(IGuidEntity data)
         {
             base.LoadFrom(data);
-            if (data is ProjectViewModel vm)
-            {
-                ProjectId = vm.ProjectId;
-                Name = vm.Name;
-                Status = vm.Status;
-                ExecutionState = vm.ExecutionState;
-                VerificationStatus = vm.VerificationStatus;
-                ProjectCreatedAt = vm.ProjectCreatedAt;
-                ProjectUpdatedAt = vm.ProjectUpdatedAt;
-                AnalyzedAt = vm.AnalyzedAt;
-                LastProcessedAt = vm.LastProcessedAt;
-                VerificationStartedAt = vm.VerificationStartedAt;
-                VerificationCompletedAt = vm.VerificationCompletedAt;
-                LastProcessedContentHash = vm.LastProcessedContentHash;
-                SpecificationId = vm.SpecificationId;
-                WyvernId = vm.WyvernId;
-                ErrorMessage = vm.ErrorMessage;
-                PathsJson = vm.PathsJson;
-                PendingAreasJson = vm.PendingAreasJson;
-                AgentsJson = vm.AgentsJson;
-                SecurityJson = vm.SecurityJson;
-                VerificationReport = vm.VerificationReport;
-                VerificationChecksJson = vm.VerificationChecksJson;
-                ExternalReferencesJson = vm.ExternalReferencesJson;
-                MetadataJson = vm.MetadataJson;
-            }
         }
     }
 }

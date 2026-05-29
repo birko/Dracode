@@ -1,6 +1,5 @@
 using Birko.Data.Models;
 using Birko.Data.SQL.Attributes;
-using Birko.Data.ViewModels;
 
 namespace DraCode.KoboldLair.Data.Entities
 {
@@ -62,54 +61,6 @@ namespace DraCode.KoboldLair.Data.Entities
         public override void LoadFrom(IGuidEntity data)
         {
             base.LoadFrom(data);
-            if (data is UsageRecordViewModel vm)
-            {
-                Provider = vm.Provider;
-                Model = vm.Model;
-                PromptTokens = vm.PromptTokens;
-                CompletionTokens = vm.CompletionTokens;
-                TotalTokens = vm.TotalTokens;
-                EstimatedCostUsd = vm.EstimatedCostUsd;
-                ProjectId = vm.ProjectId;
-                TaskId = vm.TaskId;
-                AgentType = vm.AgentType;
-                CallerContext = vm.CallerContext;
-                RecordedAt = vm.RecordedAt;
-            }
-        }
-    }
-
-    public class UsageRecordViewModel : LogViewModel
-    {
-        public string Provider { get; set; } = "";
-        public string Model { get; set; } = "";
-        public int PromptTokens { get; set; }
-        public int CompletionTokens { get; set; }
-        public int TotalTokens { get; set; }
-        public double EstimatedCostUsd { get; set; }
-        public string? ProjectId { get; set; }
-        public string? TaskId { get; set; }
-        public string? AgentType { get; set; }
-        public string? CallerContext { get; set; }
-        public DateTime RecordedAt { get; set; }
-
-        public void LoadFrom(UsageRecordEntity data)
-        {
-            base.LoadFrom((AbstractModel)data);
-            if (data != null)
-            {
-                Provider = data.Provider;
-                Model = data.Model;
-                PromptTokens = data.PromptTokens;
-                CompletionTokens = data.CompletionTokens;
-                TotalTokens = data.TotalTokens;
-                EstimatedCostUsd = data.EstimatedCostUsd;
-                ProjectId = data.ProjectId;
-                TaskId = data.TaskId;
-                AgentType = data.AgentType;
-                CallerContext = data.CallerContext;
-                RecordedAt = data.RecordedAt;
-            }
         }
     }
 }

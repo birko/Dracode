@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
+  </ItemGroup>
+
+  <!-- Import Birko shared projects -->
+  <Import Project="..\..\Birko.Contracts\Birko.Contracts.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Configuration\Birko.Configuration.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Helpers\Birko.Helpers.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.AI.Contracts\Birko.AI.Contracts.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.AI\Birko.AI.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.AI.Providers\Birko.AI.Providers.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.AI.Agents\Birko.AI.Agents.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.AI.Resilience\Birko.AI.Resilience.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.AI.Orchestration\Birko.AI.Orchestration.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Communication.OAuth\Birko.Communication.OAuth.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Communication.OAuth.Providers\Birko.Communication.OAuth.Providers.projitems" Label="Shared" />
+
+</Project>

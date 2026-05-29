@@ -1,4 +1,6 @@
-using DraCode.Agent.Agents;
+using Birko.AI.Agents;
+using Birko.AI.Factories;
+using Birko.AI.Providers;
 
 namespace DraCode.KoboldLair.Services
 {
@@ -36,13 +38,17 @@ namespace DraCode.KoboldLair.Services
 
         static AgentTypeValidator()
         {
+            // Ensure registrations are loaded
+            ProviderRegistration.RegisterAll();
+            AgentRegistration.RegisterAll();
+
             // Load valid agent types from AgentFactory (includes primary types)
             ValidAgentTypes = new HashSet<string>(
-                AgentFactory.SupportedAgentTypes,
+                AgentFactory.GetRegisteredAgentTypes(),
                 StringComparer.OrdinalIgnoreCase);
 
             // Also include aliases as valid inputs (they'll be normalized to primary types)
-            foreach (var alias in AgentFactory.AgentTypeAliases.Keys)
+            foreach (var alias in AgentFactory.GetRegisteredAliases().Keys)
             {
                 ValidAgentTypes.Add(alias);
             }
@@ -61,13 +67,9 @@ namespace DraCode.KoboldLair.Services
 
             var lowerType = agentType.ToLowerInvariant();
 
-            // Check if it's a valid primary agent type
-            if (AgentFactory.SupportedAgentTypes.Contains(lowerType, StringComparer.OrdinalIgnoreCase))
-                return lowerType;
-
-            // Check if it's an alias and map to primary type
-            if (AgentFactory.AgentTypeAliases.TryGetValue(agentType, out var primaryType))
-                return primaryType;
+            // Check if it's a registered agent type
+            if (AgentFactory.IsRegistered(lowerType))
+                return AgentFactory.ResolveAgentType(lowerType);
 
             // Try to map area names to valid agent types
             if (AreaToAgentMapping.TryGetValue(agentType, out var mapped))
@@ -95,7 +97,7 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         public static string GetValidTypesString()
         {
-            return string.Join(", ", AgentFactory.SupportedAgentTypes.Order());
+            return string.Join(", ", AgentFactory.GetRegisteredAgentTypes().Order());
         }
     }
 }

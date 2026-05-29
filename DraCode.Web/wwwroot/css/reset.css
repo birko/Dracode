@@ -1,0 +1,8 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-family: var(--b-font); font-size: var(--b-text-base); line-height: var(--b-line-height); color: var(--b-text); background: var(--b-bg); -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; }
+a { color: var(--b-color-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img, svg { display: block; max-width: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+table { border-collapse: collapse; width: 100%; }

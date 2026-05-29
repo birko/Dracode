@@ -1,6 +1,5 @@
 using Birko.Data.Models;
 using Birko.Data.SQL.Attributes;
-using Birko.Data.ViewModels;
 
 namespace DraCode.KoboldLair.Data.Entities
 {
@@ -36,30 +35,6 @@ namespace DraCode.KoboldLair.Data.Entities
         public override void LoadFrom(IGuidEntity data)
         {
             base.LoadFrom(data);
-            if (data is DragonHistoryViewModel vm)
-            {
-                ProjectFolder = vm.ProjectFolder;
-                MessagesJson = vm.MessagesJson;
-                MessageCount = vm.MessageCount;
-            }
-        }
-    }
-
-    public class DragonHistoryViewModel : LogViewModel
-    {
-        public string ProjectFolder { get; set; } = "";
-        public string MessagesJson { get; set; } = "[]";
-        public int MessageCount { get; set; } = 0;
-
-        public void LoadFrom(DragonHistoryEntity data)
-        {
-            base.LoadFrom((AbstractModel)data);
-            if (data != null)
-            {
-                ProjectFolder = data.ProjectFolder;
-                MessagesJson = data.MessagesJson;
-                MessageCount = data.MessageCount;
-            }
         }
     }
 }

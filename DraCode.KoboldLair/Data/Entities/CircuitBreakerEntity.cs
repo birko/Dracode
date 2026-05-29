@@ -1,6 +1,5 @@
 using Birko.Data.Models;
 using Birko.Data.SQL.Attributes;
-using Birko.Data.ViewModels;
 
 namespace DraCode.KoboldLair.Data.Entities
 {
@@ -40,36 +39,6 @@ namespace DraCode.KoboldLair.Data.Entities
         public override void LoadFrom(IGuidEntity data)
         {
             base.LoadFrom(data);
-            if (data is CircuitBreakerViewModel vm)
-            {
-                Provider = vm.Provider;
-                State = vm.State;
-                ConsecutiveFailures = vm.ConsecutiveFailures;
-                OpenedAt = vm.OpenedAt;
-                LastFailureAt = vm.LastFailureAt;
-            }
-        }
-    }
-
-    public class CircuitBreakerViewModel : LogViewModel
-    {
-        public string Provider { get; set; } = "";
-        public int State { get; set; } = 0;
-        public int ConsecutiveFailures { get; set; } = 0;
-        public DateTime? OpenedAt { get; set; }
-        public DateTime? LastFailureAt { get; set; }
-
-        public void LoadFrom(CircuitBreakerEntity data)
-        {
-            base.LoadFrom((AbstractModel)data);
-            if (data != null)
-            {
-                Provider = data.Provider;
-                State = data.State;
-                ConsecutiveFailures = data.ConsecutiveFailures;
-                OpenedAt = data.OpenedAt;
-                LastFailureAt = data.LastFailureAt;
-            }
         }
     }
 }

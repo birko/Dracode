@@ -1,15 +1,16 @@
-using DraCode.Agent;
-using DraCode.Agent.Agents;
-using DraCode.Agent.LLMs.Providers;
+using Birko.AI;
+using Birko.AI.Agents;
+using Birko.AI.Factories;
+using Birko.AI.Providers;
+using Birko.AI.Resilience.Services;
 using DraCode.KoboldLair.Models.Configuration;
-using DraCode.KoboldLair.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Agents
 {
     /// <summary>
     /// Factory for creating agents in KoboldLair context.
-    /// Handles orchestrator agents locally and delegates to DraCode.Agent.AgentFactory for specialized agents.
+    /// Handles orchestrator agents locally and delegates to AgentFactory/AgentRegistration for specialized agents.
     /// </summary>
     public static class KoboldLairAgentFactory
     {
@@ -17,7 +18,7 @@ namespace DraCode.KoboldLair.Agents
         /// Create an Agent with a specific provider name and configuration using AgentOptions.
         /// Optionally wraps the LLM provider with rate limiting and cost tracking.
         /// </summary>
-        public static Agent.Agents.Agent Create(
+        public static Agent Create(
             string provider,
             KoboldLairConfiguration koboldLairConfig,
             AgentOptions? options = null,
@@ -30,7 +31,7 @@ namespace DraCode.KoboldLair.Agents
             options ??= new AgentOptions();
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var providers = koboldLairConfig.Providers?.ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, ProviderConfig>(StringComparer.OrdinalIgnoreCase);
-            var providerType = providers.ContainsKey(provider) ? providers[provider].Type : koboldLairConfig.DefaultProvider; // Use provided name if not found in config
+            var providerType = providers.ContainsKey(provider) ? providers[provider].Type : koboldLairConfig.DefaultProvider;
 
             // Handle KoboldLair-specific agents locally
             if (agentType.Equals("wyrm", StringComparison.OrdinalIgnoreCase))
@@ -59,11 +60,10 @@ namespace DraCode.KoboldLair.Agents
                 return new WyrmPreAnalysisAgent(llmProvider, options);
             }
 
-            // Delegate all other agent types to DraCode.Agent.AgentFactory
-            // Wrap with tracking if services are provided
+            // Delegate all other agent types to Birko.AI factories
             if (rateLimiter != null || costTracker != null)
             {
-                var baseProvider = AgentFactory.CreateLlmProvider(providerType, config, agentType);
+                var baseProvider = CreateBaseProvider(providerType, config, agentType);
                 var trackedProvider = new TrackedLlmProvider(baseProvider, rateLimiter, costTracker, logger)
                 {
                     AgentType = agentType
@@ -71,7 +71,7 @@ namespace DraCode.KoboldLair.Agents
                 return AgentFactory.Create(trackedProvider, options, agentType);
             }
 
-            return AgentFactory.Create(providerType, options, config, agentType);
+            return AgentRegistration.Create(providerType, options, config, agentType);
         }
 
         /// <summary>
@@ -85,7 +85,7 @@ namespace DraCode.KoboldLair.Agents
             CostTrackingService? costTracker = null,
             ILogger? logger = null)
         {
-            var baseProvider = AgentFactory.CreateLlmProvider(provider, config, agentType);
+            var baseProvider = CreateBaseProvider(provider, config, agentType);
 
             if (rateLimiter != null || costTracker != null)
             {
@@ -96,6 +96,31 @@ namespace DraCode.KoboldLair.Agents
             }
 
             return baseProvider;
+        }
+
+        /// <summary>
+        /// Creates a base LLM provider using LlmProviderFactory.
+        /// Injects Z.AI coding endpoint hint based on agent type.
+        /// </summary>
+        private static ILlmProvider CreateBaseProvider(string provider, Dictionary<string, string> config, string? agentType)
+        {
+            ProviderRegistration.RegisterAll();
+
+            // Inject Z.AI coding endpoint hint if needed
+            if (!string.IsNullOrEmpty(agentType)
+                && (provider.Equals("zai", StringComparison.OrdinalIgnoreCase)
+                    || provider.Equals("zhipu", StringComparison.OrdinalIgnoreCase)
+                    || provider.Equals("zhipuai", StringComparison.OrdinalIgnoreCase))
+                && AgentRegistration.IsCodingAgent(agentType)
+                && !config.ContainsKey("useCodingEndpoint"))
+            {
+                config = new Dictionary<string, string>(config, StringComparer.OrdinalIgnoreCase)
+                {
+                    ["useCodingEndpoint"] = "true"
+                };
+            }
+
+            return LlmProviderFactory.Create(provider, config);
         }
     }
 }

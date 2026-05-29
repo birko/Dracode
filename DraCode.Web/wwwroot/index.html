@@ -3,166 +3,578 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="DraCode Multi-Provider WebSocket Client - Connect to multiple LLM providers simultaneously">
     <title>DraCode WebSocket Client</title>
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+
+        .app-header {
+            background: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .brand {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1d1d1f;
+        }
+
+        .connection-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-connected { background: #d4edda; color: #155724; }
+        .status-disconnected { background: #f8d7da; color: #721c24; }
+
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .section { display: none; }
+        .section.active { display: block; }
+
+        .nav {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .nav-item {
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: #ffffff;
+            color: #1d1d1f;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: #0071e3; color: white; }
+        .btn-primary:hover { background: #0077ed; }
+        .btn-secondary { background: #f5f5f7; color: #1d1d1f; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .providers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .provider-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .provider-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .provider-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .provider-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            background: #f5f5f7;
+        }
+
+        .agents-section {
+            margin-top: 32px;
+        }
+
+        .agent-log {
+            background: #f5f5f7;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .log-entry.info { background: #e3f2fd; }
+        .log-entry.success { background: #e8f5e9; }
+        .log-entry.error { background: #ffebee; }
+        .log-entry.warning { background: #fff3e0; }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6e6e73;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6e6e73;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0071e3;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <h1>🤖 DraCode Multi-Provider WebSocket Client</h1>
+    <header class="app-header">
+        <div class="brand">🤖 DraCode</div>
+        <div>
+            <span class="connection-status status-disconnected" id="connectionStatus">Disconnected</span>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="container">
+    <main class="main-content">
+        <!-- Navigation -->
+        <nav class="nav">
+            <div class="nav-item active" data-section="connection">Connection</div>
+            <div class="nav-item" data-section="providers">Providers</div>
+            <div class="nav-item" data-section="agents">Agents</div>
+        </nav>
+
         <!-- Connection Section -->
-        <section class="connection-section">
-            <div class="status disconnected" id="status">
-                ⚫ Status: Disconnected
-            </div>
-            
-            <h2 class="collapsible-header" onclick="toggleSection('serverConnection')">
-                <span class="collapse-icon" id="serverConnectionIcon"></span>
-                Server Connection
-            </h2>
-            <div id="serverConnection" class="collapsible-content">
-                <div class="flex gap-md" style="align-items: center; margin-bottom: var(--spacing-lg);">
-                    <input type="text" id="wsUrl" value="ws://localhost:5000/ws" placeholder="WebSocket URL" style="flex: 1;">
-                    <button id="connectBtn">Connect to Server</button>
-                    <button id="disconnectBtn" disabled>Disconnect</button>
-                    <button id="listBtn" disabled class="secondary">List Providers</button>
+        <section id="connection" class="section active">
+            <div class="card">
+                <h2>WebSocket Connection</h2>
+                <div class="input-group">
+                    <label>Server URL</label>
+                    <input type="text" id="wsUrl" value="ws://localhost:5000/ws" placeholder="ws://localhost:5000/ws">
                 </div>
-            </div>
-
-            <!-- Providers Section -->
-            <div id="providersSection">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
-                    <h2 class="collapsible-header" style="margin: 0; flex: 1;" onclick="toggleSection('providersContent')">
-                        <span class="collapse-icon" id="providersContentIcon"></span>
-                        Available Providers
-                    </h2>
-                    <div class="provider-filter">
-                        <label style="margin-right: var(--spacing-sm);">Show:</label>
-                        <label class="filter-option">
-                            <input type="radio" name="providerFilter" value="configured" id="filterConfigured" checked>
-                            <span>Configured</span>
-                        </label>
-                        <label class="filter-option">
-                            <input type="radio" name="providerFilter" value="all" id="filterAll">
-                            <span>All</span>
-                        </label>
-                        <label class="filter-option">
-                            <input type="radio" name="providerFilter" value="notConfigured" id="filterNotConfigured">
-                            <span>Not Configured</span>
-                        </label>
-                    </div>
-                </div>
-                <div id="providersContent" class="collapsible-content">
-                    <div id="providersGrid" class="providers-grid"></div>
-                    
-                    <div style="margin-top: var(--spacing-lg);">
-                        <button onclick="toggleManualConfig()" class="secondary">
-                            ➕ Add Manual Provider
-                        </button>
-                    </div>
-
-                    <!-- Manual Configuration Panel -->
-                    <div id="manualConfig" class="manual-config">
-                    <h2>Manual Provider Configuration</h2>
-                    <div class="form-group">
-                        <label for="manualProvider">Provider Type *</label>
-                        <select id="manualProvider">
-                            <option value="openai">OpenAI</option>
-                            <option value="claude">Anthropic Claude</option>
-                            <option value="gemini">Google Gemini</option>
-                            <option value="azureopenai">Azure OpenAI</option>
-                            <option value="ollama">Ollama (Local)</option>
-                            <option value="githubcopilot">GitHub Copilot</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="manualApiKey">API Key *</label>
-                        <input type="password" id="manualApiKey" placeholder="Your API key">
-                    </div>
-                    <div class="form-group">
-                        <label for="manualModel">Model (optional)</label>
-                        <input type="text" id="manualModel" placeholder="e.g., gpt-4o, claude-3-5-sonnet-latest">
-                    </div>
-                    <div class="form-group">
-                        <label for="manualWorkingDir">Working Directory (optional)</label>
-                        <input type="text" id="manualWorkingDir" placeholder="e.g., C:/workspace">
-                    </div>
-                    <div class="button-group">
-                        <button onclick="connectManualProvider()">Connect Manual Provider</button>
-                        <button onclick="toggleManualConfig()" class="secondary">Cancel</button>
-                    </div>
-                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary" id="connectBtn">🔌 Connect</button>
+                    <button class="btn btn-secondary" id="disconnectBtn" disabled>🔌 Disconnect</button>
                 </div>
             </div>
         </section>
 
-        <!-- Agent Tabs -->
-        <div id="agentTabs">
-            <div class="tabs" id="tabsContainer"></div>
-            <div id="tabContents"></div>
-        </div>
+        <!-- Providers Section -->
+        <section id="providers" class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2>Available Providers</h2>
+                <button class="btn btn-primary" id="listBtn" disabled>🔄 Refresh</button>
+            </div>
+            <div id="providersGrid" class="providers-grid">
+                <div class="empty-state">
+                    <p>Connect to server to view providers</p>
+                </div>
+            </div>
+        </section>
 
-        <!-- Empty State -->
-        <div id="emptyState" class="empty-state">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-            </svg>
-            <h3>No Active Agents</h3>
-            <p>Connect to the server and select a provider to get started</p>
-        </div>
+        <!-- Agents Section -->
+        <section id="agents" class="section">
+            <h2>Active Agents</h2>
+            <div id="agentsContainer">
+                <div class="empty-state">
+                    <p>No active agents. Connect a provider to create an agent.</p>
+                </div>
+            </div>
+        </section>
     </main>
 
-    <!-- Connection Configuration Modal -->
-    <div id="connectionModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>🔌 Configure Connection</h2>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="connectionTabName">Tab Name *</label>
-                    <input type="text" id="connectionTabName" placeholder="Enter a name for this connection">
-                </div>
-                <div class="form-group">
-                    <label for="connectionWorkingDir">Working Directory</label>
-                    <input type="text" id="connectionWorkingDir" placeholder="Leave empty for default">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="connectionModalCancel" class="secondary">Cancel</button>
-                <button id="connectionModalConnect">Connect</button>
-            </div>
-        </div>
-    </div>
+    <script>
+        // DraCode WebSocket Client
+        class DraCodeClient {
+            constructor() {
+                this.ws = null;
+                this.agents = new Map();
+                this.providers = [];
+                this.currentSection = 'connection';
+                this.init();
+            }
 
-    <!-- General Purpose Modal -->
-    <div id="generalModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="generalModalTitle">Dialog</h2>
-            </div>
-            <div class="modal-body">
-                <p id="generalModalMessage"></p>
-                <div id="generalModalInputContainer" class="form-group" style="display: none;">
-                    <label id="generalModalInputLabel">Input</label>
-                    <input type="text" id="generalModalInput" placeholder="">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="generalModalCancel" class="secondary" style="display: none;">Cancel</button>
-                <button id="generalModalConfirm">OK</button>
-            </div>
-        </div>
-    </div>
+            init() {
+                console.log('🤖 DraCode Client initializing...');
+                this.setupEventListeners();
+                this.setupNavigation();
+            }
 
-    <!-- TypeScript Module -->
-    <script type="module" src="js/main.js"></script>
+            setupNavigation() {
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const section = item.dataset.section;
+                        this.switchSection(section);
+                    });
+                });
+            }
+
+            switchSection(sectionId) {
+                // Hide all sections
+                document.querySelectorAll('.section').forEach(section => {
+                    section.classList.remove('active');
+                });
+
+                // Show selected section
+                const targetSection = document.getElementById(sectionId);
+                if (targetSection) {
+                    targetSection.classList.add('active');
+                }
+
+                // Update nav
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.toggle('active', item.dataset.section === sectionId);
+                });
+
+                this.currentSection = sectionId;
+            }
+
+            setupEventListeners() {
+                document.getElementById('connectBtn').addEventListener('click', () => this.connect());
+                document.getElementById('disconnectBtn').addEventListener('click', () => this.disconnect());
+                document.getElementById('listBtn').addEventListener('click', () => this.listProviders());
+            }
+
+            connect() {
+                const url = document.getElementById('wsUrl').value;
+                console.log('🔌 Connecting to:', url);
+
+                try {
+                    this.ws = new WebSocket(url);
+
+                    this.ws.onopen = () => {
+                        console.log('✅ Connected');
+                        this.updateConnectionStatus(true);
+                        document.getElementById('connectBtn').disabled = true;
+                        document.getElementById('disconnectBtn').disabled = false;
+                        document.getElementById('listBtn').disabled = false;
+
+                        // Auto-list providers
+                        setTimeout(() => this.listProviders(), 500);
+                    };
+
+                    this.ws.onmessage = (event) => this.handleMessage(event);
+
+                    this.ws.onerror = (error) => {
+                        console.error('❌ WebSocket error:', error);
+                    };
+
+                    this.ws.onclose = () => {
+                        console.log('❌ Disconnected');
+                        this.updateConnectionStatus(false);
+                        document.getElementById('connectBtn').disabled = false;
+                        document.getElementById('disconnectBtn').disabled = true;
+                        document.getElementById('listBtn').disabled = true;
+                    };
+                } catch (error) {
+                    console.error('❌ Connection failed:', error);
+                    this.showError('Failed to connect: ' + error.message);
+                }
+            }
+
+            disconnect() {
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+            }
+
+            listProviders() {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    console.warn('⚠️ WebSocket not connected');
+                    return;
+                }
+
+                const message = { command: 'list' };
+                this.ws.send(JSON.stringify(message));
+                console.log('📋 Requesting provider list...');
+            }
+
+            handleMessage(event) {
+                try {
+                    const response = JSON.parse(event.data);
+                    console.log('📨 Message received:', response);
+
+                    // Handle provider list
+                    if (response.Status === 'success' && response.Data) {
+                        let providers = typeof response.Data === 'string'
+                            ? JSON.parse(response.Data)
+                            : response.Data;
+
+                        if (Array.isArray(providers)) {
+                            this.providers = providers;
+                            this.displayProviders();
+                        }
+                    }
+
+                    // Handle agent creation
+                    if (response.AgentId) {
+                        this.handleAgentMessage(response);
+                    }
+
+                } catch (error) {
+                    console.error('❌ Failed to parse message:', error);
+                }
+            }
+
+            displayProviders() {
+                const grid = document.getElementById('providersGrid');
+
+                if (this.providers.length === 0) {
+                    grid.innerHTML = '<div class="empty-state"><p>No providers found</p></div>';
+                    return;
+                }
+
+                grid.innerHTML = this.providers.map(provider => `
+                    <div class="provider-card" data-provider="${provider.name}">
+                        <div class="provider-name">${this.escapeHtml(provider.name)}</div>
+                        <div>${this.escapeHtml(provider.model || 'Default model')}</div>
+                        <div class="provider-status">
+                            ${provider.configured ? '✅ Configured' : '❌ Not configured'}
+                        </div>
+                    </div>
+                `).join('');
+
+                // Add click handlers
+                grid.querySelectorAll('.provider-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const providerName = card.dataset.provider;
+                        this.connectProvider(providerName);
+                    });
+                });
+            }
+
+            connectProvider(providerName) {
+                const agentId = `agent-${providerName}-${Date.now()}`;
+                const message = {
+                    command: 'connect',
+                    AgentId: agentId,
+                    Data: null
+                };
+
+                this.ws.send(JSON.stringify(message));
+                console.log('🤖 Connecting to provider:', providerName);
+
+                this.createAgentUI(agentId, providerName);
+            }
+
+            createAgentUI(agentId, providerName) {
+                const container = document.getElementById('agentsContainer');
+
+                // Remove empty state if present
+                const emptyState = container.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+
+                const agentCard = document.createElement('div');
+                agentCard.className = 'card';
+                agentCard.id = `agent-${agentId}`;
+                agentCard.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3>🤖 ${this.escapeHtml(providerName)}</h3>
+                        <button class="btn btn-secondary btn-sm close-agent" data-agent-id="${agentId}">×</button>
+                    </div>
+                    <div class="agent-log" id="log-${agentId}">
+                        <div class="log-entry info">✅ Agent ready</div>
+                    </div>
+                    <div class="input-group">
+                        <textarea id="task-${agentId}" placeholder="Send a task to the agent..." rows="3"></textarea>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-primary send-task" data-agent-id="${agentId}">Send Task</button>
+                        <button class="btn btn-secondary reset-agent" data-agent-id="${agentId}">Reset</button>
+                    </div>
+                `;
+
+                container.appendChild(agentCard);
+
+                // Add event listeners
+                agentCard.querySelector('.close-agent').addEventListener('click', () => this.closeAgent(agentId));
+                agentCard.querySelector('.send-task').addEventListener('click', () => this.sendTask(agentId));
+                agentCard.querySelector('.reset-agent').addEventListener('click', () => this.resetAgent(agentId));
+
+                // Store agent
+                this.agents.set(agentId, { provider: providerName });
+
+                // Switch to agents section
+                this.switchSection('agents');
+            }
+
+            handleAgentMessage(response) {
+                const agentId = response.AgentId;
+                const logContainer = document.getElementById(`log-${agentId}`);
+
+                if (logContainer && response.Message) {
+                    const entry = document.createElement('div');
+                    entry.className = `log-entry ${response.Status === 'error' ? 'error' : 'info'}`;
+                    entry.textContent = `🤖 ${response.Message}`;
+                    logContainer.appendChild(entry);
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+            }
+
+            sendTask(agentId) {
+                const input = document.getElementById(`task-${agentId}`);
+                const task = input?.value;
+
+                if (!task || !this.ws) return;
+
+                const message = {
+                    command: 'task',
+                    AgentId: agentId,
+                    Data: task
+                };
+
+                this.ws.send(JSON.stringify(message));
+                console.log('📤 Sending task:', task);
+
+                // Add user message to log
+                const logContainer = document.getElementById(`log-${agentId}`);
+                if (logContainer) {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry info';
+                    entry.textContent = `📤 You: ${task}`;
+                    logContainer.appendChild(entry);
+                }
+
+                input.value = '';
+            }
+
+            resetAgent(agentId) {
+                if (!this.ws) return;
+
+                const message = {
+                    command: 'reset',
+                    AgentId: agentId,
+                    Data: null
+                };
+
+                this.ws.send(JSON.stringify(message));
+                console.log('🔄 Resetting agent:', agentId);
+
+                // Clear log
+                const logContainer = document.getElementById(`log-${agentId}`);
+                if (logContainer) {
+                    logContainer.innerHTML = '<div class="log-entry info">✅ Agent reset</div>';
+                }
+            }
+
+            closeAgent(agentId) {
+                if (!this.ws) return;
+
+                const message = {
+                    command: 'disconnect',
+                    AgentId: agentId,
+                    Data: null
+                };
+
+                this.ws.send(JSON.stringify(message));
+
+                // Remove UI
+                const agentCard = document.getElementById(`agent-${agentId}`);
+                if (agentCard) {
+                    agentCard.remove();
+                }
+
+                this.agents.delete(agentId);
+
+                // Show empty state if no agents
+                if (this.agents.size === 0) {
+                    const container = document.getElementById('agentsContainer');
+                    container.innerHTML = '<div class="empty-state"><p>No active agents. Connect a provider to create an agent.</p></div>';
+                }
+            }
+
+            updateConnectionStatus(connected) {
+                const status = document.getElementById('connectionStatus');
+                status.textContent = connected ? 'Connected' : 'Disconnected';
+                status.className = `connection-status ${connected ? 'status-connected' : 'status-disconnected'}`;
+            }
+
+            showError(message) {
+                console.error('❌ Error:', message);
+                // Could add a toast notification here
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+
+        // Initialize client
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 DraCode initializing...');
+            window.draCodeClient = new DraCodeClient();
+        });
+    </script>
 </body>
 </html>

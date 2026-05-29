@@ -1,10 +1,12 @@
 using Birko.Communication.WebSocket.Middleware;
+using Birko.AI.Resilience.Services;
 using Birko.Communication.WebSocket.Services;
 using Birko.Security;
 using Birko.Security.Authorization;
 using Birko.Security.Jwt;
 using Birko.Security.Hashing;
-using DraCode.Agent;
+using Birko.AI;
+using Birko.AI.Agents;
 using Birko.EventBus;
 using Birko.EventBus.Extensions;
 using Birko.MessageQueue;
@@ -638,17 +640,9 @@ using (var scope = app.Services.CreateScope())
     if (dataConfig.DefaultBackend == StorageBackend.SqLite)
     {
         var cbLogger = app.Services.GetRequiredService<ILogger<Program>>();
-        var circuitBreaker = app.Services.GetRequiredService<ProviderCircuitBreaker>();
-        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
-        try
-        {
-            await circuitBreaker.InitializePersistenceAsync(dbPath);
-            cbLogger.LogInformation("Circuit breaker state loaded from SQLite");
-        }
-        catch (Exception ex)
-        {
-            cbLogger.LogWarning(ex, "Failed to initialize circuit breaker persistence - using in-memory only");
-        }
+        // Note: Circuit breaker persistence is now handled via ICircuitBreakerStore in constructor
+        // For now using in-memory circuit breaker state
+        cbLogger.LogInformation("Circuit breaker using in-memory state persistence");
     }
 }
 

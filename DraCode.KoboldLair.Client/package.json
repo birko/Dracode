@@ -1,0 +1,20 @@
+{
+  "name": "koboldlair-client",
+  "version": "1.0.0",
+  "description": "KoboldLair Multi-Agent System Client with Birko.Web.Shell",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "build:dev": "node build.js",
+    "build:minify": "node build.js --minify",
+    "watch": "node build.js --watch",
+    "type-check": "tsc --noEmit",
+    "dev": "npm run build:dev && npm run watch",
+    "clean": "rm -rf wwwroot/dist wwwroot/src",
+    "rebuild": "npm run clean && npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.4",
+    "typescript": "^5.7.2"
+  }
+}

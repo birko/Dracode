@@ -1,8 +1,11 @@
+using Birko.AI.Resilience.Stores;
 using Birko.Data.SQL.Repositories;
 using Birko.Data.Stores;
 using Birko.Configuration;
 using DraCode.KoboldLair.Data.Entities;
 using Microsoft.Extensions.Logging;
+using BirkoUsageRecord = Birko.AI.Resilience.Stores.UsageRecordEntity;
+using KoboldLairUsageRecord = DraCode.KoboldLair.Data.Entities.UsageRecordEntity;
 
 namespace DraCode.KoboldLair.Data.Repositories.Sql
 {
@@ -10,15 +13,15 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// SQLite repository for LLM usage records.
     /// Stores per-call token usage and cost data for tracking and budgeting.
     /// </summary>
-    public class SqlUsageRepository
+    public class SqlUsageRepository : IUsageRepository
     {
-        private readonly AsyncSqLiteModelRepository<UsageRecordEntity> _repository;
+        private readonly AsyncSqLiteModelRepository<KoboldLairUsageRecord> _repository;
         private readonly ILogger _logger;
 
         public SqlUsageRepository(string dbPath, ILogger logger)
         {
             _logger = logger;
-            _repository = new AsyncSqLiteModelRepository<UsageRecordEntity>();
+            _repository = new AsyncSqLiteModelRepository<KoboldLairUsageRecord>();
             var dbDir = Path.GetDirectoryName(dbPath) ?? ".";
             var dbFile = Path.GetFileName(dbPath);
             _repository.SetSettings(new PasswordSettings(dbDir, dbFile));
@@ -30,7 +33,10 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             _logger.LogInformation("SqlUsageRepository initialized");
         }
 
-        public async Task RecordUsageAsync(UsageRecordEntity record)
+        /// <summary>
+        /// Records usage (KoboldLair internal version).
+        /// </summary>
+        public async Task RecordUsageAsync(KoboldLairUsageRecord record)
         {
             try
             {
@@ -56,9 +62,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 .Select(g => new ProviderUsageSummary
                 {
                     Provider = g.Key,
-                    RequestCount = g.Count(),
-                    TotalPromptTokens = g.Sum(r => r.PromptTokens),
-                    TotalCompletionTokens = g.Sum(r => r.CompletionTokens),
+                    TotalRequests = g.Count(),
                     TotalTokens = g.Sum(r => r.TotalTokens),
                     TotalCostUsd = g.Sum(r => r.EstimatedCostUsd)
                 })
@@ -69,33 +73,22 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// <summary>
         /// Gets usage for a specific project within a time range.
         /// </summary>
-        public async Task<ProjectUsageSummary> GetUsageByProjectAsync(string projectId, DateTime from, DateTime to)
+        public async Task<ProjectUsageSummary?> GetUsageByProjectAsync(string projectId, DateTime from, DateTime to)
         {
             var records = await _repository.ReadAsync(
                 filter: e => e.ProjectId == projectId && e.RecordedAt >= from && e.RecordedAt <= to,
                 orderBy: null, limit: null, offset: null);
 
             var recordList = records.ToList();
+            if (recordList.Count == 0)
+                return null;
+
             return new ProjectUsageSummary
             {
                 ProjectId = projectId,
-                RequestCount = recordList.Count,
-                TotalPromptTokens = recordList.Sum(r => r.PromptTokens),
-                TotalCompletionTokens = recordList.Sum(r => r.CompletionTokens),
+                TotalRequests = recordList.Count,
                 TotalTokens = recordList.Sum(r => r.TotalTokens),
-                TotalCostUsd = recordList.Sum(r => r.EstimatedCostUsd),
-                ByProvider = recordList
-                    .GroupBy(r => r.Provider)
-                    .Select(g => new ProviderUsageSummary
-                    {
-                        Provider = g.Key,
-                        RequestCount = g.Count(),
-                        TotalPromptTokens = g.Sum(r => r.PromptTokens),
-                        TotalCompletionTokens = g.Sum(r => r.CompletionTokens),
-                        TotalTokens = g.Sum(r => r.TotalTokens),
-                        TotalCostUsd = g.Sum(r => r.EstimatedCostUsd)
-                    })
-                    .ToList()
+                TotalCostUsd = recordList.Sum(r => r.EstimatedCostUsd)
             };
         }
 
@@ -123,26 +116,35 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
 
             return records.Sum(r => r.EstimatedCostUsd);
         }
-    }
 
-    public class ProviderUsageSummary
-    {
-        public string Provider { get; set; } = "";
-        public int RequestCount { get; set; }
-        public int TotalPromptTokens { get; set; }
-        public int TotalCompletionTokens { get; set; }
-        public int TotalTokens { get; set; }
-        public double TotalCostUsd { get; set; }
-    }
+        #region IUsageRepository Implementation
 
-    public class ProjectUsageSummary
-    {
-        public string ProjectId { get; set; } = "";
-        public int RequestCount { get; set; }
-        public int TotalPromptTokens { get; set; }
-        public int TotalCompletionTokens { get; set; }
-        public int TotalTokens { get; set; }
-        public double TotalCostUsd { get; set; }
-        public List<ProviderUsageSummary> ByProvider { get; set; } = new();
+        async Task IUsageRepository.RecordUsageAsync(BirkoUsageRecord entity)
+        {
+            var koboldLairRecord = new KoboldLairUsageRecord
+            {
+                Provider = entity.Provider,
+                Model = entity.Model,
+                PromptTokens = entity.PromptTokens,
+                CompletionTokens = entity.CompletionTokens,
+                TotalTokens = entity.TotalTokens,
+                EstimatedCostUsd = entity.EstimatedCostUsd,
+                ProjectId = entity.ProjectId,
+                TaskId = entity.TaskId,
+                AgentType = entity.AgentType,
+                CallerContext = entity.CallerContext,
+                RecordedAt = entity.RecordedAt,
+                CreatedAt = entity.CreatedAt,
+                UpdatedAt = entity.UpdatedAt
+            };
+            await RecordUsageAsync(koboldLairRecord);
+        }
+
+        async Task<double> IUsageRepository.GetTotalSpendAsync(DateTime from, DateTime to)
+        {
+            return await GetTotalSpendAsync(from, to, provider: null);
+        }
+
+        #endregion
     }
 }

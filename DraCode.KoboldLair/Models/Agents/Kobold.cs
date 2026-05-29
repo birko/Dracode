@@ -1,5 +1,6 @@
-using DraCode.Agent;
-using DraCode.Agent.Agents;
+using Birko.AI;
+using Birko.AI.Models;
+using Birko.AI.Agents;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Projects;
@@ -35,7 +36,7 @@ namespace DraCode.KoboldLair.Models.Agents
         /// <summary>
         /// The agent instance created by KoboldLairAgentFactory
         /// </summary>
-        public Agent.Agents.Agent Agent { get; }
+        public Agent Agent { get; }
 
         /// <summary>
         /// Type of agent (e.g., "csharp", "javascript", "react")
@@ -179,7 +180,7 @@ namespace DraCode.KoboldLair.Models.Agents
         /// <summary>
         /// Creates a new Kobold with an agent instance
         /// </summary>
-        public Kobold(Agent.Agents.Agent agent, string agentType, ILogger<Kobold>? logger = null)
+        public Kobold(Agent agent, string agentType, ILogger<Kobold>? logger = null)
         {
             Id = Guid.NewGuid();
             Agent = agent;

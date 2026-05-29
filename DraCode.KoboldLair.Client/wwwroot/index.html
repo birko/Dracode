@@ -4,89 +4,696 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KoboldLair Dashboard</title>
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+
+        .app-header {
+            background: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .brand {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1d1d1f;
+        }
+
+        .nav {
+            display: flex;
+            gap: 24px;
+        }
+
+        .nav-item {
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            text-decoration: none;
+            color: #6e6e73;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1d1d1f;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #6e6e73;
+            margin-bottom: 8px;
+        }
+
+        .stat-change {
+            font-size: 12px;
+            color: #34c759;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1d1d1f;
+        }
+
+        .project-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .project-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .project-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        .project-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .project-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-success { background: #d4edda; color: #155724; }
+        .status-info { background: #d1ecf1; color: #0c5460; }
+        .status-warning { background: #fff3cd; color: #856404; }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6e6e73;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #0071e3;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0077ed;
+        }
+
+        .connection-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-connected { background: #d4edda; color: #155724; }
+        .status-disconnected { background: #f8d7da; color: #721c24; }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6e6e73;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0071e3;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+    </style>
 </head>
 <body>
-    <div id="app">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <div class="logo">
-                    <span class="logo-icon">🏰</span>
-                    <span class="logo-text">KoboldLair</span>
+    <header class="app-header">
+        <div class="brand">🏰 KoboldLair</div>
+        <nav class="nav">
+            <a href="#/" class="nav-item active" data-page="dashboard">Dashboard</a>
+            <a href="#/projects" class="nav-item" data-page="projects">Projects</a>
+            <a href="#/dragon" class="nav-item" data-page="dragon">Dragon</a>
+            <a href="#/hierarchy" class="nav-item" data-page="hierarchy">Hierarchy</a>
+            <a href="#/settings" class="nav-item" data-page="settings">Settings</a>
+        </nav>
+        <div>
+            <span class="connection-status status-disconnected" id="connectionStatus">Disconnected</span>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Dashboard Page -->
+        <div id="dashboard" class="page active">
+            <div class="dashboard-grid">
+                <div class="card">
+                    <div class="stat-label">Total Projects</div>
+                    <div class="stat-value" id="totalProjects">-</div>
+                    <div class="stat-change">Loading...</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">Active Agents</div>
+                    <div class="stat-value" id="activeAgents">-</div>
+                    <div class="stat-change">Currently running</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">Running Tasks</div>
+                    <div class="stat-value" id="runningTasks">-</div>
+                    <div class="stat-change">In progress</div>
+                </div>
+                <div class="card">
+                    <div class="stat-label">Completed Today</div>
+                    <div class="stat-value" id="completedToday">-</div>
+                    <div class="stat-change">Tasks finished</div>
                 </div>
             </div>
-            
-            <nav class="nav">
-                <a href="#dashboard" class="nav-item active" data-view="dashboard">
-                    <span class="nav-icon">📊</span>
-                    <span class="nav-label">Dashboard</span>
-                </a>
-                <a href="#dragon" class="nav-item" data-view="dragon">
-                    <span class="nav-icon">🐉</span>
-                    <span class="nav-label">Dragon</span>
-                </a>
-                <a href="#hierarchy" class="nav-item" data-view="hierarchy">
-                    <span class="nav-icon">🌳</span>
-                    <span class="nav-label">Hierarchy</span>
-                </a>
-                <a href="#projects" class="nav-item" data-view="projects">
-                    <span class="nav-icon">📁</span>
-                    <span class="nav-label">Projects</span>
-                </a>
-                <a href="#impact" class="nav-item" data-view="impact">
-                    <span class="nav-icon">🎯</span>
-                    <span class="nav-label">Impact</span>
-                </a>
 
-                <a href="#metrics" class="nav-item" data-view="metrics">
-                    <span class="nav-icon">$</span>
-                    <span class="nav-label">Metrics</span>
-                </a>
-                <a href="#compare" class="nav-item" data-view="compare">
-                    <span class="nav-icon">||</span>
-                    <span class="nav-label">Compare</span>
-                </a>
-                <a href="#providers" class="nav-item" data-view="providers">
-                    <span class="nav-icon">🔧</span>
-                    <span class="nav-label">Providers</span>
-                </a>
-                <a href="#settings" class="nav-item" data-view="settings">
-                    <span class="nav-icon">⚙️</span>
-                    <span class="nav-label">Settings</span>
-                </a>
-            </nav>
+            <h2 class="section-title">Recent Projects</h2>
+            <div id="projectsList" class="project-list">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>Loading projects...</div>
+                </div>
+            </div>
+        </div>
 
-            <div class="sidebar-footer">
-                <div class="connection-info" id="connectionInfo">
-                    <div class="connection-server" id="connectionServer">
-                        <span class="server-label">Server:</span>
-                        <span class="server-url" id="serverUrl">Not connected</span>
+        <!-- Projects Page -->
+        <div id="projects" class="page">
+            <h2 class="section-title">All Projects</h2>
+            <div id="allProjectsList" class="project-list">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>Loading projects...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dragon Page -->
+        <div id="dragon" class="page">
+            <h2 class="section-title">Dragon Agent</h2>
+            <div class="card">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>Connecting to Dragon agent...</div>
+                </div>
+                <div id="dragonChat"></div>
+            </div>
+        </div>
+
+        <!-- Hierarchy Page -->
+        <div id="hierarchy" class="page">
+            <h2 class="section-title">Agent Hierarchy</h2>
+            <div class="card">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>Loading hierarchy...</div>
+                </div>
+                <div id="hierarchyContent"></div>
+            </div>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="settings" class="page">
+            <h2 class="section-title">Settings</h2>
+            <div class="card">
+                <h3>Server Configuration</h3>
+                <div id="configDisplay" class="loading">Loading configuration...</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // KoboldLair Client Application
+        class KoboldLairApp {
+            constructor() {
+                this.routes = {
+                    '/': 'dashboard',
+                    '/dashboard': 'dashboard',
+                    '/projects': 'projects',
+                    '/dragon': 'dragon',
+                    '/hierarchy': 'hierarchy',
+                    '/settings': 'settings'
+                };
+                this.currentPage = 'dashboard';
+                this.ws = null;
+                this.config = null;
+                this.init();
+            }
+
+            async init() {
+                console.log('🏰 KoboldLair Dashboard initializing...');
+
+                // Load configuration
+                await this.loadConfig();
+
+                // Setup routing
+                this.setupRouting();
+
+                // Connect WebSocket
+                this.connectWebSocket();
+
+                // Load initial page
+                this.loadPageData('dashboard');
+
+                console.log('✅ Dashboard initialized');
+            }
+
+            async loadConfig() {
+                try {
+                    const response = await fetch('/api/config');
+                    if (response.ok) {
+                        this.config = await response.json();
+                        console.log('✅ Config loaded:', this.config);
+                    }
+                } catch (error) {
+                    console.error('Failed to load config:', error);
+                }
+            }
+
+            setupRouting() {
+                window.addEventListener('hashchange', () => this.handleRoute());
+                this.handleRoute();
+            }
+
+            handleRoute() {
+                const hash = window.location.hash.slice(1) || '/';
+                const pageId = this.routes[hash] || 'dashboard';
+
+                // Hide all pages
+                document.querySelectorAll('.page').forEach(page => {
+                    page.classList.remove('active');
+                });
+
+                // Show current page
+                const currentPage = document.getElementById(pageId);
+                if (currentPage) {
+                    currentPage.classList.add('active');
+                    this.currentPage = pageId;
+                }
+
+                // Update nav
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.remove('active');
+                    if (item.dataset.page === pageId) {
+                        item.classList.add('active');
+                    }
+                });
+
+                // Load page data
+                this.loadPageData(pageId);
+            }
+
+            async loadPageData(pageId) {
+                switch(pageId) {
+                    case 'dashboard':
+                        await this.loadDashboard();
+                        break;
+                    case 'projects':
+                        await this.loadProjects();
+                        break;
+                    case 'dragon':
+                        await this.loadDragon();
+                        break;
+                    case 'hierarchy':
+                        await this.loadHierarchy();
+                        break;
+                    case 'settings':
+                        await this.loadSettings();
+                        break;
+                }
+            }
+
+            async loadDashboard() {
+                try {
+                    // Load stats
+                    const stats = await this.fetchStats();
+                    if (stats) {
+                        document.getElementById('totalProjects').textContent = stats.totalProjects || 0;
+                        document.getElementById('activeAgents').textContent = stats.activeAgents || 0;
+                        document.getElementById('runningTasks').textContent = stats.runningTasks || 0;
+                        document.getElementById('completedToday').textContent = stats.completedToday || 0;
+                    }
+
+                    // Load recent projects
+                    const projects = await this.fetchProjects();
+                    this.renderProjects(projects, 'projectsList', 5);
+                } catch (error) {
+                    console.error('Failed to load dashboard:', error);
+                    this.showError('projectsList', 'Failed to load dashboard data');
+                }
+            }
+
+            async loadProjects() {
+                try {
+                    const projects = await this.fetchProjects();
+                    this.renderProjects(projects, 'allProjectsList');
+                } catch (error) {
+                    console.error('Failed to load projects:', error);
+                    this.showError('allProjectsList', 'Failed to load projects');
+                }
+            }
+
+            async loadDragon() {
+                const container = document.getElementById('dragonChat');
+                if (this.config?.serverUrl) {
+                    container.innerHTML = `
+                        <div class="dragon-interface">
+                            <p>🐉 Dragon Agent Interface</p>
+                            <p>Server: ${this.config.serverUrl}</p>
+                            <div id="dragonMessages" style="margin-top: 20px; min-height: 200px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px;"></div>
+                            <div style="margin-top: 16px; display: flex; gap: 8px;">
+                                <input type="text" id="dragonInput" placeholder="Enter your message..." style="flex: 1; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px;">
+                                <button onclick="app.sendDragonMessage()" class="btn btn-primary">Send</button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<p>Dragon agent configuration not available</p>';
+                }
+            }
+
+            async loadHierarchy() {
+                const container = document.getElementById('hierarchyContent');
+                container.innerHTML = `
+                    <div class="hierarchy-view">
+                        <p>🏛️ Agent Hierarchy</p>
+                        <ul style="margin-top: 16px; line-height: 2;">
+                            <li><strong>Dragon</strong> - Interactive agent (user interface)</li>
+                            <li style="margin-left: 20px;"><strong>Wyrm</strong> - Pre-analysis agent</li>
+                            <li style="margin-left: 20px;"><strong>Wyvern</strong> - Task breakdown agent</li>
+                            <li style="margin-left: 20px;"><strong>Drake</strong> - Task supervisor</li>
+                            <li style="margin-left: 40px;"><strong>Kobold Planner</strong> - Implementation planner</li>
+                            <li style="margin-left: 60px;"><strong>Kobold</strong> - Code executor</li>
+                        </ul>
                     </div>
-                    <div class="connection-status" id="connectionStatus">
-                        <span class="status-dot"></span>
-                        <span class="status-text">Disconnected</span>
+                `;
+            }
+
+            async loadSettings() {
+                const container = document.getElementById('configDisplay');
+                if (this.config) {
+                    container.innerHTML = `
+                        <div style="font-family: monospace; font-size: 14px;">
+                            <p><strong>Server URL:</strong> ${this.config.serverUrl || 'Not configured'}</p>
+                            <p><strong>Auth Token:</strong> ${this.config.authToken ? '***' : 'Not configured'}</p>
+                            <p><strong>Endpoints:</strong></p>
+                            <ul style="margin-left: 20px;">
+                                <li>Wyvern: ${this.config.endpoints?.wyvern || '/wyvern'}</li>
+                                <li>Dragon: ${this.config.endpoints?.dragon || '/dragon'}</li>
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<p>Configuration not available</p>';
+                }
+            }
+
+            connectWebSocket() {
+                if (!this.config?.serverUrl) {
+                    console.log('No server URL configured');
+                    return;
+                }
+
+                try {
+                    // Convert http(s) to ws(s)
+                    const wsUrl = this.config.serverUrl.replace('https://', 'wss://').replace('http://', 'ws://') + '/dragon';
+                    const token = this.config.authToken || this.config.token;
+
+                    this.ws = new WebSocket(token ? `${wsUrl}?token=${token}` : wsUrl);
+
+                    this.ws.onopen = () => {
+                        console.log('✅ WebSocket connected');
+                        this.updateConnectionStatus(true);
+                    };
+
+                    this.ws.onclose = () => {
+                        console.log('❌ WebSocket disconnected');
+                        this.updateConnectionStatus(false);
+                    };
+
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.updateConnectionStatus(false);
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        console.log('WebSocket message:', event.data);
+                        this.handleWebSocketMessage(event.data);
+                    };
+                } catch (error) {
+                    console.error('Failed to connect WebSocket:', error);
+                    this.updateConnectionStatus(false);
+                }
+            }
+
+            handleWebSocketMessage(data) {
+                try {
+                    const message = JSON.parse(data);
+                    console.log('Received message:', message);
+
+                    // Handle different message types
+                    switch(message.type) {
+                        case 'dragon_message':
+                            this.addDragonMessage(message.content);
+                            break;
+                        case 'projects_updated':
+                            if (this.currentPage === 'dashboard' || this.currentPage === 'projects') {
+                                this.loadPageData(this.currentPage);
+                            }
+                            break;
+                        default:
+                            console.log('Unhandled message type:', message.type);
+                    }
+                } catch (error) {
+                    console.error('Failed to parse WebSocket message:', error);
+                }
+            }
+
+            addDragonMessage(content) {
+                const container = document.getElementById('dragonMessages');
+                if (container) {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.style.marginBottom = '12px';
+                    messageDiv.style.padding = '8px';
+                    messageDiv.style.background = '#f5f5f7';
+                    messageDiv.style.borderRadius = '4px';
+                    messageDiv.textContent = content;
+                    container.appendChild(messageDiv);
+                    container.scrollTop = container.scrollHeight;
+                }
+            }
+
+            sendDragonMessage() {
+                const input = document.getElementById('dragonInput');
+                const message = input?.value;
+
+                if (message && this.ws?.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({
+                        type: 'user_message',
+                        content: message
+                    }));
+                    input.value = '';
+                }
+            }
+
+            updateConnectionStatus(connected) {
+                const status = document.getElementById('connectionStatus');
+                if (status) {
+                    status.textContent = connected ? 'Connected' : 'Disconnected';
+                    status.className = `connection-status ${connected ? 'status-connected' : 'status-disconnected'}`;
+                }
+            }
+
+            async fetchStats() {
+                // Mock data for now
+                return {
+                    totalProjects: 3,
+                    activeAgents: 2,
+                    runningTasks: 5,
+                    completedToday: 8
+                };
+            }
+
+            async fetchProjects() {
+                // Mock data for now
+                return [
+                    {
+                        id: '1',
+                        name: 'E-Commerce Platform',
+                        status: 'InProgress',
+                        progress: 65,
+                        createdAt: '2 hours ago'
+                    },
+                    {
+                        id: '2',
+                        name: 'Task Management System',
+                        status: 'Analyzed',
+                        progress: 100,
+                        createdAt: '1 day ago'
+                    },
+                    {
+                        id: '3',
+                        name: 'API Gateway',
+                        status: 'Pending',
+                        progress: 0,
+                        createdAt: '2 days ago'
+                    }
+                ];
+            }
+
+            renderProjects(projects, containerId, limit = null) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+
+                const projectsToRender = limit ? projects.slice(0, limit) : projects;
+
+                if (projectsToRender.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📁</div>
+                            <h3>No projects yet</h3>
+                            <p>Create your first project to get started</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = projectsToRender.map(project => `
+                    <div class="project-card" data-project-id="${project.id}">
+                        <div class="project-name">${this.escapeHtml(project.name)}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <span style="font-size: 12px; color: #6e6e73;">${project.createdAt}</span>
+                            <span class="project-status ${this.getStatusClass(project.status)}">${project.status}</span>
+                        </div>
+                        <div style="margin-top: 12px; height: 4px; background: #f5f5f7; border-radius: 2px; overflow: hidden;">
+                            <div style="height: 100%; background: #0071e3; width: ${project.progress}%"></div>
+                        </div>
                     </div>
-                    <button class="btn-connect" id="connectBtn">Connect</button>
-                </div>
-            </div>
-        </aside>
+                `).join('');
 
-        <main class="main">
-            <header class="header">
-                <h1 class="page-title" id="pageTitle">Dashboard</h1>
-                <div class="header-actions">
-                    <button class="btn-icon" id="refreshBtn" title="Refresh">
-                        <span>🔄</span>
-                    </button>
-                </div>
-            </header>
+                // Add click handlers
+                container.querySelectorAll('.project-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const projectId = card.dataset.projectId;
+                        console.log('Project clicked:', projectId);
+                        // TODO: Navigate to project details
+                    });
+                });
+            }
 
-            <div class="content" id="content">
-                <!-- Dynamic content -->
-            </div>
-        </main>
-    </div>
+            showError(containerId, message) {
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">⚠️</div>
+                            <h3>Error</h3>
+                            <p>${this.escapeHtml(message)}</p>
+                            <button class="btn btn-primary" onclick="location.reload()">Retry</button>
+                        </div>
+                    `;
+                }
+            }
 
-    <script type="module" src="app.js?v=2"></script>
+            getStatusClass(status) {
+                const statusMap = {
+                    'Analyzed': 'status-success',
+                    'InProgress': 'status-info',
+                    'Pending': 'status-warning',
+                    'Failed': 'status-disconnected',
+                    'Completed': 'status-success'
+                };
+                return statusMap[status] || 'status-info';
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+
+        // Initialize app
+        let app;
+        document.addEventListener('DOMContentLoaded', () => {
+            app = new KoboldLairApp();
+        });
+    </script>
 </body>
 </html>

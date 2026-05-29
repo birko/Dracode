@@ -7,12 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DraCode.Agent\DraCode.Agent.csproj" />
+    <ProjectReference Include="..\DraCode.Birko\DraCode.Birko.csproj" />
   </ItemGroup>
 
   <ItemGroup>

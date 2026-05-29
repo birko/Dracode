@@ -1,6 +1,5 @@
 using Birko.Data.Models;
 using Birko.Data.SQL.Attributes;
-using Birko.Data.ViewModels;
 
 namespace DraCode.KoboldLair.Data.Entities
 {
@@ -68,42 +67,6 @@ namespace DraCode.KoboldLair.Data.Entities
         public override void LoadFrom(IGuidEntity data)
         {
             base.LoadFrom(data);
-            if (data is DomainEventViewModel vm)
-            {
-                AggregateId = vm.AggregateId;
-                Version = vm.Version;
-                EventType = vm.EventType;
-                EventData = vm.EventData;
-                Metadata = vm.Metadata;
-                UserId = vm.UserId;
-                OccurredAt = vm.OccurredAt;
-            }
-        }
-    }
-
-    public class DomainEventViewModel : LogViewModel
-    {
-        public string AggregateId { get; set; } = "";
-        public long Version { get; set; }
-        public string EventType { get; set; } = "";
-        public string EventData { get; set; } = "{}";
-        public string? Metadata { get; set; }
-        public string? UserId { get; set; }
-        public DateTime OccurredAt { get; set; }
-
-        public void LoadFrom(DomainEventEntity data)
-        {
-            base.LoadFrom((AbstractModel)data);
-            if (data != null)
-            {
-                AggregateId = data.AggregateId;
-                Version = data.Version;
-                EventType = data.EventType;
-                EventData = data.EventData;
-                Metadata = data.Metadata;
-                UserId = data.UserId;
-                OccurredAt = data.OccurredAt;
-            }
         }
     }
 }

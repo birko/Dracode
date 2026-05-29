@@ -29,21 +29,25 @@ var builder = DistributedApplication.CreateBuilder(args);
 // ===== WebSocket System Group =====
 var websocket = builder.AddProject<Projects.DraCode_WebSocket>("dracode-websocket")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+    .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+    .WithAnnotation(new ProjectLifecycleAnnotation(ProjectLifecycle.Manual));
 
 var web = builder.AddProject<Projects.DraCode_Web>("dracode-web")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
-    .WithReference(websocket);
+    .WithReference(websocket)
+    .WithAnnotation(new ProjectLifecycleAnnotation(ProjectLifecycle.Manual));
 
 // ===== KoboldLair Group =====
 var koboldlairServer = builder.AddProject<Projects.DraCode_KoboldLair_Server>("dracode-koboldlair-server")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+    .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+    .WithAnnotation(new ProjectLifecycleAnnotation(ProjectLifecycle.Manual));
 
 var koboldlairClient = builder.AddProject<Projects.DraCode_KoboldLair_Client>("dracode-koboldlair-client")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
-    .WithReference(koboldlairServer);
+    .WithReference(koboldlairServer)
+    .WithAnnotation(new ProjectLifecycleAnnotation(ProjectLifecycle.Manual));
 
 builder.Build().Run();

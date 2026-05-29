@@ -96,31 +96,6 @@ namespace DraCode.KoboldLair.Data.Entities
         public override void LoadFrom(IGuidEntity data)
         {
             base.LoadFrom(data);
-            if (data is TaskViewModel vm)
-            {
-                TaskId = vm.TaskId;
-                TaskDescription = vm.TaskDescription;
-                AssignedAgent = vm.AssignedAgent;
-                ProjectId = vm.ProjectId;
-                AreaName = vm.AreaName;
-                Status = vm.Status;
-                Priority = vm.Priority;
-                TaskCreatedAt = vm.TaskCreatedAt;
-                TaskUpdatedAt = vm.TaskUpdatedAt;
-                ErrorMessage = vm.ErrorMessage;
-                ErrorCategory = vm.ErrorCategory;
-                SpecificationVersion = vm.SpecificationVersion;
-                SpecificationContentHash = vm.SpecificationContentHash;
-                CommitSha = vm.CommitSha;
-                FeatureId = vm.FeatureId;
-                RetryCount = vm.RetryCount;
-                LastRetryAttempt = vm.LastRetryAttempt;
-                NextRetryAt = vm.NextRetryAt;
-                Provider = vm.Provider;
-                CommitFailed = vm.CommitFailed;
-                DependenciesJson = vm.DependenciesJson;
-                OutputFilesJson = vm.OutputFilesJson;
-            }
         }
     }
 }

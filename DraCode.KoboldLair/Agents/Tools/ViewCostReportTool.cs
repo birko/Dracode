@@ -1,5 +1,6 @@
 using System.Text;
-using DraCode.Agent.Tools;
+using Birko.AI.Resilience.Services;
+using Birko.AI.Tools;
 using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Agents.Tools
@@ -85,19 +86,19 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             var sb = new StringBuilder();
             sb.AppendLine("# Today's Usage Summary\n");
-            sb.AppendLine("| Provider | Requests | Prompt Tokens | Completion Tokens | Total Tokens | Est. Cost |");
-            sb.AppendLine("|----------|----------|---------------|-------------------|--------------|-----------|");
+            sb.AppendLine("| Provider | Requests | Total Tokens | Est. Cost |");
+            sb.AppendLine("|----------|----------|--------------|-----------|");
 
             var totalCost = 0.0;
             var totalTokens = 0;
             foreach (var s in summary)
             {
-                sb.AppendLine($"| {s.Provider} | {s.RequestCount} | {s.TotalPromptTokens:N0} | {s.TotalCompletionTokens:N0} | {s.TotalTokens:N0} | ${s.TotalCostUsd:F4} |");
+                sb.AppendLine($"| {s.Provider} | {s.TotalRequests} | {s.TotalTokens:N0} | ${s.TotalCostUsd:F4} |");
                 totalCost += s.TotalCostUsd;
                 totalTokens += s.TotalTokens;
             }
 
-            sb.AppendLine($"| **Total** | **{summary.Sum(s => s.RequestCount)}** | | | **{totalTokens:N0}** | **${totalCost:F4}** |");
+            sb.AppendLine($"| **Total** | **{summary.Sum(s => s.TotalRequests)}** | **{totalTokens:N0}** | **${totalCost:F4}** |");
             return sb.ToString();
         }
 
@@ -113,7 +114,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             {
                 var date = DateTime.UtcNow.Date.AddDays(-i);
                 var daySummary = await _costTracker.GetUsageSummaryAsync(date, date.AddDays(1));
-                var dayRequests = daySummary.Sum(s => s.RequestCount);
+                var dayRequests = daySummary.Sum(s => s.TotalRequests);
                 var dayTokens = daySummary.Sum(s => s.TotalTokens);
                 var dayCost = daySummary.Sum(s => s.TotalCostUsd);
                 totalCost += dayCost;
@@ -135,23 +136,14 @@ namespace DraCode.KoboldLair.Agents.Tools
 
             var projectId = proj.ToString()!;
             var usage = await _costTracker.GetProjectUsageAsync(projectId, DateTime.MinValue, DateTime.UtcNow);
-            if (usage == null || usage.RequestCount == 0)
+            if (usage == null || usage.TotalRequests == 0)
                 return $"No usage recorded for project '{projectId}'.";
 
             var sb = new StringBuilder();
             sb.AppendLine($"# Project Usage: {projectId}\n");
-            sb.AppendLine($"- **Total Requests**: {usage.RequestCount}");
-            sb.AppendLine($"- **Total Tokens**: {usage.TotalTokens:N0} (prompt: {usage.TotalPromptTokens:N0}, completion: {usage.TotalCompletionTokens:N0})");
+            sb.AppendLine($"- **Total Requests**: {usage.TotalRequests}");
+            sb.AppendLine($"- **Total Tokens**: {usage.TotalTokens:N0}");
             sb.AppendLine($"- **Estimated Cost**: ${usage.TotalCostUsd:F4}");
-
-            if (usage.ByProvider.Count > 1)
-            {
-                sb.AppendLine("\n### By Provider\n");
-                foreach (var p in usage.ByProvider)
-                {
-                    sb.AppendLine($"- **{p.Provider}**: {p.RequestCount} requests, {p.TotalTokens:N0} tokens, ${p.TotalCostUsd:F4}");
-                }
-            }
 
             return sb.ToString();
         }

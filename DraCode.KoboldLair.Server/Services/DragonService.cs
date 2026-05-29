@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
+using Birko.AI.Resilience.Services;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using DraCode.Agent;
+using Birko.AI;
+using Birko.AI.Agents;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.SubAgents;
 using DraCode.KoboldLair.Agents.Tools;

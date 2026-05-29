@@ -1,9 +1,10 @@
 using Birko.EventBus;
-using DraCode.Agent;
-using DraCode.Agent.LLMs.Providers;
+using Birko.AI;
+using Birko.AI.Providers;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
+using Birko.AI.Resilience.Services;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Data.Repositories;

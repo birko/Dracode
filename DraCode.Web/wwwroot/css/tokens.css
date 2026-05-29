@@ -1,0 +1,223 @@
+:root {
+  /* ── Colors ── */
+  --b-color-primary: #2563eb;
+  --b-color-primary-hover: #1d4ed8;
+  --b-color-primary-light: #dbeafe;
+  --b-color-secondary: #64748b;
+  --b-color-secondary-hover: #475569;
+
+  --b-color-success: #16a34a;
+  --b-color-success-light: #dcfce7;
+  --b-color-warning: #d97706;
+  --b-color-warning-light: #fef3c7;
+  --b-color-danger: #dc2626;
+  --b-color-danger-hover: #b91c1c;
+  --b-color-danger-light: #fee2e2;
+  --b-color-info: #0891b2;
+  --b-color-info-light: #cffafe;
+
+  /* ── Surfaces ── */
+  --b-bg: #ffffff;
+  --b-bg-secondary: #f8fafc;
+  --b-bg-tertiary: #f1f5f9;
+  --b-bg-elevated: #ffffff;
+
+  /* ── Tooltip ── */
+  --b-tooltip-bg: #1e293b;
+  --b-tooltip-text: #e2e8f0;
+  --b-tooltip-border: #334155;
+
+  /* ── Text ── */
+  --b-text: #0f172a;
+  --b-text-secondary: #475569;
+  --b-text-muted: #94a3b8;
+  --b-text-inverse: #ffffff;
+
+  /* ── Borders (px — stay crisp) ── */
+  --b-border: #e2e8f0;
+  --b-border-hover: #cbd5e1;
+  --b-border-focus: var(--b-color-primary);
+  --b-border-width: 1px;
+
+  /* ── Border radius (rem — scales with font size) ── */
+  --b-radius-sm: 0.25rem;   /* 4px */
+  --b-radius: 0.375rem;     /* 6px */
+  --b-radius-lg: 0.625rem;  /* 10px */
+  --b-radius-xl: 1rem;      /* 16px */
+  --b-radius-full: 9999px;
+
+  /* ── Spacing (rem — scales with font size) ── */
+  --b-space-2xs: 0.125rem;  /* 2px */
+  --b-space-xs: 0.25rem;    /* 4px */
+  --b-space-sm: 0.5rem;     /* 8px */
+  --b-space-md: 0.75rem;    /* 12px */
+  --b-space-lg: 1rem;       /* 16px */
+  --b-space-xl: 1.5rem;     /* 24px */
+  --b-space-2xl: 2rem;      /* 32px */
+  --b-space-3xl: 3rem;      /* 48px */
+
+  /* ── Typography (rem — scales with font size) ── */
+  --b-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --b-font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --b-text-xs: 0.6875rem;   /* 11px */
+  --b-text-2xs: 0.625rem;   /* 10px */
+  --b-text-sm: 0.8125rem;   /* 13px */
+  --b-text-base: 0.875rem;  /* 14px */
+  --b-text-lg: 1rem;        /* 16px */
+  --b-text-xl: 1.25rem;     /* 20px */
+  --b-text-2xl: 1.5rem;     /* 24px */
+  --b-text-3xl: 1.875rem;   /* 30px */
+  --b-line-height: 1.5;
+  --b-line-height-tight: 1.4;
+  --b-letter-spacing-caps: 0.03125rem; /* 0.5px */
+  --b-font-weight-normal: 400;
+  --b-font-weight-medium: 500;
+  --b-font-weight-semibold: 600;
+  --b-font-weight-bold: 700;
+
+  /* ── Icons (rem — scales with font size) ── */
+  --b-icon-sm: 0.875rem;    /* 14px */
+  --b-icon-base: 1rem;      /* 16px */
+  --b-icon-lg: 1.25rem;     /* 20px */
+  --b-icon-xl: 2.5rem;      /* 40px */
+
+  /* ── Shadows (px — fixed depth regardless of font size) ── */
+  --b-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --b-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --b-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --b-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --b-shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
+
+  /* ── Focus rings (px — fixed ring size for precision) ── */
+  --b-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  --b-focus-ring-danger: 0 0 0 3px rgba(220, 38, 38, 0.15);
+
+  /* ── Opacity ── */
+  --b-disabled-opacity: 0.5;
+  --b-muted-opacity: 0.4;
+
+  /* ── Backdrop ── */
+  --b-backdrop-bg: rgba(0, 0, 0, 0.4);
+  --b-backdrop-bg-light: rgba(0, 0, 0, 0.15);
+  --b-backdrop-overlay: rgba(0, 0, 0, 0.06);
+
+  /* ── Transitions ── */
+  --b-transition: 150ms ease;
+  --b-transition-slow: 300ms ease;
+
+  /* ── Animation speeds ── */
+  --b-animation-speed: 0.6s;      /* spinner, tree loading */
+  --b-animation-slow: 1.5s;       /* skeleton pulse, table loading */
+  --b-animation-progress: 1.4s;   /* progress indeterminate, typing bounce */
+
+  /* ── Z-index ── */
+  --b-z-dropdown: 100;
+  --b-z-sticky: 200;
+  --b-z-drawer-backdrop: 250;
+  --b-z-drawer: 260;
+  --b-z-modal-backdrop: 300;
+  --b-z-modal: 400;
+  --b-z-toast: 500;
+
+  /* ── Modal / Drawer / Dialog widths (rem — scales with font size) ── */
+  --b-modal-width-sm: 23.75rem;  /* 380px */
+  --b-modal-width: 32.5rem;      /* 520px */
+  --b-modal-width-lg: 45rem;     /* 720px */
+  --b-modal-width-xl: 60rem;     /* 960px */
+  --b-drawer-width-sm: 22.5rem;  /* 360px */
+  --b-drawer-width: 30rem;       /* 480px */
+  --b-drawer-width-lg: 40rem;    /* 640px */
+  --b-drawer-width-xl: 53.75rem; /* 860px */
+
+  /* ── Spinner (rem — scales with font size) ── */
+  --b-spinner-size-sm: 1rem;     /* 16px */
+  --b-spinner-size: 1.5rem;      /* 24px */
+  --b-spinner-size-lg: 2.5rem;   /* 40px */
+  --b-spinner-speed: 0.7s;
+
+  /* ── Toast (rem — scales with font size) ── */
+  --b-toast-offset: var(--b-space-lg);
+  --b-toast-min-width: 17.5rem;  /* 280px */
+  --b-toast-max-width: 26.25rem; /* 420px */
+
+  /* ── Pagination (rem — scales with font size) ── */
+  --b-page-btn-size: 2rem;       /* 32px */
+
+  /* ── Shell layout (rem — scales with font size) ── */
+  --b-header-height: 3rem;            /* 48px */
+  --b-status-bar-height: 1.75rem;     /* 28px */
+  --b-ribbon-tab-height: 2.75rem;     /* 44px */
+  --b-ribbon-panel-height: 8rem;      /* 128px */
+
+  /* ── Sidebar (rem — scales with font size) ── */
+  --b-sidebar-width: 15rem;      /* 240px */
+  --b-sidebar-collapsed-width: 3.5rem; /* 56px */
+
+  /* ── Form controls — interactive knobs / glyphs that always need white on a
+        colored active state (checkbox check, switch/range thumb). Not theme-
+        flipped because the surface they sit on is already a colored brand
+        token. Override per-component if a dark thumb is desired. ── */
+  --b-input-thumb-bg: #ffffff;
+
+  /* ── Unified form-control minimum height (rem — scales with font size).
+        Applied to <input>/<select>/<textarea> via formControlSheet, to
+        `.combo-container` via comboControlSheet, and to b-tag-input's
+        container, so every form chrome (plain, searchable, multi-select,
+        tag-input) has the same vertical footprint. Default ≈ 38px matches
+        the natural height of an input padded with --b-space-sm × --b-space-md
+        at --b-text-base font size. Use `size="sm"` / `size="lg"` on the host
+        component to switch to the compact / comfortable variant. ── */
+  --b-control-min-height-sm: 1.75rem;  /* 28px — dense grids, toolbars */
+  --b-control-min-height: 2.375rem;    /* 38px — default */
+  --b-control-min-height-lg: 2.75rem;  /* 44px — touch targets */
+
+  /* ── Popover / picker / dropdown widths (rem — tunable in one place) ── */
+  --b-date-picker-width: 17rem;       /* 272px */
+  --b-time-picker-width: 11rem;       /* 176px */
+  --b-tooltip-max-width: 16rem;       /* 256px */
+  --b-dropdown-min-width: 10rem;      /* 160px */
+  --b-kanban-col-min-width: 16rem;    /* 256px */
+  --b-kanban-col-max-width: 22rem;    /* 352px */
+  --b-dropzone-icon-size: 3rem;       /* 48px */
+  --b-file-thumb-size: 5rem;          /* 80px */
+  --b-filter-chip-width: 12rem;       /* 192px */
+  --b-filter-chip-width-lg: 16rem;    /* 256px */
+  --b-filter-chip-width-xl: 24rem;    /* 384px */
+  --b-app-brand-max-width: 8rem;      /* 128px */
+  --b-app-user-max-width: 12rem;      /* 192px */
+}
+
+/* ── Dark theme ── */
+[data-theme="dark"] {
+  --b-color-primary: #3b82f6;
+  --b-color-primary-hover: #60a5fa;
+  --b-color-primary-light: #1e3a5f;
+  --b-color-danger-hover: #ef4444;
+
+  --b-bg: #0f172a;
+  --b-bg-secondary: #1e293b;
+  --b-bg-tertiary: #334155;
+  --b-bg-elevated: #1e293b;
+
+  --b-tooltip-bg: #0f172a;
+  --b-tooltip-text: #e2e8f0;
+  --b-tooltip-border: #1e293b;
+
+  --b-text: #f1f5f9;
+  --b-text-secondary: #94a3b8;
+  --b-text-muted: #64748b;
+
+  --b-border: #334155;
+  --b-border-hover: #475569;
+
+  --b-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --b-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --b-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --b-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+
+  --b-focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  --b-focus-ring-danger: 0 0 0 3px rgba(239, 68, 68, 0.25);
+
+  --b-backdrop-bg: rgba(0, 0, 0, 0.6);
+  --b-backdrop-bg-light: rgba(0, 0, 0, 0.3);
+}
