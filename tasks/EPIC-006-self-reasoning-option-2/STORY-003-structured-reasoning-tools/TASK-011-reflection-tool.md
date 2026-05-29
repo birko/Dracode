@@ -1,10 +1,11 @@
 ---
 id: TASK-011
 parent: STORY-003
-status: todo
+status: done
 priority: P2
 assignee: ai
 created: 2026-05-28
+closed: 2026-05-29
 depends-on: []
 blocks: []
 pr: null
@@ -13,6 +14,8 @@ jira-key: null
 ---
 
 # ReflectionTool — structured reasoning capture
+
+> **Closed as done during `/tasks audit` (2026-05-29).** Already shipped via the 2026-03-15 reflection system — `DraCode.KoboldLair/Agents/Tools/ReflectionTool.cs` (`reflect` tool), registered in `Kobold.cs` via `Agent.AddTool(new ReflectionTool())`. 6 of 7 ACs satisfied. **Deviations from spec:** (1) gated by `Reflection:Enabled` config (default **true**) instead of `AgentOptions.UseStructuredReflection` (default false) — the flag in the spec was never implemented; (2) `blockers` is a single `string`, not `string[]`; (3) stall detection uses no-advancement over `StallDetectionCount` (default 3) rather than an explicit <5% delta. If the exact `AgentOptions.UseStructuredReflection` opt-out (default-off) is still wanted, reopen with a narrowed scope.
 
 ## Context
 

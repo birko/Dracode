@@ -1,13 +1,14 @@
 ---
 id: TASK-018
 parent: EPIC-012
-status: in-progress
+status: done
 priority: P2
 assignee: ai
 created: 2026-05-29
+closed: 2026-05-29
 depends-on: []
 blocks: []
-pr: null
+pr: "DraCode 1b45c42 · Birko.AI 2e7908f · Birko.AI.Contracts 522ef7f (all local, awaiting push)"
 github-issue: null
 jira-key: null
 ---
@@ -36,36 +37,36 @@ Any future contributor calling the sync `Execute()` overload reintroduces thread
 > Corrections from `/tasks plan` (2026-05-29): Tool base class is in **`Birko.AI.Contracts\Tools\Tool.cs`** (not `Birko.AI.Agents`); current `Execute` modifier is **`virtual`** (relaxed from `abstract` in commit `402dbc1`); sync-only count is **22 in DraCode + 9 in Birko.AI**, not 4. Scope expanded during grilling to a consistent fix across 3 repos (Q1) — see Implementation plan §1.
 
 **Base class (`C:\Source\Birko.AI.Contracts\Tools\Tool.cs`):**
-- [ ] Remove `public virtual string Execute(string workingDirectory, Dictionary<string, object> input)` (currently `virtual`, throws `NotImplementedException`)
-- [ ] Promote `public virtual Task<string> ExecuteAsync(...)` to `public abstract Task<string> ExecuteAsync(...)` (remove body)
-- [ ] Update XML doc comment on `ExecuteAsync` — drop the "backwards compatibility with sync Execute" reference
+- [x] Remove `public virtual string Execute(string workingDirectory, Dictionary<string, object> input)` (currently `virtual`, throws `NotImplementedException`)
+- [x] Promote `public virtual Task<string> ExecuteAsync(...)` to `public abstract Task<string> ExecuteAsync(...)` (remove body)
+- [x] Update XML doc comment on `ExecuteAsync` — drop the "backwards compatibility with sync Execute" reference
 
 **DraCode (`DraCode.KoboldLair\Agents\Tools\`, 23 files):**
-- [ ] All 23 sync `override string Execute(...)` methods deleted across:
+- [x] All 23 sync `override string Execute(...)` methods deleted across:
   - AgentConfigurationTool, AgentStatusTool, BatchTaskTool, CancelProjectTool, CreateImplementationPlanTool, DeleteProjectTool, NotificationsTool, PauseProjectTool, ProjectApprovalTool, ProjectProgressTool, ResumeProjectTool, RetryAnalysisTool, RetryFailedTaskTool, RetryVerificationTool, SelectAgentTool, SetTaskPriorityTool, SkipVerificationTool, SuspendProjectTool, UserSettingsTool, ViewAnalysisTool, ViewCostReportTool, ViewVerificationReportTool, ViewWorkspaceTool
-- [ ] 22 sync-only tools gain `Task<string> ExecuteAsync(...)` (body wrapped in `Task.FromResult(...)` unless an async helper is obviously available — see Implementation plan §1, Q5=B opportunistic async)
-- [ ] `ViewCostReportTool`: sync wrapper deleted, existing `async Task<string> ExecuteAsync` retained — clears the 4 `.GetAwaiter().GetResult()` calls at lines 55–58
-- [ ] `Kobold.cs:1344` — caller migrated: `tool.Execute(...)` → `await tool.ExecuteAsync(...)`
-- [ ] Stray editor backup `ViewCostReportTool.cs.tmp` deleted
+- [x] 22 sync-only tools gain `Task<string> ExecuteAsync(...)` (body wrapped in `Task.FromResult(...)` unless an async helper is obviously available — see Implementation plan §1, Q5=B opportunistic async)
+- [x] `ViewCostReportTool`: sync wrapper deleted, existing `async Task<string> ExecuteAsync` retained — clears the 4 `.GetAwaiter().GetResult()` calls at lines 55–58
+- [x] `Kobold.cs:1344` — caller migrated: `tool.Execute(...)` → `await tool.ExecuteAsync(...)`
+- [x] Stray editor backup `ViewCostReportTool.cs.tmp` deleted
 
 **Birko.AI (`C:\Source\Birko.AI\Tools\`, 9 files):**
-- [ ] All 9 sync `override string Execute(...)` methods deleted across:
+- [x] All 9 sync `override string Execute(...)` methods deleted across:
   - AppendToFileTool, AskUserTool, DisplayTextTool, EditFileTool, ListFilesTool, ReadFileTool, RunCommandTool, SearchCodeTool, WriteFileTool
-- [ ] All 9 tools gain `Task<string> ExecuteAsync(...)` (`Task.FromResult` wrap unless opportunistic async wins)
-- [ ] `AskUserTool.cs:55,60` — internal `Task.WhenAny(...).GetAwaiter().GetResult()` and `promptTask.GetAwaiter().GetResult()` converted to proper `await`
+- [x] All 9 tools gain `Task<string> ExecuteAsync(...)` (`Task.FromResult` wrap unless opportunistic async wins)
+- [x] `AskUserTool.cs:55,60` — internal `Task.WhenAny(...).GetAwaiter().GetResult()` and `promptTask.GetAwaiter().GetResult()` converted to proper `await`
 
 **Verification:**
-- [ ] Grep `override\s+string\s+Execute\(` under `DraCode.KoboldLair\Agents\Tools\` → 0 matches
-- [ ] Grep `override\s+string\s+Execute\(` under `C:\Source\Birko.AI\Tools\` → 0 matches
-- [ ] Grep `\.GetAwaiter\(\)\.GetResult\(\)` under `DraCode.KoboldLair\Agents\Tools\` → 0 matches
-- [ ] Grep `\.GetAwaiter\(\)\.GetResult\(\)` under `C:\Source\Birko.AI\Tools\` → 0 matches
-- [ ] `dotnet build ./DraCode.slnx` clean
-- [ ] Cross-repo `dotnet build` green for `Symbio`, `BardStudio`, `Birko.Framework` after Contracts commit (audit showed zero `Tool` subclasses in those repos — sanity check only)
-- [ ] Existing tool tests pass — current audit shows zero `*Tool*Tests` files in DraCode.KoboldLair.Tests, so this criterion is N/A; tick when commit lands
+- [x] Grep `override\s+string\s+Execute\(` under `DraCode.KoboldLair\Agents\Tools\` → 0 matches
+- [x] Grep `override\s+string\s+Execute\(` under `C:\Source\Birko.AI\Tools\` → 0 matches
+- [x] Grep `\.GetAwaiter\(\)\.GetResult\(\)` under `DraCode.KoboldLair\Agents\Tools\` → 0 matches
+- [x] Grep `\.GetAwaiter\(\)\.GetResult\(\)` under `C:\Source\Birko.AI\Tools\` → 0 matches
+- [x] `dotnet build ./DraCode.slnx` clean
+- [x] Cross-repo `dotnet build` green for `Symbio`, `BardStudio`, `Birko.Framework` after Contracts commit (audit showed zero `Tool` subclasses in those repos — sanity check only)
+- [x] Existing tool tests pass — current audit shows zero `*Tool*Tests` files in DraCode.KoboldLair.Tests, so this criterion is N/A; tick when commit lands
 
 **Docs:**
-- [ ] `CLAUDE.md` "Known Issues" section: "Blocking sync-over-async" entry updated — promoted from *partially resolved* (live path async, dead sync path remains) to *fully resolved* (sync path eliminated)
-- [ ] `CLAUDE.md` "Recent Updates" section: add a dated entry for this change, matching repo convention
+- [x] `CLAUDE.md` "Known Issues" section: "Blocking sync-over-async" entry updated — promoted from *partially resolved* (live path async, dead sync path remains) to *fully resolved* (sync path eliminated)
+- [x] `CLAUDE.md` "Recent Updates" section: add a dated entry for this change, matching repo convention
 
 ## Out of scope
 

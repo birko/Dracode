@@ -1,10 +1,11 @@
 ---
 id: TASK-012
 parent: STORY-003
-status: todo
+status: done
 priority: P2
 assignee: ai
 created: 2026-05-28
+closed: 2026-05-29
 depends-on: [TASK-011]
 blocks: []
 pr: null
@@ -13,6 +14,8 @@ jira-key: null
 ---
 
 # ReasoningMonitorService
+
+> **Closed as done during `/tasks audit` (2026-05-29).** Already shipped via the 2026-03-15 reflection system — `DraCode.KoboldLair.Server/Services/ReasoningMonitorService.cs`, a `PeriodicBackgroundService` (45s) registered as a hosted service in `KoboldLair.Server/Program.cs`. All 6 ACs satisfied: detects stuck loops (`CheckStuckLoop`), stalled progress (`CheckStalledProgress`), repeated errors (`CheckRepeatedErrors`), budget exhaustion (`CheckBudgetExhaustion`); thresholds configurable via `KoboldLair:Reflection` in appsettings. Drake intervention is recommended by routing the alert through `Drake.HandleEscalationAsync` (which surfaces the Dragon notification), rather than the monitor emitting the notification directly.
 
 ## Context
 
