@@ -12,33 +12,30 @@ dotnet build ./DraCode.slnx
 dotnet run --project DraCode.AppHost
 
 # Run individual services
-dotnet run --project DraCode.WebSocket          # WebSocket API on port 5000
-dotnet run --project DraCode.Web                # Web client on port 5001
 dotnet run --project DraCode.KoboldLair.Server  # KoboldLair backend
 dotnet run --project DraCode.KoboldLair.Client  # KoboldLair web UI
 
 # CLI agent with task
 dotnet run --project DraCode -- --provider=openai --task="Your task here"
 
-# Build TypeScript (DraCode.Web only)
-cd DraCode.Web && npm run build
+# Build TypeScript (DraCode.KoboldLair.Client)
+cd DraCode.KoboldLair.Client && npm run build
 ```
 
 ## Project Structure
 
-9 projects in the solution (`DraCode.slnx`):
+8 projects in the solution (`DraCode.slnx`):
 
 | Project | Purpose |
 |---------|---------|
 | `DraCode` | CLI console application (Spectre.Console) |
-| `DraCode.Agent` | Core agent library with 23 agents organized into hierarchies and 7 tools |
+| `DraCode.Birko` | Birko.Framework aggregator — pulls in the core agent library (Birko.AI agents, LLM providers, tools) for the solution |
 | `DraCode.AppHost` | .NET Aspire orchestration (service discovery, telemetry) |
 | `DraCode.ServiceDefaults` | Shared Aspire configuration (health checks, resilience) |
-| `DraCode.WebSocket` | WebSocket API server (`/ws` endpoint) |
-| `DraCode.Web` | TypeScript web client (compiles `src/` → `wwwroot/js/`) |
 | `DraCode.KoboldLair` | Multi-agent system core library (agents, models, services, orchestrators) |
 | `DraCode.KoboldLair.Server` | WebSocket server hosting for KoboldLair (references `DraCode.KoboldLair`) |
-| `DraCode.KoboldLair.Client` | Multi-agent system web UI (vanilla JS) |
+| `DraCode.KoboldLair.Client` | Multi-agent system web UI (TypeScript / Shadow DOM components) |
+| `DraCode.KoboldLair.Tests` | Test suite for the KoboldLair system |
 
 ## Architecture
 
@@ -221,7 +218,7 @@ Located in `DraCode.KoboldLair/Services/`:
 ## Key Technical Details
 
 - **.NET 10.0**, C# 14.0, nullable reference types enabled
-- **TypeScript 5.7** for DraCode.Web (ES2020 modules, zero runtime dependencies)
+- **TypeScript 5.7** for DraCode.KoboldLair.Client (ES2020 modules, Shadow DOM components)
 - Configuration in `appsettings.json` / `appsettings.Development.json`
 - Providers disabled by default in base config, enabled per-environment
 - **LLM Retry Logic**: All providers use exponential backoff with `SendWithRetryAsync`
@@ -667,9 +664,6 @@ dotnet build ./DraCode.slnx
 # Run with Aspire dashboard for monitoring
 dotnet run --project DraCode.AppHost
 # Dashboard opens at https://localhost:17094
-
-# Test WebSocket connection
-curl http://localhost:5000/  # Health check
 ```
 
 ## Common Issues

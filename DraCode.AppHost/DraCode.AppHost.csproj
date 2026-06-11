@@ -1,8 +1,6 @@
 <Project Sdk="Aspire.AppHost.Sdk/13.1.2">
 
   <ItemGroup>
-    <ProjectReference Include="..\DraCode.WebSocket\DraCode.WebSocket.csproj" />
-    <ProjectReference Include="..\DraCode.Web\DraCode.Web.csproj" />
     <ProjectReference Include="..\DraCode.KoboldLair.Server\DraCode.KoboldLair.Server.csproj" />
     <ProjectReference Include="..\DraCode.KoboldLair.Client\DraCode.KoboldLair.Client.csproj" />
   </ItemGroup>

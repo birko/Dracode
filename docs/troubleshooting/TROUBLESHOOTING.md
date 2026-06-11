@@ -42,7 +42,7 @@ Before diving into specific issues:
    ```
 
 4. **Common fixes:**
-   - Server not started: Run `dotnet run --project DraCode.WebSocket`
+   - Server not started: Run `dotnet run --project DraCode.AppHost` and start the KoboldLair server from the dashboard
    - Wrong port: Verify port in console output
    - Firewall: Add exception for the port
 

@@ -2,25 +2,6 @@
 
 **DraCode** is an AI-powered coding agent CLI that leverages Large Language Models (LLMs) to autonomously perform coding tasks within a sandboxed workspace. It supports multiple LLM providers and provides tools for file manipulation, code search, and command execution.
 
-## 🌟 NEW: Multi-Agent WebSocket System
-
-DraCode now includes a **WebSocket server and modern TypeScript web client** that allows you to:
-- 🔄 **Connect to multiple LLM providers simultaneously** through a single WebSocket connection
-- 📊 **Compare responses** from different providers (OpenAI, Claude, Gemini, etc.) side-by-side
-- 🏃 **Run multiple agents in parallel**, each with independent conversation history
-- 🎯 **Switch between providers** using a tabbed interface
-- 🔐 **Secure configuration** with server-side API key management
-- 🛡️ **Token-based authentication** with optional IP address binding to prevent token misuse
-- 💎 **Modern tech stack**: TypeScript, ES modules, Flexbox CSS (zero dependencies!)
-
-**Quick Start:**
-```bash
-dotnet run --project DraCode.AppHost
-# Open http://localhost:5001 in your browser
-```
-
-📖 **Learn More**: [WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md) | [Changelog](docs/CHANGELOG.md) (v2.6.1)
-
 ## 🏰 KoboldLair - Autonomous Multi-Agent Coding System
 
 **KoboldLair** is an intelligent, hierarchical multi-agent system that autonomously transforms your ideas into working code:
@@ -158,9 +139,8 @@ dotnet run --project DraCode.AppHost
 ```
 
 This will:
-- Start the WebSocket API server on port 5000
-- Start the Web Client on port 5001  
 - Launch the Aspire Dashboard for monitoring
+- Start the KoboldLair server + client on demand from the dashboard
 - Enable service discovery and telemetry
 
 See [DraCode.AppHost/README.md](DraCode.AppHost/README.md) for details.
@@ -169,22 +149,17 @@ See [DraCode.AppHost/README.md](DraCode.AppHost/README.md) for details.
 
 Alternatively, run services separately:
 
-**Terminal 1 - Start WebSocket API:**
+**Terminal 1 - Start KoboldLair server:**
 ```bash
-dotnet run --project DraCode.WebSocket
+dotnet run --project DraCode.KoboldLair.Server
 ```
 
-**Terminal 2 - Start Web Client:**
+**Terminal 2 - Start KoboldLair client:**
 ```bash
-dotnet run --project DraCode.Web
+dotnet run --project DraCode.KoboldLair.Client
 ```
 
-**Open browser:** `http://localhost:5001`
-
-- **WebSocket API**: `ws://localhost:5000/ws` (DraCode.WebSocket)
-- **Web Client**: `http://localhost:5001` (DraCode.Web)
-
-See [DraCode.WebSocket/README.md](DraCode.WebSocket/README.md) for WebSocket API documentation and [DraCode.Web/README.md](DraCode.Web/README.md) for web client usage.
+See [DraCode.KoboldLair.Server/README.md](DraCode.KoboldLair.Server/README.md) and [DraCode.KoboldLair.Client/README.md](DraCode.KoboldLair.Client/README.md) for details.
 
 ### Basic Usage
 
@@ -308,7 +283,6 @@ For complete documentation, see the [docs](docs/) directory.
 - **[Documentation Index](docs/README.md)** - Complete documentation overview
 - **[Changelog](docs/CHANGELOG.md)** - Version history and release notes
 - **[CLI Options Guide](docs/setup-guides/CLI_OPTIONS.md)** - Complete command-line reference
-- **[WebSocket Quick Start](docs/setup-guides/WEBSOCKET_QUICKSTART.md)** - Get started with multi-agent system
 - **[Architecture Specification](docs/architecture/ARCHITECTURE_SPECIFICATION.md)** - System architecture and design
 - **[Technical Specification](docs/architecture/TECHNICAL_SPECIFICATION.md)** - Comprehensive technical documentation
 - **[KoboldLair Core Library](DraCode.KoboldLair/README.md)** - Multi-agent orchestration library
@@ -330,22 +304,20 @@ For complete documentation, see the [docs](docs/) directory.
 
 ```
 ┌─────────────────────────────────────────┐
-│         DraCode.AppHost                 │  ← Aspire Orchestrator
+│         DraCode.AppHost                  │  ← Aspire Orchestrator
 └──────────────┬──────────────────────────┘
                │
-    ┌──────────┴──────────┬───────────────────────┐
-    │                     │                       │
-    ▼                     ▼                       ▼
-┌─────────────┐   ┌─────────────┐   ┌─────────────────────────┐
-│ WebSocket   │   │   Web       │   │   KoboldLair Server     │
-│ API         │◄──│   Client    │   │   (Multi-Agent System)  │
-└─────────────┘   └─────────────┘   └───────┬─────────────────┘
-                                            │
-                                            ▼
-                                    ┌─────────────────────┐
-                                    │ KoboldLair Client   │
-                                    │ (Web UI)            │
-                                    └─────────────────────┘
+               ▼
+       ┌─────────────────────────┐
+       │   KoboldLair Server     │
+       │   (Multi-Agent System)  │
+       └───────────┬─────────────┘
+                   │
+                   ▼
+       ┌─────────────────────┐
+       │  KoboldLair Client  │
+       │  (Web UI)           │
+       └─────────────────────┘
 ```
 
 ## 🛠️ Development
@@ -386,11 +358,6 @@ DraCode/
 │   └── Models/                  # WebSocket message models
 ├── DraCode.KoboldLair.Client/    # KoboldLair Web UI
 │   └── wwwroot/                 # Web UI (Status, Dragon Chat, Hierarchy)
-├── DraCode.WebSocket/            # WebSocket API server
-│   ├── Models/                  # WebSocket message models
-│   └── Services/                # Agent connection manager
-├── DraCode.Web/                  # Web client UI
-│   └── wwwroot/                 # Static web assets
 ├── DraCode.AppHost/              # .NET Aspire orchestration
 └── DraCode.ServiceDefaults/      # Shared Aspire configuration
 ```
@@ -421,11 +388,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Use `appsettings.local.json` (gitignored) for sensitive data
 - OAuth tokens stored in `~/.dracode/` (gitignored)
 - All file operations sandboxed to working directory
-- **WebSocket Authentication**: 
-  - Optional token-based authentication available for WebSocket connections
-  - Support for IP address binding to prevent token misuse
-  - See [WebSocket README](DraCode.WebSocket/README.md) for configuration
-  - Disabled by default for development convenience
 
 ## 📧 Support
 

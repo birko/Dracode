@@ -132,8 +132,6 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
 ### Setup Guides
 - **[Provider Setup](setup-guides/PROVIDER_SETUP.md)** - All LLM providers (OpenAI, Claude, Gemini, Azure, Ollama)
 - [CLI Options Guide](setup-guides/CLI_OPTIONS.md) - Complete command-line reference
-- [WebSocket Quick Start](setup-guides/WEBSOCKET_QUICKSTART.md) - Getting started with the WebSocket system
-- [Web Client Multi-Provider Guide](setup-guides/WEB_CLIENT_MULTI_PROVIDER_GUIDE.md) - Using multiple providers
 - [GitHub OAuth Setup](setup-guides/GITHUB_OAUTH_SETUP.md) - GitHub Copilot OAuth configuration
 
 ### Troubleshooting
@@ -151,8 +149,6 @@ Each project has its own README:
 - [DraCode.KoboldLair README](../DraCode.KoboldLair/README.md) - Multi-agent core library (agents, factories, orchestrators, services)
 - [DraCode.KoboldLair.Server README](../DraCode.KoboldLair.Server/README.md) - Multi-agent backend
 - [DraCode.KoboldLair.Client README](../DraCode.KoboldLair.Client/README.md) - Multi-agent web UI
-- [DraCode.WebSocket README](../DraCode.WebSocket/README.md) - WebSocket API server
-- [DraCode.Web README](../DraCode.Web/README.md) - Web client
 - [DraCode.AppHost README](../DraCode.AppHost/README.md) - .NET Aspire orchestration
 - [VS Code README](../.vscode/README.md) - VS Code configuration
 
