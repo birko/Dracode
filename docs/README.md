@@ -4,7 +4,6 @@ Welcome to the DraCode documentation. This directory contains all technical docu
 
 ## Quick Links
 
-- **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete spec for regenerating the project
 - **[Changelog](CHANGELOG.md)** - Version history and release notes (v2.6.0 - February 2026)
 - **[KoboldLair Core Library](../DraCode.KoboldLair/README.md)** - Multi-agent orchestration library
 - **[KoboldLair Server](../DraCode.KoboldLair.Server/README.md)** - Multi-agent backend
@@ -114,7 +113,6 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
 ## Documentation Structure
 
 ### Core Documentation
-- **[Full Project Specification](FULL_PROJECT_SPECIFICATION.md)** - Complete specification to regenerate entire project
 - **[Changelog](CHANGELOG.md)** - Version history and release notes
 - **[Agent Options](AGENT_OPTIONS.md)** - Agent configuration options
 - **[New Agent Types](NEW_AGENT_TYPES.md)** - PHP, Python, SVG, Bitmap, and Media agents

@@ -646,7 +646,6 @@ Realignment audit was applied 2026-05-28 — see commit history for `DraCode.Kob
 ## Documentation Index
 
 - `docs/README.md` - Documentation overview
-- `docs/FULL_PROJECT_SPECIFICATION.md` - Complete spec for project regeneration
 - `docs/architecture/` - Architecture and technical specifications
 - `docs/setup-guides/` - Provider and feature setup guides
 - `docs/troubleshooting/` - Troubleshooting guides
