@@ -4,6 +4,8 @@ using Birko.Communication.WebSocket.Services;
 using Birko.Security;
 using Birko.Security.Authorization;
 using Birko.Security.Jwt;
+using Birko.Security.OAuth.Server;
+using Birko.Security.OAuth.Server.Stores;
 using Birko.Security.Hashing;
 using Birko.AI;
 using Birko.AI.Agents;
@@ -72,6 +74,58 @@ builder.Services.AddSingleton<IPasswordHasher>(new Pbkdf2PasswordHasher());
 builder.Services.AddSingleton<IRoleProvider, KoboldLairRoleProvider>();
 builder.Services.AddSingleton<IPermissionChecker, KoboldLairPermissionChecker>();
 builder.Services.AddSingleton<RefreshTokenStore>();
+
+// Register Birko OAuth 2.1 authorization server (TASK-030). Endpoints are mapped only when
+// Authentication:OAuth:Enabled; the server + stores register unconditionally (harmless DI singletons).
+// Issuer/Audience/Secret reuse the JWT config so OAuth-issued tokens validate under the JWT bearer
+// middleware (TASK-032) by construction.
+builder.Services.Configure<OAuthServerConfiguration>(
+    builder.Configuration.GetSection("Authentication:OAuth"));
+// OAuth stores — singletons, ONE shared instance each (the device-code flow creates a record in one
+// request and reads/mutates it across later requests). In-memory now; TASK-031 swaps SQLite-backed stores.
+builder.Services.AddSingleton<IOAuthClientStore, InMemoryOAuthClientStore>();
+builder.Services.AddSingleton<IAuthorizationCodeStore, InMemoryAuthorizationCodeStore>();
+builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
+builder.Services.AddSingleton<IDeviceCodeStore, InMemoryDeviceCodeStore>();
+builder.Services.AddSingleton<IConsentStore, InMemoryConsentStore>();
+builder.Services.AddSingleton<OAuthServer>(sp =>
+{
+    var jwt = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
+    var oauth = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OAuthServerConfiguration>>().Value;
+    var secret = jwt.ResolveSecret();
+    if (string.IsNullOrEmpty(secret))
+        secret = "KoboldLair-Development-Secret-Key-Do-Not-Use-In-Production!";
+    var settings = new OAuthServerSettings
+    {
+        Issuer = jwt.Issuer,
+        AccessTokenLifetimeSeconds = oauth.AccessTokenLifetimeSeconds,
+        RefreshTokenLifetimeSeconds = oauth.RefreshTokenLifetimeSeconds,
+        AuthorizationCodeLifetimeSeconds = oauth.AuthorizationCodeLifetimeSeconds,
+        DeviceCodeLifetimeSeconds = oauth.DeviceCodeLifetimeSeconds,
+        DeviceCodePollingIntervalSeconds = oauth.DeviceCodePollingIntervalSeconds,
+        RotateRefreshTokens = oauth.RotateRefreshTokens,
+        RequirePkceForPublicClients = oauth.RequirePkceForPublicClients
+    };
+    var tokenOptions = new TokenOptions
+    {
+        Secret = secret,
+        Issuer = jwt.Issuer,
+        Audience = jwt.Audience,
+        ExpirationMinutes = jwt.ExpirationMinutes,
+        RefreshExpirationDays = jwt.RefreshExpirationDays
+    };
+    return new OAuthServer(
+        settings,
+        sp.GetRequiredService<ITokenProvider>(),
+        tokenOptions,
+        sp.GetRequiredService<IOAuthClientStore>(),
+        sp.GetRequiredService<IAuthorizationCodeStore>(),
+        sp.GetRequiredService<IRefreshTokenStore>(),
+        sp.GetRequiredService<IDeviceCodeStore>(),
+        sp.GetRequiredService<IConsentStore>(),
+        oauth.DeviceVerificationUri,
+        new Birko.Time.SystemDateTimeProvider());
+});
 
 // Register Birko.Validation validators
 builder.Services.AddSingleton<IValidator<Specification>, SpecificationValidator>();
@@ -761,6 +815,15 @@ app.UseCors();
     if (jwtConfig.Enabled)
     {
         app.MapAuthEndpoints();
+    }
+}
+
+// Map OAuth 2.1 authorization-server endpoints (TASK-030) when enabled.
+{
+    var oauthConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<OAuthServerConfiguration>>().Value;
+    if (oauthConfig.Enabled)
+    {
+        app.MapOAuthEndpoints(oauthConfig.AllowDynamicRegistration);
     }
 }
 

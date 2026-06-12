@@ -20,6 +20,14 @@
     <ProjectReference Include="..\DraCode.KoboldLair\DraCode.KoboldLair.csproj" />
   </ItemGroup>
 
+  <!-- OAuth server (SUT for TASK-030) + its base-type sources, source-wins over the duplicate
+       metadata in the referenced DraCode.KoboldLair assembly (CS0436), same pattern as the server. -->
+  <Import Project="..\..\Birko.Configuration\Birko.Configuration.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.Core\Birko.Data.Core.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.Stores\Birko.Data.Stores.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Security\Birko.Security.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Security.OAuth.Server\Birko.Security.OAuth.Server.projitems" Label="Shared" />
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
