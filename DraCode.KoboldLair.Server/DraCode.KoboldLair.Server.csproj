@@ -11,24 +11,14 @@
     <ProjectReference Include="..\DraCode.ServiceDefaults\DraCode.ServiceDefaults.csproj" />
   </ItemGroup>
 
+  <!-- The Birko framework (models, stores, SQL chain, security, OAuth server) is source-compiled in
+       DraCode.Birko and reaches here transitively via DraCode.KoboldLair. Do NOT re-import those
+       projitems — single compiled identity is the whole point (see DraCode.Birko.csproj).
+       Only ASP.NET-coupled projitems that define no shared identity types live here. -->
   <Import Project="..\..\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Communication.SSE\Birko.Communication.SSE.projitems" Label="Shared" />
-  <!-- Birko.MessageQueue is imported by DraCode.KoboldLair (library project) -->
-  <Import Project="..\..\Birko.Security\Birko.Security.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.Security.Jwt\Birko.Security.Jwt.projitems" Label="Shared" />
-  <!-- Birko.Security.OAuth.Server + its base-type sources (Settings/AbstractModel/IAsyncStore) imported so the
-       source copies win over the duplicate metadata in DraCode.Birko + DraCode.KoboldLair (CS0436, same pattern as the library). -->
-  <Import Project="..\..\Birko.Configuration\Birko.Configuration.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.Data.Core\Birko.Data.Core.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.Data.Stores\Birko.Data.Stores.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.Security.OAuth.Server\Birko.Security.OAuth.Server.projitems" Label="Shared" />
-  <!-- Birko.Time is imported by DraCode.KoboldLair (library project) -->
   <Import Project="..\..\Birko.Communication\Birko.Communication.projitems" Label="Shared" />
   <Import Project="..\..\Birko.BackgroundJobs\Birko.BackgroundJobs.projitems" Label="Shared" />
   <Import Project="..\..\Birko.MessageQueue.InMemory\Birko.MessageQueue.InMemory.projitems" Label="Shared" />
-
-  <ItemGroup>
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.7.0" />
-  </ItemGroup>
 
 </Project>

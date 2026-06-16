@@ -82,7 +82,9 @@ builder.Services.AddSingleton<RefreshTokenStore>();
 builder.Services.Configure<OAuthServerConfiguration>(
     builder.Configuration.GetSection("Authentication:OAuth"));
 // OAuth stores — singletons, ONE shared instance each (the device-code flow creates a record in one
-// request and reads/mutates it across later requests). In-memory now; TASK-031 swaps SQLite-backed stores.
+// request and reads/mutates it across later requests). In-memory for now: TASK-031's direct
+// AsyncSQLiteStore<OAuthClient> design is not viable (the upstream OAuth POCOs carry no Birko SQL
+// column attributes and use List<string>), so SQLite persistence needs an Entity+mapper layer.
 builder.Services.AddSingleton<IOAuthClientStore, InMemoryOAuthClientStore>();
 builder.Services.AddSingleton<IAuthorizationCodeStore, InMemoryAuthorizationCodeStore>();
 builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();

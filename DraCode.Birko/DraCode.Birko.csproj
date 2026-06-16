@@ -7,18 +7,58 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.7.0" />
   </ItemGroup>
 
-  <!-- Import Birko shared projects -->
+  <!-- Birko.Framework aggregator: the SINGLE source-compiler of all identity-bearing framework
+       types (models, stores, SQL chain, security, OAuth server). Consumers (DraCode.KoboldLair,
+       DraCode.KoboldLair.Server, DraCode CLI) reference this assembly and must NOT re-import these
+       projitems — re-importing recompiles the same types into a second assembly, which is a distinct
+       CLR identity (CS0436 / CS0311). ASP.NET-coupled projitems (WebSocket/SSE) live in the web host. -->
+
+  <!-- Core / config / helpers -->
   <Import Project="..\..\Birko.Contracts\Birko.Contracts.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Configuration\Birko.Configuration.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Helpers\Birko.Helpers.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Serialization\Birko.Serialization.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Time\Birko.Time.projitems" Label="Shared" />
+
+  <!-- AI agent library -->
   <Import Project="..\..\Birko.AI.Contracts\Birko.AI.Contracts.projitems" Label="Shared" />
   <Import Project="..\..\Birko.AI\Birko.AI.projitems" Label="Shared" />
   <Import Project="..\..\Birko.AI.Providers\Birko.AI.Providers.projitems" Label="Shared" />
   <Import Project="..\..\Birko.AI.Agents\Birko.AI.Agents.projitems" Label="Shared" />
   <Import Project="..\..\Birko.AI.Resilience\Birko.AI.Resilience.projitems" Label="Shared" />
   <Import Project="..\..\Birko.AI.Orchestration\Birko.AI.Orchestration.projitems" Label="Shared" />
+
+  <!-- Data layer (models → stores → SQL chain). The whole chain together so AbstractModel /
+       ILoadable / AbstractConnector resolve to one identity. -->
+  <Import Project="..\..\Birko.Models.Contracts\Birko.Models.Contracts.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Models\Birko.Models.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.Core\Birko.Data.Core.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.Stores\Birko.Data.Stores.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.Repositories\Birko.Data.Repositories.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Rules\Birko.Rules.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.Patterns\Birko.Data.Patterns.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.ViewModel\Birko.Data.ViewModel.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.SQL\Birko.Data.SQL.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.SQL.View\Birko.Data.SQL.View.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.SQL.ViewModel\Birko.Data.SQL.ViewModel.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.SQL.SqLite\Birko.Data.SQL.SqLite.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Data.EventSourcing\Birko.Data.EventSourcing.projitems" Label="Shared" />
+
+  <!-- Cross-cutting framework modules -->
+  <Import Project="..\..\Birko.Caching\Birko.Caching.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.EventBus\Birko.EventBus.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.MessageQueue\Birko.MessageQueue.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Validation\Birko.Validation.projitems" Label="Shared" />
+
+  <!-- Security + OAuth (federation client already here; add core security, JWT, OAuth server) -->
+  <Import Project="..\..\Birko.Security\Birko.Security.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Security.Jwt\Birko.Security.Jwt.projitems" Label="Shared" />
+  <Import Project="..\..\Birko.Security.OAuth.Server\Birko.Security.OAuth.Server.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Communication.OAuth\Birko.Communication.OAuth.projitems" Label="Shared" />
   <Import Project="..\..\Birko.Communication.OAuth.Providers\Birko.Communication.OAuth.Providers.projitems" Label="Shared" />
 

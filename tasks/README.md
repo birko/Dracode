@@ -10,7 +10,7 @@ _Generated 2026-06-16. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 | todo         | —     | —       | 59    |
 | in-progress  | 1     | 1       | 0     |
 | blocked      | —     | —       | 0     |
-| done         | 1     | 2       | 6     |
+| done         | 1     | 2       | 7     |
 | cancelled    | 0     | 0       | 0     |
 
 ## In progress now
@@ -48,8 +48,9 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: external evaluator vs reflect tool — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (4/23)
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (5/24)
   - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync`
+  - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2)
     - [x] [TASK-029](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-029-delete-old-stack.md) Retire DraCode.WebSocket and DraCode.Web
     - [x] [TASK-070](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-070-scrub-full-project-spec.md) Retire FULL_PROJECT_SPECIFICATION.md (stale regeneration spec)
