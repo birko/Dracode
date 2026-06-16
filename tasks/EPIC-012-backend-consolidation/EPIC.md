@@ -1,6 +1,6 @@
 ---
 id: EPIC-012
-status: planned
+status: in-progress
 created: 2026-05-28
 owner: ai
 affects: [EPIC-003, EPIC-007]
@@ -38,3 +38,14 @@ EPIC-013 (multi-platform clients) depends on this epic.
 - Whether ad-hoc `/kobold` runs create a hidden project record in `projects.json` or stay completely off-registry
 - Exact REST resource shapes (will mirror existing service interfaces in `DraCode.KoboldLair.Server/Services/`)
 - Migration plan for existing `projects.json` records into the new `ownerId`-aware schema
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-016](../../docs/features/FEATURE-016-retire-old-stack/idea.md) | STORY-014 | idea |
+| [FEATURE-017](../../docs/features/FEATURE-017-kobold-endpoint/idea.md) | STORY-015 | idea |
+| [FEATURE-018](../../docs/features/FEATURE-018-rest-sse-facade/idea.md) | STORY-016 | idea |
+| [FEATURE-019](../../docs/features/FEATURE-019-oauth-identity/idea.md) | STORY-017 | idea |
+| [FEATURE-020](../../docs/features/FEATURE-020-daemon-mode/idea.md) | STORY-018 | idea |
+| [FEATURE-021](../../docs/features/FEATURE-021-remove-sync-tool-execute/idea.md) | TASK-018 | done |
