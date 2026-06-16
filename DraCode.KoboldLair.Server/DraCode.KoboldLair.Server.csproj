@@ -15,10 +15,10 @@
        DraCode.Birko and reaches here transitively via DraCode.KoboldLair. Do NOT re-import those
        projitems — single compiled identity is the whole point (see DraCode.Birko.csproj).
        Only ASP.NET-coupled projitems that define no shared identity types live here. -->
-  <Import Project="..\..\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.Communication.SSE\Birko.Communication.SSE.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.Communication\Birko.Communication.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.BackgroundJobs\Birko.BackgroundJobs.projitems" Label="Shared" />
-  <Import Project="..\..\Birko.MessageQueue.InMemory\Birko.MessageQueue.InMemory.projitems" Label="Shared" />
+  <Import Project="$(BirkoSrc)\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
+  <Import Project="$(BirkoSrc)\Birko.Communication.SSE\Birko.Communication.SSE.projitems" Label="Shared" />
+  <Import Project="$(BirkoSrc)\Birko.Communication\Birko.Communication.projitems" Label="Shared" />
+  <Import Project="$(BirkoSrc)\Birko.BackgroundJobs\Birko.BackgroundJobs.projitems" Label="Shared" />
+  <Import Project="$(BirkoSrc)\Birko.MessageQueue.InMemory\Birko.MessageQueue.InMemory.projitems" Label="Shared" />
 
 </Project>
