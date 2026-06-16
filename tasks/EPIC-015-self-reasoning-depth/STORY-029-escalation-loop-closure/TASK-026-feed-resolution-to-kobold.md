@@ -1,7 +1,7 @@
 ---
 id: TASK-026
 parent: STORY-029
-feature: null
+feature: FEATURE-032
 status: todo
 priority: P2
 assignee: ai

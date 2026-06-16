@@ -7,6 +7,7 @@ assignee: ai
 created: 2026-05-28
 depends-on: [TASK-001]
 blocks: []
+feature: FEATURE-001
 pr: null
 github-issue: null
 jira-key: null

@@ -27,3 +27,11 @@ Out of scope at the epic level:
 - Measurable improvement on a historical-failed-tasks benchmark (STORY-013)
 - Cost analysis: external evaluator adds at most Nx LLM cost per task; quality vs cost ratio documented
 - Decision: keep, drop, or apply selectively (e.g., only for `critical`-priority tasks)
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-013](../../docs/features/FEATURE-013-design-evaluator-agent/idea.md) | STORY-011 (design EvaluatorAgent) | idea |
+| [FEATURE-014](../../docs/features/FEATURE-014-integrate-evaluator-into-kobold/idea.md) | STORY-012 (integrate into Kobold loop) | idea |
+| [FEATURE-015](../../docs/features/FEATURE-015-measure-evaluator-vs-reflect/idea.md) | STORY-013 (measure vs reflect) | idea |

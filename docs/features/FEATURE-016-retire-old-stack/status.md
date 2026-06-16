@@ -21,7 +21,7 @@ generated: 2026-05-31
 
 ## Build progress
 
-1 / 2 tasks done. TASK-029 (mechanical removal of DraCode.WebSocket + DraCode.Web) in review (code complete, awaiting Aspire-dashboard sign-off); TASK-070 (retired the stale FULL_PROJECT_SPECIFICATION.md regeneration spec) done.
+2 / 2 tasks done. TASK-029 (mechanical removal of DraCode.WebSocket + DraCode.Web) done — verified via the Aspire dashboard (only the two KoboldLair resources remain). TASK-070 (retired the stale FULL_PROJECT_SPECIFICATION.md regeneration spec) done.
 
 ## What can be tested now
 Once TASK-029 lands: `dotnet build ./DraCode.slnx` succeeds, and `dotnet run --project DraCode.AppHost` shows only the two KoboldLair resources (no websocket/web group).

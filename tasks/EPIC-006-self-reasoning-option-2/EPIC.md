@@ -16,3 +16,9 @@ Option 1 (prompt-based self-reflection with CHECKPOINT blocks) is shipped. Optio
 - `ReflectionTool` forces explicit reasoning output (progress %, blockers, confidence, adjustment)
 - Drake intervention triggered automatically when confidence < 30% or progress stalls 3+ checkpoints
 - `ReasoningMonitorService` detects repeated error patterns + stuck loops independent of the Kobold's self-assessment
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-005](../../docs/features/FEATURE-005-structured-reasoning-tools/idea.md) | STORY-003 (TASK-011, TASK-012) | done |

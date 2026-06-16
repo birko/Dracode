@@ -31,3 +31,12 @@ Out of scope at the epic level:
 - A per-project policy decides which decisions auto-resolve vs. require a human, with a safe default (auto-resolve, preserving today's behaviour).
 - Dragon surfaces pending decisions as actionable prompts, not just readable notifications, and the answer round-trips to unpark the task.
 - No regression: with the default policy, the pipeline behaves exactly as it does today.
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-027](../../docs/features/FEATURE-027-blocking-decision-tier/idea.md) | STORY-024 — TASK-019, TASK-020 | idea |
+| [FEATURE-028](../../docs/features/FEATURE-028-ask-human-tool/idea.md) | STORY-025 — TASK-021, TASK-022 | idea |
+| [FEATURE-029](../../docs/features/FEATURE-029-decision-gate-policy/idea.md) | STORY-026 — TASK-023 | idea |
+| [FEATURE-030](../../docs/features/FEATURE-030-answerable-notifications/idea.md) | STORY-027 — TASK-024 | idea |

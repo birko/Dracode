@@ -10,6 +10,7 @@ blocks: []
 pr: null
 github-issue: null
 jira-key: null
+feature: FEATURE-004
 ---
 
 # Prometheus /metrics endpoint

@@ -24,3 +24,11 @@ Out of scope at the epic level:
 - Each candidate has a documented A/B comparison method (pipeline quality, LLM cost, end-to-end latency, escalation rate)
 - If a collapse is approved, a separate implementation epic is created with the migration plan
 - If a tier is kept, the rationale is captured so the question doesn't recur every quarter
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-007](../../docs/features/FEATURE-007-merge-wyrm-wyvern/idea.md) | STORY-005 (merge Wyrm + Wyvern) | idea |
+| [FEATURE-008](../../docs/features/FEATURE-008-fold-koboldplanner-into-kobold/idea.md) | STORY-006 (fold KoboldPlanner into Kobold) | idea |
+| [FEATURE-009](../../docs/features/FEATURE-009-collapse-drake-services/idea.md) | STORY-007 (collapse Drake services) | idea |

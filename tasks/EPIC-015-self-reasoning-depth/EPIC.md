@@ -29,3 +29,12 @@ Out of scope at the epic level:
 - `reflect` and the monitor reason over real token/cost spend, not iteration counts.
 - A revised/failed step triggers a lightweight re-plan check of the remaining steps.
 - Each change is feature-flagged and measurable; no degradation of throughput on healthy tasks.
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-031](../../docs/features/FEATURE-031-end-to-end-task-verification/idea.md) | STORY-028 / TASK-025 | idea |
+| [FEATURE-032](../../docs/features/FEATURE-032-escalation-loop-closure/idea.md) | STORY-029 / TASK-026 | idea |
+| [FEATURE-033](../../docs/features/FEATURE-033-budget-aware-reflection/idea.md) | STORY-030 / TASK-027 | idea |
+| [FEATURE-034](../../docs/features/FEATURE-034-cross-step-replan-check/idea.md) | STORY-031 / TASK-028 | idea |

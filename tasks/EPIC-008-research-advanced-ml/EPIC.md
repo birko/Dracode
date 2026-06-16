@@ -15,3 +15,9 @@ Q3 2026+ research areas — better codebase understanding via RAG (Retrieval-Aug
 
 - Each item progresses to a written proof-of-concept before declaring direction
 - Conclusion captured in the task body (ship / pivot / drop)
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-006](../../docs/features/FEATURE-006-research-advanced-ml/idea.md) | TASK-016, TASK-017 (EPIC has no stories) | idea |

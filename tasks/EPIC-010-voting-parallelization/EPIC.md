@@ -26,3 +26,11 @@ Out of scope at the epic level:
 - Each integration documents: cost increase (Nx LLM calls), quality improvement (specific metric), recommended deployment threshold
 - Each voting integration can be disabled via configuration without code changes
 - A "deterministic mode" exists for tests (all parallel votes seeded to the same answer) so voting doesn't break test fixtures
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-010](../../docs/features/FEATURE-010-wyvern-task-breakdown-voting/idea.md) | STORY-008 (Wyvern task breakdown voting) | idea |
+| [FEATURE-011](../../docs/features/FEATURE-011-wyrmagent-selection-voting/idea.md) | STORY-009 (WyrmAgent agent-type selection voting) | idea |
+| [FEATURE-012](../../docs/features/FEATURE-012-koboldplanner-plan-voting/idea.md) | STORY-010 (KoboldPlanner plan voting) | idea |

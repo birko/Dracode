@@ -16,3 +16,9 @@ Two related security/auth gaps: secure storage for API keys + auth tokens (curre
 - API keys + auth tokens stored encrypted via OS-native secret stores
 - Migration path from existing plain-text storage
 - OAuth login flows for Google + GitHub working alongside JWT
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-001](../../docs/features/FEATURE-001-token-storage-auth/idea.md) | TASK-001, TASK-002 | idea |

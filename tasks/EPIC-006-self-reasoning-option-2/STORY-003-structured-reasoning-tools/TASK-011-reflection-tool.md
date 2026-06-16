@@ -11,6 +11,7 @@ blocks: []
 pr: null
 github-issue: null
 jira-key: null
+feature: FEATURE-005
 ---
 
 # ReflectionTool — structured reasoning capture

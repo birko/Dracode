@@ -17,3 +17,9 @@ External plugin loading so third parties can ship custom tools without forking D
 - Each plugin can register one or more tools
 - Sandboxing where practical (separate AppDomain or AssemblyLoadContext)
 - Tool marketplace metadata format defined (open to consider later — packaging only in v1)
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-002](../../docs/features/FEATURE-002-plugin-extensibility/idea.md) | TASK-003 | idea |

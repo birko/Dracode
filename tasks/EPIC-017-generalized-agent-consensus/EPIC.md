@@ -33,3 +33,11 @@ Out of scope at the epic level:
 - Every consensus run emits a structured verdict persisted as a reasoning record (EPIC-016/STORY-033), linked to the decision it judged.
 - Every consensus integration is feature-flagged and has a documented cost multiplier (Nx LLM calls) and a deterministic test mode (all votes seeded equal).
 - EPIC-010's three integrations are retrofitted onto the shared mechanism (or a migration path is documented if they ship first).
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-038](../../docs/features/FEATURE-038-reusable-consensus-mechanism/idea.md) | STORY-035 (reusable ConsensusService abstraction) | idea |
+| [FEATURE-039](../../docs/features/FEATURE-039-diverse-panel-consensus/idea.md) | STORY-036 (diverse-panel heterogeneous consensus) | idea |
+| [FEATURE-040](../../docs/features/FEATURE-040-retrofit-voting-integrations/idea.md) | STORY-037 (retrofit EPIC-010 voting integrations) | idea |

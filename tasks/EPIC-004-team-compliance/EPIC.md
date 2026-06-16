@@ -16,3 +16,9 @@ Enterprise readiness — multi-user team support, audit logging for compliance, 
 - Team workspaces with role-based access control
 - Audit log captures all agent + user actions for compliance reporting
 - CI/CD pipelines (GitHub Actions) build + test + publish Docker images on push
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-003](../../docs/features/FEATURE-003-enterprise-team-compliance/idea.md) | STORY-001 (TASK-006, TASK-007, TASK-008) | idea |

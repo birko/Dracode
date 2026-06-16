@@ -33,3 +33,13 @@ Hard depends on EPIC-012. Story B5 (Web client polish) is independent enough tha
 3. STORY-021 (VSCode) — second-most demanded client surface
 4. STORY-022 (Python SDK) — scripting & data-science use cases
 5. STORY-020 (Discord bot) — nice-to-have, depends on service-account JWT being solid
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-022](../../docs/features/FEATURE-022-cli-client/idea.md) | STORY-019 — single-file binary CLI client | idea |
+| [FEATURE-023](../../docs/features/FEATURE-023-discord-bot/idea.md) | STORY-020 — Discord bot client | idea |
+| [FEATURE-024](../../docs/features/FEATURE-024-vscode-extension/idea.md) | STORY-021 — VSCode extension client | idea |
+| [FEATURE-025](../../docs/features/FEATURE-025-python-sdk/idea.md) | STORY-022 — Python SDK | idea |
+| [FEATURE-026](../../docs/features/FEATURE-026-web-client-polish/idea.md) | STORY-023 — web client polish | idea |

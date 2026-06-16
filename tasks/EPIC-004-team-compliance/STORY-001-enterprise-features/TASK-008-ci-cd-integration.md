@@ -10,6 +10,7 @@ blocks: []
 pr: null
 github-issue: null
 jira-key: null
+feature: FEATURE-003
 ---
 
 # CI/CD integration (GitHub Actions + Docker)

@@ -39,3 +39,11 @@ Out of scope at the epic level:
 - The deliverable-vs-working-state boundary is documented as an architectural rule (in CLAUDE.md) so future artifacts land in the right place by default.
 - Removing a project's folder loses no working state (it's in the DB); only the regenerable views and the `workspace/` deliverable live on disk.
 - Migration is backward-compatible: existing on-disk projects are imported into the DB on first load.
+
+## Features
+
+| Feature | Covers | Status |
+|---------|--------|--------|
+| [FEATURE-035](../../docs/features/FEATURE-035-migrate-remaining-artifacts/idea.md) | STORY-032 (no tasks yet) | idea |
+| [FEATURE-036](../../docs/features/FEATURE-036-persist-decisions-reasoning/idea.md) | STORY-033 (no tasks yet) | idea |
+| [FEATURE-037](../../docs/features/FEATURE-037-codify-deliverable-boundary/idea.md) | STORY-034 (no tasks yet) | idea |
