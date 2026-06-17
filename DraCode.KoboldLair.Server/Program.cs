@@ -82,14 +82,17 @@ builder.Services.AddSingleton<RefreshTokenStore>();
 builder.Services.Configure<OAuthServerConfiguration>(
     builder.Configuration.GetSection("Authentication:OAuth"));
 // OAuth stores — singletons, ONE shared instance each (the device-code flow creates a record in one
-// request and reads/mutates it across later requests). In-memory for now: TASK-031's direct
-// AsyncSQLiteStore<OAuthClient> design is not viable (the upstream OAuth POCOs carry no Birko SQL
-// column attributes and use List<string>), so SQLite persistence needs an Entity+mapper layer.
-builder.Services.AddSingleton<IOAuthClientStore, InMemoryOAuthClientStore>();
-builder.Services.AddSingleton<IAuthorizationCodeStore, InMemoryAuthorizationCodeStore>();
-builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
-builder.Services.AddSingleton<IDeviceCodeStore, InMemoryDeviceCodeStore>();
-builder.Services.AddSingleton<IConsentStore, InMemoryConsentStore>();
+// request and reads/mutates it across later requests). SQLite-backed when KoboldLair:Data selects the
+// SqLite backend (TASK-031), else in-memory. The four scalar models persist directly via
+// AsyncSQLiteStore<T>; OAuthClient uses an entity+JSON-column mapper for its List<string> properties.
+var oauthDataConfig = builder.Configuration.GetSection("KoboldLair:Data").Get<DataStorageConfig>()
+    ?? new DataStorageConfig();
+oauthDataConfig.ProjectsPath =
+    builder.Configuration.GetSection("KoboldLair").Get<KoboldLairConfiguration>()?.ProjectsPath
+    ?? oauthDataConfig.ProjectsPath;
+var oauthUseSqlite = oauthDataConfig.DefaultBackend == StorageBackend.SqLite;
+var oauthDbPath = oauthUseSqlite ? RepositoryFactory.ResolveSqLitePath(oauthDataConfig) : null;
+builder.Services.AddOAuthServerStores(oauthUseSqlite, oauthDbPath);
 builder.Services.AddSingleton<OAuthServer>(sp =>
 {
     var jwt = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;

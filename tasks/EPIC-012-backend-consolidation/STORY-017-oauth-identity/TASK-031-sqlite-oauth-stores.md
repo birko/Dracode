@@ -2,11 +2,11 @@
 id: TASK-031
 parent: STORY-017
 feature: null
-status: todo
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
-status-changed: 2026-06-16
+status-changed: 2026-06-17
 depends-on: [TASK-030]
 blocks: []
 pr: null
@@ -20,13 +20,22 @@ jira-key: null
 
 The OAuth-server store interfaces are each `IAsyncStore<T>` plus default-method named lookups, and the models are `AbstractModel` descendants — so production persistence is **five trivial subclass declarations** over `AsyncSQLiteStore<T>` (the verified `AsyncSQLiteStore<T>` → `AsyncDataBaseBulkStore` → `IAsyncBulkStore<T>` → `IAsyncStore<T>` chain). SQLite matches the rest of DraCode persistence (`SqlPlanRepository`); no Postgres project exists. No bespoke subproject, no `*Entity`/`EntityMapper` layer.
 
-## Acceptance criteria
+## Acceptance criteria (revised 2026-06-16 — see "Design resolved" below)
 
-- [ ] Five subclasses declared: `SqlOAuthClientStore`, `SqlAuthorizationCodeStore`, `SqlRefreshTokenStore`, `SqlDeviceCodeStore`, `SqlConsentStore` (each `: AsyncSQLiteStore<T>, I…Store`)
-- [ ] Registered in DI to satisfy TASK-030's injected store interfaces
-- [ ] `SetSettings(new PasswordSettings(dbDir, dbFile))` + `InitAsync()` create tables on startup (same DB-file pattern as `SqlPlanRepository`)
-- [ ] Integration test: TASK-030's grant flows pass against the SQLite stores (not just in-memory)
-- [ ] Named lookups (`GetByClientIdAsync`, `GetByCodeAsync`, etc.) resolve correctly through the default `ReadAsync(filter)`
+- [x] Four scalar models persist via thin `: AsyncSQLiteStore<T>, I…Store` subclasses with **no entity layer**: `SqlAuthorizationCodeStore`, `SqlRefreshTokenStore`, `SqlDeviceCodeStore`, `SqlConsentStore`. Their tables are registered via `DataBase.RegisterTableName(...)` (the POCOs carry no `[Table]` attribute) — the SQL field-mapper auto-maps their scalar properties.
+- [x] `OAuthClient` (the only model with `List<string>` columns) persists via `OAuthClientEntity` (scalar columns + a JSON column for RedirectUris/AllowedGrantTypes/AllowedScopes) wrapped by `SqlOAuthClientStore : IOAuthClientStore` (model↔entity mapping; `GetByClientIdAsync` queries the indexed `ClientId` column).
+- [x] `AddOAuthServerStores(useSqlite, dbPath)` DI extension satisfies TASK-030's five injected store interfaces — SQLite when `DataStorageConfig.DefaultBackend == SqLite`, else the existing in-memory stores.
+- [x] Tables created on startup (`SetSettings(new PasswordSettings(dbDir, dbFile))` + `CreateSchemaAsync()`, same DB-file as `SqlPlanRepository`).
+- [x] Integration test: TASK-030's grant flows pass against the SQLite stores over a temp db file; records survive a fresh store instance pointed at the same file (incl. `OAuthClient` collections round-tripping through the JSON column).
+- [x] Named lookups (`GetByClientIdAsync`, `GetByCodeAsync`, `GetByDeviceCodeAsync`, `GetByUserCodeAsync`, `GetByHashAsync`, `GetAsync`) resolve correctly.
+
+## Implementation (2026-06-17)
+
+- `DraCode.KoboldLair.Server/Auth/SqliteOAuthStores.cs` — four scalar stores, `OAuthClientEntity` + `SqlOAuthClientStore`, and the `AddOAuthServerStores(useSqlite, dbPath)` DI extension (registers SQLite-backed or in-memory).
+- `DraCode.KoboldLair.Server/Program.cs` — replaced the five hard-coded in-memory registrations with `AddOAuthServerStores(...)`, reading `KoboldLair:Data` backend + `KoboldLair:ProjectsPath` to resolve the db path via `RepositoryFactory.ResolveSqLitePath`.
+- `DraCode.KoboldLair.Tests/Auth/SqliteOAuthStoreTests.cs` — 3 integration tests over a temp db (client_credentials, device_code pending→approved, collection round-trip across a fresh store). Added a `ProjectReference` from Tests → Server.
+- Verified: full `DraCode.slnx` build clean; all 11 Auth tests pass (8 existing in-memory + 3 new SQLite).
+- **Note:** `SqlOAuthClientStore.ReadAsync(Expression<Func<OAuthClient,bool>>)` throws `NotSupportedException` — arbitrary client predicates can't be translated to the entity table, and no handler uses it (verified: client store is only touched via `GetByClientIdAsync` + `Create/Update/Delete`).
 
 ## Out of scope
 
@@ -64,5 +73,15 @@ The "five trivial `: AsyncSQLiteStore<T>` subclasses" premise is **not viable**.
 - Each `Sql…Store : AsyncSQLiteStore<…Entity>, I…Store` overrides the CRUD + the named lookups (`GetByClientIdAsync`, …) to map model ↔ entity (the inherited `ReadAsync(Expression<Func<Model,bool>>)` can't run against an entity store, so override the named lookups to query the entity columns directly).
 
 Reset to `todo` pending acceptance-criteria revision (the criteria below assume the no-mapper design).
+
+## ✅ Design resolved (2026-06-16) — blocker was half-right
+
+Re-verified against the framework source (`Birko.Data.SQL/SQL/DataBase_Table.cs`, `SQL/Fields/AbstractField.cs`, `SQL/DataBase_Field.cs`). The blocker's premise was **partly wrong**:
+
+- **Fields auto-map without attributes.** `CreateAbstractField` maps every public scalar property by CLR type (string/DateTime/bool/Guid/int/enum) — no `[…Field]` attribute required. `List<string>` returns `null` and is silently skipped (not an NRE).
+- **The NRE came only from the missing `[Table]` attribute.** `ComputeTable` returns null when neither a `[Table]` attribute nor a fluent override exists → empty mapping → NRE on insert. `DataBase.RegisterTableName(type, name)` is the documented fluent hook that supplies the table name **without** owning the type — no entity needed.
+- **The type constraint is fine.** `AsyncSQLiteStore<T> where T : Birko.Data.Models.AbstractModel` is the *same* base the OAuth POCOs already derive from, so `AsyncSQLiteStore<AuthorizationCode>` etc. compile directly.
+
+So an entity+mapper is needed for **`OAuthClient` only** (its three `List<string>` columns would otherwise vanish). The other four models persist natively via `RegisterTableName` + a one-line subclass. Handlers only use `GetByClientIdAsync` + `Create/Update/Delete` on the client store and named lookups (→ `ReadAsync(filter)`) on the rest — all covered.
 
 **Prerequisite unblocked along the way:** the framework source-duplication (CS0436, triple-compiled `AbstractModel`) that made even the trivial subclass fail to *compile* is now fixed — `DraCode.Birko` is the single source-compiler of the framework; KoboldLair/Server/Tests consume it compiled. That work stands independent of this task.

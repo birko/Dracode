@@ -18,6 +18,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DraCode.KoboldLair\DraCode.KoboldLair.csproj" />
+    <!-- Server hosts the OAuth stores (TASK-030/031). It consumes the framework via the same
+         compiled DraCode.Birko, so referencing it does not recompile framework types here. -->
+    <ProjectReference Include="..\DraCode.KoboldLair.Server\DraCode.KoboldLair.Server.csproj" />
   </ItemGroup>
 
   <!-- Framework types (OAuth server, models, stores, security) come compiled via DraCode.KoboldLair
