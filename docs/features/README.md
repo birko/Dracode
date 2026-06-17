@@ -40,7 +40,7 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 | [FEATURE-013](FEATURE-013-design-evaluator-agent/idea.md) | Design EvaluatorAgent | idea | EPIC-011 |
 | [FEATURE-014](FEATURE-014-integrate-evaluator-into-kobold/idea.md) | Integrate EvaluatorAgent into the Kobold loop | idea | EPIC-011 |
 | [FEATURE-015](FEATURE-015-measure-evaluator-vs-reflect/idea.md) | Measure: evaluator vs reflect | idea | EPIC-011 |
-| [FEATURE-016](FEATURE-016-retire-old-stack/idea.md) | Retire DraCode.WebSocket & DraCode.Web | idea | EPIC-012 |
+| [FEATURE-016](FEATURE-016-retire-old-stack/idea.md) | Retire DraCode.WebSocket & DraCode.Web | done | EPIC-012 |
 | [FEATURE-017](FEATURE-017-kobold-endpoint/idea.md) | /kobold WebSocket endpoint | idea | EPIC-012 |
 | [FEATURE-018](FEATURE-018-rest-sse-facade/idea.md) | REST + SSE facade | idea | EPIC-012 |
 | [FEATURE-019](FEATURE-019-oauth-identity/idea.md) | OAuth/OIDC identity | idea | EPIC-012 |

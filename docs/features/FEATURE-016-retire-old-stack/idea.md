@@ -2,7 +2,7 @@
 id: FEATURE-016
 created: 2026-05-31
 owner: human
-status: idea
+status: done
 ---
 
 # Retire DraCode.WebSocket and DraCode.Web
@@ -26,4 +26,4 @@ This is a clean mechanical removal. It can land first in the consolidation effor
 - Preserving the old shared-token connect/send protocol beyond what the replacement provides
 
 ## Prototype
-- Pending — backlog item; prototype decision deferred to /feature decide.
+- Skipped — pure mechanical removal, no user-facing surface to prototype.
