@@ -10,10 +10,14 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 
 **Status legend:** `idea` = captured, not yet built · `review` = built, sign-off pending · `done` = shipped & signed off.
 
-> ⚠️ The planned features below are seeded as `idea` with **`proposed`** decisions — they
+> ⚠️ Most planned features below are seeded as `idea` with **`proposed`** decisions — they
 > have **not** been through `/feature decide` yet. A stakeholder still needs to approve /
 > defer / drop each decision before `/feature decompose` generates any new tasks. The
 > existing `tasks/` are back-linked (`feature: FEATURE-NNN`) but were authored before this index.
+>
+> **Exception (decided 2026-06-17):** FEATURE-017, FEATURE-018, FEATURE-019, and FEATURE-020
+> have been through `/feature decide` — all their decisions are `approved` and they are in
+> phase `building` (coarse status stays `idea` until built/signed off; see each `status.md`).
 
 ---
 
