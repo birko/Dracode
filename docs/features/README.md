@@ -46,6 +46,7 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 | [FEATURE-019](FEATURE-019-oauth-identity/idea.md) | OAuth/OIDC identity | idea | EPIC-012 |
 | [FEATURE-020](FEATURE-020-daemon-mode/idea.md) | Daemon mode for KoboldLair.Server | idea | EPIC-012 |
 | [FEATURE-021](FEATURE-021-remove-sync-tool-execute/idea.md) | Remove sync Tool.Execute() overloads | done | EPIC-012 |
+| [FEATURE-077](FEATURE-077-unify-framework-source-compilation/idea.md) | Unify Birko framework source compilation | done | EPIC-012 |
 | [FEATURE-022](FEATURE-022-cli-client/idea.md) | CLI client | idea | EPIC-013 |
 | [FEATURE-023](FEATURE-023-discord-bot/idea.md) | Discord bot client | idea | EPIC-013 |
 | [FEATURE-024](FEATURE-024-vscode-extension/idea.md) | VSCode extension client | idea | EPIC-013 |
@@ -109,4 +110,4 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 
 ---
 
-_Next `FEATURE-NNN` id: **FEATURE-077**. Add new features with `/feature new`._
+_Next `FEATURE-NNN` id: **FEATURE-078**. Add new features with `/feature new`._
