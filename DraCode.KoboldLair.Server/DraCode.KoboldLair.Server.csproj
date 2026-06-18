@@ -11,10 +11,21 @@
     <ProjectReference Include="..\DraCode.ServiceDefaults\DraCode.ServiceDefaults.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- JWT Bearer auth is NOT in the ASP.NET shared framework — required by the source-compiled
+         Birko.Security.AspNetCore (AddBirkoJwtBearer). -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+  </ItemGroup>
+
   <!-- The Birko framework (models, stores, SQL chain, security, OAuth server) is source-compiled in
        DraCode.Birko and reaches here transitively via DraCode.KoboldLair. Do NOT re-import those
        projitems — single compiled identity is the whole point (see DraCode.Birko.csproj).
        Only ASP.NET-coupled projitems that define no shared identity types live here. -->
+  <!-- Birko.Data.Tenant carries ASP.NET middleware (TenantMiddleware) and is required by
+       Birko.Security.AspNetCore (TenantContextAdapter). Nothing in DraCode.Birko references it, so it
+       compiles here in the web host rather than the plain-SDK aggregator. -->
+  <Import Project="$(BirkoSrc)\Birko.Data.Tenant\Birko.Data.Tenant.projitems" Label="Shared" />
+  <Import Project="$(BirkoSrc)\Birko.Security.AspNetCore\Birko.Security.AspNetCore.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Communication.SSE\Birko.Communication.SSE.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Communication\Birko.Communication.projitems" Label="Shared" />

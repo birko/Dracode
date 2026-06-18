@@ -2,11 +2,13 @@ using Birko.Communication.WebSocket.Middleware;
 using Birko.AI.Resilience.Services;
 using Birko.Communication.WebSocket.Services;
 using Birko.Security;
+using Birko.Security.AspNetCore;
 using Birko.Security.Authorization;
 using Birko.Security.Jwt;
 using Birko.Security.OAuth.Server;
 using Birko.Security.OAuth.Server.Stores;
 using Birko.Security.Hashing;
+using System.Security.Claims;
 using Birko.AI;
 using Birko.AI.Agents;
 using Birko.EventBus;
@@ -72,8 +74,42 @@ builder.Services.AddSingleton<ITokenProvider>(sp =>
 });
 builder.Services.AddSingleton<IPasswordHasher>(new Pbkdf2PasswordHasher());
 builder.Services.AddSingleton<IRoleProvider, KoboldLairRoleProvider>();
-builder.Services.AddSingleton<IPermissionChecker, KoboldLairPermissionChecker>();
 builder.Services.AddSingleton<RefreshTokenStore>();
+
+// Daemon loopback bypass options (TASK-032). Bound from Authentication:Daemon; off by default.
+builder.Services.Configure<DaemonAuthOptions>(
+    builder.Configuration.GetSection("Authentication:Daemon"));
+
+// Birko JWT Bearer validation services (TASK-032). Registered UNCONDITIONALLY so the authorization
+// pipeline (AddAuthorization) is always available; the middleware itself is added only when
+// Authentication:Jwt:Enabled (see the pipeline section), preserving auth-disabled-by-default behavior.
+// Registering the services when disabled is inert — with no UseAuthentication/UseAuthorization in the
+// pipeline, no route is enforced. (Gating registration on a build-time config read instead diverges
+// from the runtime IOptions read under WebApplicationFactory — one decision point avoids that.)
+// AddBirkoSecurity wires AddAuthentication + AddJwtBearer (reads ?token= from the query for SSE/WS) +
+// AddAuthorization, plus claims-based ICurrentUser/IPermissionChecker used by PermissionEndpointFilter.
+// The JWT secret/issuer/audience are reused so login- and OAuth-issued tokens validate by construction.
+{
+    var jwtCfgForSecurity = builder.Configuration
+        .GetSection("Authentication:Jwt").Get<JwtAuthenticationConfiguration>() ?? new JwtAuthenticationConfiguration();
+    var securitySecret = jwtCfgForSecurity.ResolveSecret();
+    if (string.IsNullOrEmpty(securitySecret))
+        securitySecret = "KoboldLair-Development-Secret-Key-Do-Not-Use-In-Production!";
+
+    builder.Services.AddBirkoSecurity(options =>
+    {
+        options.Jwt.Secret = securitySecret;
+        options.Jwt.Issuer = jwtCfgForSecurity.Issuer;
+        options.Jwt.Audience = jwtCfgForSecurity.Audience;
+        options.Jwt.ExpirationMinutes = jwtCfgForSecurity.ExpirationMinutes;
+        options.Jwt.RefreshExpirationDays = jwtCfgForSecurity.RefreshExpirationDays;
+        // Service-account tokens carry their granted scopes in the "scope" claim; interactive login
+        // tokens emit the same claim (AuthEndpoints). Read permissions from it so PermissionEndpointFilter
+        // enforces both. NOTE: ClaimsCurrentUser splits the claim on commas — a single OAuth scope works,
+        // but a space-delimited multi-scope token is a known limitation (follow-up).
+        options.Jwt.Claims.PermissionClaim = "scope";
+    });
+}
 
 // Register Birko OAuth 2.1 authorization server (TASK-030). Endpoints are mapped only when
 // Authentication:OAuth:Enabled; the server + stores register unconditionally (harmless DI singletons).
@@ -814,13 +850,64 @@ app.MapDefaultEndpoints();
 // Enable CORS
 app.UseCors();
 
-// Map JWT auth endpoints (login, refresh, logout)
+// JWT validation middleware (TASK-032). Enabled only when Authentication:Jwt:Enabled; otherwise the
+// server stays auth-free (backward compatible). UseAuthentication is always safe to run (it only
+// populates HttpContext.User from a valid bearer/?token= when present); UseAuthorization is what
+// enforces .RequireAuthorization()/.RequirePermission() metadata.
+var jwtRuntimeEnabled = app.Services
+    .GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value.Enabled;
+if (jwtRuntimeEnabled)
 {
-    var jwtConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
-    if (jwtConfig.Enabled)
+    app.UseAuthentication();
+
+    // Daemon loopback bypass: when configured AND every bind is loopback, trust the OS user and run
+    // requests as a synthetic principal with the "*" permission so both RequireAuthorization and
+    // PermissionEndpointFilter pass. Any non-loopback bind enforces JWT.
+    var daemonOpts = app.Services
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<DaemonAuthOptions>>().Value;
+    var bindUrls = app.Urls.Count > 0
+        ? app.Urls.AsEnumerable()
+        : (app.Configuration["urls"] ?? app.Configuration["ASPNETCORE_URLS"] ?? string.Empty)
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    if (DaemonLoopback.ShouldBypass(daemonOpts.LoopbackBypass, bindUrls))
     {
-        app.MapAuthEndpoints();
+        app.Logger.LogWarning(
+            "⚠ Daemon loopback bypass ACTIVE — JWT validation is skipped (all binds are loopback). " +
+            "Never enable LoopbackBypass on a non-loopback bind.");
+        app.Use(async (ctx, next) =>
+        {
+            if (ctx.User?.Identity?.IsAuthenticated != true)
+            {
+                ctx.User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [
+                        new Claim("scope", "*"),
+                        new Claim(ClaimTypes.NameIdentifier, Guid.Empty.ToString())
+                    ],
+                    authenticationType: "DaemonLoopback"));
+            }
+            await next();
+        });
     }
+
+    app.UseAuthorization();
+}
+
+// Map JWT auth endpoints (login, refresh, logout)
+if (jwtRuntimeEnabled)
+{
+    app.MapAuthEndpoints();
+
+    // Representative protected endpoint — seeds the /api/v1 surface (STORY-016) and proves the
+    // auth + permission pipeline end-to-end. Real resource endpoints attach .RequireAuthorization()
+    // / .RequirePermission(...) the same way. Returns the caller's resolved identity + permissions.
+    app.MapGet("/api/v1/whoami", (ICurrentUser currentUser) =>
+        Results.Ok(new
+        {
+            userId = currentUser.UserId,
+            permissions = currentUser.Permissions.ToArray()
+        }))
+        .RequireAuthorization()
+        .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
 }
 
 // Map OAuth 2.1 authorization-server endpoints (TASK-030) when enabled.
@@ -828,6 +915,15 @@ app.UseCors();
     var oauthConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<OAuthServerConfiguration>>().Value;
     if (oauthConfig.Enabled)
     {
+        // OAuth issues JWTs that the bearer middleware validates, and its admin routes require the
+        // authorization pipeline. Enabling OAuth without JWT would 500 on those routes — fail fast
+        // with a clear message instead.
+        if (!jwtRuntimeEnabled)
+            throw new InvalidOperationException(
+                "Authentication:OAuth:Enabled requires Authentication:Jwt:Enabled — the OAuth server " +
+                "issues JWTs validated by the JWT bearer middleware, and its /device/approve and " +
+                "/register routes require the authorization pipeline (TASK-032).");
+
         app.MapOAuthEndpoints(oauthConfig.AllowDynamicRegistration);
     }
 }
@@ -860,3 +956,6 @@ app.MapWebSocket("/dragon", async (webSocket, context) =>
 app.MapGet("/", () => new { status = "running", endpoints = new[] { "/wyvern", "/dragon" } });
 
 app.Run();
+
+// Exposes the implicit Program entry point to the test host (WebApplicationFactory<Program>, TASK-032).
+public partial class Program { }

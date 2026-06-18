@@ -34,12 +34,17 @@ public static class AuthEndpoints
         if (!passwordHasher.Verify(request.Password, user.PasswordHash))
             return Results.Unauthorized();
 
-        // Generate access token with claims
+        // Generate access token with claims. The "scope" claim carries the expanded
+        // role permissions so ClaimsCurrentUser.Permissions + PermissionEndpointFilter
+        // can enforce per-endpoint scopes — the same claim OAuth service-account tokens
+        // use (TASK-032). Comma-joined; ClaimsCurrentUser splits it back into discrete values.
+        var permissions = KoboldLairPermissionChecker.ExpandRolesToPermissions(user.Roles);
         var claims = new Dictionary<string, string>
         {
             [JwtRegisteredClaimNames.Sub] = user.Id.ToString(),
             ["name"] = user.Username,
-            ["roles"] = string.Join(",", user.Roles)
+            ["roles"] = string.Join(",", user.Roles),
+            ["scope"] = string.Join(",", permissions)
         };
 
         var tokenResult = tokenProvider.GenerateToken(claims);
@@ -72,12 +77,14 @@ public static class AuthEndpoints
         // Revoke old refresh token (rotation)
         refreshStore.Revoke(request.RefreshToken);
 
-        // Generate new token pair
+        // Generate new token pair (mirror the login claim set, including the scope/permission claim)
+        var permissions = KoboldLairPermissionChecker.ExpandRolesToPermissions(entry.Roles);
         var claims = new Dictionary<string, string>
         {
             [JwtRegisteredClaimNames.Sub] = entry.UserId.ToString(),
             ["name"] = entry.Username,
-            ["roles"] = string.Join(",", entry.Roles)
+            ["roles"] = string.Join(",", entry.Roles),
+            ["scope"] = string.Join(",", permissions)
         };
 
         var tokenResult = tokenProvider.GenerateToken(claims);

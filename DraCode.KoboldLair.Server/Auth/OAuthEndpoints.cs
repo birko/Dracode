@@ -1,11 +1,15 @@
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Birko.Security.AspNetCore;
 using Birko.Security.OAuth.Server;
 using Birko.Security.OAuth.Server.Endpoints.Authorize;
 using Birko.Security.OAuth.Server.Endpoints.ClientRegistration;
 using Birko.Security.OAuth.Server.Endpoints.DeviceAuthorization;
 using Birko.Security.OAuth.Server.Endpoints.Token;
 using Microsoft.Extensions.Primitives;
+// Birko.Security.AspNetCore also defines a TokenRequest (login DTO); this file means the OAuth one.
+using TokenRequest = Birko.Security.OAuth.Server.Endpoints.Token.TokenRequest;
 
 namespace DraCode.KoboldLair.Server.Auth;
 
@@ -26,15 +30,22 @@ public static class OAuthEndpoints
 
     public static void MapOAuthEndpoints(this WebApplication app, bool allowDynamicRegistration)
     {
+        // /token and /device_authorization are unauthenticated by spec (clients authenticate via
+        // client credentials / device code in the body, not a bearer token).
         app.MapPost("/token", HandleTokenAsync);
         app.MapPost("/device_authorization", HandleDeviceAuthorizationAsync);
-        app.MapPost("/device/approve", HandleDeviceApproveAsync);
-        app.MapGet("/authorize", HandleAuthorizeAsync);
+
+        // /device/approve and /authorize act on behalf of a logged-in human — require auth so the
+        // user identity comes from the authenticated principal, not a spoofable body/query field.
+        app.MapPost("/device/approve", HandleDeviceApproveAsync).RequireAuthorization();
+        app.MapGet("/authorize", HandleAuthorizeAsync).RequireAuthorization();
 
         if (allowDynamicRegistration)
         {
-            // ⚠ TODO(TASK-032): gate behind admin auth. Only mapped when AllowDynamicRegistration=true.
-            app.MapPost("/register", HandleRegisterAsync);
+            // RFC 7591 dynamic client registration — gated behind admin auth (TASK-032).
+            app.MapPost("/register", HandleRegisterAsync)
+                .RequireAuthorization()
+                .RequirePermission(KoboldLairPermissionChecker.ManageUsers);
         }
     }
 
@@ -102,14 +113,18 @@ public static class OAuthEndpoints
         catch (OAuthServerException ex) { return Error(ex); }
     }
 
-    // ⚠ TODO(TASK-032): require auth + derive userId from the authenticated principal instead of
-    // the body field, and drop UserId from DeviceApproveRequest. Unguarded for now (OAuth is
-    // Enabled:false by default; local-dev only). See TASK-030 resolved note (2).
-    private static async Task<IResult> HandleDeviceApproveAsync(DeviceApproveRequest body, OAuthServer server)
+    // Requires auth (.RequireAuthorization above). The approving user is taken from the authenticated
+    // principal's subject claim — never a request-body field (TASK-032).
+    private static async Task<IResult> HandleDeviceApproveAsync(DeviceApproveRequest body, OAuthServer server, HttpContext ctx)
     {
+        var userId = ctx.User.FindFirst("sub")?.Value
+                     ?? ctx.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
+
         try
         {
-            await server.DeviceAuthorization.ApproveAsync(body.UserCode, body.UserId, body.Approved);
+            await server.DeviceAuthorization.ApproveAsync(body.UserCode, userId, body.Approved);
             return Results.Json(new { status = "ok" }, JsonOpts);
         }
         catch (OAuthServerException ex) { return Error(ex); }
@@ -129,9 +144,14 @@ public static class OAuthEndpoints
             CodeChallengeMethod = Val(q["code_challenge_method"])
         };
 
-        // ⚠ TODO(TASK-032): once JWT middleware is enabled, derive userId from the principal only.
-        // No consent UI yet — returns JSON describing the outcome rather than rendering HTML.
-        var userId = req.HttpContext.User?.FindFirst("sub")?.Value ?? Val(q["user_id"]) ?? string.Empty;
+        // Auth is required (.RequireAuthorization above); the user identity comes from the principal
+        // only — the legacy ?user_id= fallback is gone (TASK-032). No consent UI yet — returns JSON
+        // describing the outcome rather than rendering HTML.
+        var userId = req.HttpContext.User.FindFirst("sub")?.Value
+                     ?? req.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? string.Empty;
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
 
         try
         {
@@ -192,8 +212,10 @@ public static class OAuthEndpoints
     }
 }
 
-/// <summary>Body of the unguarded <c>/device/approve</c> route (see TASK-032 TODO).</summary>
+/// <summary>
+/// Body of the <c>/device/approve</c> route. The approving user is derived from the authenticated
+/// principal (TASK-032), so no user id is accepted from the body.
+/// </summary>
 public record DeviceApproveRequest(
     [property: JsonPropertyName("user_code")] string UserCode,
-    [property: JsonPropertyName("user_id")] string UserId,
     [property: JsonPropertyName("approved")] bool Approved);

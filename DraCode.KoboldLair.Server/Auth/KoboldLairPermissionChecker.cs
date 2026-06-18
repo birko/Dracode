@@ -30,6 +30,18 @@ public class KoboldLairPermissionChecker : IPermissionChecker
         _config = config.Value;
     }
 
+    /// <summary>
+    /// Expands a set of role names into the distinct permissions they grant. Used when minting
+    /// tokens (TASK-032) so the JWT carries a permission/scope claim that
+    /// <c>ClaimsCurrentUser.Permissions</c> + <c>PermissionEndpointFilter</c> can enforce.
+    /// </summary>
+    public static IReadOnlyList<string> ExpandRolesToPermissions(IEnumerable<string> roles) =>
+        roles
+            .Where(role => RolePermissions.ContainsKey(role))
+            .SelectMany(role => RolePermissions[role])
+            .Distinct()
+            .ToList();
+
     public Task<bool> HasPermissionAsync(Guid userId, string permission, CancellationToken ct = default)
     {
         var user = _config.Users.FirstOrDefault(u => u.Id == userId);
