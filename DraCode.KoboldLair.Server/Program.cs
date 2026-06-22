@@ -432,6 +432,10 @@ builder.Services.AddSingleton<ProjectService>(sp =>
 });
 
 // Register remaining factories
+// Per-run telemetry stream (TASK-037) — shared foundation for the /kobold WS (TASK-038) and SSE
+// (TASK-045) transports. Singleton; Kobolds publish to it, transports subscribe by runId.
+builder.Services.AddSingleton<KoboldRunEventSource>();
+
 builder.Services.AddSingleton<KoboldFactory>(sp =>
 {
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
@@ -446,8 +450,9 @@ builder.Services.AddSingleton<KoboldFactory>(sp =>
 
     var rateLimiter = sp.GetRequiredService<ProviderRateLimiter>();
     var costTracker = sp.GetRequiredService<CostTrackingService>();
+    var runEventSource = sp.GetRequiredService<KoboldRunEventSource>();
     return new KoboldFactory(projectConfigService, loggerFactory, config, getMaxParallel,
-        rateLimiter: rateLimiter, costTracker: costTracker);
+        rateLimiter: rateLimiter, costTracker: costTracker, runEventSource: runEventSource);
 });
 builder.Services.AddSingleton<WyrmFactory>(sp =>
 {

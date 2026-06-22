@@ -25,6 +25,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly ProviderRateLimiter? _rateLimiter;
         private readonly CostTrackingService? _costTracker;
+        private readonly KoboldRunEventSource? _runEventSource;
 
         /// <summary>
         /// Gets the total number of Kobolds managed by this factory
@@ -42,7 +43,8 @@ namespace DraCode.KoboldLair.Factories
             AgentOptions? defaultOptions = null,
             Dictionary<string, string>? defaultConfig = null,
             ProviderRateLimiter? rateLimiter = null,
-            CostTrackingService? costTracker = null)
+            CostTrackingService? costTracker = null,
+            KoboldRunEventSource? runEventSource = null)
         {
             _kobolds = new ConcurrentDictionary<Guid, KoboldModel>();
             _projectConfigService = projectConfigService;
@@ -53,6 +55,7 @@ namespace DraCode.KoboldLair.Factories
             _defaultConfig = defaultConfig;
             _rateLimiter = rateLimiter;
             _costTracker = costTracker;
+            _runEventSource = runEventSource;
         }
 
         /// <summary>
@@ -83,6 +86,7 @@ namespace DraCode.KoboldLair.Factories
 
             var logger = _loggerFactory.CreateLogger<KoboldModel>();
             var kobold = new KoboldModel(agent, agentType, logger);
+            kobold.SetRunEventSource(_runEventSource); // per-run telemetry (TASK-037); null = headless
             _kobolds.TryAdd(kobold.Id, kobold);
             
             logger.LogInformation("Created Kobold {KoboldId} with agent type {AgentType} using provider {Provider} at {Timestamp:o}", 

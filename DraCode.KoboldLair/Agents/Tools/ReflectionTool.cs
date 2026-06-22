@@ -24,6 +24,8 @@ namespace DraCode.KoboldLair.Agents.Tools
         private static string? _agentType;
         private static Action<EscalationAlert>? _onEscalation;
         private static ReflectionConfiguration? _config;
+        private static KoboldRunEventSource? _runEventSource;
+        private static Guid _runId;
 
         public override string Name => "reflect";
 
@@ -132,6 +134,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                         Adjustment = adjustment
                     };
                     _currentPlan.Reflections.Add(entry);
+                    EscalationAlert? raisedAlert = null;
 
                     var config = _config ?? new ReflectionConfiguration();
                     var shouldEscalate = false;
@@ -194,6 +197,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                                 .ToList()
                         };
                         _currentPlan.Escalations.Add(alert);
+                        raisedAlert = alert;
 
                         _logger?.LogWarning(
                             "Escalation raised for Kobold {KoboldId}: {Type} - {Summary}",
@@ -242,6 +246,18 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                     var totalSteps = _currentPlan.Steps.Count;
                     var planProgress = _currentPlan.ProgressPercentage;
 
+                    // Publish to the per-run telemetry stream (TASK-037). Non-blocking; no-op if no subscriber.
+                    _runEventSource?.Publish(new Events.Run.ReflectionEvent
+                    {
+                        RunId = _runId,
+                        KoboldId = _koboldId,
+                        ProjectId = _currentProjectId,
+                        TaskId = _currentTaskId,
+                        AgentType = _agentType ?? "",
+                        Entry = entry,
+                        Escalation = raisedAlert
+                    });
+
                     var pivotNote = decision == ReflectionDecision.Pivot && !string.IsNullOrEmpty(adjustment)
                         ? $"\n\nPivot acknowledged: {adjustment}. Proceed with your adjusted approach."
                         : "";
@@ -278,7 +294,9 @@ Continue working on your current step. Call `update_plan_step` when complete.";
             Guid koboldId,
             string? agentType,
             Action<EscalationAlert>? onEscalation,
-            ReflectionConfiguration? config)
+            ReflectionConfiguration? config,
+            KoboldRunEventSource? runEventSource = null,
+            Guid runId = default)
         {
             _semaphore.Wait();
             try
@@ -292,6 +310,8 @@ Continue working on your current step. Call `update_plan_step` when complete.";
                 _agentType = agentType;
                 _onEscalation = onEscalation;
                 _config = config;
+                _runEventSource = runEventSource;
+                _runId = runId;
             }
             finally
             {
@@ -316,6 +336,8 @@ Continue working on your current step. Call `update_plan_step` when complete.";
                 _agentType = null;
                 _onEscalation = null;
                 _config = null;
+                _runEventSource = null;
+                _runId = Guid.Empty;
             }
             finally
             {

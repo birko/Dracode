@@ -28,6 +28,10 @@ namespace DraCode.KoboldLair.Agents.Tools
         private static string? _currentTaskId;
         private static string? _currentProjectId;
         private static ILogger? _logger;
+        private static KoboldRunEventSource? _runEventSource;
+        private static Guid _runId;
+        private static Guid _koboldId;
+        private static string? _agentType;
 
         public override string Name => "update_plan_step";
 
@@ -218,6 +222,21 @@ Returns: Confirmation of the update with current plan progress.";
                         _logger?.LogDebug("Plan advanced to step {CurrentStep}/{TotalSteps} at {Timestamp:o}",
                             _currentPlan.CurrentStepIndex + 1, _currentPlan.Steps.Count, DateTime.UtcNow);
                     }
+
+                    // Publish to the per-run telemetry stream (TASK-037). Non-blocking; no-op if no subscriber.
+                    _runEventSource?.Publish(new Events.Run.PlanStepUpdatedEvent
+                    {
+                        RunId = _runId,
+                        KoboldId = _koboldId,
+                        ProjectId = _currentProjectId,
+                        TaskId = _currentTaskId,
+                        AgentType = _agentType ?? "",
+                        StepIndex = stepIndex,
+                        Status = newStatus,
+                        Output = output,
+                        CompletedSteps = _currentPlan.CompletedStepsCount,
+                        TotalSteps = _currentPlan.Steps.Count
+                    });
 
                     // Save the plan using debounced write to coalesce rapid updates from parallel Kobolds
                     if (_planService != null && !string.IsNullOrEmpty(_currentPlan.ProjectId))
@@ -416,7 +435,11 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
             ILogger? logger = null,
             SharedPlanningContextService? sharedPlanningContext = null,
             string? projectId = null,
-            string? taskId = null)
+            string? taskId = null,
+            KoboldRunEventSource? runEventSource = null,
+            Guid runId = default,
+            Guid koboldId = default,
+            string? agentType = null)
         {
             _semaphore.Wait();
             try
@@ -427,6 +450,10 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
                 _sharedPlanningContext = sharedPlanningContext;
                 _currentProjectId = projectId ?? plan.ProjectId;
                 _currentTaskId = taskId ?? plan.TaskId;
+                _runEventSource = runEventSource;
+                _runId = runId;
+                _koboldId = koboldId;
+                _agentType = agentType;
             }
             finally
             {
@@ -449,6 +476,10 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
                 _sharedPlanningContext = null;
                 _currentProjectId = null;
                 _currentTaskId = null;
+                _runEventSource = null;
+                _runId = Guid.Empty;
+                _koboldId = Guid.Empty;
+                _agentType = null;
             }
             finally
             {

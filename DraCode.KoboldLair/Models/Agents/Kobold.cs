@@ -3,6 +3,7 @@ using Birko.AI.Models;
 using Birko.AI.Agents;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.Tools;
+using DraCode.KoboldLair.Events.Run;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
 using DraCode.KoboldLair.Models.Validation;
@@ -20,6 +21,7 @@ namespace DraCode.KoboldLair.Models.Agents
         private readonly ILogger<Kobold>? _logger;
         private readonly StepValidationService _validationService;
         private SharedPlanningContextService? _sharedPlanningContext;
+        private KoboldRunEventSource? _runEventSource;
         private Specification? _specification;
 
         /// <summary>
@@ -32,6 +34,12 @@ namespace DraCode.KoboldLair.Models.Agents
         /// Unique identifier for this Kobold
         /// </summary>
         public Guid Id { get; }
+
+        /// <summary>
+        /// Identifies the current execution ("run") — a fresh Guid each time the Kobold starts working
+        /// (so a resumed/retried task is a distinct run). Keys the per-run telemetry stream (TASK-037).
+        /// </summary>
+        public Guid RunId { get; private set; }
 
         /// <summary>
         /// The agent instance created by KoboldLairAgentFactory
@@ -206,6 +214,33 @@ namespace DraCode.KoboldLair.Models.Agents
         public void SetSharedPlanningContext(SharedPlanningContextService? sharedPlanningContext)
         {
             _sharedPlanningContext = sharedPlanningContext;
+        }
+
+        /// <summary>
+        /// Sets the per-run event source (TASK-037) the tool loop publishes execution telemetry to.
+        /// Optional — when null (default, e.g. headless Drake runs with no transport attached) all
+        /// publishing short-circuits and execution is unaffected.
+        /// </summary>
+        public void SetRunEventSource(KoboldRunEventSource? runEventSource)
+        {
+            _runEventSource = runEventSource;
+        }
+
+        /// <summary>
+        /// Publishes a per-run event, stamping the common identity fields. No-op (and zero allocation
+        /// of the stamped copy is avoided) when no event source is attached.
+        /// </summary>
+        private void PublishRunEvent(KoboldRunEvent evt)
+        {
+            if (_runEventSource == null) return;
+            _runEventSource.Publish(evt with
+            {
+                RunId = RunId,
+                KoboldId = Id,
+                ProjectId = ProjectId,
+                TaskId = TaskId?.ToString(),
+                AgentType = AgentType
+            });
         }
 
         /// <summary>
@@ -792,6 +827,7 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             Status = KoboldStatus.Working;
+            RunId = Guid.NewGuid();
             StartedAt = DateTime.UtcNow;
             LastLlmResponseAt = DateTime.UtcNow; // Initialize to start time
 
@@ -806,7 +842,8 @@ You are working on a task that is part of a larger project. Below is the project
                     _logger,
                     _sharedPlanningContext,
                     ProjectId,
-                    TaskId?.ToString());
+                    TaskId?.ToString(),
+                    _runEventSource, RunId, Id, AgentType);
 
                 // Add the tool to the agent
                 Agent.AddTool(new UpdatePlanStepTool());
@@ -816,7 +853,8 @@ You are working on a task that is part of a larger project. Below is the project
                 ReflectionTool.RegisterContext(
                     ImplementationPlan, planService, _logger,
                     ProjectId, TaskId?.ToString(), Id, AgentType,
-                    OnEscalation, null);
+                    OnEscalation, null,
+                    _runEventSource, RunId);
                 Agent.AddTool(new ReflectionTool());
             }
 
@@ -963,6 +1001,22 @@ You are working on a task that is part of a larger project. Below is the project
                     Agent.RemoveTool("reflect");
                     ReflectionTool.ClearContext();
                 }
+
+                // Per-run telemetry (TASK-037): emit a terminal event, then complete the stream so
+                // subscribers' readers finish. Runs even on exception propagation (no-op if no source).
+                if (_runEventSource != null)
+                {
+                    if (Status == KoboldStatus.Done)
+                        PublishRunEvent(new RunCompletedEvent
+                        {
+                            FinalStatus = Status,
+                            CompletedSteps = ImplementationPlan?.CompletedStepsCount ?? 0,
+                            TotalSteps = ImplementationPlan?.Steps.Count ?? 0
+                        });
+                    else
+                        PublishRunEvent(new RunErrorEvent { Message = $"Run ended with status {Status}" });
+                    _runEventSource.CompleteRun(RunId);
+                }
             }
         }
 
@@ -1000,6 +1054,7 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             Status = KoboldStatus.Working;
+            RunId = Guid.NewGuid();
             StartedAt = DateTime.UtcNow;
 
             // Register the plan context for the tool (including shared planning context for file tracking)
@@ -1009,7 +1064,8 @@ You are working on a task that is part of a larger project. Below is the project
                 _logger,
                 _sharedPlanningContext,
                 ProjectId,
-                TaskId?.ToString());
+                TaskId?.ToString(),
+                _runEventSource, RunId, Id, AgentType);
 
             // Add the tool to the agent
             Agent.AddTool(new UpdatePlanStepTool());
@@ -1018,7 +1074,8 @@ You are working on a task that is part of a larger project. Below is the project
             ReflectionTool.RegisterContext(
                 ImplementationPlan, planService, _logger,
                 ProjectId, TaskId?.ToString(), Id, AgentType,
-                OnEscalation, null);
+                OnEscalation, null,
+                _runEventSource, RunId);
             Agent.AddTool(new ReflectionTool());
 
             // Phase 4: Add modify_plan tool if enabled
@@ -1159,6 +1216,21 @@ You are working on a task that is part of a larger project. Below is the project
                 {
                     Agent.RemoveTool("modify_plan");
                     ModifyPlanTool.ClearContext();
+                }
+
+                // Per-run telemetry (TASK-037): terminal event + complete the stream (see basic path).
+                if (_runEventSource != null)
+                {
+                    if (Status == KoboldStatus.Done)
+                        PublishRunEvent(new RunCompletedEvent
+                        {
+                            FinalStatus = Status,
+                            CompletedSteps = ImplementationPlan?.CompletedStepsCount ?? 0,
+                            TotalSteps = ImplementationPlan?.Steps.Count ?? 0
+                        });
+                    else
+                        PublishRunEvent(new RunErrorEvent { Message = $"Run ended with status {Status}" });
+                    _runEventSource.CompleteRun(RunId);
                 }
             }
         }
@@ -1338,6 +1410,12 @@ If step is complete, call `update_plan_step` with status 'completed' instead.
                         {
                             var toolCallMsg = $"Tool: {block.Name}\nInput: {System.Text.Json.JsonSerializer.Serialize(block.Input)}";
                             Agent.Provider.MessageCallback?.Invoke("tool_call", toolCallMsg);
+                            // Per-run telemetry (TASK-037): tool-call start (structured, enhanced path).
+                            PublishRunEvent(new ToolCallStartedEvent
+                            {
+                                ToolName = block.Name ?? "",
+                                InputJson = System.Text.Json.JsonSerializer.Serialize(block.Input)
+                            });
 
                             var tool = Agent.Tools.FirstOrDefault(t => t.Name == block.Name);
                             var result = tool != null
@@ -1346,6 +1424,7 @@ If step is complete, call `update_plan_step` with status 'completed' instead.
 
                             var preview = result.Length > 500 ? string.Concat(result.AsSpan(0, 500), "...") : result;
                             Agent.Provider.MessageCallback?.Invoke("tool_result", $"Result from {block.Name}:\n{preview}");
+                            PublishRunEvent(new ToolCallResultEvent { ToolName = block.Name ?? "", ResultPreview = preview });
 
                             // Check if agent called update_plan_step
                             if (block.Name == "update_plan_step")
