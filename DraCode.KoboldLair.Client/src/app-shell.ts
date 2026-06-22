@@ -4,8 +4,14 @@
  */
 
 import { define } from 'birko-web-core';
-import { BAppShell } from 'birko-web-shell/shell';
+import { BAppShell, registerThemes, BUILTIN_THEMES } from 'birko-web-shell/shell';
 import { authStore, clearAuth } from './auth-store.js';
+
+// Offer all four built-in themes in the header switcher. NOTE: the served
+// wwwroot/index.html is a standalone legacy page that does not currently mount
+// this shell or load the Birko tokens, so this stays a no-op until the shell is
+// wired into the served page (+ tokens.css / css/themes/*.css are linked).
+registerThemes([BUILTIN_THEMES.light, BUILTIN_THEMES.dark, BUILTIN_THEMES.neon, BUILTIN_THEMES.finstat]);
 import { moduleStore, buildKoboldLairRibbon, resolveModuleFromHash, loadModules } from './module-store.js';
 
 class KoboldLairAppShell extends BAppShell {
