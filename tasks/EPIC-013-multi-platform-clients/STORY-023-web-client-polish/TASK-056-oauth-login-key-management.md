@@ -35,6 +35,7 @@ Replace the existing token-paste field (`auth-store.ts`) with a GitHub OAuth log
 ## Human test plan
 
 - [ ] Click "Sign in with GitHub" → complete consent → land authenticated; open Settings → API Keys → create a key, see it once, revoke it
+- [ ] **Also verify TASK-034's deferred end-to-end scoping** (it's in `review` waiting on this UI): log in as user A, create a project; log in as user B → B's project list omits A's project, B's own creates carry B's `sub`; an admin (`ViewAll`) sees both; under loopback-dev, creates are owned by `Guid.Empty` and the list shows all. When this passes, close TASK-034 → `done`.
 
 ## Implementation plan
 
