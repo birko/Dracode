@@ -9,6 +9,6 @@
                                  checkouts of this repo, e.g. C:\Source\Birko.Helpers
                                  next to C:\Source\DraCode\). -->
     <BirkoSrc Condition="'$(BirkoSrc)' == '' and '$(BIRKO_SRC)' != ''">$(BIRKO_SRC)</BirkoSrc>
-    <BirkoSrc Condition="'$(BirkoSrc)' == ''">$(MSBuildThisFileDirectory)..</BirkoSrc>
+    <BirkoSrc Condition="'$(BirkoSrc)' == ''">$(MSBuildThisFileDirectory)..\..\Framework</BirkoSrc>
   </PropertyGroup>
 </Project>
