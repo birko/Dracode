@@ -28,6 +28,8 @@ using Birko.BackgroundJobs;
 using Birko.BackgroundJobs.Processing;
 using DraCode.KoboldLair.Server.Jobs;
 using DraCode.KoboldLair.Server.Services;
+using DraCode.KoboldLair.Server.Api;
+using Scalar.AspNetCore;
 using Birko.Validation;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
@@ -710,6 +712,16 @@ builder.Services.AddCors(options =>
     });
 });
 
+// /api/v1 REST facade (TASK-042): built-in OpenAPI document generation, and camelCase JSON for
+// minimal-API endpoints (matches the JS client conventions). The explicit snake_case options the
+// OAuth/Auth endpoints pass to Results.Json are unaffected — they win over these global defaults.
+builder.Services.AddOpenApi();
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    o.SerializerOptions.PropertyNameCaseInsensitive = true;
+});
+
 var app = builder.Build();
 
 // Auto-migrate JSON → SQLite on first startup when SQLite backend is enabled
@@ -932,18 +944,17 @@ if (jwtRuntimeEnabled)
 {
     app.MapAuthEndpoints();
 
-    // Representative protected endpoint — seeds the /api/v1 surface (STORY-016) and proves the
-    // auth + permission pipeline end-to-end. Real resource endpoints attach .RequireAuthorization()
-    // / .RequirePermission(...) the same way. Returns the caller's resolved identity + permissions.
-    app.MapGet("/api/v1/whoami", (ICurrentUser currentUser) =>
-        Results.Ok(new
-        {
-            userId = currentUser.UserId,
-            permissions = currentUser.Permissions.ToArray()
-        }))
-        .RequireAuthorization()
-        .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
+    // The /api/v1 REST facade group (TASK-042 / STORY-016) — group-wide RequireAuthorization +
+    // whoami + the agents/active stub. Resource endpoints (TASK-043/044/046) extend the same group.
+    // Mapped here (under jwtRuntimeEnabled) because RequireAuthorization only bites once
+    // UseAuthorization is in the pipeline, which is itself gated on JWT being enabled.
+    app.MapApiV1();
 }
+
+// OpenAPI document + Scalar docs UI for the /api/v1 facade (TASK-042). Mapped anonymously (NOT under
+// the authed group) so a browser can open the docs / fetch the spec without a token.
+app.MapOpenApi("/api/v1/openapi.json");
+app.MapScalarApiReference("/api/v1/docs", o => o.WithOpenApiRoutePattern("/api/v1/openapi.json"));
 
 // Map OAuth 2.1 authorization-server endpoints (TASK-030) when enabled.
 {
