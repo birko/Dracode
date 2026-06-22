@@ -9,12 +9,12 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "birko-web-core": ["../../Birko.Web.Core/src/index.ts"],
-      "birko-web-core/*": ["../../Birko.Web.Core/src/*/index.ts"],
-      "birko-web-components": ["../../Birko.Web.Components/src/index.ts"],
-      "birko-web-components/*": ["../../Birko.Web.Components/src/*/index.ts"],
-      "birko-web-shell": ["../../Birko.Web.Shell/src/index.ts"],
-      "birko-web-shell/*": ["../../Birko.Web.Shell/src/*/index.ts"]
+      "birko-web-core": ["../../../Web/Birko.Web.Core/src/index.ts"],
+      "birko-web-core/*": ["../../../Web/Birko.Web.Core/src/*/index.ts"],
+      "birko-web-components": ["../../../Web/Birko.Web.Components/src/index.ts"],
+      "birko-web-components/*": ["../../../Web/Birko.Web.Components/src/*/index.ts"],
+      "birko-web-shell": ["../../../Web/Birko.Web.Shell/src/index.ts"],
+      "birko-web-shell/*": ["../../../Web/Birko.Web.Shell/src/*/index.ts"]
     },
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
