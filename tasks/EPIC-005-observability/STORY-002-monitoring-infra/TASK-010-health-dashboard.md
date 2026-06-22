@@ -1,7 +1,7 @@
 ---
 id: TASK-010
 parent: STORY-002
-status: todo
+status: blocked
 priority: P2
 assignee: ai
 created: 2026-05-28

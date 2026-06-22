@@ -2,7 +2,7 @@
 id: TASK-057
 parent: STORY-023
 feature: FEATURE-026
-status: todo
+status: blocked
 priority: P2
 assignee: ai
 created: 2026-06-11
