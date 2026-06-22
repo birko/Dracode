@@ -16,11 +16,11 @@ public class RefreshTokenStore
         _cleanupTimer = new Timer(CleanupExpired, null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
     }
 
-    public void Store(string refreshToken, Guid userId, string username, List<string> roles, DateTime expiresAt)
+    public void Store(string refreshToken, string ownerSub, string username, List<string> roles, DateTime expiresAt)
     {
         _tokens[refreshToken] = new RefreshTokenEntry
         {
-            UserId = userId,
+            OwnerSub = ownerSub,
             Username = username,
             Roles = roles,
             ExpiresAt = expiresAt,
@@ -52,9 +52,9 @@ public class RefreshTokenStore
         return false;
     }
 
-    public void RevokeAllForUser(Guid userId)
+    public void RevokeAllForUser(string ownerSub)
     {
-        var userTokens = _tokens.Where(kvp => kvp.Value.UserId == userId).Select(kvp => kvp.Key).ToList();
+        var userTokens = _tokens.Where(kvp => kvp.Value.OwnerSub == ownerSub).Select(kvp => kvp.Key).ToList();
         foreach (var token in userTokens)
         {
             _tokens.TryRemove(token, out _);
@@ -75,7 +75,12 @@ public class RefreshTokenStore
 
 public class RefreshTokenEntry
 {
-    public Guid UserId { get; set; }
+    /// <summary>
+    /// The owner's stable sign-in subject (`sub`). Stored as a string so federated identities
+    /// (e.g. <c>github:{id}</c>) survive refresh — <c>/auth/refresh</c> re-emits this verbatim as
+    /// the new token's `sub` (FEATURE-019 D12).
+    /// </summary>
+    public string OwnerSub { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = [];
     public DateTime ExpiresAt { get; set; }

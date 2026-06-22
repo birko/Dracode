@@ -76,6 +76,15 @@ builder.Services.AddSingleton<IPasswordHasher>(new Pbkdf2PasswordHasher());
 builder.Services.AddSingleton<IRoleProvider, KoboldLairRoleProvider>();
 builder.Services.AddSingleton<RefreshTokenStore>();
 
+// GitHub federation (TASK-033 / FEATURE-019 D1, D11, D13). Bound + registered unconditionally so
+// the services are inert when disabled; the endpoints are only mapped when Enabled (see below).
+builder.Services.Configure<GitHubFederationConfiguration>(
+    builder.Configuration.GetSection("Authentication:GitHub"));
+builder.Services.AddSingleton<OAuthStateStore>();
+builder.Services.AddHttpClient<IGitHubUserInfoClient, GitHubUserInfoClient>();
+builder.Services.AddHttpClient<IGitHubTokenExchanger, GitHubTokenExchanger>();
+builder.Services.AddScoped<GitHubFederationService>();
+
 // Daemon loopback bypass options (TASK-032). Bound from Authentication:Daemon; off by default.
 builder.Services.Configure<DaemonAuthOptions>(
     builder.Configuration.GetSection("Authentication:Daemon"));
@@ -944,6 +953,22 @@ if (jwtRuntimeEnabled)
                 "/register routes require the authorization pipeline (TASK-032).");
 
         app.MapOAuthEndpoints(oauthConfig.AllowDynamicRegistration);
+    }
+}
+
+// Map GitHub federation endpoints (TASK-033) when enabled.
+{
+    var gitHubConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<GitHubFederationConfiguration>>().Value;
+    if (gitHubConfig.Enabled)
+    {
+        // Federation mints DraCode JWTs validated by the bearer middleware, so JWT must be on.
+        // Fail fast with a clear message rather than 500 on the callback (mirrors the OAuth gate).
+        if (!jwtRuntimeEnabled)
+            throw new InvalidOperationException(
+                "Authentication:GitHub:Enabled requires Authentication:Jwt:Enabled — GitHub federation " +
+                "mints JWTs validated by the JWT bearer middleware (TASK-033 / FEATURE-019 D11).");
+
+        app.MapGitHubAuthEndpoints();
     }
 }
 

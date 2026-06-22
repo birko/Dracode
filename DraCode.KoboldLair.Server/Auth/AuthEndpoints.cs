@@ -50,9 +50,10 @@ public static class AuthEndpoints
         var tokenResult = tokenProvider.GenerateToken(claims);
         var refreshToken = tokenProvider.GenerateRefreshToken();
 
-        // Store refresh token
+        // Store refresh token keyed on the string sub (FEATURE-019 D12) — config users use their
+        // Guid id as the sub; federated users (TASK-033) use e.g. "github:{id}".
         var refreshExpiry = DateTime.UtcNow.AddDays(jwtConfig.RefreshExpirationDays);
-        refreshStore.Store(refreshToken, user.Id, user.Username, user.Roles, refreshExpiry);
+        refreshStore.Store(refreshToken, user.Id.ToString(), user.Username, user.Roles, refreshExpiry);
 
         return Results.Ok(new LoginResponse
         {
@@ -81,7 +82,7 @@ public static class AuthEndpoints
         var permissions = KoboldLairPermissionChecker.ExpandRolesToPermissions(entry.Roles);
         var claims = new Dictionary<string, string>
         {
-            [JwtRegisteredClaimNames.Sub] = entry.UserId.ToString(),
+            [JwtRegisteredClaimNames.Sub] = entry.OwnerSub,
             ["name"] = entry.Username,
             ["roles"] = string.Join(",", entry.Roles),
             ["scope"] = string.Join(",", permissions)
@@ -92,7 +93,7 @@ public static class AuthEndpoints
 
         var jwtConfig = config.Value;
         var refreshExpiry = DateTime.UtcNow.AddDays(jwtConfig.RefreshExpirationDays);
-        refreshStore.Store(newRefreshToken, entry.UserId, entry.Username, entry.Roles, refreshExpiry);
+        refreshStore.Store(newRefreshToken, entry.OwnerSub, entry.Username, entry.Roles, refreshExpiry);
 
         return Results.Ok(new LoginResponse
         {
