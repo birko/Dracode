@@ -177,6 +177,13 @@ builder.Services.AddSingleton<OAuthServer>(sp =>
         new Birko.Time.SystemDateTimeProvider());
 });
 
+// Service-account client_credentials token issuer (TASK-035 / FEATURE-019 D14). Mints
+// sub="service:<name>" + comma-joined permission scopes via the shared ITokenProvider; the
+// /token endpoint routes client_credentials here. Inert unless OAuth is enabled + mapped.
+builder.Services.AddSingleton<ServiceAccountTokenIssuer>(sp => new ServiceAccountTokenIssuer(
+    sp.GetRequiredService<IOAuthClientStore>(),
+    sp.GetRequiredService<ITokenProvider>()));
+
 // Register Birko.Validation validators
 builder.Services.AddSingleton<IValidator<Specification>, SpecificationValidator>();
 builder.Services.AddSingleton<IValidator<Feature>, FeatureValidator>();

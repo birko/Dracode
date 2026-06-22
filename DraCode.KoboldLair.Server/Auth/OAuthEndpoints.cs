@@ -7,6 +7,7 @@ using Birko.Security.OAuth.Server.Endpoints.Authorize;
 using Birko.Security.OAuth.Server.Endpoints.ClientRegistration;
 using Birko.Security.OAuth.Server.Endpoints.DeviceAuthorization;
 using Birko.Security.OAuth.Server.Endpoints.Token;
+using Birko.Security.OAuth.Server.Stores;
 using Microsoft.Extensions.Primitives;
 // Birko.Security.AspNetCore also defines a TokenRequest (login DTO); this file means the OAuth one.
 using TokenRequest = Birko.Security.OAuth.Server.Endpoints.Token.TokenRequest;
@@ -46,10 +47,16 @@ public static class OAuthEndpoints
             app.MapPost("/register", HandleRegisterAsync)
                 .RequireAuthorization()
                 .RequirePermission(KoboldLairPermissionChecker.ManageUsers);
+
+            // Disable a registered client (TASK-035). Per-client; the token path already rejects
+            // disabled clients on the next request. Admin-gated like /register.
+            app.MapPost("/register/{clientId}/disable", HandleDisableClientAsync)
+                .RequireAuthorization()
+                .RequirePermission(KoboldLairPermissionChecker.ManageUsers);
         }
     }
 
-    private static async Task<IResult> HandleTokenAsync(HttpRequest req, OAuthServer server)
+    private static async Task<IResult> HandleTokenAsync(HttpRequest req, OAuthServer server, ServiceAccountTokenIssuer serviceIssuer)
     {
         if (!req.HasFormContentType)
             return Error("invalid_request", "Expected application/x-www-form-urlencoded.");
@@ -57,17 +64,41 @@ public static class OAuthEndpoints
         var form = await req.ReadFormAsync();
         var (basicId, basicSecret) = TryParseBasicAuth(req);
 
+        var grantType = Val(form["grant_type"]) ?? string.Empty;
+        var clientId = Val(form["client_id"]) ?? basicId ?? string.Empty;
+        var clientSecret = Val(form["client_secret"]) ?? basicSecret;
+        var scope = Val(form["scope"]);
+
+        // Service-account client_credentials tokens are minted by the consumer issuer so they carry
+        // sub="service:<name>" + a comma-joined permission scope the auth pipeline enforces (TASK-035 /
+        // FEATURE-019 D14, D15). All other grants stay on the framework OAuth server.
+        if (grantType == OAuthGrantTypes.ClientCredentials)
+        {
+            try
+            {
+                var s = await serviceIssuer.IssueAsync(clientId, clientSecret, scope);
+                return Results.Json(new
+                {
+                    access_token = s.AccessToken,
+                    token_type = "Bearer",
+                    expires_in = s.ExpiresIn,
+                    scope = s.Scope
+                }, JsonOpts);
+            }
+            catch (OAuthServerException ex) { return Error(ex); }
+        }
+
         var request = new TokenRequest
         {
-            GrantType = Val(form["grant_type"]) ?? string.Empty,
-            ClientId = Val(form["client_id"]) ?? basicId ?? string.Empty,
-            ClientSecret = Val(form["client_secret"]) ?? basicSecret,
+            GrantType = grantType,
+            ClientId = clientId,
+            ClientSecret = clientSecret,
             Code = Val(form["code"]),
             RedirectUri = Val(form["redirect_uri"]),
             CodeVerifier = Val(form["code_verifier"]),
             RefreshToken = Val(form["refresh_token"]),
             DeviceCode = Val(form["device_code"]),
-            Scope = Val(form["scope"])
+            Scope = scope
         };
 
         try
@@ -83,6 +114,21 @@ public static class OAuthEndpoints
             }, JsonOpts);
         }
         catch (OAuthServerException ex) { return Error(ex); }
+    }
+
+    // Disables a registered client (TASK-035). Admin-gated (.RequirePermission above).
+    private static async Task<IResult> HandleDisableClientAsync(string clientId, IOAuthClientStore clients)
+    {
+        var client = await clients.GetByClientIdAsync(clientId);
+        if (client == null)
+            return Results.NotFound(new { error = "unknown_client" });
+
+        if (client.IsEnabled)
+        {
+            client.IsEnabled = false;
+            await clients.UpdateAsync(client);
+        }
+        return Results.Json(new { status = "disabled", client_id = clientId }, JsonOpts);
     }
 
     private static async Task<IResult> HandleDeviceAuthorizationAsync(HttpRequest req, OAuthServer server)
