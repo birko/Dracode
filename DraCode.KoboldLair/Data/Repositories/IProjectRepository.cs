@@ -22,6 +22,12 @@ namespace DraCode.KoboldLair.Data.Repositories
         Project? GetByName(string name);
         Project? GetBySpecificationPath(string specPath);
         List<Project> GetAll();
+        /// <summary>
+        /// Projects owned by the given caller (<c>Project.OwnerId</c> == ownerId). The per-caller
+        /// scoping seam (FEATURE-019 D7/D10) — callers (Dragon list, future REST endpoints) pass
+        /// the session/request `sub`. Admins use unscoped <see cref="GetAll"/> instead.
+        /// </summary>
+        List<Project> GetAllForOwner(string ownerId);
         List<Project> GetByStatus(ProjectStatus status);
         List<Project> GetByStatuses(params ProjectStatus[] statuses);
         int Count();

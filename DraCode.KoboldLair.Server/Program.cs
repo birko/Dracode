@@ -255,6 +255,24 @@ builder.Services.AddSingleton<IProjectRepository>(sp =>
     return sp.GetRequiredService<ProjectRepository>();
 });
 
+// Register IUserRepository - uses SQLite when configured, null otherwise (TASK-034 / FEATURE-019).
+// Keyed by the stable `sub`; populated lazily when a caller first creates a project.
+builder.Services.AddSingleton<IUserRepository>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    var koboldConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    dataConfig.ProjectsPath = koboldConfig.ProjectsPath ?? "./projects";
+
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+        var repo = RepositoryFactory.CreateUserRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
+        return repo;
+    }
+
+    return null!; // No user persistence without SQLite; ownership still keyed on `sub`
+});
+
 // Register ITaskRepository - uses SQLite when configured, null otherwise (TaskTracker uses JSON fallback)
 builder.Services.AddSingleton<ITaskRepository>(sp =>
 {
@@ -492,7 +510,8 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var notificationService = sp.GetRequiredService<ProjectNotificationService>();
     var historyRepository = sp.GetService<SqlHistoryRepository>();
     var specEventService = sp.GetService<SpecificationEventService>();
-    return new DragonService(logger, providerConfigService, projectConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService);
+    var userRepository = sp.GetService<IUserRepository>();
+    return new DragonService(logger, providerConfigService, projectConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService, userRepository);
 });
 
 // Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)
@@ -935,22 +954,67 @@ var webSocketOptions = new WebSocketOptions
 };
 app.UseWebSockets(webSocketOptions);
 
-// WebSocket endpoint for Wyvern (project analysis) with authentication using Birko.Communication
-app.MapWebSocket("/wyvern", async (webSocket, context) =>
+// WebSocket endpoints for Wyvern + Dragon. Authenticated via the JWT bearer pipeline
+// (UseAuthentication populates context.User from the `?token=` query for WS upgrades) instead
+// of the legacy shared-token validator (TASK-034 / FEATURE-019 D8). The full teardown of the
+// legacy WebSocketAuthenticationService stays TASK-036.
+//
+// jwtCaptured snapshots whether JWT is enabled; when disabled (auth-off local dev) the connection
+// is treated as the loopback single-user owner. When enabled, an unauthenticated upgrade is
+// rejected with 401 *before* the socket is accepted.
+var jwtCaptured = jwtRuntimeEnabled;
+
+// Resolves caller identity from the JWT-populated principal. Returns the raw `sub`
+// (NameIdentifier), admin flag (view_all/* scope), and best-effort name/email.
+static (string? sub, bool isAdmin, string? name, string? email) ResolveCaller(HttpContext context)
 {
+    var user = context.User;
+    if (user?.Identity?.IsAuthenticated != true)
+        return (null, true, null, null); // auth disabled → local single-user owner + admin
+    var sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    var isAdmin = user.FindAll("scope")
+        .SelectMany(c => c.Value.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+        .Any(s => s == "*" || s == KoboldLairPermissionChecker.ViewAll);
+    var name = user.FindFirst("name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value;
+    var email = user.FindFirst("email")?.Value ?? user.FindFirst(ClaimTypes.Email)?.Value;
+    return (sub, isAdmin, name, email);
+}
+
+app.Map("/wyvern", async (HttpContext context) =>
+{
+    if (jwtCaptured && context.User?.Identity?.IsAuthenticated != true)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+    var webSocket = await context.WebSockets.AcceptWebSocketAsync();
     var wyrmService = context.RequestServices.GetRequiredService<WyrmService>();
     await wyrmService.HandleWebSocketAsync(webSocket);
-}, requireAuthentication: true);
+});
 
-// WebSocket endpoint for Dragon (requirements gathering) with authentication using Birko.Communication
-app.MapWebSocket("/dragon", async (webSocket, context) =>
+app.Map("/dragon", async (HttpContext context) =>
 {
-    // Extract sessionId from query string for session resumption
+    if (jwtCaptured && context.User?.Identity?.IsAuthenticated != true)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+    var webSocket = await context.WebSockets.AcceptWebSocketAsync();
     var sessionId = context.Request.Query["sessionId"].FirstOrDefault();
-
+    var caller = ResolveCaller(context);
     var dragonService = context.RequestServices.GetRequiredService<DragonService>();
-    await dragonService.HandleWebSocketAsync(webSocket, sessionId);
-}, requireAuthentication: true);
+    await dragonService.HandleWebSocketAsync(webSocket, sessionId, caller.sub, caller.isAdmin, caller.name, caller.email);
+});
 
 // Health check endpoint
 app.MapGet("/", () => new { status = "running", endpoints = new[] { "/wyvern", "/dragon" } });

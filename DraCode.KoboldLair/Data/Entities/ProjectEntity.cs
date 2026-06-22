@@ -20,6 +20,14 @@ namespace DraCode.KoboldLair.Data.Entities
         [MaxLengthField(255)]
         public string Name { get; set; } = "";
 
+        /// <summary>
+        /// Owner key — the stable `sub` of the caller who created the project (FEATURE-019 D9).
+        /// Logical reference to <c>users.Sub</c>; Birko.Data.SQL emits no FK constraints.
+        /// </summary>
+        [MaxLengthField(256)]
+        [IndexedField("ix_projects_owner_id")]
+        public string OwnerId { get; set; } = "";
+
         [RequiredField]
         public int Status { get; set; } = 0;
 
@@ -61,6 +69,7 @@ namespace DraCode.KoboldLair.Data.Entities
             base.CopyTo(target);
             target.ProjectId = ProjectId;
             target.Name = Name;
+            target.OwnerId = OwnerId;
             target.Status = Status;
             target.ExecutionState = ExecutionState;
             target.VerificationStatus = VerificationStatus;

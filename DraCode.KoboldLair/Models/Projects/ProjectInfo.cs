@@ -7,6 +7,8 @@ namespace DraCode.KoboldLair.Models.Projects
     {
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";
+        /// <summary>Owner key — the `sub` of the caller who created the project (FEATURE-019 D9).</summary>
+        public string OwnerId { get; set; } = "";
         public string Status { get; set; } = "";
         public string ExecutionState { get; set; } = "Running";
         public int FeatureCount { get; set; }

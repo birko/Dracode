@@ -184,6 +184,15 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             }
         }
 
+        public List<Project> GetAllForOwner(string ownerId)
+        {
+            EnsureCache();
+            lock (_lock)
+            {
+                return _cache.Where(p => p.OwnerId == ownerId).ToList();
+            }
+        }
+
         public List<Project> GetByStatus(ProjectStatus status)
         {
             EnsureCache();

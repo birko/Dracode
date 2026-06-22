@@ -3,6 +3,7 @@ using DraCode.KoboldLair.Data.Entities;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Models.Users;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
 namespace DraCode.KoboldLair.Data
@@ -29,6 +30,7 @@ namespace DraCode.KoboldLair.Data
                 Guid = System.Guid.TryParse(project.Id, out var guid) ? guid : System.Guid.NewGuid(),
                 ProjectId = project.Id,
                 Name = project.Name,
+                OwnerId = project.OwnerId,
                 Status = (int)project.Status,
                 ExecutionState = (int)project.ExecutionState,
                 VerificationStatus = (int)project.VerificationStatus,
@@ -61,6 +63,7 @@ namespace DraCode.KoboldLair.Data
             {
                 Id = entity.ProjectId,
                 Name = entity.Name,
+                OwnerId = entity.OwnerId,
                 Status = (ProjectStatus)entity.Status,
                 ExecutionState = (ProjectExecutionState)entity.ExecutionState,
                 VerificationStatus = (VerificationStatus)entity.VerificationStatus,
@@ -98,6 +101,7 @@ namespace DraCode.KoboldLair.Data
         {
             entity.ProjectId = project.Id;
             entity.Name = project.Name;
+            entity.OwnerId = project.OwnerId;
             entity.Status = (int)project.Status;
             entity.ExecutionState = (int)project.ExecutionState;
             entity.VerificationStatus = (int)project.VerificationStatus;
@@ -119,6 +123,46 @@ namespace DraCode.KoboldLair.Data
             entity.VerificationChecksJson = JsonSerializer.Serialize(project.VerificationChecks, JsonOptions);
             entity.ExternalReferencesJson = JsonSerializer.Serialize(project.ExternalProjectReferences, JsonOptions);
             entity.MetadataJson = JsonSerializer.Serialize(project.Metadata, JsonOptions);
+            entity.UpdatedAt = DateTime.UtcNow;
+        }
+
+        #endregion
+
+        #region User Mapping
+
+        public static UserEntity ToEntity(User user)
+        {
+            return new UserEntity
+            {
+                Guid = System.Guid.NewGuid(),
+                Sub = user.Sub,
+                DisplayName = user.DisplayName,
+                Email = user.Email,
+                UserCreatedAt = user.CreatedAt,
+                CreatedAt = user.CreatedAt,
+                UpdatedAt = DateTime.UtcNow
+            };
+        }
+
+        public static User ToUser(UserEntity entity)
+        {
+            return new User
+            {
+                Sub = entity.Sub,
+                DisplayName = entity.DisplayName,
+                Email = entity.Email,
+                CreatedAt = entity.UserCreatedAt ?? entity.CreatedAt
+            };
+        }
+
+        /// <summary>
+        /// Updates an existing user entity from a user, preserving the Guid and original creation time.
+        /// </summary>
+        public static void UpdateEntity(UserEntity entity, User user)
+        {
+            entity.Sub = user.Sub;
+            entity.DisplayName = user.DisplayName;
+            entity.Email = user.Email;
             entity.UpdatedAt = DateTime.UtcNow;
         }
 

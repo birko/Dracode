@@ -161,8 +161,11 @@ namespace DraCode.KoboldLair.Services
         /// Registers a new project when Dragon creates a specification.
         /// With consolidated folders, the specification should already be at {projectFolder}/specification.md
         /// </summary>
-        public Project RegisterProject(string projectName, string specificationPath)
+        public Project RegisterProject(string projectName, string specificationPath, string ownerId)
         {
+            if (string.IsNullOrWhiteSpace(ownerId))
+                throw new ArgumentException("A project owner (sub) is required to create a project (FEATURE-019 D8).", nameof(ownerId));
+
             // Check if project already exists
             var existing = _repository.GetBySpecificationPath(specificationPath);
             if (existing != null)
@@ -189,6 +192,7 @@ namespace DraCode.KoboldLair.Services
             var project = new Project
             {
                 Name = projectName,
+                OwnerId = ownerId,
                 Paths = new ProjectPaths
                 {
                     Specification = specificationPath,
@@ -198,7 +202,7 @@ namespace DraCode.KoboldLair.Services
             };
 
             _repository.Add(project);
-            _logger.LogInformation("✨ Registered new project: {ProjectName} (ID: {ProjectId})", projectName, project.Id);
+            _logger.LogInformation("✨ Registered new project: {ProjectName} (ID: {ProjectId}, Owner: {OwnerId})", projectName, project.Id, ownerId);
 
             return project;
         }
@@ -864,8 +868,11 @@ namespace DraCode.KoboldLair.Services
         /// <param name="projectName">Name for the project</param>
         /// <param name="sourcePath">Path to the existing project source code</param>
         /// <returns>Project ID if successful, null otherwise</returns>
-        public string? RegisterExistingProject(string projectName, string sourcePath)
+        public string? RegisterExistingProject(string projectName, string sourcePath, string ownerId)
         {
+            if (string.IsNullOrWhiteSpace(ownerId))
+                throw new ArgumentException("A project owner (sub) is required to register a project (FEATURE-019 D8).", nameof(ownerId));
+
             // Normalize the path
             sourcePath = Path.GetFullPath(sourcePath);
 
@@ -900,6 +907,7 @@ namespace DraCode.KoboldLair.Services
             var project = new Project
             {
                 Name = projectName,
+                OwnerId = ownerId,
                 Paths = new ProjectPaths
                 {
                     Specification = "", // Will be set when Dragon creates the specification

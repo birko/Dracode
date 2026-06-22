@@ -89,6 +89,32 @@ namespace DraCode.KoboldLair.Data
             return repo;
         }
 
+        /// <summary>
+        /// Creates an IUserRepository based on the configured backend.
+        /// For SQLite, also initializes the database schema.
+        /// </summary>
+        public static async Task<IUserRepository> CreateUserRepositoryAsync(
+            DataStorageConfig config,
+            ILoggerFactory? loggerFactory = null)
+        {
+            return config.DefaultBackend switch
+            {
+                StorageBackend.SqLite => await CreateSqlUserRepositoryAsync(config, loggerFactory),
+                _ => throw new ArgumentException(
+                    $"JSON backend not supported via factory for users. Backend: {config.DefaultBackend}")
+            };
+        }
+
+        private static async Task<SqlUserRepository> CreateSqlUserRepositoryAsync(
+            DataStorageConfig config, ILoggerFactory? loggerFactory)
+        {
+            var dbPath = ResolveSqLitePath(config);
+            var logger = loggerFactory?.CreateLogger<SqlUserRepository>();
+            var repo = new SqlUserRepository(dbPath, logger);
+            await repo.InitializeAsync();
+            return repo;
+        }
+
         private static async Task<SqlTaskRepository> CreateSqlTaskRepositoryAsync(
             DataStorageConfig config, ILoggerFactory? loggerFactory)
         {

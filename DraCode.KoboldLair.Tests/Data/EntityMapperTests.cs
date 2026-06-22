@@ -19,6 +19,7 @@ public class EntityMapperTests
         {
             Id = "test-id-123",
             Name = "My Project",
+            OwnerId = "user-sub-abc",
             Status = ProjectStatus.InProgress,
             ExecutionState = ProjectExecutionState.Paused,
             VerificationStatus = VerificationStatus.InProgress,
@@ -63,6 +64,7 @@ public class EntityMapperTests
 
         roundTripped.Id.Should().Be(project.Id);
         roundTripped.Name.Should().Be(project.Name);
+        roundTripped.OwnerId.Should().Be("user-sub-abc");
         roundTripped.Status.Should().Be(ProjectStatus.InProgress);
         roundTripped.ExecutionState.Should().Be(ProjectExecutionState.Paused);
         roundTripped.Timestamps.CreatedAt.Should().Be(project.Timestamps.CreatedAt);
@@ -76,6 +78,26 @@ public class EntityMapperTests
         roundTripped.Security.SandboxMode.Should().Be("relaxed");
         roundTripped.Security.AllowedExternalPaths.Should().Contain("C:\\Source");
         roundTripped.Metadata["key"].Should().Be("val");
+    }
+
+    [Fact]
+    public void User_RoundTrip_ShouldPreserveAllFields()
+    {
+        var user = new DraCode.KoboldLair.Models.Users.User
+        {
+            Sub = "github|12345",
+            DisplayName = "Ada Lovelace",
+            Email = "ada@example.com",
+            CreatedAt = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc)
+        };
+
+        var entity = EntityMapper.ToEntity(user);
+        var roundTripped = EntityMapper.ToUser(entity);
+
+        roundTripped.Sub.Should().Be("github|12345");
+        roundTripped.DisplayName.Should().Be("Ada Lovelace");
+        roundTripped.Email.Should().Be("ada@example.com");
+        roundTripped.CreatedAt.Should().Be(user.CreatedAt);
     }
 
     [Fact]

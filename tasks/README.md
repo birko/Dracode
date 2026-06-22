@@ -7,8 +7,9 @@ _Generated 2026-06-17. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13    | 33      | —     |
-| todo         | —     | —       | 57    |
+| todo         | —     | —       | 56    |
 | in-progress  | 1     | 1       | 0     |
+| review       | —     | —       | 1     |
 | blocked      | —     | —       | 0     |
 | done         | 1     | 2       | 9     |
 | cancelled    | 0     | 0       | 0     |
@@ -16,6 +17,10 @@ _Generated 2026-06-17. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 ## In progress now
 
 _None_
+
+## In review (code complete, awaiting human sign-off)
+
+- [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership (P1, ai) — EPIC-012 → STORY-017 · run the `## Human test plan` (JWT connect as A/B, static-token rejection, loopback)
 
 ## Tree
 
@@ -66,12 +71,12 @@ _None_
     - [ ] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1)
     - [ ] [TASK-045](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-045-sse-events-endpoint.md) SSE stream: GET /api/v1/runs/{id}/events (P1)
     - [ ] [TASK-046](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-046-agents-cost-endpoints.md) agents/active + cost-report endpoints (P2)
-  - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (3/7)
+  - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (3/7, 1 in review)
     - [x] [TASK-030](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-030-host-oauth-server.md) Host Birko OAuth server endpoints in KoboldLair.Server
     - [x] [TASK-031](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-031-sqlite-oauth-stores.md) SQLite-backed OAuth server stores
     - [x] [TASK-032](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-032-jwt-validation-middleware.md) Enable JWT validation middleware
     - [ ] [TASK-033](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-033-github-federation.md) GitHub federation for human login (P1)
-    - [ ] [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership, and projects.json migration (P1)
+    - [~] [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership (P1) — **review** (code done, 62/62 tests green; human test plan pending)
     - [ ] [TASK-035](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-035-service-account-registration.md) Service-account client registration (P2)
     - [ ] [TASK-036](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-036-deprecate-legacy-auth.md) Deprecate and remove legacy auth (P2)
   - STORY-018 Daemon mode for KoboldLair.Server — planned (0/3)

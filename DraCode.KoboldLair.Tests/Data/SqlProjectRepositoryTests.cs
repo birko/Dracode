@@ -193,4 +193,53 @@ public class SqlProjectRepositoryTests : IAsyncLifetime
         _repo.Count().Should().Be(20);
         _repo.GetAll().Select(p => p.Name).Distinct().Should().HaveCount(20);
     }
+
+    [Fact]
+    public async Task GetAllForOwner_ShouldFilterByOwner()
+    {
+        var a1 = CreateTestProject("a1"); a1.OwnerId = "user-a";
+        var a2 = CreateTestProject("a2"); a2.OwnerId = "user-a";
+        var b1 = CreateTestProject("b1"); b1.OwnerId = "user-b";
+        await _repo.AddAsync(a1);
+        await _repo.AddAsync(a2);
+        await _repo.AddAsync(b1);
+
+        _repo.GetAllForOwner("user-a").Select(p => p.Name).Should().BeEquivalentTo("a1", "a2");
+        _repo.GetAllForOwner("user-b").Select(p => p.Name).Should().BeEquivalentTo("b1");
+    }
+
+    [Fact]
+    public async Task GetAll_ShouldReturnEveryOwner_ForAdminScope()
+    {
+        var a = CreateTestProject("a"); a.OwnerId = "user-a";
+        var b = CreateTestProject("b"); b.OwnerId = "user-b";
+        await _repo.AddAsync(a);
+        await _repo.AddAsync(b);
+
+        // The unscoped read is what an admin / background processor uses — sees all owners.
+        _repo.GetAll().Select(p => p.Name).Should().BeEquivalentTo("a", "b");
+    }
+
+    [Fact]
+    public async Task GetAllForOwner_ShouldReturnEmpty_ForUnknownOwner()
+    {
+        var a = CreateTestProject("a"); a.OwnerId = "user-a";
+        await _repo.AddAsync(a);
+
+        _repo.GetAllForOwner("nobody").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OwnerId_ShouldPersistAcrossReload()
+    {
+        var project = CreateTestProject("owned");
+        project.OwnerId = "user-x";
+        await _repo.AddAsync(project);
+
+        // Fresh repository over the same DB file → owner survives a reload.
+        var reopened = new SqlProjectRepository(_dbPath);
+        await reopened.InitializeAsync();
+
+        reopened.GetById(project.Id)!.OwnerId.Should().Be("user-x");
+    }
 }

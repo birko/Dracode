@@ -20,6 +20,12 @@ namespace DraCode.KoboldLair.Models.Projects
         public string Name { get; set; } = "";
 
         /// <summary>
+        /// Owner key — the stable `sub` of the caller who created the project (FEATURE-019 D9).
+        /// Required on create; references <c>User.Sub</c>.
+        /// </summary>
+        public string OwnerId { get; set; } = "";
+
+        /// <summary>
         /// Current status of the project
         /// </summary>
         public ProjectStatus Status { get; set; } = ProjectStatus.Prototype;

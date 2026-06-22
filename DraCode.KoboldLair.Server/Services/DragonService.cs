@@ -30,6 +30,20 @@ namespace DraCode.KoboldLair.Server.Services
         internal readonly object _historyLock = new object();
 
         public string SessionId { get; init; } = "";
+
+        /// <summary>
+        /// Stable `sub` of the authenticated caller who owns this session (FEATURE-019 D8/D9).
+        /// Projects created in this session are owned by this `sub`. Defaults to the loopback-dev
+        /// owner (<see cref="DragonService.LoopbackOwnerSub"/>) when no per-user identity is present.
+        /// </summary>
+        public string OwnerSub { get; set; } = "";
+
+        /// <summary>
+        /// True when the caller carries the view-all/admin permission (`view_all` or `*`).
+        /// Admins (incl. the loopback-dev principal) see every project, not just their own.
+        /// </summary>
+        public bool IsAdmin { get; set; }
+
         public DragonAgent? Dragon { get; set; }
         public SageAgent? Sage { get; set; }
         public SeekerAgent? Seeker { get; set; }
@@ -144,6 +158,13 @@ namespace DraCode.KoboldLair.Server.Services
             WriteIndented = false
         };
 
+        /// <summary>
+        /// Well-known owner `sub` for the local-dev daemon loopback-bypass principal, which has no
+        /// real per-user identity (FEATURE-019 D8/D11). Mirrors the <c>Guid.Empty</c> NameIdentifier
+        /// the loopback bypass assigns in Program.cs.
+        /// </summary>
+        public static readonly string LoopbackOwnerSub = Guid.Empty.ToString();
+
         private readonly ILogger<DragonService> _logger;
         private readonly ConcurrentDictionary<string, DragonSession> _sessions;
         private readonly ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
@@ -151,6 +172,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly ProjectService _projectService;
         private readonly IProjectRepository _projectRepository;
+        private readonly DraCode.KoboldLair.Data.Repositories.IUserRepository? _userRepository;
         private readonly GitService _gitService;
         private readonly KoboldFactory? _koboldFactory;
         private readonly DrakeFactory? _drakeFactory;
@@ -187,7 +209,8 @@ namespace DraCode.KoboldLair.Server.Services
             int maxConcurrentDragonRequests = 5,
             ProjectNotificationService? notificationService = null,
             DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? historyRepository = null,
-            DraCode.KoboldLair.Services.EventSourcing.SpecificationEventService? specEventService = null)
+            DraCode.KoboldLair.Services.EventSourcing.SpecificationEventService? specEventService = null,
+            DraCode.KoboldLair.Data.Repositories.IUserRepository? userRepository = null)
         {
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
@@ -196,6 +219,7 @@ namespace DraCode.KoboldLair.Server.Services
             _projectConfigService = projectConfigService;
             _projectService = projectService;
             _projectRepository = projectRepository;
+            _userRepository = userRepository;
             _gitService = gitService;
             _koboldFactory = koboldFactory;
             _drakeFactory = drakeFactory;
@@ -318,8 +342,22 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        public async Task HandleWebSocketAsync(WebSocket webSocket, string? existingSessionId = null)
+        public async Task HandleWebSocketAsync(
+            WebSocket webSocket,
+            string? existingSessionId = null,
+            string? ownerSub = null,
+            bool isAdmin = false,
+            string? ownerName = null,
+            string? ownerEmail = null)
         {
+            // Resolve the session owner. When no per-user `sub` is present (e.g. the daemon
+            // loopback-dev principal), fall back to the well-known loopback owner (FEATURE-019 D8/D11).
+            var resolvedOwner = string.IsNullOrWhiteSpace(ownerSub) ? LoopbackOwnerSub : ownerSub!;
+
+            // Upsert the user record once per connect (async context — avoids sync-over-async in the
+            // sync create closures). A row with no projects is harmless. FEATURE-019 D3.
+            await UpsertSessionUserAsync(resolvedOwner, ownerName, ownerEmail);
+
             DragonSession? session = null;
             var isResuming = false;
             string? sessionNotFoundReason = null;
@@ -332,6 +370,8 @@ namespace DraCode.KoboldLair.Server.Services
                     {
                         isResuming = true;
                         session.LastActivity = DateTime.UtcNow;
+                        session.OwnerSub = resolvedOwner;
+                        session.IsAdmin = isAdmin;
                         _sessionWebSockets[existingSessionId] = webSocket;
                         _logger.LogInformation("Dragon session resumed: {SessionId}", existingSessionId);
                     }
@@ -354,6 +394,8 @@ namespace DraCode.KoboldLair.Server.Services
                 session = new DragonSession
                 {
                     SessionId = sessionId,
+                    OwnerSub = resolvedOwner,
+                    IsAdmin = isAdmin,
                     Sender = new WebSocketSender(webSocket, _logger)
                 };
                 _sessions[sessionId] = session;
@@ -536,7 +578,7 @@ namespace DraCode.KoboldLair.Server.Services
                 options,
                 registerExistingProject: (name, path) =>
                 {
-                    var projectId = _projectService.RegisterExistingProject(name, path);
+                    var projectId = _projectService.RegisterExistingProject(name, path, session.OwnerSub);
                     if (projectId != null)
                     {
                         var project = _projectService.GetProject(projectId);
@@ -561,7 +603,7 @@ namespace DraCode.KoboldLair.Server.Services
                 llmProvider,
                 options,
                 getProjectConfig: GetProjectAgentConfig,
-                getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList(),
+                getAllProjects: () => GetVisibleProjects(session).Select(p => (p.Id, p.Name)).ToList(),
                 setAgentEnabled: (id, type, enabled) =>
                 {
                     _projectConfigService.SetAgentEnabled(id, type, enabled);
@@ -627,7 +669,7 @@ namespace DraCode.KoboldLair.Server.Services
                 deleteProjectTool: new DeleteProjectTool(
                     getProject: id => _projectService.GetProject(id),
                     deleteProject: (id, deleteFiles) => DeleteProjectFromRegistry(id, deleteFiles),
-                    getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList()),
+                    getAllProjects: () => GetVisibleProjects(session).Select(p => (p.Id, p.Name)).ToList()),
                 notificationsTool: _notificationService != null ? new NotificationsTool(
                     getPendingNotifications: projectName =>
                     {
@@ -664,7 +706,7 @@ namespace DraCode.KoboldLair.Server.Services
                             ?? _projectService.GetProject(projectNameOrId);
                         return project?.Paths.Output;
                     },
-                    getAllProjects: () => _projectService.GetAllProjects().Select(p => (p.Id, p.Name)).ToList()
+                    getAllProjects: () => GetVisibleProjects(session).Select(p => (p.Id, p.Name)).ToList()
                 ),
                 batchTaskTool: _drakeFactory != null ? new BatchTaskTool(_drakeFactory, _projectService) : null,
                 resetProject: async (name, keepHistory) => await _projectService.ResetProjectAsync(name, keepHistory));
@@ -673,7 +715,7 @@ namespace DraCode.KoboldLair.Server.Services
             session.Dragon = new DragonAgent(
                 llmProvider,
                 options,
-                getProjects: GetProjectInfoListAsync,
+                getProjects: () => GetProjectInfoListAsync(session),
                 delegateToCouncil: (member, task) => DelegateToCouncilAsync(session, member, task));
         }
 
@@ -1237,8 +1279,8 @@ namespace DraCode.KoboldLair.Server.Services
                         }
                         else
                         {
-                            var project = _projectService.RegisterProject(projectName, latestSpec);
-                            _logger.LogInformation("Auto-registered project: {Name} ({Id})", projectName, project.Id);
+                            var project = _projectService.RegisterProject(projectName, latestSpec, session.OwnerSub);
+                            _logger.LogInformation("Auto-registered project: {Name} ({Id}, Owner: {Owner})", projectName, project.Id, session.OwnerSub);
                         }
 
                         // Invalidate cache so we don't re-process this same spec file
@@ -1770,9 +1812,46 @@ namespace DraCode.KoboldLair.Server.Services
             });
         }
 
-        private async Task<List<ProjectInfo>> GetProjectInfoListAsync()
+        /// <summary>
+        /// The projects visible to a Dragon session — scoped to the session owner unless the
+        /// caller is an admin (`view_all`/`*`) or the local-dev loopback principal (FEATURE-019 D10).
+        /// This is the per-caller scoping seam for the live Dragon surface; TASK-043 reuses the same
+        /// repository methods for the REST API.
+        /// </summary>
+        private List<Project> GetVisibleProjects(DragonSession session)
         {
-            var projects = _projectService.GetAllProjects();
+            return session.IsAdmin
+                ? _projectService.GetAllProjects()
+                : _projectRepository.GetAllForOwner(session.OwnerSub);
+        }
+
+        /// <summary>
+        /// Upserts the user record for a session owner (FEATURE-019 D3). Best-effort: a failure is
+        /// logged but never blocks the session, since ownership is keyed on the `sub` regardless.
+        /// </summary>
+        private async Task UpsertSessionUserAsync(string sub, string? displayName, string? email)
+        {
+            if (_userRepository == null || string.IsNullOrWhiteSpace(sub))
+                return;
+
+            try
+            {
+                await _userRepository.UpsertAsync(new DraCode.KoboldLair.Models.Users.User
+                {
+                    Sub = sub,
+                    DisplayName = displayName,
+                    Email = email
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to upsert user record for {Sub}", sub);
+            }
+        }
+
+        private async Task<List<ProjectInfo>> GetProjectInfoListAsync(DragonSession session)
+        {
+            var projects = GetVisibleProjects(session);
             var result = new List<ProjectInfo>();
             foreach (var p in projects)
             {
@@ -1782,6 +1861,7 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     Id = p.Id,
                     Name = p.Name,
+                    OwnerId = p.OwnerId,
                     Status = p.Status.ToString(),
                     ExecutionState = p.ExecutionState.ToString(),
                     FeatureCount = GetFeatureCountForProject(p),

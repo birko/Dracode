@@ -19,6 +19,8 @@ jira-key: null
 
 The old shared-token `WebSocketAuthenticationConfiguration` and the static username/password `AuthEndpoints.cs` (`/auth/login|refresh|logout` over `JwtAuthenticationConfiguration.Users`) are superseded by the OAuth server + GitHub federation. They remain functional one release as a migration fallback, then are removed.
 
+> **Scope update (2026-06-20, via TASK-034 grill):** TASK-034 already switches the `/dragon` + `/wyvern` WebSocket endpoints **off** the legacy `WebSocketAuthenticationService` and onto JWT bearer (so Dragon sessions carry a real `sub`). So this task's WS portion narrows to **deleting** the now-dead `WebSocketAuthenticationService` + `Authentication` (non-JWT) config + IP-binding machinery (FEATURE-069). Also: since we're rebuilding from scratch with **no legacy consumers**, the "one-release deprecation window" below is likely unnecessary — removal can be immediate. Revisit the AC when this task is picked.
+
 ## Acceptance criteria
 
 - [ ] `WebSocketAuthenticationConfiguration` and static `AuthEndpoints` marked `[Obsolete]` with a migration message

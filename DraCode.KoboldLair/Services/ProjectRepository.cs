@@ -586,6 +586,17 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Gets projects owned by the given caller (per-caller scoping seam — FEATURE-019 D7/D10).
+        /// </summary>
+        public List<Project> GetAllForOwner(string ownerId)
+        {
+            lock (_lock)
+            {
+                return _projects.Where(p => p.OwnerId == ownerId).ToList();
+            }
+        }
+
+        /// <summary>
         /// Gets projects by status
         /// </summary>
         public List<Project> GetByStatus(ProjectStatus status)
