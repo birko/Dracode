@@ -1803,7 +1803,8 @@ namespace DraCode.KoboldLair.Orchestrators
             int maxIterations = 30,
             string? provider = null,
             Action<string, string>? messageCallback = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            Guid? runId = null)
         {
             // Set up a worktree for the feature branch (safe for parallel execution)
             var (featureBranch, worktreePath) = await SetupFeatureBranchWorktreeAsync(task);
@@ -1818,6 +1819,11 @@ namespace DraCode.KoboldLair.Orchestrators
                 messageCallback?.Invoke("info", $"⏸️ Drake cannot summon kobold for task {task.Id.ToString()[..8]} - project {projectId} at parallel limit. Will retry.");
                 return null;
             }
+
+            // Adopt an externally-supplied run id (TASK-040 /kobold project mode) so a transport already
+            // subscribed to this run's telemetry receives it under the id it is watching.
+            if (runId.HasValue)
+                kobold.AssignRunId(runId.Value);
 
             // If we have a worktree, redirect the Kobold's workspace to it
             if (worktreePath != null)

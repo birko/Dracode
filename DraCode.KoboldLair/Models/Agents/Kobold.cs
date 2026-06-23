@@ -42,6 +42,25 @@ namespace DraCode.KoboldLair.Models.Agents
         public Guid RunId { get; private set; }
 
         /// <summary>
+        /// An externally-assigned run id (TASK-040). When set via <see cref="AssignRunId"/> before a
+        /// StartWorking* call, the run adopts it instead of minting a fresh Guid — so a transport (e.g. the
+        /// /kobold WebSocket endpoint) can subscribe to this run's telemetry <em>before</em> it starts, with
+        /// no drop-before-subscribe race. Consumed (cleared) when the run begins.
+        /// </summary>
+        private Guid? _assignedRunId;
+
+        /// <summary>Assigns the run id the next StartWorking* call will adopt (see <see cref="_assignedRunId"/>).</summary>
+        public void AssignRunId(Guid runId) => _assignedRunId = runId;
+
+        /// <summary>Returns the assigned run id if one was set (clearing it), otherwise a fresh Guid.</summary>
+        private Guid ConsumeAssignedRunId()
+        {
+            var id = _assignedRunId ?? Guid.NewGuid();
+            _assignedRunId = null;
+            return id;
+        }
+
+        /// <summary>
         /// The agent instance created by KoboldLairAgentFactory
         /// </summary>
         public Agent Agent { get; }
@@ -827,7 +846,7 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             Status = KoboldStatus.Working;
-            RunId = Guid.NewGuid();
+            RunId = ConsumeAssignedRunId();
             StartedAt = DateTime.UtcNow;
             LastLlmResponseAt = DateTime.UtcNow; // Initialize to start time
 
@@ -1054,7 +1073,7 @@ You are working on a task that is part of a larger project. Below is the project
             }
 
             Status = KoboldStatus.Working;
-            RunId = Guid.NewGuid();
+            RunId = ConsumeAssignedRunId();
             StartedAt = DateTime.UtcNow;
 
             // Register the plan context for the tool (including shared planning context for file tracking)
