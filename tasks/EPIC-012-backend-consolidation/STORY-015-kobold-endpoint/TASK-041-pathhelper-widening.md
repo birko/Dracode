@@ -2,7 +2,7 @@
 id: TASK-041
 parent: STORY-015
 feature: FEATURE-017
-status: blocked
+status: todo
 priority: P2
 assignee: ai
 created: 2026-06-11
@@ -14,6 +14,8 @@ jira-key: null
 ---
 
 # Widen PathHelper for ad-hoc cwds
+
+> Unblocked 2026-06-23 — TASK-039 (its only `depends-on`) is code-complete (in review); ad-hoc mode now sets the Kobold's `WorkingDirectory` to the worktree, so this task hardens that scope in `PathHelper`.
 
 ## Context
 

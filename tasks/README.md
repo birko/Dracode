@@ -7,10 +7,10 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13    | 31      | —     |
-| todo         | —     | —       | 25    |
+| todo         | —     | —       | 26    |
 | in-progress  | 1     | 3       | 0     |
 | review       | —     | —       | 6     |
-| blocked      | —     | —       | 25    |
+| blocked      | —     | —       | 24    |
 | done         | 1     | 2       | 11    |
 | cancelled    | 0     | 0       | 0     |
 
@@ -69,7 +69,7 @@ _None_
     - [ ] [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1) 🔍 review · FEATURE-017
     - [ ] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1) 🔍 review · FEATURE-017
     - [ ] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1) 🔍 review · FEATURE-017
-    - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) ⚠ blocked · FEATURE-017
+    - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
   - STORY-016 REST + SSE facade for non-streaming clients — in-progress (1/5)
     - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
     - [ ] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints (P1) · FEATURE-018
