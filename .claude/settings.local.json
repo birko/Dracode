@@ -17,7 +17,27 @@
       "Bash(ls:*)",
       "Bash(xargs cat:*)",
       "Bash(dotnet test:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(npm run:*)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(__NEW_LINE_9403e56459081264__ for:*)",
+      "Bash(do)",
+      "Bash(sed -i '6a using Birko.AI.Resilience.Services;' \"$file\")",
+      "Bash(__NEW_LINE_7535b26344d88e8b__ for:*)",
+      "Bash(if ! grep -q \"using Birko.AI.Models;\" \"$file\")",
+      "Bash(then)",
+      "Bash(sed -i '1a using Birko.AI.Models;' \"$file\")",
+      "Bash(fi)",
+      "Bash(cd:*)",
+      "Bash(sed -i 's/DraCode\\\\.Agent\\\\.Agents\\\\.Agent/Birko.AI.Agents.Agent/g' AgentConnectionManager.cs)",
+      "Bash(sed -i 's/DraCode\\\\.Agent\\\\.AgentOptions/Birko.AI.AgentOptions/g' AgentConnectionManager.cs)",
+      "Bash(sed -i 's/DraCode\\\\.Agent\\\\.Tools\\\\.AskUser/Birko.AI.Tools.AskUserTool/g' AgentConnectionManager.cs)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Source\\\\DraCode\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Read(//c/Users/FinStat/.nuget/packages/opentelemetry.exporter.opentelemetryprotocol/**)",
+      "Read(//c/Users/FinStat/.nuget/packages/opentelemetry.api/**)",
+      "Read(//c/Source/Birko.Security.AspNetCore/**)",
+      "Bash(env)"
     ]
   }
 }
