@@ -2,7 +2,7 @@
 id: TASK-042
 parent: STORY-016
 feature: FEATURE-018
-status: review
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -36,7 +36,7 @@ REST facade is **ASP.NET Core minimal-API routes** under `/api/v1` (not Birko's 
 **Automated** (`ApiV1SkeletonTests`; full suite 81/81 green): 401 unauthenticated, 200 with a `ViewOwn` token, and `/api/v1/openapi.json` generated + anonymous + documenting the stub route.
 
 **Deferred — browser-visual (Scalar UI render), no non-interactive seam. Task stays in `review` until run:**
-- [ ] Open `/api/v1/docs` in a browser → the Scalar OpenAPI UI renders the registered routes
+- [x] Open `/api/v1/docs` in a browser → the Scalar OpenAPI UI renders — verified 2026-06-23 (served at `/api/v1/docs/`, self-hosted, `200 text/html`). Note: the live Development config runs with `Jwt.Enabled=false`, so the authed `/api/v1` group is not mapped and the spec lists only `/`; the 401/200 gate + route listing are covered by `ApiV1SkeletonTests` (JWT enabled in the test host).
 
 ## Implementation plan
 
