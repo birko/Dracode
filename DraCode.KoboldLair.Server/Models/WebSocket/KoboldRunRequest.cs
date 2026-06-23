@@ -21,11 +21,23 @@ namespace DraCode.KoboldLair.Server.Models.WebSocket
         /// <summary>Ad-hoc mode: free-form task description.</summary>
         public string? Task { get; set; }
 
+        /// <summary>
+        /// Ad-hoc mode: free-form request (the documented <c>prompt</c> field). Alias of
+        /// <see cref="Task"/>; the ad-hoc handler reads <c>Prompt ?? Task</c>.
+        /// </summary>
+        public string? Prompt { get; set; }
+
         /// <summary>Optional agent-type override (e.g. <c>csharp</c>).</summary>
         public string? AgentType { get; set; }
 
         /// <summary>Ad-hoc mode: working directory for the run.</summary>
         public string? WorkingDirectory { get; set; }
+
+        /// <summary>
+        /// Ad-hoc mode: working directory (the documented <c>cwd</c> field). Alias of
+        /// <see cref="WorkingDirectory"/>; the ad-hoc handler reads <c>Cwd ?? WorkingDirectory</c>.
+        /// </summary>
+        public string? Cwd { get; set; }
 
         /// <summary>Free-form per-mode options bag (validated by the mode handler).</summary>
         public JsonElement? Options { get; set; }

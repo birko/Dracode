@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Birko.AI;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Events.Run;
 using DraCode.KoboldLair.Factories;
@@ -10,16 +12,263 @@ using Microsoft.Extensions.Logging;
 namespace DraCode.KoboldLair.Server.Services
 {
     /// <summary>
-    /// Ad-hoc run mode — execute a free-form task in a transient workspace. Stub: the git/worktree and
-    /// Kobold-summoning mechanics land in TASK-039. Until then the endpoint dispatches here and the
-    /// thrown error is relayed as a <c>kobold_*</c> <c>error</c> frame.
+    /// Ad-hoc run mode (TASK-039) — run a single Kobold against the caller's own working directory, with no
+    /// project record. The directory is validated, <c>git init</c>'d (+ an initial snapshot) if it is not yet
+    /// a repository, and a fresh worktree is created under <c>&lt;cwd&gt;/.koboldlair/.worktrees/r-&lt;runId&gt;/</c>.
+    /// A Kobold is spawned there via <see cref="KoboldFactory"/> (agent type from the payload or auto-detected
+    /// from the cwd's files), adopts the endpoint-owned <paramref name="runId"/> so the WebSocket transport
+    /// already subscribed receives its telemetry, and on completion its edits are committed to the ad-hoc
+    /// branch so the caller can later <c>git merge</c> them into the cwd. Runs are tracked only in memory,
+    /// keyed by <c>runId</c> (off-registry); stale worktrees are pruned per-cwd before each new run.
     /// </summary>
     public sealed class AdHocRunModeHandler : IKoboldRunModeHandler
     {
+        /// <summary>Ad-hoc worktrees older than this are pruned at the start of each run for the same cwd.</summary>
+        public static readonly TimeSpan WorktreeRetention = TimeSpan.FromDays(7);
+
+        private readonly KoboldFactory _koboldFactory;
+        private readonly GitService _git;
+        private readonly ProviderConfigurationService _providers;
+        private readonly KoboldRunEventSource _eventSource;
+        private readonly ILogger<AdHocRunModeHandler> _logger;
+
+        /// <summary>Off-registry run tracking (criterion: "tracked off-registry by runId").</summary>
+        private readonly ConcurrentDictionary<Guid, AdHocRun> _runs = new();
+
+        public AdHocRunModeHandler(
+            KoboldFactory koboldFactory,
+            GitService git,
+            ProviderConfigurationService providers,
+            KoboldRunEventSource eventSource,
+            ILogger<AdHocRunModeHandler> logger)
+        {
+            _koboldFactory = koboldFactory;
+            _git = git;
+            _providers = providers;
+            _eventSource = eventSource;
+            _logger = logger;
+        }
+
         public string Mode => "adhoc";
 
-        public Task<KoboldRunStartInfo> StartAsync(KoboldRunRequest request, Guid runId, KoboldCaller caller, CancellationToken ct)
-            => throw new NotImplementedException("/kobold ad-hoc mode is implemented in TASK-039.");
+        /// <summary>An in-flight or finished ad-hoc run (kept only in memory).</summary>
+        public sealed class AdHocRun
+        {
+            public required Guid RunId { get; init; }
+            public required string Cwd { get; init; }
+            public required string Branch { get; init; }
+            public required string Worktree { get; init; }
+            public required string AgentType { get; init; }
+            public required DateTime StartedAt { get; init; }
+            public string Status { get; set; } = "running";
+        }
+
+        /// <summary>Snapshot of a tracked ad-hoc run, or null if unknown.</summary>
+        public AdHocRun? GetRun(Guid runId) => _runs.TryGetValue(runId, out var r) ? r : null;
+
+        public async Task<KoboldRunStartInfo> StartAsync(KoboldRunRequest request, Guid runId, KoboldCaller caller, CancellationToken ct)
+        {
+            var cwd = request.Cwd ?? request.WorkingDirectory;
+            var prompt = request.Prompt ?? request.Task;
+            ValidateRequest(cwd, prompt);
+
+            var fullCwd = Path.GetFullPath(cwd!);
+            if (!Directory.Exists(fullCwd))
+                throw new InvalidOperationException($"cwd '{cwd}' does not exist");
+            if (!await _git.IsGitInstalledAsync())
+                throw new InvalidOperationException("git is not installed; /kobold ad-hoc mode requires git");
+
+            // Cleanup policy: prune this cwd's stale ad-hoc worktrees before adding a new one.
+            await CleanupStaleWorktreesAsync(fullCwd, _git, WorktreeRetention, DateTime.UtcNow);
+
+            // Validate/initialize the repo: auto git-init + initial snapshot when cwd is not yet a repository.
+            await EnsureRepositoryAsync(_git, fullCwd);
+
+            var agentType = ResolveAgentType(request.AgentType, fullCwd);
+            var branch = BranchName(runId);
+            var worktreePath = WorktreePath(fullCwd, runId);
+
+            if (!await _git.CreateBranchAsync(fullCwd, branch))
+                throw new InvalidOperationException($"failed to create ad-hoc branch '{branch}'");
+            var createdPath = await _git.CreateWorktreeAsync(fullCwd, branch, worktreePath)
+                ?? throw new InvalidOperationException($"failed to create worktree at '{worktreePath}'");
+
+            // Spawn the Kobold in the worktree (its WorkingDirectory is the sandbox root for file ops).
+            var provider = _providers.GetProviderForKoboldAgentType(agentType);
+            var options = new AgentOptions { WorkingDirectory = createdPath };
+            var kobold = _koboldFactory.CreateKobold(provider, agentType, options);
+
+            // Adopt the endpoint-owned runId BEFORE starting, so the already-subscribed transport sees telemetry.
+            kobold.AssignRunId(runId);
+            kobold.AssignTask(Guid.NewGuid(), prompt!, projectId: null);
+
+            _runs[runId] = new AdHocRun
+            {
+                RunId = runId, Cwd = fullCwd, Branch = branch,
+                Worktree = createdPath, AgentType = agentType, StartedAt = DateTime.UtcNow
+            };
+
+            _logger.LogInformation(
+                "/kobold ad-hoc run {RunId} starting: cwd={Cwd} agent={AgentType} branch={Branch}",
+                runId, fullCwd, agentType, branch);
+
+            // Run in the background; the Kobold publishes under runId (the endpoint is already subscribed) and
+            // emits its own terminal event. Afterwards we commit its edits to the ad-hoc branch for merging.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await kobold.StartWorkingWithPlanAsync(planService: null, cancellationToken: CancellationToken.None);
+
+                    await _git.StageAllAsync(createdPath);
+                    var commit = await _git.CommitChangesAsync(
+                        createdPath, CommitMessage(prompt!, runId), authorName: $"Kobold-{agentType}");
+                    _logger.LogInformation(
+                        "/kobold ad-hoc run {RunId} finished ({Status}); worktree commit: {Commit}",
+                        runId, kobold.Status, commit);
+
+                    if (_runs.TryGetValue(runId, out var rec)) rec.Status = kobold.Status.ToString();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "/kobold ad-hoc run {RunId} failed", runId);
+                    if (_runs.TryGetValue(runId, out var rec)) rec.Status = "Failed";
+                    // Terminal error so the pump ends if the Kobold didn't get far enough to emit one itself.
+                    _eventSource.Publish(new RunErrorEvent { RunId = runId, Message = ex.Message });
+                }
+            }, CancellationToken.None);
+
+            return new KoboldRunStartInfo("adhoc", createdPath);
+        }
+
+        /// <summary>Validates the cwd + prompt are present. Pure (no IO) — unit-testable.</summary>
+        public static void ValidateRequest(string? cwd, string? prompt)
+        {
+            if (string.IsNullOrWhiteSpace(cwd))
+                throw new ArgumentException("ad-hoc mode requires 'cwd' (working directory)");
+            if (string.IsNullOrWhiteSpace(prompt))
+                throw new ArgumentException("ad-hoc mode requires 'prompt' (the task to run)");
+        }
+
+        /// <summary>The ad-hoc feature branch for a run.</summary>
+        public static string BranchName(Guid runId) => $"kobold/adhoc-{runId:N}";
+
+        /// <summary>The <c>.koboldlair/.worktrees</c> root under a cwd.</summary>
+        public static string WorktreeRoot(string cwd) => Path.Combine(cwd, ".koboldlair", ".worktrees");
+
+        /// <summary>The per-run worktree path: <c>&lt;cwd&gt;/.koboldlair/.worktrees/r-&lt;runId&gt;/</c>.</summary>
+        public static string WorktreePath(string cwd, Guid runId) => Path.Combine(WorktreeRoot(cwd), $"r-{runId:N}");
+
+        private static string CommitMessage(string prompt, Guid runId)
+        {
+            var firstLine = prompt.Split('\n', 2)[0].Trim();
+            if (firstLine.Length > 72) firstLine = string.Concat(firstLine.AsSpan(0, 69), "...");
+            return $"feat: {firstLine}\n\nKoboldLair ad-hoc run r-{runId:N}";
+        }
+
+        /// <summary>
+        /// Ensures <paramref name="cwd"/> is a git repository with at least one commit. When it is not a repo,
+        /// runs <c>git init</c>, seeds <c>.koboldlair/.gitignore</c> (so worktrees stay untracked in the parent
+        /// tree and the snapshot always has content), and commits the existing files.
+        /// </summary>
+        public static async Task EnsureRepositoryAsync(GitService git, string cwd)
+        {
+            if (!await git.IsRepositoryAsync(cwd))
+            {
+                if (!await git.InitRepositoryAsync(cwd))
+                    throw new InvalidOperationException($"failed to initialize a git repository at '{cwd}'");
+
+                var koboldDir = Path.Combine(cwd, ".koboldlair");
+                Directory.CreateDirectory(koboldDir);
+                var gitignore = Path.Combine(koboldDir, ".gitignore");
+                if (!File.Exists(gitignore))
+                    await File.WriteAllTextAsync(gitignore, ".worktrees/\n");
+
+                await git.StageAllAsync(cwd);
+                await git.CommitChangesAsync(cwd, "chore: koboldlair initial snapshot", authorName: "KoboldLair");
+            }
+
+            if (string.IsNullOrEmpty(await git.GetLastCommitShaAsync(cwd)))
+                throw new InvalidOperationException(
+                    $"cwd '{cwd}' is a git repository with no commits; create an initial commit before running ad-hoc mode");
+        }
+
+        /// <summary>Agent type: explicit payload override → auto-detect from cwd files → general <c>coding</c>.</summary>
+        public static string ResolveAgentType(string? requested, string cwd)
+        {
+            if (!string.IsNullOrWhiteSpace(requested)) return requested.Trim().ToLowerInvariant();
+            return DetectAgentType(cwd) ?? "coding";
+        }
+
+        /// <summary>Auto-detects the dominant agent type from the files in <paramref name="cwd"/>, or null.</summary>
+        public static string? DetectAgentType(string cwd)
+        {
+            IEnumerable<string> files;
+            try
+            {
+                files = Directory.EnumerateFiles(cwd, "*", SearchOption.AllDirectories)
+                    .Where(f => !IsIgnoredPath(f));
+            }
+            catch
+            {
+                return null;
+            }
+            return DetectAgentTypeFromExtensions(files.Select(Path.GetExtension));
+        }
+
+        /// <summary>Pure extension → agent-type vote tally (the most common mapped extension wins). Testable.</summary>
+        public static string? DetectAgentTypeFromExtensions(IEnumerable<string?> extensions)
+        {
+            var votes = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var ext in extensions)
+            {
+                var agent = MapExtension(ext);
+                if (agent is null) continue;
+                votes[agent] = votes.GetValueOrDefault(agent) + 1;
+            }
+            return votes.Count == 0 ? null : votes.OrderByDescending(kv => kv.Value).First().Key;
+        }
+
+        private static string? MapExtension(string? ext) => (ext ?? "").ToLowerInvariant() switch
+        {
+            ".cs" => "csharp",
+            ".ts" or ".tsx" => "typescript",
+            ".js" or ".jsx" or ".mjs" or ".cjs" => "javascript",
+            ".py" => "python",
+            ".php" => "php",
+            ".cpp" or ".cc" or ".cxx" or ".hpp" or ".hh" or ".c" or ".h" => "cpp",
+            ".asm" or ".s" => "assembler",
+            ".css" or ".scss" => "css",
+            ".html" or ".htm" => "html",
+            _ => null
+        };
+
+        private static bool IsIgnoredPath(string path)
+        {
+            var p = path.Replace('\\', '/');
+            return p.Contains("/.git/") || p.Contains("/.koboldlair/") || p.Contains("/node_modules/")
+                || p.Contains("/bin/") || p.Contains("/obj/") || p.Contains("/dist/");
+        }
+
+        /// <summary>
+        /// Removes ad-hoc worktrees under <c>&lt;cwd&gt;/.koboldlair/.worktrees</c> last modified more than
+        /// <paramref name="maxAge"/> ago. Idempotent; safe to call before every run. Pure-ish (filesystem +
+        /// the injected <paramref name="git"/>) so tests can drive it with a controllable <paramref name="nowUtc"/>.
+        /// </summary>
+        public static async Task<int> CleanupStaleWorktreesAsync(string cwd, GitService git, TimeSpan maxAge, DateTime nowUtc)
+        {
+            var root = WorktreeRoot(cwd);
+            if (!Directory.Exists(root)) return 0;
+
+            int removed = 0;
+            foreach (var dir in Directory.GetDirectories(root))
+            {
+                if (!Path.GetFileName(dir).StartsWith("r-", StringComparison.Ordinal)) continue;
+                if (nowUtc - Directory.GetLastWriteTimeUtc(dir) <= maxAge) continue;
+                if (await git.RemoveWorktreeAsync(cwd, dir)) removed++;
+            }
+            return removed;
+        }
     }
 
     /// <summary>
