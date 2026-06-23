@@ -436,6 +436,12 @@ builder.Services.AddSingleton<ProjectService>(sp =>
 // (TASK-045) transports. Singleton; Kobolds publish to it, transports subscribe by runId.
 builder.Services.AddSingleton<KoboldRunEventSource>();
 
+// /kobold WebSocket endpoint (TASK-038): mode-handler strategies + the protocol service that
+// subscribes to KoboldRunEventSource and relays kobold_* frames. Ad-hoc/project mechanics are TASK-039/040.
+builder.Services.AddSingleton<IKoboldRunModeHandler, AdHocRunModeHandler>();
+builder.Services.AddSingleton<IKoboldRunModeHandler, ProjectRunModeHandler>();
+builder.Services.AddSingleton<KoboldEndpointService>();
+
 builder.Services.AddSingleton<KoboldFactory>(sp =>
 {
     var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
@@ -1064,8 +1070,29 @@ app.Map("/dragon", async (HttpContext context) =>
     await dragonService.HandleWebSocketAsync(webSocket, sessionId, caller.sub, caller.isAdmin, caller.name, caller.email);
 });
 
+app.Map("/kobold", async (HttpContext context) =>
+{
+    if (jwtCaptured && context.User?.Identity?.IsAuthenticated != true)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+    var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+    var caller = ResolveCaller(context);
+    var endpointService = context.RequestServices.GetRequiredService<KoboldEndpointService>();
+    await endpointService.HandleWebSocketAsync(
+        webSocket,
+        new KoboldCaller(caller.sub, caller.isAdmin, caller.name, caller.email),
+        context.RequestAborted);
+});
+
 // Health check endpoint
-app.MapGet("/", () => new { status = "running", endpoints = new[] { "/wyvern", "/dragon" } });
+app.MapGet("/", () => new { status = "running", endpoints = new[] { "/wyvern", "/dragon", "/kobold" } });
 
 app.Run();
 
