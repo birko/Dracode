@@ -43,9 +43,10 @@ EPIC-013 (multi-platform clients) depends on this epic.
 
 | Feature | Covers | Status |
 |---------|--------|--------|
-| [FEATURE-016](../../docs/features/FEATURE-016-retire-old-stack/idea.md) | STORY-014 | idea |
-| [FEATURE-017](../../docs/features/FEATURE-017-kobold-endpoint/idea.md) | STORY-015 | idea |
-| [FEATURE-018](../../docs/features/FEATURE-018-rest-sse-facade/idea.md) | STORY-016 | idea |
-| [FEATURE-019](../../docs/features/FEATURE-019-oauth-identity/idea.md) | STORY-017 | idea |
-| [FEATURE-020](../../docs/features/FEATURE-020-daemon-mode/idea.md) | STORY-018 | idea |
+| [FEATURE-016](../../docs/features/FEATURE-016-retire-old-stack/idea.md) | STORY-014 | done |
+| [FEATURE-017](../../docs/features/FEATURE-017-kobold-endpoint/idea.md) | STORY-015 | building (1 done, 3 in review, 1 todo) |
+| [FEATURE-018](../../docs/features/FEATURE-018-rest-sse-facade/idea.md) | STORY-016 | building (1 done, 1 in review, 3 open) |
+| [FEATURE-019](../../docs/features/FEATURE-019-oauth-identity/idea.md) | STORY-017 | building (3 done, 3 in review, 1 todo) |
+| [FEATURE-020](../../docs/features/FEATURE-020-daemon-mode/idea.md) | STORY-018 | building (0/3) |
 | [FEATURE-021](../../docs/features/FEATURE-021-remove-sync-tool-execute/idea.md) | TASK-018 | done |
+| [FEATURE-077](../../docs/features/FEATURE-077-unify-framework-source-compilation/idea.md) | TASK-071 | done |

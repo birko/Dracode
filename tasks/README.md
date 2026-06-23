@@ -59,7 +59,7 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: external evaluator vs reflect tool — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (9/26)
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (9/24)
   - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` · FEATURE-021
   - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko · FEATURE-077
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2)
