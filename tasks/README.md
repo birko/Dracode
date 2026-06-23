@@ -7,7 +7,7 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13    | 31      | —     |
-| todo         | —     | —       | 25    |
+| todo         | —     | —       | 26    |
 | in-progress  | 1     | 3       | 0     |
 | review       | —     | —       | 7     |
 | blocked      | —     | —       | 24    |
@@ -144,6 +144,10 @@ _None_
   - STORY-035 Reusable ConsensusService abstraction — planned (0/0)
   - STORY-036 Diverse-panel consensus (heterogeneous agents) — planned (0/0)
   - STORY-037 Retrofit EPIC-010 voting integrations onto the shared mechanism — planned (0/0)
+
+## Loose tasks
+
+- [ ] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai)
 
 ## Completed
 
