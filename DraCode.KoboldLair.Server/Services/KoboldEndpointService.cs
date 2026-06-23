@@ -20,6 +20,7 @@ namespace DraCode.KoboldLair.Server.Services
     public sealed class KoboldEndpointService
     {
         private readonly KoboldRunEventSource _eventSource;
+        private readonly RunRegistry _runRegistry;
         private readonly IReadOnlyList<IKoboldRunModeHandler> _handlers;
         private readonly ILogger<KoboldEndpointService> _logger;
 
@@ -33,10 +34,12 @@ namespace DraCode.KoboldLair.Server.Services
 
         public KoboldEndpointService(
             KoboldRunEventSource eventSource,
+            RunRegistry runRegistry,
             IEnumerable<IKoboldRunModeHandler> handlers,
             ILogger<KoboldEndpointService> logger)
         {
             _eventSource = eventSource;
+            _runRegistry = runRegistry;
             _handlers = handlers.ToList();
             _logger = logger;
         }
@@ -77,6 +80,10 @@ namespace DraCode.KoboldLair.Server.Services
             var runId = Guid.NewGuid();
             using var subscription = _eventSource.Subscribe(runId, out var reader);
 
+            // Track the run in the shared registry so it's queryable via GET /api/v1/runs/{id} too — same
+            // engine, same status store across transports (TASK-044). Register before start (subscribe-before-start).
+            _runRegistry.Register(runId, caller.Sub, handler.Mode);
+
             KoboldRunStartInfo startInfo;
             try
             {
@@ -85,6 +92,7 @@ namespace DraCode.KoboldLair.Server.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "/kobold {Mode} run {RunId} failed to start", request.Mode, runId);
+                _runRegistry.Fail(runId, ex.Message);
                 await SendAsync(sender, KoboldWireMessage.Error(runId, ex.Message), ct);
                 return;
             }

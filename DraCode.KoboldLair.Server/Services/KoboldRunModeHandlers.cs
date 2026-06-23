@@ -51,16 +51,22 @@ namespace DraCode.KoboldLair.Server.Services
 
         public string Mode => "adhoc";
 
-        /// <summary>An in-flight or finished ad-hoc run (kept only in memory).</summary>
+        /// <summary>Off-registry tracking is bounded so a long-lived server doesn't accumulate run records.</summary>
+        private const int MaxAdhocRuns = 1000;
+
+        /// <summary>An in-flight or finished ad-hoc run (kept only in memory). <c>running</c> until terminal.</summary>
         public sealed class AdHocRun
         {
             public required Guid RunId { get; init; }
             public required string Cwd { get; init; }
             public required string Branch { get; init; }
             public required string Worktree { get; init; }
-            public required string AgentType { get; init; }
             public required DateTime StartedAt { get; init; }
+            /// <summary>Resolved once detection runs in the background; "(detecting)" until then.</summary>
+            public string AgentType { get; set; } = "(detecting)";
+            /// <summary>"running" while live; otherwise the Kobold's terminal status ("Done"/"Failed").</summary>
             public string Status { get; set; } = "running";
+            public bool IsActive => Status == "running";
         }
 
         /// <summary>Snapshot of a tracked ad-hoc run, or null if unknown.</summary>
@@ -72,74 +78,126 @@ namespace DraCode.KoboldLair.Server.Services
             var prompt = request.Prompt ?? request.Task;
             ValidateRequest(cwd, prompt);
 
+            // Fast, synchronous pre-flight only (so the caller gets an immediate 400 on obviously-bad input).
             var fullCwd = Path.GetFullPath(cwd!);
             if (!Directory.Exists(fullCwd))
                 throw new InvalidOperationException($"cwd '{cwd}' does not exist");
             if (!await _git.IsGitInstalledAsync())
                 throw new InvalidOperationException("git is not installed; /kobold ad-hoc mode requires git");
 
-            // Cleanup policy: prune this cwd's stale ad-hoc worktrees before adding a new one.
-            await CleanupStaleWorktreesAsync(fullCwd, _git, WorktreeRetention, DateTime.UtcNow);
-
-            // Validate/initialize the repo: auto git-init + initial snapshot when cwd is not yet a repository.
-            await EnsureRepositoryAsync(_git, fullCwd);
-
-            var agentType = ResolveAgentType(request.AgentType, fullCwd);
+            // The worktree path + branch are deterministic from runId, so we report them immediately while the
+            // heavy work (stale-prune, git init/snapshot, recursive agent-type detection, worktree creation,
+            // and the Kobold run) happens on a background task — POST/WS must return without blocking (criterion:
+            // "returns a runId immediately"). Setup failures surface as a terminal RunErrorEvent, not a throw.
             var branch = BranchName(runId);
             var worktreePath = WorktreePath(fullCwd, runId);
-
-            if (!await _git.CreateBranchAsync(fullCwd, branch))
-                throw new InvalidOperationException($"failed to create ad-hoc branch '{branch}'");
-            var createdPath = await _git.CreateWorktreeAsync(fullCwd, branch, worktreePath)
-                ?? throw new InvalidOperationException($"failed to create worktree at '{worktreePath}'");
-
-            // Spawn the Kobold in the worktree (its WorkingDirectory is the sandbox root for file ops).
-            var provider = _providers.GetProviderForKoboldAgentType(agentType);
-            var options = new AgentOptions { WorkingDirectory = createdPath };
-            var kobold = _koboldFactory.CreateKobold(provider, agentType, options);
-
-            // Adopt the endpoint-owned runId BEFORE starting, so the already-subscribed transport sees telemetry.
-            kobold.AssignRunId(runId);
-            kobold.AssignTask(Guid.NewGuid(), prompt!, projectId: null);
+            var explicitAgentType = string.IsNullOrWhiteSpace(request.AgentType)
+                ? null : request.AgentType!.Trim().ToLowerInvariant();
 
             _runs[runId] = new AdHocRun
             {
-                RunId = runId, Cwd = fullCwd, Branch = branch,
-                Worktree = createdPath, AgentType = agentType, StartedAt = DateTime.UtcNow
+                RunId = runId, Cwd = fullCwd, Branch = branch, Worktree = worktreePath,
+                StartedAt = DateTime.UtcNow, AgentType = explicitAgentType ?? "(detecting)"
             };
+            PruneAdhocRuns();
 
-            _logger.LogInformation(
-                "/kobold ad-hoc run {RunId} starting: cwd={Cwd} agent={AgentType} branch={Branch}",
-                runId, fullCwd, agentType, branch);
+            _ = Task.Run(() => RunAdhocAsync(runId, fullCwd, branch, worktreePath, prompt!, explicitAgentType),
+                CancellationToken.None);
 
-            // Run in the background; the Kobold publishes under runId (the endpoint is already subscribed) and
-            // emits its own terminal event. Afterwards we commit its edits to the ad-hoc branch for merging.
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await kobold.StartWorkingWithPlanAsync(planService: null, cancellationToken: CancellationToken.None);
-
-                    await _git.StageAllAsync(createdPath);
-                    var commit = await _git.CommitChangesAsync(
-                        createdPath, CommitMessage(prompt!, runId), authorName: $"Kobold-{agentType}");
-                    _logger.LogInformation(
-                        "/kobold ad-hoc run {RunId} finished ({Status}); worktree commit: {Commit}",
-                        runId, kobold.Status, commit);
-
-                    if (_runs.TryGetValue(runId, out var rec)) rec.Status = kobold.Status.ToString();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "/kobold ad-hoc run {RunId} failed", runId);
-                    if (_runs.TryGetValue(runId, out var rec)) rec.Status = "Failed";
-                    // Terminal error so the pump ends if the Kobold didn't get far enough to emit one itself.
-                    _eventSource.Publish(new RunErrorEvent { RunId = runId, Message = ex.Message });
-                }
-            }, CancellationToken.None);
-
-            return new KoboldRunStartInfo("adhoc", createdPath);
+            return new KoboldRunStartInfo("adhoc", worktreePath);
         }
+
+        /// <summary>
+        /// The background body of an ad-hoc run: git scaffolding → Kobold execution → commit. On any failure it
+        /// removes the worktree and deletes the (commit-less) ad-hoc branch so nothing is orphaned, then emits a
+        /// terminal <see cref="RunErrorEvent"/> + <c>CompleteRun</c> so every subscriber (pump, registry) finishes.
+        /// </summary>
+        private async Task RunAdhocAsync(Guid runId, string fullCwd, string branch, string worktreePath, string prompt, string? explicitAgentType)
+        {
+            string? createdPath = null;
+            var branchCreated = false;
+            try
+            {
+                // Prune this cwd's stale ad-hoc worktrees, but never one a concurrent run is still using.
+                await CleanupStaleWorktreesAsync(fullCwd, _git, WorktreeRetention, DateTime.UtcNow, ActiveWorktrees());
+
+                // Validate/initialize the repo: auto git-init + initial snapshot when cwd is not yet a repository.
+                await EnsureRepositoryAsync(_git, fullCwd);
+
+                var agentType = explicitAgentType ?? DetectAgentType(fullCwd) ?? "coding";
+                if (_runs.TryGetValue(runId, out var r)) r.AgentType = agentType;
+
+                // The ad-hoc branch forks from the cwd's CURRENT HEAD (wherever the caller is), not a fixed
+                // 'main' — intentional, so the caller merges the result back into the same context they ran from.
+                if (!await _git.CreateBranchAsync(fullCwd, branch))
+                    throw new InvalidOperationException($"failed to create ad-hoc branch '{branch}'");
+                branchCreated = true;
+                createdPath = await _git.CreateWorktreeAsync(fullCwd, branch, worktreePath)
+                    ?? throw new InvalidOperationException($"failed to create worktree at '{worktreePath}'");
+
+                // Spawn the Kobold in the worktree (its WorkingDirectory is the sandbox root for file ops).
+                var provider = _providers.GetProviderForKoboldAgentType(agentType);
+                var options = new AgentOptions { WorkingDirectory = createdPath };
+                var kobold = _koboldFactory.CreateKobold(provider, agentType, options);
+                kobold.AssignRunId(runId); // already subscribed transports see telemetry under this id
+                kobold.AssignTask(Guid.NewGuid(), prompt, projectId: null);
+
+                _logger.LogInformation(
+                    "/kobold ad-hoc run {RunId} starting: cwd={Cwd} agent={AgentType} branch={Branch}",
+                    runId, fullCwd, agentType, branch);
+
+                await kobold.StartWorkingWithPlanAsync(planService: null, cancellationToken: CancellationToken.None);
+
+                await _git.StageAllAsync(createdPath);
+                var commit = await _git.CommitChangesAsync(
+                    createdPath, CommitMessage(prompt, runId), authorName: $"Kobold-{agentType}");
+                _logger.LogInformation(
+                    "/kobold ad-hoc run {RunId} finished ({Status}); worktree commit: {Commit}",
+                    runId, kobold.Status, commit);
+
+                if (_runs.TryGetValue(runId, out var rec)) rec.Status = kobold.Status.ToString();
+                // The Kobold emitted its own terminal event + CompleteRun in its finally — nothing more to do.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "/kobold ad-hoc run {RunId} failed", runId);
+                if (_runs.TryGetValue(runId, out var rec)) rec.Status = "Failed";
+
+                // Don't orphan the worktree/branch — nothing else reclaims the branch, and a failed run committed
+                // nothing, so the branch is safe to force-delete.
+                if (createdPath != null)
+                    try { await _git.RemoveWorktreeAsync(fullCwd, createdPath); }
+                    catch (Exception cleanup) { _logger.LogWarning(cleanup, "ad-hoc run {RunId}: worktree cleanup failed", runId); }
+                if (branchCreated)
+                    try { await _git.DeleteBranchAsync(fullCwd, branch, force: true); }
+                    catch (Exception cleanup) { _logger.LogWarning(cleanup, "ad-hoc run {RunId}: branch cleanup failed", runId); }
+
+                // Terminal error + complete the run so the pump and the registry reader both finish. If the
+                // Kobold had already started it emitted its own terminal event + CompleteRun, so these are no-ops.
+                _eventSource.Publish(new RunErrorEvent { RunId = runId, Message = ex.Message });
+                _eventSource.CompleteRun(runId);
+            }
+        }
+
+        /// <summary>Normalized worktree paths of runs still live — never prune one of these.</summary>
+        private IReadOnlySet<string> ActiveWorktrees() =>
+            _runs.Values.Where(r => r.IsActive)
+                .Select(r => NormalizePath(r.Worktree))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Bounds memory: when over capacity, drop the oldest terminal (non-running) runs.</summary>
+        private void PruneAdhocRuns()
+        {
+            if (_runs.Count <= MaxAdhocRuns) return;
+            foreach (var stale in _runs.Values.Where(r => !r.IsActive)
+                         .OrderBy(r => r.StartedAt).Take(_runs.Count - MaxAdhocRuns))
+            {
+                _runs.TryRemove(stale.RunId, out _);
+            }
+        }
+
+        private static string NormalizePath(string path) =>
+            Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         /// <summary>Validates the cwd + prompt are present. Pure (no IO) — unit-testable.</summary>
         public static void ValidateRequest(string? cwd, string? prompt)
@@ -252,10 +310,12 @@ namespace DraCode.KoboldLair.Server.Services
 
         /// <summary>
         /// Removes ad-hoc worktrees under <c>&lt;cwd&gt;/.koboldlair/.worktrees</c> last modified more than
-        /// <paramref name="maxAge"/> ago. Idempotent; safe to call before every run. Pure-ish (filesystem +
-        /// the injected <paramref name="git"/>) so tests can drive it with a controllable <paramref name="nowUtc"/>.
+        /// <paramref name="maxAge"/> ago, skipping any in <paramref name="inUseWorktrees"/> (a live run's worktree
+        /// must never be force-removed mid-execution). Idempotent; safe to call before every run. Pure-ish
+        /// (filesystem + the injected <paramref name="git"/>) so tests can drive it with a controllable <paramref name="nowUtc"/>.
         /// </summary>
-        public static async Task<int> CleanupStaleWorktreesAsync(string cwd, GitService git, TimeSpan maxAge, DateTime nowUtc)
+        public static async Task<int> CleanupStaleWorktreesAsync(
+            string cwd, GitService git, TimeSpan maxAge, DateTime nowUtc, IReadOnlySet<string>? inUseWorktrees = null)
         {
             var root = WorktreeRoot(cwd);
             if (!Directory.Exists(root)) return 0;
@@ -264,6 +324,7 @@ namespace DraCode.KoboldLair.Server.Services
             foreach (var dir in Directory.GetDirectories(root))
             {
                 if (!Path.GetFileName(dir).StartsWith("r-", StringComparison.Ordinal)) continue;
+                if (inUseWorktrees != null && inUseWorktrees.Contains(NormalizePath(dir))) continue;
                 if (nowUtc - Directory.GetLastWriteTimeUtc(dir) <= maxAge) continue;
                 if (await git.RemoveWorktreeAsync(cwd, dir)) removed++;
             }
@@ -331,12 +392,21 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     var result = await drake.ExecuteTaskAsync(task, agentType, runId: runId, cancellationToken: CancellationToken.None);
                     if (result is null)
+                    {
+                        // No Kobold was summoned (parallel limit) → it never emits a terminal event / CompleteRun,
+                        // so publish the terminal error AND complete the run ourselves, else the pump and the
+                        // RunRegistry reader would wait on a run that never finishes.
                         _eventSource.Publish(new RunErrorEvent { RunId = runId, Message = "kobold parallel limit reached for this project; try again shortly" });
+                        _eventSource.CompleteRun(runId);
+                    }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "/kobold project run {RunId} (task {TaskId}) failed", runId, request.TaskId);
+                    // If the throw happened before the Kobold started, no CompleteRun is coming — emit one (no-op
+                    // if the Kobold already completed the run in its finally).
                     _eventSource.Publish(new RunErrorEvent { RunId = runId, Message = ex.Message });
+                    _eventSource.CompleteRun(runId);
                 }
             }, CancellationToken.None);
 

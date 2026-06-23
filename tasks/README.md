@@ -7,9 +7,9 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13    | 31      | —     |
-| todo         | —     | —       | 26    |
+| todo         | —     | —       | 25    |
 | in-progress  | 1     | 3       | 0     |
-| review       | —     | —       | 6     |
+| review       | —     | —       | 7     |
 | blocked      | —     | —       | 24    |
 | done         | 1     | 2       | 11    |
 | cancelled    | 0     | 0       | 0     |
@@ -23,6 +23,7 @@ _None_
 - [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 · live websocat run now runnable via TASK-040 project mode; protocol unit-tested
 - [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1, ai) — EPIC-012 → STORY-015 · live adhoc run (worktree + commit, original cwd untouched) needs a live Kobold; git scaffolding + cleanup + helpers unit-tested (114/114)
 - [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 · run a seeded analyzed task → confirm commit on the feature branch + worktree cleanup (needs a live Kobold); validation gate unit-tested (97/97)
+- [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1, ai) — EPIC-012 → STORY-016 · `curl POST /api/v1/runs` → poll `GET /api/v1/runs/{id}` until completed (needs a live run); protocol/registry/ownership unit-tested (126/126)
 - [TASK-033](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-033-github-federation.md) GitHub federation for human login (P1, ai) — EPIC-012 → STORY-017 · live verify deferred to TASK-056 (web login button) + a registered GitHub OAuth app
 - [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership (P1, ai) — EPIC-012 → STORY-017 · E2E owner-scoping deferred to TASK-056 (no login UI yet)
 - [TASK-035](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-035-service-account-registration.md) Service-account client registration (P2, ai) — EPIC-012 → STORY-017 · deferred to TASK-043/044 (REST) + CLI `keys create` (EPIC-013)
@@ -70,10 +71,10 @@ _None_
     - [ ] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1) 🔍 review · FEATURE-017
     - [ ] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1) 🔍 review · FEATURE-017
     - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
-  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (1/5)
+  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (1/5, 1 in review)
     - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
     - [ ] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints (P1) · FEATURE-018
-    - [ ] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1) · FEATURE-018
+    - [ ] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1) 🔍 review · FEATURE-018
     - [ ] [TASK-045](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-045-sse-events-endpoint.md) SSE stream: GET /api/v1/runs/{id}/events (P1) ⚠ blocked · FEATURE-018
     - [ ] [TASK-046](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-046-agents-cost-endpoints.md) agents/active + cost-report endpoints (P2) · FEATURE-018
   - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (3/7, 3 in review)

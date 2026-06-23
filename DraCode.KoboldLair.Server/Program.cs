@@ -436,6 +436,10 @@ builder.Services.AddSingleton<ProjectService>(sp =>
 // (TASK-045) transports. Singleton; Kobolds publish to it, transports subscribe by runId.
 builder.Services.AddSingleton<KoboldRunEventSource>();
 
+// Queryable run directory (TASK-044) — folds the live event stream into per-run status that outlives the
+// run, so REST/SSE callers can poll a runId after completion. Shared by the /kobold WS + /api/v1/runs.
+builder.Services.AddSingleton<RunRegistry>();
+
 // /kobold WebSocket endpoint (TASK-038): mode-handler strategies + the protocol service that
 // subscribes to KoboldRunEventSource and relays kobold_* frames. Ad-hoc/project mechanics are TASK-039/040.
 builder.Services.AddSingleton<IKoboldRunModeHandler, AdHocRunModeHandler>();
@@ -959,7 +963,8 @@ if (jwtRuntimeEnabled)
     // whoami + the agents/active stub. Resource endpoints (TASK-043/044/046) extend the same group.
     // Mapped here (under jwtRuntimeEnabled) because RequireAuthorization only bites once
     // UseAuthorization is in the pipeline, which is itself gated on JWT being enabled.
-    app.MapApiV1();
+    var apiV1 = app.MapApiV1();
+    apiV1.MapRunEndpoints(); // POST/GET /api/v1/runs (TASK-044)
 }
 
 // OpenAPI document + Scalar docs UI for the /api/v1 facade (TASK-042). Mapped anonymously (NOT under
