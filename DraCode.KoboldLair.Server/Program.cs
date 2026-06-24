@@ -23,6 +23,7 @@ using DraCode.KoboldLair.Events;
 using DraCode.KoboldLair.Events.Handlers;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Configuration;
+using DraCode.KoboldLair.Security;
 using DraCode.KoboldLair.Services;
 using Birko.BackgroundJobs;
 using Birko.BackgroundJobs.Processing;
@@ -195,8 +196,51 @@ builder.Services.AddSingleton<IValidator<AgentsConfig>, ProjectConfigValidator>(
 builder.Services.Configure<KoboldLairConfiguration>(
     builder.Configuration.GetSection("KoboldLair"));
 
-// Register provider configuration service (must be registered before ProjectConfigurationService)
-builder.Services.AddSingleton<ProviderConfigurationService>();
+// Register provider configuration service (must be registered before ProjectConfigurationService).
+// TASK-073: when a provider-config master key is configured (config or KOBOLDLAIR_MASTER_KEY env), run in
+// DB-backed mode — providers + models + agent assignments in the database, API keys encrypted at rest. The
+// master key is resolved through Birko's ISecretProvider (Phase 1 = config; Phase 2 = Vault, a DI swap here
+// only). Without a master key, stay in legacy appsettings/user-settings/env mode (no behaviour change).
+// Registered lazily (only constructed when something resolves them) and decided from IConfiguration at
+// construction time — NOT from builder.Configuration pre-Build, so test hosts that inject config via
+// WebApplicationFactory are honoured. In legacy mode the repo/cipher are never resolved (the service goes
+// legacy and the admin endpoints aren't mapped), so these factories never run.
+static string? ResolveProviderMasterKey(IConfiguration cfg) =>
+    cfg["KoboldLair:ProviderConfig:MasterKey"] ?? Environment.GetEnvironmentVariable("KOBOLDLAIR_MASTER_KEY");
+
+builder.Services.AddSingleton<SqlProviderConfigRepository>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlProviderConfigRepository>();
+    var repo = new SqlProviderConfigRepository(dbPath, logger);
+    repo.InitializeAsync().GetAwaiter().GetResult();
+    return repo;
+});
+
+// ISecretProvider is constructed inline (not container-registered) to avoid colliding with other
+// ISecretProvider registrations (e.g. OAuth/Vault). Phase 2 swaps this one line for a Vault provider.
+builder.Services.AddSingleton<ProviderKeyCipher>(sp => new ProviderKeyCipher(
+    new ConfigSecretProvider(new Dictionary<string, string>
+    {
+        [ProviderKeyCipher.MasterKeySecretName] = ResolveProviderMasterKey(sp.GetRequiredService<IConfiguration>()) ?? ""
+    })));
+
+builder.Services.AddSingleton<ProviderConfigurationService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<ProviderConfigurationService>>();
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>();
+    var masterKey = ResolveProviderMasterKey(sp.GetRequiredService<IConfiguration>());
+    if (string.IsNullOrWhiteSpace(masterKey))
+        return new ProviderConfigurationService(logger, options); // legacy: appsettings + user-settings + env
+
+    var svc = new ProviderConfigurationService(
+        logger, options, "./user-settings.json",
+        sp.GetRequiredService<SqlProviderConfigRepository>(),
+        sp.GetRequiredService<ProviderKeyCipher>());
+    svc.InitializeAsync().GetAwaiter().GetResult();
+    return svc;
+});
 
 // Register project configuration service (depends on ProviderConfigurationService for defaults)
 builder.Services.AddSingleton<ProjectConfigurationService>();
@@ -965,6 +1009,9 @@ if (jwtRuntimeEnabled)
     // UseAuthorization is in the pipeline, which is itself gated on JWT being enabled.
     var apiV1 = app.MapApiV1();
     apiV1.MapRunEndpoints(); // POST/GET /api/v1/runs (TASK-044)
+    // Admin /api/v1/providers CRUD (TASK-073) — only in DB mode. Read post-build so test-host config is seen.
+    if (!string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration)))
+        apiV1.MapProviderEndpoints();
 }
 
 // OpenAPI document + Scalar docs UI for the /api/v1 facade (TASK-042). Mapped anonymously (NOT under

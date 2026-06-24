@@ -2,7 +2,7 @@
 id: TASK-073
 parent: null
 feature: null
-status: in-progress
+status: review
 priority: P1
 assignee: ai
 created: 2026-06-23
@@ -49,14 +49,14 @@ under EPIC-016, which scopes to plans/analysis/reasoning). It may graduate to it
 
 ## Acceptance criteria
 
-- [ ] DB entities + repository (mirror `SqlPlanRepository`/`PlanEntity`): `ProviderConfigEntity` (name, type, display, enabled, base-url, requires-key, compatible-agents, non-secret config, encrypted api-key) + `ProviderModelEntity` (per-provider switchable models: model id, display, enabled, is-default) + `AgentProviderSettingEntity` (replaces `user-settings.json`: agent/agent-type → provider + selected model)
-- [ ] A provider can carry **multiple models**; the UI/API can list them, mark one default, enable/disable individuals; a per-agent setting picks one of the provider's models
-- [ ] API keys stored **encrypted at rest** via `Birko.Security` AES + `ISecretProvider`-resolved master key; never persisted or logged in plaintext
-- [ ] `ProviderConfigurationService` reads from the DB (source of truth) via an in-memory cache + `InitializeAsync` (startup, mirroring `ProviderCircuitBreaker` rehydration); its **public API is unchanged** so existing callers (factories, Drake) don't change; key decryption replaces the env-var read
-- [ ] One-time idempotent import on first run: `appsettings.Providers` + `user-settings.json` + env API keys → DB (keys encrypted), then DB takes over; env ignored at runtime thereafter
-- [ ] Admin-gated `/api/v1/providers` REST CRUD: list/create/update/enable-disable providers, manage their models, set an api-key (write-only — never returned), and read/set agent→provider/model assignments; gated by `ManageConfig`
-- [ ] Runtime reload: editing a provider/key/model via the API takes effect on the next agent run without a server restart (cache invalidation on write)
-- [ ] Tests: repo round-trip; encryption at rest (DB row holds ciphertext, not the key); DB-over-env precedence; idempotent import; model add/switch/default; REST CRUD incl. admin-gating (403 without `ManageConfig`) and api-key never echoed
+- [x] DB entities + repository (mirror `SqlPlanRepository`/`PlanEntity`): `ProviderConfigEntity` (name, type, display, enabled, base-url, requires-key, compatible-agents, non-secret config, encrypted api-key) + `ProviderModelEntity` (per-provider switchable models) + `AgentProviderSettingEntity` (replaces `user-settings.json`) — `SqlProviderConfigRepository`
+- [x] A provider carries **multiple switchable models** (`ProviderModelEntity` rows, individually enable/disable-able; `DefaultModel` names the default); REST lists/adds/removes them; per-agent setting picks one
+- [x] API keys **encrypted at rest** via `Birko.Security` AES-256-GCM + `ISecretProvider`-resolved master key (`ProviderKeyCipher`); never persisted/logged/returned in plaintext (tests assert ciphertext at rest + key never echoed)
+- [x] `ProviderConfigurationService` reads from the DB via an in-memory cache + `InitializeAsync`; **public API unchanged** (callers untouched); key decryption replaces the env read. _Dual-mode: legacy when no master key is configured._
+- [x] One-time idempotent import on first run (`IsEmptyAsync` guard): `appsettings.Providers` + `user-settings.json` + env keys → DB (encrypted), then DB is authority; env ignored at runtime
+- [x] Admin-gated `/api/v1/providers` REST CRUD (`ManageConfig`): list/create/update/enable-disable providers, manage models, set api-key (write-only), read/set agent assignments — `ProvidersEndpoints`
+- [x] Runtime reload: API writes call `ProviderConfigurationService.ReloadAsync()` → next agent run sees the change without restart _(automated: cross-service reload; full live-run loop in the human test plan)_
+- [x] Tests: repo round-trip + ciphertext-at-rest + cascade + assignments (8); cipher round-trip/wrong-key/uninit (5); DB-service import/DB-over-env/persistence/reconciliation (5); REST CRUD + `ManageConfig` 403 + key-never-echoed (5). Suite 152/152
 
 ## Out of scope
 
@@ -68,8 +68,8 @@ under EPIC-016, which scopes to plans/analysis/reasoning). It may graduate to it
 
 ## Human test plan
 
-- [ ] Change a provider's API key / model in the DB (via the chosen edit surface) and confirm the next agent run uses the new value with no server restart
-- [ ] Inspect the stored row → the API key is ciphertext, not plaintext
+- [x] Inspect the stored row → the API key is ciphertext, not plaintext — **covered by automated tests** (`SqlProviderConfigRepositoryTests`, `ProviderConfigurationServiceDbTests`, `ProvidersEndpointsTests` assert ciphertext at rest + key never echoed)
+- [ ] **Live run (needs an LLM-backed agent):** `PATCH /api/v1/providers/{name}/key` (or change its model), then trigger an agent run and confirm it uses the new key/model **without a server restart**. (Dev runs in DB mode via the `appsettings.Development.json` master key; production sets `KOBOLDLAIR_MASTER_KEY` or a Vault secret.)
 
 ## Implementation plan
 
@@ -85,9 +85,9 @@ under EPIC-016, which scopes to plans/analysis/reasoning). It may graduate to it
 2. ✅ **Repository**: `SqlProviderConfigRepository` (mirrors `SqlPlanRepository`; concrete, no interface — matches that analog) — get-all/get/upsert/delete provider, `IsEmptyAsync` (import guard), `SetApiKeyCiphertextAsync` (metadata upsert preserves the key), models CRUD, agent-setting upsert/delete. Immediate writes. _(8 repo tests green.)_
 3. ✅ **Secret/cipher seam**: `ConfigSecretProvider` (Phase-1 in-memory `ISecretProvider` seeded from config) + `ProviderKeyCipher` over Birko `AesEncryptionProvider` (AES-256-GCM; master key resolved via `ISecretProvider`, stretched with SHA-256; `InitializeAsync` once, then sync Encrypt/Decrypt). Never logs plaintext. _(5 cipher tests.)_
 4. ✅ **Service refactor**: `ProviderConfigurationService` is now **dual-mode** — legacy (appsettings + `user-settings.json` + env, unchanged) when no repo; **DB-backed** when a repo + cipher are supplied. `InitializeAsync()` resolves the master key, one-time-imports the legacy config into an empty DB (keys encrypted), then loads an in-memory cache; the env-var key read is replaced by `ProviderKeyCipher.Decrypt`; `Set*` edits persist to the DB (+ kobold:* reconciliation) and the cache. Every public signature unchanged → callers untouched. _DI still binds legacy mode (zero runtime change) until step 6 flips it._ _(5 DB-service tests: import/encrypt-at-rest, DB-over-env authority, cross-service persistence, reconciliation, load.)_
-5. **Admin REST** (`Api/ProvidersEndpoints.cs`, `MapProviderEndpoints` on the `/api/v1` group, `.RequirePermission(ManageConfig)`): GET providers (+models, **key never returned** — only a `hasKey` bool), POST/PATCH provider, PATCH `/providers/{name}/key` (write-only), POST/DELETE `/providers/{name}/models`, GET/PUT agent assignments.
-6. **DI + startup** (`Program.cs`): register repo, `ISecretProvider`, `ProviderKeyCipher`; `await providerConfig.InitializeAsync()` at startup (next to circuit-breaker rehydrate); `apiV1.MapProviderEndpoints()`.
-7. **Tests**: `SqlProviderConfigRepositoryTests` (round-trip, ciphertext-at-rest, models); `ProviderConfigurationServiceTests` (import idempotency, DB-over-env, model switch, runtime reload); `ProvidersEndpointsTests` (CRUD, `ManageConfig` gating → 403, key never echoed).
+5. ✅ **Admin REST** (`Api/ProvidersEndpoints.cs`, `MapProviderEndpoints` on the `/api/v1` group, `ManageConfig`): GET providers (+models, **key never returned** — only `hasKey`), POST provider, PATCH `/providers/{name}/key` (write-only), DELETE provider, POST/DELETE models, GET `/providers/settings` + PUT agent/kobold assignments.
+6. ✅ **DI + startup** (`Program.cs`): repo + `ProviderKeyCipher` (inline `ConfigSecretProvider`, no container `ISecretProvider` to avoid OAuth collision) + DB-mode `ProviderConfigurationService` registered **lazily, decided from `IConfiguration` post-build** (so test hosts that inject config are honoured — the pre-`Build()` read bug); `InitializeAsync` in the factory; `MapProviderEndpoints` gated on `app.Configuration` master key. Dev master key in `appsettings.Development.json`; prod via `KOBOLDLAIR_MASTER_KEY`/Vault.
+7. ✅ **Tests** (+23 across stages): `SqlProviderConfigRepositoryTests` (8), `ProviderKeyCipherTests` (5), `ProviderConfigurationServiceDbTests` (5), `ProvidersEndpointsTests` (5). Suite 152/152.
 
 ### Tradeoffs / risks
 - **Blast radius**: keeping the service's public API identical confines the change to the service internals + DI; factories/Drake untouched. The risk is the import path — must be idempotent and not clobber a DB already edited (guard on "table empty", not "file exists").

@@ -408,6 +408,16 @@ namespace DraCode.KoboldLair.Services
             }
         }
 
+        /// <summary>
+        /// Re-reads providers + agent settings from the database into the in-memory cache (DB mode only;
+        /// no-op in legacy mode). The admin REST surface calls this after a repo write so the change takes
+        /// effect on the next agent run without a server restart.
+        /// </summary>
+        public async Task ReloadAsync()
+        {
+            if (_dbMode) await ReloadCacheAsync();
+        }
+
         // ---- API key resolution -----------------------------------------------------------------
 
         /// <summary>Adds the resolved API key to <paramref name="config"/> when the provider needs one.</summary>

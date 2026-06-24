@@ -8,15 +8,15 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 |--------------|-------|---------|-------|
 | planned      | 13    | 31      | —     |
 | todo         | —     | —       | 25    |
-| in-progress  | 1     | 3       | 1     |
-| review       | —     | —       | 7     |
+| in-progress  | 1     | 3       | 0     |
+| review       | —     | —       | 8     |
 | blocked      | —     | —       | 24    |
 | done         | 1     | 2       | 11    |
 | cancelled    | 0     | 0       | 0     |
 
 ## In progress now
 
-- [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai) — loose
+_None_
 
 ## In review (code complete, awaiting human sign-off)
 
@@ -27,6 +27,7 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 - [TASK-033](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-033-github-federation.md) GitHub federation for human login (P1, ai) — EPIC-012 → STORY-017 · live verify deferred to TASK-056 (web login button) + a registered GitHub OAuth app
 - [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership (P1, ai) — EPIC-012 → STORY-017 · E2E owner-scoping deferred to TASK-056 (no login UI yet)
 - [TASK-035](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-035-service-account-registration.md) Service-account client registration (P2, ai) — EPIC-012 → STORY-017 · deferred to TASK-043/044 (REST) + CLI `keys create` (EPIC-013)
+- [TASK-073](_loose/TASK-073-db-backed-provider-config.md) DB-backed provider config (editable, keys encrypted) (P1, ai) — loose · ciphertext-at-rest covered by tests; live "edit key/model → next run uses it, no restart" needs an LLM run (152/152)
 
 ## Tree
 
@@ -147,7 +148,7 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 
 ## Loose tasks
 
-- [ ] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai) ← in-progress
+- [ ] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai) 🔍 review
 
 ## Completed
 
