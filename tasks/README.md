@@ -7,8 +7,8 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13    | 31      | —     |
-| todo         | —     | —       | 26    |
-| in-progress  | 1     | 3       | 0     |
+| todo         | —     | —       | 25    |
+| in-progress  | 1     | 3       | 1     |
 | review       | —     | —       | 7     |
 | blocked      | —     | —       | 24    |
 | done         | 1     | 2       | 11    |
@@ -16,7 +16,7 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 
 ## In progress now
 
-_None_
+- [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai) — loose
 
 ## In review (code complete, awaiting human sign-off)
 
@@ -147,7 +147,7 @@ _None_
 
 ## Loose tasks
 
-- [ ] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai)
+- [ ] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai) ← in-progress
 
 ## Completed
 
