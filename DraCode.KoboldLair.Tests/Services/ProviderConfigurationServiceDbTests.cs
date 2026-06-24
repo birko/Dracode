@@ -72,6 +72,7 @@ public class ProviderConfigurationServiceDbTests : IAsyncLifetime
     public async Task Import_encrypts_key_at_rest_and_decrypts_on_read()
     {
         var svc = await NewServiceAsync(Config());
+        svc.SetDefaultProvider("claude"); // default is a DB flag (no appsettings fallback)
 
         // Resolve the default-provider (claude) settings → the decrypted key is handed to the provider.
         var (_, config, _) = svc.GetProviderSettingsForAgent("dragon");
@@ -139,6 +140,25 @@ public class ProviderConfigurationServiceDbTests : IAsyncLifetime
         var svc = await NewServiceAsync(Config());
         svc.GetAllProviders().Select(p => p.Name).Should().BeEquivalentTo(new[] { "claude", "testprov" });
         svc.GetAvailableProviders().Should().OnlyContain(p => p.IsEnabled);
-        svc.GetDefaultProvider().Should().Be("claude");
+    }
+
+    [Fact]
+    public async Task Default_provider_is_a_db_flag_with_no_appsettings_fallback()
+    {
+        // Config() sets appsettings DefaultProvider = "claude", but in DB mode there is NO fallback:
+        // until the DB flag is set, the default is empty.
+        var svc = await NewServiceAsync(Config());
+        svc.GetDefaultProvider().Should().BeEmpty("DB mode has no appsettings fallback for the default");
+
+        svc.SetDefaultProvider("testprov");
+        svc.GetDefaultProvider().Should().Be("testprov");
+
+        // Persists across a fresh service on the same DB.
+        var svc2 = await NewServiceAsync(Config());
+        svc2.GetDefaultProvider().Should().Be("testprov");
+
+        // Unknown provider rejected.
+        var act = () => svc2.SetDefaultProvider("does-not-exist");
+        act.Should().Throw<ArgumentException>();
     }
 }

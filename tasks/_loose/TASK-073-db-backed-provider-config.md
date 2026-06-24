@@ -40,6 +40,12 @@ This is dev-facing infrastructure; it is **not** agent *working state* (so it is
 under EPIC-016, which scopes to plans/analysis/reasoning). It may graduate to its own epic
 ("runtime configuration & secrets management") if it grows.
 
+## Stage 4 (2026-06-24)
+
+- **Model metadata**: `ProviderModelEntity` gained `Reasoning` / `ContextWindow` / `InputModalities` (a provider's models carry real metadata, e.g. GLM `reasoning:true`, `finstat` 262k + image input). Surfaced in the admin model add/view DTOs.
+- **Default provider is a DB flag** (no appsettings fallback in DB mode): reserved settings row; `GetDefaultProvider`/`SetDefaultProvider` + admin `GET/PUT /api/v1/providers/default`. Legacy mode still uses appsettings.
+- **Injection is manual + one-time, no standing seeder**: a transient `--seed-providers` CLI was used once on this dev machine to inject the real providers (pi-zai → `zai`; pi-wedding → `openai` LiteLLM) with keys encrypted at rest + default = pi-zai, then **the seed machinery was removed entirely** (CLI, importer, DTOs, gitignored seed file). Providers/default now live only in the DB; further edits go through the admin REST API.
+
 ## Decisions (agreed 2026-06-24)
 
 - **Encryption:** AES-encrypt provider API keys at rest via `Birko.Security` (`AesEncryptionProvider`); the master key is resolved through `Birko.Security.ISecretProvider`. **Phase 1** default source = config/appsettings (dev: `dotnet user-secrets`). **Phase 2** = swap to Azure Key Vault / HashiCorp Vault (`Birko.Security.AzureKeyVault` / `.Vault`) — DI/config-only, no code change. **Not** coupled to TASK-001 (that's OS-keychain, machine-local, CLI-oriented).

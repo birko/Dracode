@@ -125,6 +125,9 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 existing.DisplayName = entity.DisplayName;
                 existing.Enabled = entity.Enabled;
                 existing.SortOrder = entity.SortOrder;
+                existing.Reasoning = entity.Reasoning;
+                existing.ContextWindow = entity.ContextWindow;
+                existing.InputModalities = entity.InputModalities;
                 existing.UpdatedAt = DateTime.UtcNow;
                 await _models.UpdateAsync(existing);
             }

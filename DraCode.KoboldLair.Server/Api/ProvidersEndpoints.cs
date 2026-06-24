@@ -97,7 +97,10 @@ public static class ProvidersEndpoints
                     ModelId = dto.ModelId,
                     DisplayName = dto.DisplayName,
                     Enabled = dto.Enabled ?? true,
-                    SortOrder = dto.SortOrder ?? 0
+                    SortOrder = dto.SortOrder ?? 0,
+                    Reasoning = dto.Reasoning ?? false,
+                    ContextWindow = dto.ContextWindow ?? 0,
+                    InputModalities = dto.InputModalities
                 });
                 await svc.ReloadAsync();
                 return Results.Ok(new { name, model = dto.ModelId });
@@ -116,6 +119,24 @@ public static class ProvidersEndpoints
 
         api.MapGet("/providers/settings", (ProviderConfigurationService svc) =>
                 Results.Ok(svc.GetUserSettings()))
+            .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
+
+        // Default provider — a DB flag (no appsettings fallback in DB mode).
+        api.MapGet("/providers/default", (ProviderConfigurationService svc) =>
+                Results.Ok(new { defaultProvider = svc.GetDefaultProvider() }))
+            .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
+
+        api.MapPut("/providers/default", (DefaultProviderDto dto, ProviderConfigurationService svc) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.Provider))
+                    return Results.BadRequest(new { error = "provider is required" });
+                try
+                {
+                    svc.SetDefaultProvider(dto.Provider);
+                    return Results.NoContent();
+                }
+                catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            })
             .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
 
         // Orchestrator roles (dragon/wyvern/wyrm/kobold): provider required, validated for compatibility.
@@ -160,7 +181,11 @@ public static class ProvidersEndpoints
         defaultModel = p.DefaultModel,
         compatibleAgents = SafeList(p.CompatibleAgentsJson),
         hasKey = !string.IsNullOrEmpty(p.ApiKeyCiphertext),
-        models = models.Select(m => new { modelId = m.ModelId, displayName = m.DisplayName, enabled = m.Enabled, sortOrder = m.SortOrder })
+        models = models.Select(m => new
+        {
+            modelId = m.ModelId, displayName = m.DisplayName, enabled = m.Enabled, sortOrder = m.SortOrder,
+            reasoning = m.Reasoning, contextWindow = m.ContextWindow, inputModalities = m.InputModalities
+        })
     };
 
     private static List<string> SafeList(string json)
@@ -176,7 +201,10 @@ public static class ProvidersEndpoints
 
     public sealed record SetKeyDto(string? ApiKey);
 
-    public sealed record ModelDto(string ModelId, string? DisplayName, bool? Enabled, int? SortOrder);
+    public sealed record ModelDto(string ModelId, string? DisplayName, bool? Enabled, int? SortOrder,
+        bool? Reasoning, int? ContextWindow, string? InputModalities);
 
     public sealed record AgentSettingDto(string AgentType, string? Provider, string? Model);
+
+    public sealed record DefaultProviderDto(string Provider);
 }

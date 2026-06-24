@@ -36,6 +36,9 @@ namespace DraCode.KoboldLair.Services
         private UserSettings _userSettings;
         // DB mode only: provider name → encrypted API key (decrypted on demand in ResolveApiKey).
         private Dictionary<string, string?> _apiKeyCiphertext = new(StringComparer.OrdinalIgnoreCase);
+        // DB mode only: the default provider, stored as a reserved agent-setting row (the authoritative source — no appsettings fallback).
+        private string? _defaultProviderDb;
+        private const string DefaultProviderKey = "__default__";
         private readonly object _lock = new();
 
         private static readonly JsonSerializerOptions JsonOpts = new()
@@ -163,7 +166,7 @@ namespace DraCode.KoboldLair.Services
                     _ => null
                 };
 
-                return userProvider ?? _config.DefaultProvider;
+                return userProvider ?? EffectiveDefault();
             }
         }
 
@@ -186,7 +189,7 @@ namespace DraCode.KoboldLair.Services
                     return agentTypeSetting.Provider;
                 }
 
-                return _userSettings.KoboldProvider ?? _config.DefaultProvider;
+                return _userSettings.KoboldProvider ?? EffectiveDefault();
             }
         }
 
@@ -370,9 +373,37 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Gets the default provider name
+        /// Gets the default provider name. In DB mode this is the authoritative DB flag (no appsettings
+        /// fallback); in legacy mode it's the appsettings value.
         /// </summary>
-        public string GetDefaultProvider() => _config.DefaultProvider;
+        public string GetDefaultProvider()
+        {
+            lock (_lock) return EffectiveDefault();
+        }
+
+        /// <summary>The effective default provider for the current mode (no lock; callers hold <see cref="_lock"/>).</summary>
+        private string EffectiveDefault() => _dbMode ? (_defaultProviderDb ?? "") : _config.DefaultProvider;
+
+        /// <summary>
+        /// Sets the default provider (DB mode only) — a reserved DB flag, not appsettings. Validates the
+        /// provider exists and is enabled, persists it, and updates the cache.
+        /// </summary>
+        public void SetDefaultProvider(string providerName)
+        {
+            lock (_lock)
+            {
+                if (!_dbMode)
+                    throw new InvalidOperationException("the default provider can only be changed in DB mode");
+                var provider = _providers.FirstOrDefault(p => p.Name == providerName)
+                    ?? throw new ArgumentException($"Provider '{providerName}' not found");
+                if (!provider.IsEnabled)
+                    throw new ArgumentException($"Provider '{providerName}' is not enabled");
+
+                _repo!.UpsertAgentSettingAsync(DefaultProviderKey, providerName, null).GetAwaiter().GetResult();
+                _defaultProviderDb = providerName;
+                _logger.LogInformation("Default provider set to {Provider}", providerName);
+            }
+        }
 
         /// <summary>
         /// Gets the default agent limits
@@ -449,13 +480,16 @@ namespace DraCode.KoboldLair.Services
             var entities = await _repo!.GetAllProvidersAsync();
             var providers = entities.Select(MapToProviderConfig).ToList();
             var ciphertext = entities.ToDictionary(e => e.Name, e => e.ApiKeyCiphertext, StringComparer.OrdinalIgnoreCase);
-            var settings = await LoadUserSettingsFromDbAsync();
+            var rows = await _repo.GetAgentSettingsAsync();
+            var settings = MapUserSettings(rows);
+            var dbDefault = rows.FirstOrDefault(r => r.AgentKey == DefaultProviderKey)?.Provider;
 
             lock (_lock)
             {
                 _providers = providers;
                 _apiKeyCiphertext = ciphertext;
                 _userSettings = settings;
+                _defaultProviderDb = dbDefault;
             }
         }
 
@@ -512,9 +546,8 @@ namespace DraCode.KoboldLair.Services
             Configuration = SafeDeserialize<Dictionary<string, string>>(e.ConfigurationJson) ?? new()
         };
 
-        private async Task<UserSettings> LoadUserSettingsFromDbAsync()
+        private static UserSettings MapUserSettings(IEnumerable<AgentProviderSettingEntity> rows)
         {
-            var rows = await _repo!.GetAgentSettingsAsync();
             var us = new UserSettings();
             foreach (var r in rows)
             {

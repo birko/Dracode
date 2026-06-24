@@ -28,6 +28,16 @@ namespace DraCode.KoboldLair.Data.Entities
 
         public int SortOrder { get; set; } = 0;
 
+        /// <summary>Whether this model supports a reasoning / "deep thinking" mode.</summary>
+        public bool Reasoning { get; set; }
+
+        /// <summary>Context window in tokens; 0 = unspecified.</summary>
+        public int ContextWindow { get; set; }
+
+        /// <summary>Accepted input modalities as a CSV (e.g. <c>text,image</c>); null = text only.</summary>
+        [MaxLengthField(100)]
+        public string? InputModalities { get; set; }
+
         public override AbstractModel CopyTo(AbstractModel? clone = null)
         {
             var target = clone as ProviderModelEntity ?? new ProviderModelEntity();
@@ -37,6 +47,9 @@ namespace DraCode.KoboldLair.Data.Entities
             target.DisplayName = DisplayName;
             target.Enabled = Enabled;
             target.SortOrder = SortOrder;
+            target.Reasoning = Reasoning;
+            target.ContextWindow = ContextWindow;
+            target.InputModalities = InputModalities;
             return target;
         }
 
