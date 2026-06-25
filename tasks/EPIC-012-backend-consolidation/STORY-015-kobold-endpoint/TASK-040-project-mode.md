@@ -34,7 +34,7 @@ Project mode runs a Kobold against an already-analyzed project task: `{ mode: "p
 
 ## Human test plan
 
-**Now runnable end-to-end (also satisfies TASK-038's deferred live step).** Needs a live LLM-backed Kobold, so it's a manual run:
+**Now runnable end-to-end (also satisfies TASK-038's deferred live step).** Needs a live LLM-backed Kobold, so it's a manual run. _Provider name→type resolution for DB-backed providers was fixed in `Drake.SummonKoboldAsync` (2026-06-25, found via TASK-039's live run) — the path no longer passes the provider name to the factory, so a live project run can now resolve `pi-zai`→`zai` etc._
 - [ ] Run project mode against a seeded analyzed project/task (`websocat` to `/kobold`, payload `{ "mode": "project", "projectId": "...", "taskId": "..." }`) → observe the ordered `kobold_*` stream to `kobold_complete`, confirm the commit lands on the task's feature branch and the worktree is cleaned up
 
 ## Implementation plan

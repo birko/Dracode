@@ -231,6 +231,28 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Resolves a specific provider (by name) to its factory <em>type</em> + config (decrypted API key,
+        /// default model, base url). Use when a provider name is chosen explicitly; a provider's name (e.g.
+        /// "pi-zai") is a user-facing label and can differ from its factory type (e.g. "zai").
+        /// </summary>
+        public (string provider, Dictionary<string, string> config, AgentOptions options) GetProviderSettingsByName(
+            string providerName, string? workingDirectory = null)
+        {
+            lock (_lock)
+            {
+                var providerConfig = _providers.FirstOrDefault(p => p.Name == providerName)
+                    ?? throw new InvalidOperationException($"Provider '{providerName}' not found");
+
+                var config = new Dictionary<string, string>(providerConfig.Configuration);
+                config["model"] = providerConfig.DefaultModel;
+                ApplyApiKey(providerConfig, config);
+
+                var options = new AgentOptions { WorkingDirectory = workingDirectory ?? "./workspace", Verbose = false };
+                return (providerConfig.Type, config, options);
+            }
+        }
+
+        /// <summary>
         /// Sets the provider for a specific Kobold agent type (persisted to DB or user-settings.json)
         /// </summary>
         public void SetProviderForKoboldAgentType(string agentType, string? provider, string? model = null)

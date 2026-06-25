@@ -38,8 +38,7 @@ namespace DraCode.KoboldLair.Services
 
         static AgentTypeValidator()
         {
-            // Ensure registrations are loaded
-            ProviderRegistration.RegisterAll();
+            // Ensure registrations are loaded (RegisterAll is idempotent and also registers providers).
             AgentRegistration.RegisterAll();
 
             // Load valid agent types from AgentFactory (includes primary types)

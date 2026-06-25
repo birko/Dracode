@@ -325,12 +325,36 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
             }
 
+            // Resolve the provider *type* + its config (decrypted key, model, baseUrl) — NOT the provider
+            // name: a provider's name (e.g. "pi-zai") is a user-facing label and can differ from its factory
+            // type (e.g. "zai"); the LLM factory is keyed by type. Falls back to the resolved name + default
+            // config when no provider-config service is wired (legacy/tests).
+            var providerForFactory = effectiveProvider;
+            var configForFactory = _defaultConfig;
+            if (_providerConfigService != null)
+            {
+                try
+                {
+                    var (resolvedType, resolvedConfig, _) = provider != null
+                        ? _providerConfigService.GetProviderSettingsByName(provider, resolvedWorkspace)
+                        : _providerConfigService.GetProviderSettingsForKoboldAgentType(agentType, resolvedWorkspace);
+                    providerForFactory = resolvedType;
+                    configForFactory = resolvedConfig;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex,
+                        "Provider settings resolution failed for agent type {AgentType}; falling back to '{Provider}'",
+                        agentType, effectiveProvider);
+                }
+            }
+
             // Create the Kobold
             var kobold = _koboldFactory.CreateKobold(
-                effectiveProvider,
+                providerForFactory,
                 agentType,
                 effectiveOptions,
-                _defaultConfig
+                configForFactory
             );
 
             // Set shared planning context for workspace awareness
