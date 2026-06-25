@@ -30,8 +30,16 @@ namespace DraCode.KoboldLair.Agents
         {
             options ??= new AgentOptions();
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            // Ensure agent types + providers are registered (idempotent). Every agent-creation path runs
+            // through here; without this the ad-hoc /kobold path (which skips AgentTypeValidator) has an
+            // empty agent registry → "Agent type 'coding' is not registered".
+            AgentRegistration.RegisterAll();
+            // Translate a known appsettings provider *name* to its factory *type*. When the name isn't in
+            // appsettings (e.g. DB-backed providers, where the caller already resolved + passes the type),
+            // use the supplied value as-is — it's already the type. (Previously this fell back to
+            // DefaultProvider, which broke once providers moved to the DB and appsettings.Providers went empty.)
             var providers = koboldLairConfig.Providers?.ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, ProviderConfig>(StringComparer.OrdinalIgnoreCase);
-            var providerType = providers.ContainsKey(provider) ? providers[provider].Type : koboldLairConfig.DefaultProvider;
+            var providerType = providers.TryGetValue(provider, out var known) ? known.Type : provider;
 
             // Handle KoboldLair-specific agents locally
             if (agentType.Equals("wyrm", StringComparison.OrdinalIgnoreCase))

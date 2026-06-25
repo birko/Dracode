@@ -2,7 +2,7 @@
 id: TASK-039
 parent: STORY-015
 feature: FEATURE-017
-status: review
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -35,7 +35,12 @@ Ad-hoc mode runs a single Kobold against the caller's cwd: `{ mode: "adhoc", cwd
 
 ## Human test plan
 
-- [ ] Point ad-hoc mode at a non-git temp folder with a file → confirm `.git/` + worktree created, Kobold edits land in the worktree, original cwd untouched until merge
+- [x] Point ad-hoc mode at a non-git temp folder with a file → confirm `.git/` + worktree created, Kobold edits land in the worktree, original cwd untouched until merge — **VERIFIED 2026-06-25** via a live `/kobold` ad-hoc run (provider `pi-zai`→`zai`, GLM): non-git temp dir auto `git init` + `chore: koboldlair initial snapshot`; worktree `r-<runId>` created; Kobold wrote `hello.txt`="hi" in the worktree and committed `feat: …` on `kobold/adhoc-<runId>`; original cwd had no `hello.txt` (untouched).
+
+> Live verification found + fixed two DB-provider integration bugs (both committed with this task):
+> 1. `KoboldLairAgentFactory.Create` translated provider name→type via appsettings `Providers` (empty in DB mode) and fell back to `DefaultProvider` (a provider *name*); now falls back to the supplied value (already the type).
+> 2. Agent types weren't registered on the ad-hoc path (only `AgentTypeValidator` did it); `AgentRegistration.RegisterAll()` now runs (idempotent) in `KoboldLairAgentFactory.Create`.
+> Also: the ad-hoc handler now resolves the provider **type + config** via `GetProviderSettingsForKoboldAgentType` (not the bare name). The Drake/project path (TASK-040/044) still passes the provider *name* — same fix needed there before its live run.
 
 ## Implementation plan
 

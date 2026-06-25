@@ -9,9 +9,9 @@ _Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — 
 | planned      | 13    | 31      | —     |
 | todo         | —     | —       | 25    |
 | in-progress  | 1     | 3       | 0     |
-| review       | —     | —       | 8     |
+| review       | —     | —       | 7     |
 | blocked      | —     | —       | 24    |
-| done         | 1     | 2       | 11    |
+| done         | 1     | 2       | 12    |
 | cancelled    | 0     | 0       | 0     |
 
 ## In progress now
@@ -21,7 +21,6 @@ _None_
 ## In review (code complete, awaiting human sign-off)
 
 - [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 · live websocat run now runnable via TASK-040 project mode; protocol unit-tested
-- [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1, ai) — EPIC-012 → STORY-015 · live adhoc run (worktree + commit, original cwd untouched) needs a live Kobold; git scaffolding + cleanup + helpers unit-tested (114/114)
 - [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 · run a seeded analyzed task → confirm commit on the feature branch + worktree cleanup (needs a live Kobold); validation gate unit-tested (97/97)
 - [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1, ai) — EPIC-012 → STORY-016 · `curl POST /api/v1/runs` → poll `GET /api/v1/runs/{id}` until completed (needs a live run); protocol/registry/ownership unit-tested (126/126)
 - [TASK-033](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-033-github-federation.md) GitHub federation for human login (P1, ai) — EPIC-012 → STORY-017 · live verify deferred to TASK-056 (web login button) + a registered GitHub OAuth app
@@ -66,10 +65,10 @@ _None_
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2)
     - [x] [TASK-029](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-029-delete-old-stack.md) Retire DraCode.WebSocket and DraCode.Web · FEATURE-016
     - [x] [TASK-070](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-070-scrub-full-project-spec.md) Retire FULL_PROJECT_SPECIFICATION.md (stale regeneration spec) · FEATURE-016
-  - STORY-015 /kobold WebSocket endpoint — in-progress (1/5, 3 in review)
+  - STORY-015 /kobold WebSocket endpoint — in-progress (2/5, 2 in review)
     - [x] [TASK-037](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-037-run-event-source.md) Internal per-run event source (P1) · FEATURE-017
     - [ ] [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1) 🔍 review · FEATURE-017
-    - [ ] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1) 🔍 review · FEATURE-017
+    - [x] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1) · FEATURE-017
     - [ ] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1) 🔍 review · FEATURE-017
     - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
   - STORY-016 REST + SSE facade for non-streaming clients — in-progress (1/5, 1 in review)

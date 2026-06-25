@@ -136,9 +136,11 @@ namespace DraCode.KoboldLair.Server.Services
                     ?? throw new InvalidOperationException($"failed to create worktree at '{worktreePath}'");
 
                 // Spawn the Kobold in the worktree (its WorkingDirectory is the sandbox root for file ops).
-                var provider = _providers.GetProviderForKoboldAgentType(agentType);
-                var options = new AgentOptions { WorkingDirectory = createdPath };
-                var kobold = _koboldFactory.CreateKobold(provider, agentType, options);
+                // Resolve the provider *type* + its config (decrypted key, model, baseUrl) — NOT the provider
+                // name: a provider's name (e.g. "pi-zai") is a user-facing label and can differ from its
+                // factory type (e.g. "zai"); the LLM factory is keyed by type.
+                var (providerType, providerCfg, options) = _providers.GetProviderSettingsForKoboldAgentType(agentType, createdPath);
+                var kobold = _koboldFactory.CreateKobold(providerType, agentType, options, providerCfg);
                 kobold.AssignRunId(runId); // already subscribed transports see telemetry under this id
                 kobold.AssignTask(Guid.NewGuid(), prompt, projectId: null);
 
