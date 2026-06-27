@@ -95,6 +95,5 @@ public static class RunsEndpoints
         return api;
     }
 
-    private static bool IsAdmin(ICurrentUser user) =>
-        user.Permissions.Contains("*") || user.Permissions.Contains(KoboldLairPermissionChecker.ViewAll);
+    private static bool IsAdmin(ICurrentUser user) => ApiOwnership.IsAdmin(user);
 }

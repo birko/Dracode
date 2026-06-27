@@ -21,12 +21,12 @@ The CRUD bulk of the facade. Thin minimal-API handlers wrapping the **same servi
 
 ## Acceptance criteria
 
-- [ ] Projects: `GET/POST /projects`, `GET/DELETE /projects/{id}` (list filtered by owner; `?scope=all` for admins)
-- [ ] Spec: `GET/PUT /projects/{id}/specification`
-- [ ] Features: `GET/POST /projects/{id}/features`, `DELETE …/features/{featureId}`
-- [ ] Tasks: `GET /projects/{id}/tasks`, `GET /tasks/{id}`, `POST /tasks/{id}/retry`, `POST /tasks/{id}/priority`
-- [ ] Plans: `GET /projects/{id}/plans`, `GET /plans/{id}` (with step progress)
-- [ ] All wrap existing services; ownership enforced; tests cover scoping + each verb
+- [x] Projects: `GET/POST /projects`, `GET/DELETE /projects/{id}` (list filtered by owner; `?scope=all` for admins)
+- [x] Spec: `GET/PUT /projects/{id}/specification`
+- [x] Features: `GET/POST /projects/{id}/features`, `DELETE …/features/{featureId}`
+- [x] Tasks: `GET /projects/{id}/tasks`, `GET /tasks/{id}`, `POST /tasks/{id}/retry`, `POST /tasks/{id}/priority`
+- [x] Plans: `GET /projects/{id}/plans`, `GET /plans/{id}` (with step progress; `{id}` = taskId, one plan per task)
+- [x] All wrap existing services; ownership enforced via shared `ApiOwnership` (404-not-403); 10 WebApplicationFactory tests cover scoping + each verb (full suite 170/170)
 
 ## Out of scope
 

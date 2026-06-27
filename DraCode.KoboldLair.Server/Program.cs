@@ -1017,6 +1017,7 @@ if (jwtRuntimeEnabled)
     // UseAuthorization is in the pipeline, which is itself gated on JWT being enabled.
     var apiV1 = app.MapApiV1();
     apiV1.MapRunEndpoints(); // POST/GET /api/v1/runs (TASK-044)
+    apiV1.MapResourceEndpoints(); // projects/spec/features/tasks/plans (TASK-043)
     // Admin /api/v1/providers CRUD (TASK-073) — only in DB mode. Read post-build so test-host config is seen.
     if (!string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration)))
         apiV1.MapProviderEndpoints();
