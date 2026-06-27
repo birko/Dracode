@@ -1,6 +1,7 @@
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -229,40 +230,15 @@ namespace DraCode.KoboldLair.Agents.Tools
         }
 
         /// <summary>
-        /// Saves features to a JSON file in the project folder
+        /// Persists the features sidecar via the canonical <see cref="SpecificationService"/>,
+        /// surfacing any I/O failure as a non-critical warning.
         /// </summary>
         private async Task SaveFeaturesAsync(Specification spec)
         {
             if (string.IsNullOrEmpty(spec.Name))
                 return;
-
-            var folder = spec.ProjectFolder;
-            if (string.IsNullOrEmpty(folder) && !string.IsNullOrEmpty(spec.FilePath))
-            {
-                folder = Path.GetDirectoryName(spec.FilePath);
-            }
-
-            if (string.IsNullOrEmpty(folder))
-                return;
-
-            try
-            {
-                var featuresPath = Path.Combine(folder, "specification.features.json");
-                var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
-
-                var featuresData = new
-                {
-                    specificationVersion = spec.Version,
-                    specificationContentHash = spec.ContentHash,
-                    features = spec.Features
-                };
-                var json = System.Text.Json.JsonSerializer.Serialize(featuresData, options);
-                await File.WriteAllTextAsync(featuresPath, json);
-            }
-            catch (Exception ex)
-            {
-                SendMessage("warning", $"Could not save features: {ex.Message}");
-            }
+            try { await SpecificationService.PersistFeaturesAsync(spec); }
+            catch (Exception ex) { SendMessage("warning", $"Could not save features: {ex.Message}"); }
         }
     }
 }

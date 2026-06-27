@@ -245,6 +245,14 @@ builder.Services.AddSingleton<ProviderConfigurationService>(sp =>
 // Register project configuration service (depends on ProviderConfigurationService for defaults)
 builder.Services.AddSingleton<ProjectConfigurationService>();
 
+// Canonical spec/feature persistence (TASK-043) — shared by the Dragon council tools and the
+// /api/v1 resource endpoints so the two surfaces can't drift on the on-disk spec layout.
+builder.Services.AddSingleton<SpecificationService>(sp =>
+{
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
+    return new SpecificationService(config.ProjectsPath ?? "./projects");
+});
+
 // Register provider circuit breaker for failure tracking
 builder.Services.AddSingleton(sp =>
 {

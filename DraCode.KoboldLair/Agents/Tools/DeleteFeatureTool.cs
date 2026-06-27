@@ -2,6 +2,7 @@ using System.Text.Json;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Services;
 using DraCode.KoboldLair.Services.EventSourcing;
 
 namespace DraCode.KoboldLair.Agents.Tools
@@ -111,29 +112,8 @@ namespace DraCode.KoboldLair.Agents.Tools
 
         private async Task SaveFeaturesAsync(Specification spec)
         {
-            var folder = spec.ProjectFolder;
-            if (string.IsNullOrEmpty(folder) && !string.IsNullOrEmpty(spec.FilePath))
-                folder = Path.GetDirectoryName(spec.FilePath);
-
-            if (string.IsNullOrEmpty(folder)) return;
-
-            try
-            {
-                var featuresPath = Path.Combine(folder, "specification.features.json");
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var featuresData = new
-                {
-                    specificationVersion = spec.Version,
-                    specificationContentHash = spec.ContentHash,
-                    features = spec.Features
-                };
-                var json = JsonSerializer.Serialize(featuresData, options);
-                await File.WriteAllTextAsync(featuresPath, json);
-            }
-            catch (Exception ex)
-            {
-                SendMessage("warning", $"Could not save features: {ex.Message}");
-            }
+            try { await SpecificationService.PersistFeaturesAsync(spec); }
+            catch (Exception ex) { SendMessage("warning", $"Could not save features: {ex.Message}"); }
         }
     }
 }

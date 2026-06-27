@@ -2,6 +2,7 @@ using System.Text.Json;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
+using DraCode.KoboldLair.Services;
 using DraCode.KoboldLair.Services.EventSourcing;
 
 namespace DraCode.KoboldLair.Agents.Tools
@@ -235,101 +236,15 @@ namespace DraCode.KoboldLair.Agents.Tools
         }
 
         /// <summary>
-        /// Saves features to a JSON file in the project folder.
-        /// Uses consolidated structure: {projectFolder}/specification.features.json
+        /// Persists the features sidecar via the canonical <see cref="SpecificationService"/>, surfacing
+        /// any I/O failure as a non-critical warning (preserving the prior copy-pasted behavior).
         /// </summary>
         private async Task SaveFeaturesAsync(Specification spec)
         {
             if (string.IsNullOrEmpty(spec.Name))
                 return;
-
-            // Determine the folder to save features to
-            var folder = spec.ProjectFolder;
-            if (string.IsNullOrEmpty(folder) && !string.IsNullOrEmpty(spec.FilePath))
-            {
-                folder = Path.GetDirectoryName(spec.FilePath);
-            }
-
-            if (string.IsNullOrEmpty(folder))
-                return;
-
-            try
-            {
-                // Use consolidated naming: specification.features.json (no project name prefix)
-                var featuresPath = Path.Combine(folder, "specification.features.json");
-                var options = new JsonSerializerOptions { WriteIndented = true };
-
-                // Create wrapper object with version metadata
-                var featuresData = new
-                {
-                    specificationVersion = spec.Version,
-                    specificationContentHash = spec.ContentHash,
-                    features = spec.Features
-                };
-                var json = JsonSerializer.Serialize(featuresData, options);
-                await File.WriteAllTextAsync(featuresPath, json);
-            }
-            catch (Exception ex)
-            {
-                SendMessage("warning", $"Could not save features: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Loads features from JSON file if it exists.
-        /// Uses consolidated structure: {projectFolder}/specification.features.json
-        /// Handles both wrapped format (with version) and legacy format (features only).
-        /// </summary>
-        /// <param name="spec">The specification to load features into</param>
-        /// <param name="folderPath">The project folder path</param>
-        public static async Task LoadFeaturesAsync(Specification spec, string folderPath)
-        {
-            if (string.IsNullOrEmpty(folderPath))
-                return;
-
-            try
-            {
-                var featuresPath = Path.Combine(folderPath, "specification.features.json");
-
-                if (File.Exists(featuresPath))
-                {
-                    var json = await File.ReadAllTextAsync(featuresPath);
-
-                    // Try new wrapped format first
-                    using var doc = JsonDocument.Parse(json);
-                    if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("features", out var featuresProp))
-                    {
-                        var features = JsonSerializer.Deserialize<List<Feature>>(featuresProp.GetRawText());
-                        if (features != null)
-                        {
-                            spec.Features = features;
-                        }
-                        // Also read version if available
-                        if (doc.RootElement.TryGetProperty("specificationVersion", out var versionProp))
-                        {
-                            spec.Version = versionProp.GetInt32();
-                        }
-                        // Also read content hash if available
-                        if (doc.RootElement.TryGetProperty("specificationContentHash", out var hashProp))
-                        {
-                            spec.ContentHash = hashProp.GetString() ?? string.Empty;
-                        }
-                    }
-                    else
-                    {
-                        // Old format - direct array
-                        var features = JsonSerializer.Deserialize<List<Feature>>(json);
-                        if (features != null)
-                        {
-                            spec.Features = features;
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Silently ignore load errors - features will be empty
-            }
+            try { await SpecificationService.PersistFeaturesAsync(spec); }
+            catch (Exception ex) { SendMessage("warning", $"Could not save features: {ex.Message}"); }
         }
     }
 }

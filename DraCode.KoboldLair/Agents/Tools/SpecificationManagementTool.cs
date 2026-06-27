@@ -1,6 +1,7 @@
 using Birko.Validation;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Services;
 using DraCode.KoboldLair.Services.EventSourcing;
 
 namespace DraCode.KoboldLair.Agents.Tools
@@ -147,7 +148,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var projectFolder = existingSpec.ProjectFolder ?? Path.GetDirectoryName(existingFilePath) ?? "";
                 if (!string.IsNullOrEmpty(projectFolder))
                 {
-                    await FeatureManagementTool.LoadFeaturesAsync(existingSpec, projectFolder);
+                    await SpecificationService.LoadFeaturesAsync(existingSpec, projectFolder);
                 }
 
                 var result = $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {existingSpec.Features.Count}";
@@ -186,7 +187,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 }
 
                 // Load features from project folder
-                await FeatureManagementTool.LoadFeaturesAsync(spec, projectFolder2);
+                await SpecificationService.LoadFeaturesAsync(spec, projectFolder2);
 
                 var result = $"✅ Loaded specification '{name}':\n\n{content}\n\nFeatures: {spec.Features.Count}";
                 if (_onProjectLoaded != null)
