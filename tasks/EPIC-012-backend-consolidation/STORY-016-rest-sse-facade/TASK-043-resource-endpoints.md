@@ -2,7 +2,7 @@
 id: TASK-043
 parent: STORY-016
 feature: FEATURE-018
-status: in-progress
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -34,7 +34,7 @@ The CRUD bulk of the facade. Thin minimal-API handlers wrapping the **same servi
 
 ## Human test plan
 
-- [ ] As user A, `curl` create a project and list — see it; as user B, list — don't see A's; admin `?scope=all` sees both
+- [x] As user A, create a project and list — see it; as user B, list — don't see A's; admin `?scope=all` sees both — **[auto → spec]** executed by `ResourceEndpointsTests.Project_listing_is_owner_scoped_and_admin_sees_all` (WebApplicationFactory boots the real pipeline + SQLite; mints distinct A/B/admin JWTs). Verified 2026-06-28. A live multi-user `curl` run is deferred until the login UI (TASK-056) exists; the scoping mechanism is proven here.
 
 ## Implementation plan
 
