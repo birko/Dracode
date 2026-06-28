@@ -1,17 +1,17 @@
 # Tasks — DraCode
 
-_Generated 2026-06-23. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-06-28. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13    | 31      | —     |
-| todo         | —     | —       | 25    |
+| todo         | —     | —       | 26    |
 | in-progress  | 1     | 3       | 0     |
 | review       | —     | —       | 7     |
 | blocked      | —     | —       | 24    |
-| done         | 1     | 2       | 12    |
+| done         | 1     | 2       | 13    |
 | cancelled    | 0     | 0       | 0     |
 
 ## In progress now
@@ -59,7 +59,7 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: external evaluator vs reflect tool — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (9/24)
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (10/26)
   - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` · FEATURE-021
   - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko · FEATURE-077
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2)
@@ -71,12 +71,14 @@ _None_
     - [x] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1) · FEATURE-017
     - [ ] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1) 🔍 review · FEATURE-017
     - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
-  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (1/5, 1 in review)
+  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (2/7, 1 in review)
     - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
-    - [ ] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints (P1) · FEATURE-018
+    - [x] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints (P1) · FEATURE-018
     - [ ] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1) 🔍 review · FEATURE-018
     - [ ] [TASK-045](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-045-sse-events-endpoint.md) SSE stream: GET /api/v1/runs/{id}/events (P1) ⚠ blocked · FEATURE-018
     - [ ] [TASK-046](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-046-agents-cost-endpoints.md) agents/active + cost-report endpoints (P2) · FEATURE-018
+    - [ ] [TASK-074](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-074-rest-delete-project-policy.md) REST DELETE /projects policy + folder cleanup (P2) · FEATURE-018
+    - [ ] [TASK-075](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-075-serialize-rest-spec-feature-edits.md) Serialize concurrent REST spec/feature edits (P2) · FEATURE-018
   - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (3/7, 3 in review)
     - [x] [TASK-030](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-030-host-oauth-server.md) Host Birko OAuth server endpoints in KoboldLair.Server · FEATURE-019
     - [x] [TASK-031](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-031-sqlite-oauth-stores.md) SQLite-backed OAuth server stores · FEATURE-019
