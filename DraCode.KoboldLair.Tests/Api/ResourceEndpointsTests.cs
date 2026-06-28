@@ -141,6 +141,40 @@ public class ResourceEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task Post_project_with_existing_name_returns_409_and_does_not_overwrite_another_owner()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var tokenA = MintToken(factory, UserA, OwnerScopes);
+        var tokenB = MintToken(factory, UserB, OwnerScopes);
+
+        var idA = await CreateProject(client, tokenA, "Shared", spec: "A's content");
+
+        // User B tries to create a project with the same (folder-deriving) name → 409, no overwrite, no leak.
+        var collide = await client.SendAsync(Authed(HttpMethod.Post, "/api/v1/projects", tokenB,
+            new { name = "Shared", specificationContent = "B's content" }));
+        collide.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        // A's project + spec are untouched, and B never received A's project id.
+        var aSpec = await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/projects/{idA}/specification", tokenA));
+        using var doc = JsonDocument.Parse(await aSpec.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("content").GetString().Should().Be("A's content");
+    }
+
+    [Fact]
+    public async Task Post_project_with_subjectless_caller_returns_400_not_500()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        // A non-Guid sub (e.g. a service account) → ICurrentUser.UserId is null → no valid owner.
+        var token = MintToken(factory, "service:bot", OwnerScopes);
+
+        var resp = await client.SendAsync(Authed(HttpMethod.Post, "/api/v1/projects", token, new { name = "NoOwner" }));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest, "a subject-less caller can't own a project — clean 400, no orphaned files");
+    }
+
+    [Fact]
     public async Task Delete_project_removes_it()
     {
         using var factory = CreateFactory();

@@ -46,14 +46,25 @@ public static class ResourceEndpoints
 
         // POST /projects — create a project owned by the caller; optional initial specification content.
         api.MapPost("/projects", async (CreateProjectDto dto, ICurrentUser user,
-                ProjectService projects, SpecificationService specs) =>
+                ProjectService projects, IProjectRepository repo, SpecificationService specs) =>
             {
                 if (string.IsNullOrWhiteSpace(dto.Name))
                     return Results.BadRequest(new { error = "name is required" });
 
-                var owner = user.UserId?.ToString() ?? string.Empty;
+                // Validate everything BEFORE any file write, so a rejected request never orphans a
+                // project folder / specification.md on disk.
+                var owner = user.UserId?.ToString();
+                if (string.IsNullOrWhiteSpace(owner))
+                    // RegisterProject requires a real owner sub (FEATURE-019 D8); a subject-less caller
+                    // (e.g. a service-account token) gets a clean 400, not a 500 + orphaned files.
+                    return Results.BadRequest(new { error = "an authenticated caller identity (sub) is required to create a project" });
+                // The project folder is name-derived, so names are unique. Refuse a collision with 409 —
+                // otherwise SaveContentAsync would overwrite another owner's specification.md and
+                // RegisterProject would hand back their project (cross-tenant write + leak).
+                if (repo.GetByName(dto.Name) is not null)
+                    return Results.Conflict(new { error = $"a project named '{dto.Name}' already exists" });
+
                 await projects.CreateProjectFolderAsync(dto.Name);
-                // Write the markdown body through the canonical service (creates specification.md).
                 var spec = await specs.SaveContentAsync(dto.Name, dto.SpecificationContent ?? string.Empty);
                 var project = projects.RegisterProject(dto.Name, spec.FilePath, owner);
                 return Results.Created($"/api/v1/projects/{project.Id}", ProjectView(project));
