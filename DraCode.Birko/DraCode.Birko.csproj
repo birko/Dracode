@@ -8,8 +8,14 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.7.0" />
+    <!-- Microsoft.Data.Sqlite — declared in Birko.Data.SQL.SqLite.projitems, imported below.
+         System.IdentityModel.Tokens.Jwt — declared in Birko.Security.Jwt.projitems, imported below.
+         A .projitems injects its PackageReference into THIS project, so declaring either here too is
+         NU1504, and the version we wrote won the resolution silently. Ours were 9.0.4 against the
+         framework's 10.* and an exact 8.7.0 against its 8.*; the first was a downgrade that also sat
+         below Birko TASK-230's advisory floor for SQLitePCLRaw. Rule: never below the framework's
+         major, and match its float rather than pinning so a published advisory heals on the next
+         restore (Birko.Framework/CLAUDE-maintenance.md § External dependencies). -->
   </ItemGroup>
 
   <!-- Birko.Framework aggregator: the SINGLE source-compiler of all identity-bearing framework

@@ -12,9 +12,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- JWT Bearer auth is NOT in the ASP.NET shared framework — required by the source-compiled
-         Birko.Security.AspNetCore (AddBirkoJwtBearer). -->
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <!-- Microsoft.AspNetCore.Authentication.JwtBearer — JWT Bearer auth is NOT in the ASP.NET shared
+         framework, and it is required by the source-compiled Birko.Security.AspNetCore
+         (AddBirkoJwtBearer). That is still true; what changed is who declares it. This project imports
+         Birko.Security.AspNetCore.projitems below, and the .projitems now declares the package itself,
+         injecting its PackageReference here — so declaring it again is NU1504. Our exact 10.0.0 also
+         froze what the framework deliberately floats as 10.*, which loses the advisory self-healing
+         that float exists for. -->
+
     <!-- /api/v1 REST facade (TASK-042): built-in OpenAPI doc generation + Scalar self-hosted docs UI
          (no external CDN). MapOpenApi serves JSON only; Scalar provides the UI. -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />

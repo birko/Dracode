@@ -8,7 +8,14 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
+    <!-- 9.0.4 until 2026-09-19. Not a duplicate of a .projitems declaration — this project imports no
+         Birko sources — but it reaches Microsoft.Data.Sqlite through a ProjectReference to
+         DraCode.Birko, which does. That IS a package dependency edge, so the moment DraCode.Birko took
+         the framework's 10.*, this pin became a real NU1605 downgrade and failed restore here, in
+         .Server and in .Tests. Floated to match the framework rather than deleted: no .cs in this
+         project references the package, but a SQLite provider's native assets are not something a
+         grep for type names can see. Never below the framework's major. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.*" />
   </ItemGroup>
 
   <!-- The entire Birko framework is source-compiled once in DraCode.Birko and consumed compiled.
