@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services.EventSourcing;
 
@@ -41,7 +41,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "name" }
         };
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             if (!input.TryGetValue("name", out var nameObj))
             {

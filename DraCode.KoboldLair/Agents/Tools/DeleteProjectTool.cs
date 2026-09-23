@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
 
 namespace DraCode.KoboldLair.Agents.Tools
@@ -55,7 +55,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project", "confirm" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             if (_getProject == null || _deleteProject == null)
                 return Task.FromResult("Delete project functionality is not available.");

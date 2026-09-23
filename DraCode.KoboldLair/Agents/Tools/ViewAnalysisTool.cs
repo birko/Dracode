@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using System.Text.Json;
 
@@ -56,7 +56,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;

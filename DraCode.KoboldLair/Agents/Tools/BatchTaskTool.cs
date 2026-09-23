@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Tasks;
@@ -63,7 +63,7 @@ Examples:
             required = new[] { "action" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             try
             {

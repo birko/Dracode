@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -49,7 +49,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;

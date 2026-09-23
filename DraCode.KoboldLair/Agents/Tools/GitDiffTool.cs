@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Services;
 
@@ -54,7 +54,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "project_name", "branch_name" }
         };
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             if (_gitService == null)
                 return "Git integration is not available.";

@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
@@ -59,7 +59,7 @@ complete, regardless of priority.";
             required = new[] { "task_id", "priority" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
         {
             try
             {

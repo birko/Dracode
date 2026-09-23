@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -49,7 +49,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project_name", "confirm" }
         };
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             if (_resetProject == null)
                 return "Error: Reset functionality not available.";

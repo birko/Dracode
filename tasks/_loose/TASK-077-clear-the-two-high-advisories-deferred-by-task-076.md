@@ -79,9 +79,21 @@ The default value does not help: an override of an abstract method must match th
 
 ## Out of scope
 
-- **The 41 broken tool classes.** Substantial, and it needs a decision upstream first: whether
+- **The 41 broken tool classes.** → **[[TASK-078]], done 2026-09-23.** The upstream question this
+  task posed — virtual overload vs. changed abstract signature — was **answered: keep the abstract
+  signature** (Birko `TASK-483`).
+
+  ⚠ **And the framing below was wrong.** It argued for the overload because it *"would have kept
+  every consumer compiling"*. A virtual three-argument overload forwarding to the old two-argument
+  abstract compiles everywhere and **discards the token**: tools would accept a cancellation they
+  could never honour, while doing git, file and database I/O. Keeping consumers compiling is not
+  worth a parameter that does nothing, and a compile error naming all 41 files is the cheapest
+  failure mode available. The original wording is kept below rather than rewritten, because the
+  error was the interesting part.
+
+  *Original wording:* **The 41 broken tool classes.** Substantial, and it needs a decision upstream first: whether
   `Tool.ExecuteAsync` should have gained the token as a new **virtual overload** rather than by
-  changing the abstract signature, which would have kept every consumer compiling. A shared project
+  changing the abstract signature, which would have kept every consumer compiling. Substantial, and it needs a decision upstream first: whether `Tool.ExecuteAsync` should have gained the token as a new **virtual overload** rather than by changing the abstract signature, which would have kept every consumer compiling. A shared project
   has no package identity, so a breaking change in one reaches consumers with **no version signal at
   all** — nothing to bump, nothing to warn, which is why this sat unnoticed for over two months.
 - **`Microsoft.Data.Sqlite` in `DraCode.KoboldLair`**, still unused — TASK-076 left it, and so does this.

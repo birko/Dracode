@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
@@ -54,7 +54,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action", "specification_name" }
         };
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             if (!input.TryGetValue("action", out var actionObj) || !input.TryGetValue("specification_name", out var specNameObj))
             {

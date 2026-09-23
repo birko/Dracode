@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
@@ -82,7 +82,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
             required = new[] { "progress_percent", "confidence_percent", "decision" }
         };
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
         {
             try
             {
