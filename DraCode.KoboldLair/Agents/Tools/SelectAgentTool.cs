@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Agents.Tools
@@ -49,7 +49,7 @@ Returns: Information about the selected agent and confirmation that it will hand
             required = new[] { "agent_type", "reasoning", "task" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
         {
             try
             {

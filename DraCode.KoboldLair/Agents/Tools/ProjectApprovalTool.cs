@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -42,7 +42,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project_name", "confirmation" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             if (_approveProject == null)
             {

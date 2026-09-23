@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
@@ -51,7 +51,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "specification_name", "feature_name", "confirm" }
         };
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             if (!input.TryGetValue("specification_name", out var specNameObj))
                 return "Error: specification_name is required";

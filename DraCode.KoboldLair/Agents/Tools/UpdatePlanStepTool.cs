@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Services;
@@ -72,7 +72,7 @@ Returns: Confirmation of the update with current plan progress.";
             required = new[] { "step_index", "status" }
         };
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
         {
             try
             {

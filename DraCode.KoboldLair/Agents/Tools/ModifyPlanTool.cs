@@ -1,4 +1,4 @@
-using Birko.AI.Tools;
+﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Services;
 using Microsoft.Extensions.Logging;
@@ -127,7 +127,7 @@ The modification will be logged and may require approval depending on configurat
             }
         }
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> parameters)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> parameters, CancellationToken cancellationToken = default)
         {
             // Gather state under lock, then perform async I/O outside the lock
             bool allowModifications;

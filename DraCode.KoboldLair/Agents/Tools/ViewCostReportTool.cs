@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Birko.AI.Resilience.Services;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Services;
@@ -46,7 +46,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             var action = input.TryGetValue("action", out var a) ? a?.ToString() ?? "summary" : "summary";
 

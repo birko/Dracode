@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Agents;
 
@@ -79,7 +79,7 @@ Returns: Confirmation of the created plan with summary.";
             required = new[] { "steps" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments)
+        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
         {
             try
             {
