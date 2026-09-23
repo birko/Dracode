@@ -22,7 +22,7 @@
 
     <!-- /api/v1 REST facade (TASK-042): built-in OpenAPI doc generation + Scalar self-hosted docs UI
          (no external CDN). MapOpenApi serves JSON only; Scalar provides the UI. -->
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.1.18" />
   </ItemGroup>
 

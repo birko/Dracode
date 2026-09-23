@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.1.2">
+<Project Sdk="Aspire.AppHost.Sdk/13.4.5">
 
   <ItemGroup>
     <ProjectReference Include="..\DraCode.KoboldLair.Server\DraCode.KoboldLair.Server.csproj" />
