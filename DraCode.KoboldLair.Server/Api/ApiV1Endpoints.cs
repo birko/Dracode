@@ -25,7 +25,7 @@ public static class ApiV1Endpoints
         api.MapGet("/whoami", (Birko.Security.AspNetCore.ICurrentUser currentUser) =>
                 Results.Ok(new
                 {
-                    userId = currentUser.UserId,
+                    userId = currentUser.UserGuid,
                     permissions = currentUser.Permissions.ToArray()
                 }))
             .RequirePermission(KoboldLairPermissionChecker.ViewOwn);

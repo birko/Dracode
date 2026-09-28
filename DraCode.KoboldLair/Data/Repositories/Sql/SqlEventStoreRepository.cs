@@ -110,13 +110,13 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         {
             return new DomainEventEntity
             {
-                Guid = @event.EventId,
-                AggregateId = @event.AggregateId.ToString(),
+                Guid = @event.EventGuid,
+                AggregateId = @event.AggregateGuid.ToString(),
                 Version = @event.Version,
                 EventType = @event.EventType,
                 EventData = @event.EventData,
                 Metadata = @event.Metadata,
-                UserId = @event.UserId?.ToString(),
+                UserId = @event.UserGuid?.ToString(),
                 OccurredAt = @event.OccurredAt,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -132,7 +132,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 eventData: entity.EventData,
                 userId: string.IsNullOrEmpty(entity.UserId) ? null : Guid.Parse(entity.UserId))
             {
-                EventId = entity.Guid ?? Guid.NewGuid(),
+                EventGuid = entity.Guid ?? Guid.NewGuid(),
                 OccurredAt = entity.OccurredAt,
                 Metadata = entity.Metadata
             };
