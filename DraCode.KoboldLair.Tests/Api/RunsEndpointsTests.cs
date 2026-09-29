@@ -201,7 +201,7 @@ public class RunsEndpointsTests
     {
         using var factory = CreateFactory();
         var client = factory.CreateClient();
-        // Tokens whose 'sub' isn't a Guid → ICurrentUser.UserId is null → owner is null. The ownership check
+        // Tokens whose 'sub' isn't a Guid → ICurrentUser.UserGuid is null → owner is null. The ownership check
         // must NOT treat two null-identity callers as the same owner (#5).
         var tokenX = MintToken(factory, "not-a-guid-x", KoboldLairPermissionChecker.ViewOwn);
         var tokenY = MintToken(factory, "not-a-guid-y", KoboldLairPermissionChecker.ViewOwn);

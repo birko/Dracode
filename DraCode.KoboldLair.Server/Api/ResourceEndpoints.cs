@@ -37,9 +37,9 @@ public static class ResourceEndpoints
                 var admin = ApiOwnership.IsAdmin(user);
                 var list = (admin && scope == "all")
                     ? repo.GetAll()
-                    : admin && user.UserId is null
+                    : admin && user.UserGuid is null
                         ? repo.GetAll()                       // auth-off single-user → see all
-                        : repo.GetAllForOwner(user.UserId?.ToString() ?? string.Empty);
+                        : repo.GetAllForOwner(user.UserGuid?.ToString() ?? string.Empty);
                 return Results.Ok(list.Select(ProjectView));
             })
             .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
@@ -53,7 +53,7 @@ public static class ResourceEndpoints
 
                 // Validate everything BEFORE any file write, so a rejected request never orphans a
                 // project folder / specification.md on disk.
-                var owner = user.UserId?.ToString();
+                var owner = user.UserGuid?.ToString();
                 if (string.IsNullOrWhiteSpace(owner))
                     // RegisterProject requires a real owner sub (FEATURE-019 D8); a subject-less caller
                     // (e.g. a service-account token) gets a clean 400, not a 500 + orphaned files.

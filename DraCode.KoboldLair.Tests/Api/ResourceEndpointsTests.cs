@@ -166,7 +166,7 @@ public class ResourceEndpointsTests : IDisposable
     {
         using var factory = CreateFactory();
         var client = factory.CreateClient();
-        // A non-Guid sub (e.g. a service account) → ICurrentUser.UserId is null → no valid owner.
+        // A non-Guid sub (e.g. a service account) → ICurrentUser.UserGuid is null → no valid owner.
         var token = MintToken(factory, "service:bot", OwnerScopes);
 
         var resp = await client.SendAsync(Authed(HttpMethod.Post, "/api/v1/projects", token, new { name = "NoOwner" }));

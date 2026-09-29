@@ -24,7 +24,7 @@ public static class ApiOwnership
     {
         if (IsAdmin(user))
             return true;
-        var caller = user.UserId?.ToString();
+        var caller = user.UserGuid?.ToString();
         return caller is not null && ownerId is not null && ownerId == caller;
     }
 }

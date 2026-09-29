@@ -190,7 +190,7 @@ namespace DraCode.KoboldLair.Services.EventSourcing
 
             return events.Select(e => new SpecificationEventRecord
             {
-                EventId = e.EventId,
+                EventId = e.EventGuid,
                 Version = e.Version,
                 EventType = e.EventType,
                 OccurredAt = e.OccurredAt,
@@ -208,7 +208,7 @@ namespace DraCode.KoboldLair.Services.EventSourcing
 
             return events.Select(e => new SpecificationEventRecord
             {
-                EventId = e.EventId,
+                EventId = e.EventGuid,
                 Version = e.Version,
                 EventType = e.EventType,
                 OccurredAt = e.OccurredAt,
