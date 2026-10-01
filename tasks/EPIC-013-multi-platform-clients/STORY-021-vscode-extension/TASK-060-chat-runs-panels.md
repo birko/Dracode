@@ -2,7 +2,8 @@
 id: TASK-060
 parent: STORY-021
 feature: FEATURE-024
-status: blocked
+status: todo
+blocked: waiting on TASK-059, TASK-038
 priority: P2
 assignee: ai
 created: 2026-06-11

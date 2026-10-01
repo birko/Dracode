@@ -3,7 +3,7 @@ id: TASK-076
 parent: null
 feature: null
 # status: todo | in-progress | review (code done, sign-off pending) | blocked | done | cancelled
-status: review
+status: verify
 priority: P2
 assignee: ai
 created: 2026-09-19

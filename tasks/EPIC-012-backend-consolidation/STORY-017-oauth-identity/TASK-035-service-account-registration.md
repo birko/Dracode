@@ -2,7 +2,7 @@
 id: TASK-035
 parent: STORY-017
 feature: FEATURE-019
-status: review
+status: verify
 priority: P2
 assignee: ai
 created: 2026-06-11

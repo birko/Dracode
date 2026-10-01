@@ -1,7 +1,8 @@
 ---
 id: TASK-002
 parent: EPIC-001
-status: blocked
+status: todo
+blocked: waiting on TASK-001
 priority: P2
 assignee: ai
 created: 2026-05-28

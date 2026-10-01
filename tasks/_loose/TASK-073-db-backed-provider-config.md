@@ -2,7 +2,7 @@
 id: TASK-073
 parent: null
 feature: null
-status: review
+status: verify
 priority: P1
 assignee: ai
 created: 2026-06-23
