@@ -238,7 +238,8 @@ namespace DraCode.KoboldLair.Data
             entity.TaskId = task.Id;
             entity.TaskDescription = task.Task;
             entity.AssignedAgent = task.AssignedAgent;
-            entity.ProjectId = task.ProjectId;
+            // Records loaded from a task file carry no project id; keep the stored one (TASK-091).
+            if (task.ProjectId != null) entity.ProjectId = task.ProjectId;
             if (areaName != null) entity.AreaName = areaName;
             entity.Status = (int)task.Status;
             entity.Priority = (int)task.Priority;

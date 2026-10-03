@@ -2,6 +2,7 @@ using System.Text.Json;
 using Birko.AI;
 using Birko.AI.Agents;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
@@ -20,6 +21,12 @@ namespace DraCode.KoboldLair.Orchestrators
         private const string AnalysisJsonFileName = "analysis.json";
 
         private readonly string _projectName;
+
+        /// <summary>Database the created tasks are written to (TASK-091); set by WyvernFactory. Null = files only.</summary>
+        public ITaskRepository? TaskRepository { get; set; }
+
+        /// <summary>Project id the task rows carry; set by WyvernFactory together with <see cref="TaskRepository"/>.</summary>
+        public string? ProjectId { get; set; }
         private readonly string _specificationPath;
         private readonly WyvernAgent _analyzerAgent;
         private readonly string _provider;
@@ -700,7 +707,7 @@ Respond with ONLY valid JSON (no markdown, no explanations):
         /// <param name="areasToProcess">Optional list of area names to process. If null, processes all areas.</param>
         /// <param name="existingTaskFiles">Optional existing task files dictionary to merge with.</param>
         /// <returns>Dictionary of area names to task file paths, and list of areas that failed processing.</returns>
-        public Task<(Dictionary<string, string> TaskFiles, List<string> FailedAreas)> CreateTasksAsync(
+        public async Task<(Dictionary<string, string> TaskFiles, List<string> FailedAreas)> CreateTasksAsync(
             List<string>? areasToProcess = null,
             Dictionary<string, string>? existingTaskFiles = null)
         {
@@ -802,6 +809,23 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                     // Save the tracker with all individual tasks
                     tracker.SaveToFile(areaOutputPath, $"KoboldLair {area.Name} Tasks");
 
+                    // Attached only now, so rows are written once with their final agent type and spec version.
+                    if (TaskRepository != null && !string.IsNullOrEmpty(ProjectId))
+                    {
+                        tracker.Repository = TaskRepository;
+                        tracker.ProjectId = ProjectId;
+                        tracker.AreaName = sanitizedAreaName;
+                        try
+                        {
+                            await tracker.EnsureInRepositoryAsync();
+                        }
+                        catch (Exception dbEx)
+                        {
+                            // The task file is the source of truth here; a database failure must not fail the area.
+                            _logger?.LogError(dbEx, "Failed to write tasks of area {Area} to the database", area.Name);
+                        }
+                    }
+
                     taskFiles[area.Name] = areaOutputPath;
                 }
                 catch (Exception ex)
@@ -812,7 +836,7 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 }
             }
 
-            return Task.FromResult((taskFiles, failedAreas));
+            return (taskFiles, failedAreas);
         }
 
         /// <summary>

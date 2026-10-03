@@ -691,6 +691,28 @@ namespace DraCode.KoboldLair.Models.Tasks
         }
 
         /// <summary>
+        /// Adds every task this tracker holds that the repository does not have yet (TASK-091). Tasks loaded
+        /// from a file never pass through <see cref="AddTask"/>, so without this they reach the database only
+        /// as updates to rows that do not exist. Idempotent; returns the number of rows added, or -1 when no
+        /// repository is configured.
+        /// </summary>
+        public async Task<int> EnsureInRepositoryAsync()
+        {
+            if (Repository == null || string.IsNullOrEmpty(ProjectId) || string.IsNullOrEmpty(AreaName))
+                return -1;
+
+            var added = 0;
+            foreach (var task in GetAllTasks())
+            {
+                if (await Repository.GetByIdAsync(task.Id) != null)
+                    continue;
+                await Repository.AddTaskAsync(ProjectId, AreaName, task);
+                added++;
+            }
+            return added;
+        }
+
+        /// <summary>
         /// Syncs a task record to the database repository (fire-and-forget).
         /// Called internally after each mutation. Failures are swallowed to avoid
         /// breaking in-memory operations — JSON file saves remain the safety net.
