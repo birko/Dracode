@@ -37,6 +37,7 @@ Z.AI also changed its models: calls report `glm-5.3-flash` while the DB lists gl
 ## Human test plan
 
 - [ ] Dragon answers a chat message and approves a throwaway project; Wyrm/Wyvern analyze it (needs the live account)
+- [ ] **From TASK-082:** ask Dragon for `view_cost_report` (summary) → it lists the usage rows recorded since 2026-10-03 (requests/tokens; cost stays 0 until `CostTracking.Pricing` is configured)
 
 ## Implementation plan
 

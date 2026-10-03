@@ -1,5 +1,6 @@
 using Birko.AI.Resilience.Stores;
 using Birko.Data.SQL.Repositories;
+using Birko.Data.SQL.SchemaDrift;
 using Birko.Data.Stores;
 using Birko.Configuration;
 using DraCode.KoboldLair.Data.Entities;
@@ -30,7 +31,33 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         public async Task InitializeAsync()
         {
             await _repository.CreateSchemaAsync();
+            await AddMissingColumnsAsync();
             _logger.LogInformation("SqlUsageRepository initialized");
+        }
+
+        /// <summary>
+        /// Adds columns the entity declares but the table lacks (TASK-082). Until Birko mapped
+        /// <c>double</c> to a column (Birko 34928514, 2026-08-08) <c>EstimatedCostUsd</c> was silently left
+        /// out of <c>CREATE TABLE</c>, and <c>CREATE TABLE IF NOT EXISTS</c> never alters an existing table —
+        /// so every insert into an older database failed. Each column is added nullable with a type default,
+        /// because SQLite refuses <c>ADD COLUMN … NOT NULL</c> without one on a table that has rows; older
+        /// rows therefore read back with zero cost.
+        /// </summary>
+        private async Task AddMissingColumnsAsync()
+        {
+            var connector = _repository.Connector
+                ?? throw new InvalidOperationException("SqlUsageRepository has no SQLite connector after CreateSchemaAsync");
+            var report = connector.DetectDrift(typeof(KoboldLairUsageRecord));
+            foreach (var drift in report.Drifts.Where(d => d.Kind == ColumnDriftKind.Missing))
+            {
+                var type = drift.Declared ?? "TEXT";
+                var defaultValue = type.Contains("TEXT", StringComparison.OrdinalIgnoreCase) ? "''" : "0";
+                var sql = $"ALTER TABLE \"{drift.Table}\" ADD COLUMN \"{drift.Column}\" {type} DEFAULT {defaultValue}";
+                await connector.DoCommandAsync(
+                    cmd => { cmd.CommandText = sql; return Task.CompletedTask; },
+                    cmd => cmd.ExecuteNonQueryAsync());
+                _logger.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, type);
+            }
         }
 
         /// <summary>
