@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-10-03 21:24. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-03 21:25. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -8,10 +8,10 @@ _Generated 2026-10-03 21:24. Run `/tasks triage` to refresh. **Do not hand-edit*
 |--------------|-------|---------|-------|
 | planned      | 13 | 31 | — |
 | todo         | — | — | 57 |
-| in-progress  | 1 | 3 | 1 |
+| in-progress  | 1 | 3 | 0 |
 | verify       | — | — | 2 |
 | blocked      | — | — | 25 |
-| done         | 1 | 2 | 22 |
+| done         | 1 | 2 | 23 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
@@ -20,7 +20,7 @@ _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted i
 
 ## In progress now
 
-- [TASK-087](_loose/TASK-087-use-birko-ensurecolumns-in-usage-repository.md) Replace SqlUsageRepository's local add-missing-columns helper with Birko's EnsureColumns (P3, ai) — loose
+_None_
 
 ## In review (code complete, awaiting human sign-off)
 
@@ -160,7 +160,7 @@ _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted i
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
 - [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [ ] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)
-- [ ] [TASK-087](_loose/TASK-087-use-birko-ensurecolumns-in-usage-repository.md) Replace SqlUsageRepository's local add-missing-columns helper with Birko's EnsureColumns (P3) ← in-progress
+- [x] [TASK-087](_loose/TASK-087-use-birko-ensurecolumns-in-usage-repository.md) Replace SqlUsageRepository's local add-missing-columns helper with Birko's EnsureColumns (P3)
 
 <details><summary>Completed</summary>
 

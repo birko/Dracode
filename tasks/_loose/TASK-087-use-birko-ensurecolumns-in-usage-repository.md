@@ -2,7 +2,7 @@
 id: TASK-087
 parent: null
 feature: null
-status: in-progress
+status: done
 priority: P3
 assignee: ai
 created: 2026-10-03
@@ -27,10 +27,10 @@ TASK-082 fixed lost usage records with a local helper, `SqlUsageRepository.AddMi
 
 ## Acceptance criteria
 
-- [ ] `InitializeAsync` calls `_repository.Connector!.EnsureColumns(typeof(KoboldLairUsageRecord))` after `CreateSchemaAsync` and logs each closed drift; the local helper and its duplicate-column catch are removed
-- [ ] Decide and state how a throw is handled at startup (let it fail startup, or log and continue with cost tracking degraded) — the repository is built at startup in Program.cs
-- [ ] `SqlUsageRepositoryTests` stay green unchanged (old-shape upgrade, idempotent re-init, fresh DB); full suite green
-- [ ] Doc comment points at Birko TASK-510 instead of carrying the workaround
+- [x] `InitializeAsync` calls `_repository.Connector!.EnsureColumns(typeof(KoboldLairUsageRecord))` after `CreateSchemaAsync` and logs each closed drift; the local helper and its duplicate-column catch are removed — built against Birko 60f34f52 (TASK-510)
+- [x] Decide and state how a throw is handled at startup (let it fail startup, or log and continue with cost tracking degraded) — the repository is built at startup in Program.cs — **log and continue**: any exception is logged at Error ("usage records may fail to save") and startup proceeds; cost tracking is not worth stopping the server for, and Error level keeps it from going silent the way TASK-082 did
+- [x] `SqlUsageRepositoryTests` stay green unchanged (old-shape upgrade, idempotent re-init, fresh DB); full suite green — 175/175
+- [x] Doc comment points at Birko TASK-510 instead of carrying the workaround
 
 ## Out of scope
 
@@ -42,4 +42,4 @@ N/A — the existing SqlUsageRepositoryTests cover the upgrade path against a re
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-087` — leave empty until then._
+Not drafted — a one-file swap. Also checked Birko TASK-512 (unprecisioned `decimal` rounded on MySQL/SQL Server): DraCode has no `decimal` properties.
