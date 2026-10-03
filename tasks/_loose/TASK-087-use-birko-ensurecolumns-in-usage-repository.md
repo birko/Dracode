@@ -2,8 +2,7 @@
 id: TASK-087
 parent: null
 feature: null
-status: todo
-blocked: waiting on Birko TASK-510 being committed (EnsureColumns; implemented, commit pending approval in the Birko session)
+status: in-progress
 priority: P3
 assignee: ai
 created: 2026-10-03
