@@ -66,6 +66,7 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 | [FEATURE-038](FEATURE-038-reusable-consensus-mechanism/idea.md) | Reusable ConsensusService abstraction | idea | EPIC-017 |
 | [FEATURE-039](FEATURE-039-diverse-panel-consensus/idea.md) | Diverse-panel consensus | idea | EPIC-017 |
 | [FEATURE-040](FEATURE-040-retrofit-voting-integrations/idea.md) | Retrofit voting integrations | idea | EPIC-017 |
+| [FEATURE-078](FEATURE-078-lifecycle-skills-in-pipeline/idea.md) | Project lifecycle discipline in the KoboldLair pipeline | idea | — (17 proposed, 0/0 tasks, prototype pending) |
 
 ## Shipped (backfilled from `docs/CHANGELOG.md`)
 
@@ -110,4 +111,4 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 
 ---
 
-_Next `FEATURE-NNN` id: **FEATURE-078**. Add new features with `/feature new`._
+_Next `FEATURE-NNN` id: **FEATURE-079**. Add new features with `/feature new`._
