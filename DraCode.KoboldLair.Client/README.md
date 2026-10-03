@@ -30,7 +30,7 @@ The client now uses **WebSocket-only communication**. Configure the server conne
 ```json
 {
   "KoboldLair": {
-    "ServerUrl": "ws://localhost:5000",
+    "ServerUrl": "ws://localhost:57087",
     "AuthToken": ""
   }
 }
@@ -38,9 +38,11 @@ The client now uses **WebSocket-only communication**. Configure the server conne
 
 ### Server URL Configuration
 
-Set the `ServerUrl` to point to your KoboldLair.Server WebSocket endpoint:
+Set the `ServerUrl` to point to your KoboldLair.Server WebSocket endpoint. The server binds
+`http://localhost:57087` / `https://localhost:57085` (`DraCode.KoboldLair.Server/Properties/launchSettings.json`),
+so WebSocket connections use `ws://localhost:57087` (or `wss://localhost:57085`):
 
-- **Local development**: `ws://localhost:5000`
+- **Local development**: `ws://localhost:57087`
 - **Remote server**: `ws://192.168.1.100:5000`
 - **Production with TLS**: `wss://your-domain.com`
 - **Custom port**: `ws://localhost:8080`

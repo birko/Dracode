@@ -7,12 +7,17 @@ import './auth-store.js';
 import './module-store.js';
 import './app-shell.js';
 import { initRouter } from './router.js';
+import configService from './services/config.js';
 
 /**
  * Initialize KoboldLair application when DOM is ready
  */
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🏰 Initializing KoboldLair Dashboard...');
+
+  // Pull host-provided config (serverUrl/authToken) from GET /api/config BEFORE anything connects, so
+  // the .NET host config is the single source of truth for the default backend address. Non-fatal.
+  await configService.init();
 
   // Expose shell to window for debugging
   const shell = document.querySelector('#app-shell');

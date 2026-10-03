@@ -137,6 +137,9 @@ $RECYCLE.BIN/
 # TypeScript/Node.js build artifacts
 node_modules/
 **/wwwroot/dist/
+
+# E2E / Testing environment (appsettings.Testing.json) — isolated test DB + agent working dirs
+projects-test/
 **/wwwroot/src/
 **/wwwroot/DraCode/
 

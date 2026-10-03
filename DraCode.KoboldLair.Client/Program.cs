@@ -10,7 +10,7 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
 // Bind configuration
 var koboldLairConfig = builder.Configuration.GetSection("KoboldLair");
-var serverUrl = koboldLairConfig.GetValue<string>("ServerUrl") ?? "ws://localhost:5000";
+var serverUrl = koboldLairConfig.GetValue<string>("ServerUrl") ?? "ws://localhost:57087";
 var authToken = koboldLairConfig.GetValue<string>("AuthToken") ?? "";
 
 logger.LogInformation("KoboldLair Client starting with server URL: {ServerUrl}", serverUrl);

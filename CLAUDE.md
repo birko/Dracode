@@ -635,6 +635,19 @@ Realignment audit was applied 2026-05-28 — see commit history for `DraCode.Kob
 - Incoming: `PropertyNameCaseInsensitive = true` (accepts camelCase from JS)
 - Outgoing: `PropertyNamingPolicy.CamelCase` (sends camelCase to JS)
 
+## Testing
+
+**Verification is an attribute of the feature/task being built — not a separate parallel tree.** Don't grow a stand-alone, module-indexed test-checklist tree disconnected from `docs/features/` and `tasks/`; that's a third axis that drifts. Instead:
+
+- **Automated tests live in `tests/`** (`DraCode.KoboldLair.Tests` + any E2E) — runnable, version-controlled, the single source of "proof it works".
+- **Layer automated coverage** (esp. for the web client), cheapest-first:
+  1. **Generated smoke** — sweep every route/screen for "renders + no console errors + no failed requests", deriving the route list from the app's own manifest/router so it's **self-maintaining**.
+  2. **Authored happy-path flows** — a few hand-written E2E flows for the important entities, reusing shared page objects.
+  3. **Manual judgement** — only what a human must eye (copy, layout/feel). Keep these as a **coverage ledger** (each item tagged `[auto → spec]` / `[manual]`) or the task's `## Human test plan` — co-located with `tests/` or the task, not a free-floating doc tree.
+- **Acceptance criteria belong on the feature** (`docs/features/FEATURE-NNN/`) and the task's Human test plan.
+- **Done-gate:** done only when **automated tests pass *and* manual/acceptance checks were actually run** ("automated tests passing ≠ the feature works"). The generated smoke is the floor, not the ceiling.
+- **Test data isolation** — run E2E against a **local / throwaway KoboldLair host**, never a shared or hosted one. The current smoke is read-only (`requireAuth:false`), but it still hits the host on mount, and once you wire authenticated/CRUD routes (see `tests/ui-e2e/README.md`) the specs mutate real data — point them at a disposable backend + a dedicated test account, never dev/prod. See the package README's *Test data isolation* section.
+
 ## Project Generation Guidelines
 
 ### Documentation Timing

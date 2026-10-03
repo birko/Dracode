@@ -246,7 +246,7 @@ export class ServerSelector extends BaseComponent {
     const activeServer = this.state.servers.find(s => s.id === this.state.activeServerId) || {
       id: 'default',
       name: 'Default Server',
-      url: 'ws://localhost:5000'
+      url: 'ws://localhost:57087'
     };
 
     return `
@@ -297,7 +297,7 @@ export class ServerSelector extends BaseComponent {
           <div class="form-group">
             <label class="form-label">WebSocket URL</label>
             <input type="text" class="form-input" id="serverUrl"
-                   placeholder="ws://localhost:5000" value="${this.escapeHtml(this.state.newServer.url)}">
+                   placeholder="ws://localhost:57087" value="${this.escapeHtml(this.state.newServer.url)}">
             <div class="form-help">Use ws:// for unencrypted or wss:// for encrypted connections</div>
           </div>
           <div class="form-group">
@@ -448,7 +448,7 @@ export class ServerSelector extends BaseComponent {
       this.state.servers = [{
         id: 'default',
         name: 'Default Server',
-        url: 'ws://localhost:5000',
+        url: 'ws://localhost:57087',
         token: ''
       }];
     }
