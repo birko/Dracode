@@ -201,6 +201,15 @@ namespace DraCode.KoboldLair.Services
                 Status = ProjectStatus.Prototype
             };
 
+            // Enable the pipeline agents now, not only at the next startup (InitializeProjectConfigurationsAsync)
+            // — otherwise a project created while the server runs is never analyzed (TASK-090). Provider stays
+            // null, which resolves to the global default per agent.
+            project.Agents.Wyrm.Enabled = true;
+            project.Agents.Wyvern.Enabled = true;
+            project.Agents.Drake.Enabled = true;
+            project.Agents.KoboldPlanner.Enabled = true;
+            project.Agents.Kobold.Enabled = true;
+
             _repository.Add(project);
             _logger.LogInformation("✨ Registered new project: {ProjectName} (ID: {ProjectId}, Owner: {OwnerId})", projectName, project.Id, ownerId);
 
