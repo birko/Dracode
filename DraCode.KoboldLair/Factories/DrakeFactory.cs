@@ -162,6 +162,23 @@ namespace DraCode.KoboldLair.Factories
             {
                 // Load existing tasks from file
                 LoadTasksFromFile(taskTracker, taskFilePath);
+
+                // Back-fill database rows for tasks that only exist in the file (TASK-091) — loading never
+                // adds them, so later status updates would target rows that do not exist.
+                var backfillLogger = _loggerFactory?.CreateLogger<DrakeFactory>();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var added = await taskTracker.EnsureInRepositoryAsync();
+                        if (added > 0)
+                            backfillLogger?.LogInformation("Added {Count} missing task rows for {TaskFile}", added, taskFilePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        backfillLogger?.LogError(ex, "Failed to back-fill task rows for {TaskFile}", taskFilePath);
+                    }
+                });
             }
 
             // Create logger for Drake

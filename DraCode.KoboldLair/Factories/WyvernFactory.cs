@@ -1,5 +1,6 @@
 using Birko.AI;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
@@ -21,6 +22,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProjectConfigurationService _projectConfigService;
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly GitService? _gitService;
+        private readonly ITaskRepository? _taskRepository;
         private readonly AgentOptions _defaultOptions;
         private readonly ILoggerFactory? _loggerFactory;
 
@@ -30,7 +32,8 @@ namespace DraCode.KoboldLair.Factories
             KoboldLairConfiguration koboldLairConfig,
             AgentOptions? defaultOptions = null,
             GitService? gitService = null,
-            ILoggerFactory? loggerFactory = null)
+            ILoggerFactory? loggerFactory = null,
+            ITaskRepository? taskRepository = null)
         {
             _Wyverns = new Dictionary<string, Wyvern>(StringComparer.OrdinalIgnoreCase);
             _wyvernProjectIds = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -38,6 +41,7 @@ namespace DraCode.KoboldLair.Factories
             _projectConfigService = projectConfigService;
             _koboldLairConfig = koboldLairConfig;
             _gitService = gitService;
+            _taskRepository = taskRepository;
             _defaultOptions = defaultOptions ?? new AgentOptions { WorkingDirectory = "./workspace", Verbose = false };
             _loggerFactory = loggerFactory;
         }
@@ -127,7 +131,11 @@ namespace DraCode.KoboldLair.Factories
                     _gitService,
                     logger,
                     workspaceScanPath
-                );
+                )
+                {
+                    TaskRepository = _taskRepository,
+                    ProjectId = projectId
+                };
 
                 _Wyverns[projectName] = wyvern;
                 _wyvernProjectIds[projectName] = projectId ?? projectName;

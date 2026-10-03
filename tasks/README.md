@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-10-03 22:34. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-03 23:15. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,7 +11,7 @@ _Generated 2026-10-03 22:34. Run `/tasks triage` to refresh. **Do not hand-edit*
 | in-progress  | 1 | 3 | 0 |
 | verify       | — | — | 2 |
 | blocked      | — | — | 25 |
-| done         | 1 | 2 | 27 |
+| done         | 1 | 2 | 28 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
@@ -160,8 +160,9 @@ _None_
 - [ ] [TASK-080](_loose/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule (P2)
 - [ ] [TASK-084](_loose/TASK-084-agent-provider-setting-names-missing-provider.md) A stored agent provider setting that names a missing provider breaks Dragon completely (P2)
 - [x] [TASK-086](_loose/TASK-086-zai-coding-plan-for-non-coding-agents.md) Z.AI: Dragon, Wyrm and Wyvern fail with "insufficient balance" and the model list is out of date (P2)
-- [ ] [TASK-091](_loose/TASK-091-new-project-tasks-not-in-database.md) Tasks of a new project never reach the database, so the REST task endpoints can't see them (P2)
+- [x] [TASK-091](_loose/TASK-091-new-project-tasks-not-in-database.md) Tasks of a new project never reach the database, so the REST task endpoints can't see them (P2)
 - [ ] [TASK-092](_loose/TASK-092-view-cost-report-tool-not-wired.md) The view_cost_report tool exists but no agent has it (P2)
+- [ ] [TASK-093](_loose/TASK-093-deleted-project-wyvern-reused-by-name.md) A deleted project's Wyvern stays registered by name and is reused by a new project with that name (P2)
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
 - [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [ ] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)

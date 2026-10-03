@@ -268,6 +268,7 @@ namespace DraCode.KoboldLair.Services
                     wyvernModel,
                     wyrmProvider,
                     wyrmModel,
+                    projectId: projectId,
                     workspaceScanPath: workspaceScanPath
                 );
 
