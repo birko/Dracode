@@ -2,7 +2,7 @@
 id: TASK-044
 parent: STORY-016
 feature: FEATURE-018
-status: verify
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -35,7 +35,7 @@ jira-key: null
 ## Human test plan
 
 **Deferred — needs a live LLM-backed run (no non-interactive seam); task stays in `review` until run.** The protocol/registry/ownership are unit-tested with a stub handler (126/126); the live round-trip is manual:
-- [ ] `curl -XPOST /api/v1/runs -d '{"mode":"adhoc","cwd":"...","prompt":"..."}'` (Bearer token) → get a `runId`; poll `GET /api/v1/runs/{id}` until `status: completed`
+- [x] `curl -XPOST /api/v1/runs -d '{"mode":"adhoc","cwd":"...","prompt":"..."}'` (Bearer token) → get a `runId`; poll `GET /api/v1/runs/{id}` until `status: completed` — **run 2026-10-03** on a local dev server (loopback bypass, pi-zai): 202 + runId, polled to `completed` in ~30 s, the requested file was written and committed on `kobold/adhoc-<runId>`. Seen in passing: status stays `pending` for the whole run (no `running`) — filed as TASK-083.
 
 ## Implementation plan
 

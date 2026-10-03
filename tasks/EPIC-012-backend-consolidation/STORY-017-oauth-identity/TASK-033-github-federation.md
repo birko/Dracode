@@ -2,7 +2,7 @@
 id: TASK-033
 parent: STORY-017
 feature: FEATURE-019
-status: verify
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -30,7 +30,7 @@ Human login federates to GitHub via the existing `GitHubOAuthProvider` (`Birko.C
 ## Out of scope
 
 - The `User` entity schema + `ownerId` (TASK-034)
-- Additional IdPs (Microsoft/Google) — config-extensible but not implemented here
+- Additional IdPs (Microsoft/Google) — config-extensible but not implemented here; owned by EPIC-001 TASK-002
 
 ## Human test plan
 
@@ -39,9 +39,9 @@ Human login federates to GitHub via the existing `GitHubOAuthProvider` (`Birko.C
 - [x] Unknown/expired `state` → 400; GitHub id not on the allowlist → denied, no token, no `User` row; first login creates the user, second reuses it
 - [x] `RefreshTokenStore` widening (D12) didn't regress the existing JWT login/refresh round-trip
 
-**Deferred to live verification — requires a registered GitHub OAuth app + running server + browser, which has no non-interactive seam. Task stays in `review` until run:**
-- [ ] Click "Login with GitHub" in the Web UI (TASK-056) → complete GitHub consent → land back authenticated with a DraCode session
-- [ ] Run `koboldlair login` (device flow) → approve in browser (GitHub login) → CLI receives and caches a token
+**Deferred to live verification — requires a registered GitHub OAuth app + running server + browser, which has no non-interactive seam. Both steps need surfaces that do not exist yet, so they were moved to the tasks that build those surfaces and this task closed on its automated coverage:**
+- ➜ Moved to TASK-056's Human test plan (2026-10-03, closing sign-off): click "Login with GitHub" in the Web UI → complete GitHub consent → land back authenticated with a DraCode session
+- ➜ Moved to TASK-054's Human test plan (2026-10-03, closing sign-off): run `koboldlair login` (device flow) → approve in browser (GitHub login) → CLI receives and caches a token
 
 ## Implementation plan
 

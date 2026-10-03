@@ -3,6 +3,7 @@ id: TASK-040
 parent: STORY-015
 feature: FEATURE-017
 status: verify
+blocked: live project-mode run needs an analyzed project, and Dragon/Wyrm/Wyvern calls to Z.AI fail with "insufficient balance" (only the coding endpoint is covered) — see TASK-086
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -36,6 +37,7 @@ Project mode runs a Kobold against an already-analyzed project task: `{ mode: "p
 
 **Now runnable end-to-end (also satisfies TASK-038's deferred live step).** Needs a live LLM-backed Kobold, so it's a manual run. _Provider name→type resolution for DB-backed providers was fixed in `Drake.SummonKoboldAsync` (2026-06-25, found via TASK-039's live run) — the path no longer passes the provider name to the factory, so a live project run can now resolve `pi-zai`→`zai` etc._
 - [ ] Run project mode against a seeded analyzed project/task (`websocat` to `/kobold`, payload `{ "mode": "project", "projectId": "...", "taskId": "..." }`) → observe the ordered `kobold_*` stream to `kobold_complete`, confirm the commit lands on the task's feature branch and the worktree is cleaned up
+  - _Attempted 2026-10-03: a throwaway project was created over REST, but approving it through Dragon failed — first on a stale `dragonProvider: zai` setting (TASK-084), then on Z.AI "insufficient balance" for non-coding agents (TASK-086). The ad-hoc path of the same engine passed live (TASK-044). Re-run once TASK-086 is resolved._
 
 ## Implementation plan
 

@@ -2,7 +2,7 @@
 id: TASK-035
 parent: STORY-017
 feature: FEATURE-019
-status: verify
+status: done
 priority: P2
 assignee: ai
 created: 2026-06-11
@@ -37,8 +37,8 @@ Non-human callers (Discord bot, CI) authenticate via `client_credentials` confid
 
 **Automated** (covered by `ServiceAccountTests`; full suite 78/78 green) — the enforcement *mechanism* is exercised end-to-end over HTTP: register → `client_credentials` → in-scope 200 / out-of-scope 403 → disable → `invalid_client`.
 
-**Deferred — the literal scenario needs surfaces from other tasks (CLI `keys create` = EPIC-013; `/api/v1/runs` + `DELETE /api/v1/projects` = STORY-016 TASK-043/044). Task stays in `review` until they exist:**
-- [ ] Create a service client via CLI, use its token to `POST /api/v1/runs` (in-scope, succeeds) and `DELETE /api/v1/projects/{id}` (out-of-scope, 403); disable the client → token rejected
+**Deferred — the literal scenario needs surfaces from other tasks (CLI `keys create` = EPIC-013; `/api/v1/runs` + `DELETE /api/v1/projects` = STORY-016 TASK-043/044). The step was moved to TASK-054 (the CLI `keys` verbs) and this task closed on its automated coverage:**
+- ➜ Moved to TASK-054's Human test plan (2026-10-03, closing sign-off): create a service client via CLI, use its token to `POST /api/v1/runs` (in-scope, succeeds) and `DELETE /api/v1/projects/{id}` (out-of-scope, 403); disable the client → token rejected
 
 ## Implementation plan
 

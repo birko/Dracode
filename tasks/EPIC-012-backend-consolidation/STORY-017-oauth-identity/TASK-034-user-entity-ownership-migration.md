@@ -2,7 +2,7 @@
 id: TASK-034
 parent: STORY-017
 feature: FEATURE-019
-status: verify
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -42,8 +42,8 @@ Per-caller identity needs a DraCode `User` record (keyed by stable `sub`) and an
 - [x] loopback bypass → upgrade allowed with no token
 - [x] `GetAllForOwner` filters by owner; unscoped `GetAll` returns all; create with empty owner rejected; `OwnerId` round-trips + persists
 
-**Deferred to TASK-056 (web login UI) — no non-LLM seam to drive project create/list over `/dragon` in a test, and no browser login flow exists yet. This task stays in `review` until then; the matching item is also listed on TASK-056's human test plan, and TASK-034 closes to `done` once it passes there:**
-- [ ] End-to-end in the running app: log in as user A, create a project, confirm user B's project list omits it and an admin/`ViewAll` sees both; confirm loopback-dev creates are owned by `Guid.Empty` and see all. (The scoping *mechanism* is unit-tested above; this verifies it end-to-end through the real UI once login lands.)
+**Deferred to TASK-056 (web login UI) — no non-LLM seam to drive project create/list over `/dragon` in a test, and no browser login flow exists yet. The step was moved to TASK-056's human test plan and this task closed on its automated coverage:**
+- ➜ Moved to TASK-056's Human test plan (2026-10-03, closing sign-off): end-to-end in the running app: log in as user A, create a project, confirm user B's project list omits it and an admin/`ViewAll` sees both; confirm loopback-dev creates are owned by `Guid.Empty` and see all. (The scoping *mechanism* is unit-tested above; this verifies it end-to-end through the real UI once login lands.)
 
 ## Implementation plan
 

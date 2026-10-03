@@ -3,7 +3,7 @@ id: TASK-076
 parent: null
 feature: null
 # status: todo | in-progress | review (code done, sign-off pending) | blocked | done | cancelled
-status: verify
+status: done
 priority: P2
 assignee: ai
 created: 2026-09-19
@@ -90,9 +90,18 @@ Birko's TASK-230 set the floor at `Microsoft.Data.Sqlite >= 9.0.19 or >= 10.0.11
   `.AppHost`.** Both pre-existing, both already recorded by Birko's TASK-230 as consumer-owned rows,
   neither touched or affected by this change. They want their own id — the OpenAPI one especially,
   since it is a direct declaration rather than an Aspire transitive.
+  **Resolved since (re-checked 2026-10-03 at sign-off):** `Microsoft.OpenApi` now resolves 2.7.5 and
+  `MessagePack` 2.5.302; `dotnet list package --vulnerable --include-transitive` reports none for every
+  project, so no task is needed.
 - **Whether `DraCode.KoboldLair` needs its `Microsoft.Data.Sqlite` reference at all.** It is unused by
   every `.cs` in that project. Deleting it is probably right and is deliberately not bundled with a
-  fix whose point was to stop the build failing.
+  fix whose point was to stop the build failing. Spawned as TASK-081.
+
+## Sign-off (2026-10-03)
+
+- Re-ran `dotnet restore --force` on the solution: exit 0, no `NU1504` / `NU1605`.
+- Resolved: `Microsoft.Data.Sqlite` 10.0.12, `System.IdentityModel.Tokens.Jwt` 8.23.0, `SQLitePCLRaw.lib.e_sqlite3` 2.1.12.
+- `dotnet list package --vulnerable --include-transitive`: no vulnerable packages in any project.
 
 ## Human test plan
 

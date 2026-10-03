@@ -3,7 +3,7 @@ id: TASK-054
 parent: STORY-019
 feature: FEATURE-022
 status: todo
-blocked: waiting on TASK-051, TASK-033, TASK-035
+blocked: waiting on TASK-051
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -36,7 +36,8 @@ Auth and management verbs against a (possibly remote) daemon. `login` runs the G
 
 ## Human test plan
 
-- [ ] `koboldlair login` against a remote daemon → device-code prompt → approve → `~/.koboldlair/auth.json` written; subsequent `koboldlair --server <url> projects list` succeeds without re-auth
+- [ ] `koboldlair login` against a remote daemon → device-code prompt → approve → `~/.koboldlair/auth.json` written; subsequent `koboldlair --server <url> projects list` succeeds without re-auth (also TASK-033's live device-flow check: approval goes through GitHub login)
+- [ ] **From TASK-035 (service accounts):** `koboldlair keys create` a service client, use its token to `POST /api/v1/runs` (in-scope, succeeds) and `DELETE /api/v1/projects/{id}` (out-of-scope, 403); disable the client → token rejected
 
 ## Implementation plan
 

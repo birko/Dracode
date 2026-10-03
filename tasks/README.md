@@ -1,20 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-09-29 13:14. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-03 20:31. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13 | 31 | — |
-| todo         | — | — | 28 |
+| todo         | — | — | 58 |
 | in-progress  | 1 | 3 | 0 |
-| review       | — | — | 8 |
-| blocked      | — | — | 24 |
-| done         | 1 | 2 | 15 |
+| verify       | — | — | 2 |
+| blocked      | — | — | 26 |
+| done         | 1 | 2 | 21 |
 | cancelled    | 0 | 0 | 0 |
 
-`todo` by priority: 8× P1 · 20× P2.
+_`blocked` is a flag, not a state: 26 of the 26 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
+
+`todo` by priority: 16× P1 · 39× P2 · 3× P3.
 
 ## In progress now
 
@@ -22,14 +24,8 @@ _None_
 
 ## In review (code complete, awaiting human sign-off)
 
-- [TASK-033](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-033-github-federation.md) GitHub federation for human login (P1, ai) — EPIC-012 → STORY-017 · live verify deferred to TASK-056 (web login button) + a registered GitHub OAuth app
-- [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership, and projects.json migration (P1, ai) — EPIC-012 → STORY-017 · E2E owner-scoping deferred to TASK-056 (no login UI yet)
-- [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 · live websocat run now runnable via TASK-040 project mode; protocol unit-tested
-- [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 · run a seeded analyzed task → confirm commit on the feature branch + worktree cleanup (needs a live Kobold); validation gate unit-tested (97/97)
-- [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1, ai) — EPIC-012 → STORY-016 · `curl POST /api/v1/runs` → poll `GET /api/v1/runs/{id}` until completed (needs a live run); protocol/registry/ownership unit-tested (126/126)
-- [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai) — loose · ciphertext-at-rest covered by tests; live "edit key/model → next run uses it, no restart" needs an LLM run (152/152)
-- [TASK-035](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-035-service-account-registration.md) Service-account client registration (P2, ai) — EPIC-012 → STORY-017 · deferred to TASK-043/044 (REST) + CLI `keys create` (EPIC-013)
-- [TASK-076](_loose/TASK-076-birko-owned-package-versions-below-the-framework.md) Birko-owned package versions were below the framework, and one pin was holding a High advisory open (P2, ai) — loose
+- [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: live project-mode run needs an analyzed project, and Dragon/Wyrm/Wyvern calls to Z.AI fail with "insufficient balance" (only the coding endpoint is covered) — see TASK-086
+- [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: live project-mode run needs an analyzed project, and Dragon/Wyrm/Wyvern calls to Z.AI fail with "insufficient balance" (only the coding endpoint is covered) — see TASK-086
 
 ## Tree
 
@@ -62,33 +58,33 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: does external evaluator catch failures the reflect tool misses? — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (11/26, 6 in review)
-  - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko · FEATURE-077
-  - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` · FEATURE-021
-  - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2)
-    - [x] [TASK-029](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-029-delete-old-stack.md) Retire DraCode.WebSocket and DraCode.Web · FEATURE-016
-    - [x] [TASK-070](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-070-scrub-full-project-spec.md) Retire FULL_PROJECT_SPECIFICATION.md (stale regeneration spec) · FEATURE-016
-  - STORY-015 /kobold WebSocket endpoint — ad-hoc + project-scoped Kobold execution — in-progress (2/5, 2 in review)
-    - [x] [TASK-037](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-037-run-event-source.md) Internal per-run event source (Kobold tool-loop event sink) · FEATURE-017
-    - [ ] [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1) 🔍 review · FEATURE-017
-    - [x] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode · FEATURE-017
-    - [ ] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1) 🔍 review · FEATURE-017
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (15/26)
+  - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko (P1) · FEATURE-077
+  - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` (P2) · FEATURE-021
+  - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2) (done)
+    - [x] [TASK-029](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-029-delete-old-stack.md) Retire DraCode.WebSocket and DraCode.Web (P1) · FEATURE-016
+    - [x] [TASK-070](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-070-scrub-full-project-spec.md) Retire FULL_PROJECT_SPECIFICATION.md (stale regeneration spec) (P2) · FEATURE-016
+  - STORY-015 /kobold WebSocket endpoint — ad-hoc + project-scoped Kobold execution — in-progress (2/5)
+    - [x] [TASK-037](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-037-run-event-source.md) Internal per-run event source (Kobold tool-loop event sink) (P1) · FEATURE-017
+    - [ ] [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1) 🔍 verify ⚠ blocked · FEATURE-017
+    - [x] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1) · FEATURE-017
+    - [ ] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1) 🔍 verify ⚠ blocked · FEATURE-017
     - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
-  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (2/7, 1 in review)
-    - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI · FEATURE-018
-    - [x] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints · FEATURE-018
-    - [ ] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1) 🔍 review · FEATURE-018
+  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (3/7)
+    - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
+    - [x] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints (P1) · FEATURE-018
+    - [x] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1) · FEATURE-018
     - [ ] [TASK-045](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-045-sse-events-endpoint.md) SSE stream: GET /api/v1/runs/{id}/events (P1) ⚠ blocked · FEATURE-018
     - [ ] [TASK-046](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-046-agents-cost-endpoints.md) agents/active + cost-report endpoints (P2) · FEATURE-018
     - [ ] [TASK-074](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-074-rest-delete-project-policy.md) REST DELETE /projects — match the Dragon delete policy + clean up files (P2) · FEATURE-018
     - [ ] [TASK-075](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-075-serialize-rest-spec-feature-edits.md) Serialize concurrent REST spec/feature edits (lost-update guard) (P2) · FEATURE-018
-  - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (3/7, 3 in review)
-    - [x] [TASK-030](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-030-host-oauth-server.md) Host Birko OAuth server endpoints in KoboldLair.Server · FEATURE-019
-    - [x] [TASK-031](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-031-sqlite-oauth-stores.md) SQLite-backed OAuth server stores · FEATURE-019
-    - [x] [TASK-032](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-032-jwt-validation-middleware.md) Enable JWT validation middleware · FEATURE-019
-    - [ ] [TASK-033](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-033-github-federation.md) GitHub federation for human login (P1) 🔍 review · FEATURE-019
-    - [ ] [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership, and projects.json migration (P1) 🔍 review · FEATURE-019
-    - [ ] [TASK-035](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-035-service-account-registration.md) Service-account client registration (P2) 🔍 review · FEATURE-019
+  - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (6/7)
+    - [x] [TASK-030](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-030-host-oauth-server.md) Host Birko OAuth server endpoints in KoboldLair.Server (P1) · FEATURE-019
+    - [x] [TASK-031](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-031-sqlite-oauth-stores.md) SQLite-backed OAuth server stores (P1) · FEATURE-019
+    - [x] [TASK-032](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-032-jwt-validation-middleware.md) Enable JWT validation middleware (P1) · FEATURE-019
+    - [x] [TASK-033](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-033-github-federation.md) GitHub federation for human login (P1) · FEATURE-019
+    - [x] [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership, and projects.json migration (P1) · FEATURE-019
+    - [x] [TASK-035](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-035-service-account-registration.md) Service-account client registration (P2) · FEATURE-019
     - [ ] [TASK-036](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-036-deprecate-legacy-auth.md) Deprecate and remove legacy auth (P2) · FEATURE-019
   - STORY-018 Daemon mode for KoboldLair.Server — planned (0/3)
     - [ ] [TASK-047](EPIC-012-backend-consolidation/STORY-018-daemon-mode/TASK-047-daemon-lifecycle.md) Daemon lifecycle flags (P2) · FEATURE-020
@@ -152,21 +148,24 @@ _None_
 
 ## Loose tasks
 
-- [ ] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1, ai) 🔍 review
-- [ ] [TASK-076](_loose/TASK-076-birko-owned-package-versions-below-the-framework.md) Birko-owned package versions were below the framework, and one pin was holding a High advisory open (P2, ai) 🔍 review
-- [x] [TASK-077](_loose/TASK-077-clear-the-two-high-advisories-deferred-by-task-076.md) Clear the two High advisories TASK-076 deferred (P2, ai)
-- [x] [TASK-078](_loose/TASK-078-migrate-the-41-tool-overrides-to-the-token-signature.md) Migrate the 41 tool overrides — this repo has not compiled since 2026-07-09 (P1, ai)
-- [ ] [TASK-079](_loose/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies (P2, ai)
-- [ ] [TASK-080](_loose/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule (P2, ai)
+- [x] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1)
+- [x] [TASK-078](_loose/TASK-078-migrate-the-41-tool-overrides-to-the-token-signature.md) Migrate the 41 tool overrides — this repo has not compiled since 2026-07-09 (P1)
+- [ ] [TASK-082](_loose/TASK-082-usage-records-missing-estimated-cost-column.md) Usage records are never saved: the usage_records table has no EstimatedCostUsd column (P1)
+- [x] [TASK-076](_loose/TASK-076-birko-owned-package-versions-below-the-framework.md) Birko-owned package versions were below the framework, and one pin was holding a High advisory open (P2)
+- [x] [TASK-077](_loose/TASK-077-clear-the-two-high-advisories-deferred-by-task-076.md) Clear the two High advisories TASK-076 deferred (P2)
+- [ ] [TASK-079](_loose/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies (P2)
+- [ ] [TASK-080](_loose/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule (P2)
+- [ ] [TASK-084](_loose/TASK-084-agent-provider-setting-names-missing-provider.md) A stored agent provider setting that names a missing provider breaks Dragon completely (P2)
+- [ ] [TASK-086](_loose/TASK-086-zai-coding-plan-for-non-coding-agents.md) Z.AI: Dragon, Wyrm and Wyvern fail with "insufficient balance" and the model list is out of date (P2)
+- [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
+- [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
+- [ ] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)
 
-## Completed
-
-<details>
-<summary>1 completed epic</summary>
+<details><summary>Completed</summary>
 
 - **EPIC-006 Self-reasoning — Option 2 (structured tools)** — done (2/2)
-  - STORY-003 Structured reasoning tools — done (2/2)
-    - [x] [TASK-011](EPIC-006-self-reasoning-option-2/STORY-003-structured-reasoning-tools/TASK-011-reflection-tool.md) ReflectionTool — structured reasoning capture · FEATURE-005
-    - [x] [TASK-012](EPIC-006-self-reasoning-option-2/STORY-003-structured-reasoning-tools/TASK-012-reasoning-monitor-service.md) ReasoningMonitorService · FEATURE-005
+  - STORY-003 Structured reasoning tools — done (2/2) (done)
+    - [x] [TASK-011](EPIC-006-self-reasoning-option-2/STORY-003-structured-reasoning-tools/TASK-011-reflection-tool.md) ReflectionTool — structured reasoning capture (P2) · FEATURE-005
+    - [x] [TASK-012](EPIC-006-self-reasoning-option-2/STORY-003-structured-reasoning-tools/TASK-012-reasoning-monitor-service.md) ReasoningMonitorService (P2) · FEATURE-005
 
 </details>

@@ -2,7 +2,7 @@
 id: TASK-073
 parent: null
 feature: null
-status: verify
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-23
@@ -75,7 +75,7 @@ under EPIC-016, which scopes to plans/analysis/reasoning). It may graduate to it
 ## Human test plan
 
 - [x] Inspect the stored row → the API key is ciphertext, not plaintext — **covered by automated tests** (`SqlProviderConfigRepositoryTests`, `ProviderConfigurationServiceDbTests`, `ProvidersEndpointsTests` assert ciphertext at rest + key never echoed)
-- [ ] **Live run (needs an LLM-backed agent):** `PATCH /api/v1/providers/{name}/key` (or change its model), then trigger an agent run and confirm it uses the new key/model **without a server restart**. (Dev runs in DB mode via the `appsettings.Development.json` master key; production sets `KOBOLDLAIR_MASTER_KEY` or a Vault secret.)
+- [x] **Live run (needs an LLM-backed agent):** `PATCH /api/v1/providers/{name}/key` (or change its model), then trigger an agent run and confirm it uses the new key/model **without a server restart**. (Dev runs in DB mode via the `appsettings.Development.json` master key; production sets `KOBOLDLAIR_MASTER_KEY` or a Vault secret.) — **run 2026-10-03**: with the server running, `PUT /api/v1/providers/settings/agent` switched the Kobold model glm-4.6 → glm-4.5, and the next ad-hoc run's LLM calls were made by `Z.AI (glm-4.5)` with no restart. Changed back afterwards. (The key half was not re-tested: the key is stored encrypted and was not re-entered.)
 
 ## Implementation plan
 
