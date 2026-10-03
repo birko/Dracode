@@ -83,8 +83,9 @@ namespace DraCode.KoboldLair.Factories
                 (effectiveWyvernProvider, wyvernConfig, wyvernOptions) = _providerConfigService.GetProviderSettingsForAgent("wyvern", workspacePath);
                 if (wyvernProvider != null)
                 {
-                    // Use specified provider
-                    effectiveWyvernProvider = wyvernProvider;
+                    // A project override is a provider *name* (e.g. "pi-zai"): resolve it to its factory type and
+                    // its own config (key, base URL, endpoint settings) — TASK-089.
+                    (effectiveWyvernProvider, wyvernConfig, _) = _providerConfigService.GetProviderSettingsByName(wyvernProvider, workspacePath);
                     if (wyvernModel != null)
                     {
                         wyvernConfig["model"] = wyvernModel;
@@ -100,8 +101,8 @@ namespace DraCode.KoboldLair.Factories
                 (effectiveWyrmProvider, wyrmConfig, wyrmOptions) = _providerConfigService.GetProviderSettingsForAgent("wyrm", workspacePath);
                 if (wyrmProvider != null)
                 {
-                    // Use specified provider override
-                    effectiveWyrmProvider = wyrmProvider;
+                    // Same name → type resolution as the Wyvern override above (TASK-089).
+                    (effectiveWyrmProvider, wyrmConfig, _) = _providerConfigService.GetProviderSettingsByName(wyrmProvider, workspacePath);
                     if (wyrmModel != null)
                     {
                         wyrmConfig["model"] = wyrmModel;
