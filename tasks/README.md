@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-03 21:25. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-03 22:34. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13 | 31 | — |
-| todo         | — | — | 57 |
+| todo         | — | — | 58 |
 | in-progress  | 1 | 3 | 0 |
 | verify       | — | — | 2 |
 | blocked      | — | — | 25 |
-| done         | 1 | 2 | 23 |
+| done         | 1 | 2 | 27 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 15× P1 · 39× P2 · 3× P3.
+`todo` by priority: 15× P1 · 40× P2 · 3× P3.
 
 ## In progress now
 
@@ -24,8 +24,8 @@ _None_
 
 ## In review (code complete, awaiting human sign-off)
 
-- [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: live project-mode run needs an analyzed project, and Dragon/Wyrm/Wyvern calls to Z.AI fail with "insufficient balance" (only the coding endpoint is covered) — see TASK-086
-- [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: live project-mode run needs an analyzed project, and Dragon/Wyrm/Wyvern calls to Z.AI fail with "insufficient balance" (only the coding endpoint is covered) — see TASK-086
+- [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: needs an unassigned task to run through /kobold project mode, but Drake picks a freshly analyzed task up within a second and resetting a task over REST fails (TASK-091) — Z.AI access is fixed (TASK-086)
+- [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: needs an unassigned task to run through /kobold project mode, but Drake picks a freshly analyzed task up within a second and resetting a task over REST fails (TASK-091) — Z.AI access is fixed (TASK-086)
 
 ## Tree
 
@@ -151,12 +151,17 @@ _None_
 - [x] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1)
 - [x] [TASK-078](_loose/TASK-078-migrate-the-41-tool-overrides-to-the-token-signature.md) Migrate the 41 tool overrides — this repo has not compiled since 2026-07-09 (P1)
 - [x] [TASK-082](_loose/TASK-082-usage-records-missing-estimated-cost-column.md) Usage records are never saved: the usage_records table has no EstimatedCostUsd column (P1)
+- [x] [TASK-088](_loose/TASK-088-provider-registry-empty-for-dragon-on-fresh-server.md) Dragon fails on a fresh server: "Provider 'zai' is not registered" (empty provider registry) (P1)
+- [x] [TASK-089](_loose/TASK-089-project-provider-override-name-vs-type.md) Wyvern/Wyrm project provider overrides pass a provider name where a type is needed (P1)
+- [x] [TASK-090](_loose/TASK-090-new-projects-start-with-agents-disabled.md) A project created while the server runs is never analyzed: its agents start disabled (P1)
 - [x] [TASK-076](_loose/TASK-076-birko-owned-package-versions-below-the-framework.md) Birko-owned package versions were below the framework, and one pin was holding a High advisory open (P2)
 - [x] [TASK-077](_loose/TASK-077-clear-the-two-high-advisories-deferred-by-task-076.md) Clear the two High advisories TASK-076 deferred (P2)
 - [ ] [TASK-079](_loose/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies (P2)
 - [ ] [TASK-080](_loose/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule (P2)
 - [ ] [TASK-084](_loose/TASK-084-agent-provider-setting-names-missing-provider.md) A stored agent provider setting that names a missing provider breaks Dragon completely (P2)
-- [ ] [TASK-086](_loose/TASK-086-zai-coding-plan-for-non-coding-agents.md) Z.AI: Dragon, Wyrm and Wyvern fail with "insufficient balance" and the model list is out of date (P2)
+- [x] [TASK-086](_loose/TASK-086-zai-coding-plan-for-non-coding-agents.md) Z.AI: Dragon, Wyrm and Wyvern fail with "insufficient balance" and the model list is out of date (P2)
+- [ ] [TASK-091](_loose/TASK-091-new-project-tasks-not-in-database.md) Tasks of a new project never reach the database, so the REST task endpoints can't see them (P2)
+- [ ] [TASK-092](_loose/TASK-092-view-cost-report-tool-not-wired.md) The view_cost_report tool exists but no agent has it (P2)
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
 - [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [ ] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)

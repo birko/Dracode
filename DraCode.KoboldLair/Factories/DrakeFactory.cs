@@ -138,8 +138,9 @@ namespace DraCode.KoboldLair.Factories
 
             if (provider != null)
             {
-                (effectiveProvider, config, options) = _providerConfigService.GetProviderSettingsForAgent("wyvern");
-                effectiveProvider = provider;
+                options = _providerConfigService.GetProviderSettingsForAgent("wyvern").options;
+                // An override is a provider *name*: resolve its type and its own config (TASK-089).
+                (effectiveProvider, config, _) = _providerConfigService.GetProviderSettingsByName(provider);
                 if (model != null)
                 {
                     config["model"] = model;

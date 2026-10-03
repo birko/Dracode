@@ -3,7 +3,7 @@ id: TASK-038
 parent: STORY-015
 feature: FEATURE-017
 status: verify
-blocked: live project-mode run needs an analyzed project, and Dragon/Wyrm/Wyvern calls to Z.AI fail with "insufficient balance" (only the coding endpoint is covered) — see TASK-086
+blocked: needs an unassigned task to run through /kobold project mode, but Drake picks a freshly analyzed task up within a second and resetting a task over REST fails (TASK-091) — Z.AI access is fixed (TASK-086)
 priority: P1
 assignee: ai
 created: 2026-06-11

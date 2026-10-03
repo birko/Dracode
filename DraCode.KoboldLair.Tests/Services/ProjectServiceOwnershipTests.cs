@@ -58,6 +58,22 @@ public class ProjectServiceOwnershipTests : IAsyncLifetime
         act.Should().Throw<ArgumentException>();
     }
 
+    // TASK-090: agents used to be enabled only by the startup pass, so a project registered while the
+    // server ran was never picked up by Wyrm/Wyvern/Drake.
+    [Theory]
+    [InlineData("wyrm")]
+    [InlineData("wyvern")]
+    [InlineData("drake")]
+    [InlineData("koboldPlanner")]
+    [InlineData("kobold")]
+    public void RegisterProject_ShouldEnable_PipelineAgents(string agentType)
+    {
+        var project = _service.RegisterProject("p", Path.Combine(_dir, "p", "specification.md"), Guid.NewGuid().ToString());
+
+        _repo.IsAgentEnabled(project.Id, agentType).Should().BeTrue();
+        _repo.GetProjectProvider(project.Id, agentType).Should().BeNull("a null provider resolves to the global default");
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

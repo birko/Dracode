@@ -112,8 +112,9 @@ namespace DraCode.KoboldLair.Agents
         /// </summary>
         private static ILlmProvider CreateBaseProvider(string provider, Dictionary<string, string> config, string? agentType)
         {
-            // Registration is handled once at the top of Create() (the chokepoint for every agent path);
-            // AgentRegistration.RegisterAll() there also registers providers, so no separate call is needed here.
+            // Idempotent. Needed here as well as in Create(): Dragon builds its providers through the public
+            // CreateLlmProvider, so on a fresh server it can run before any Create() (TASK-088).
+            AgentRegistration.RegisterAll();
 
             // Inject Z.AI coding endpoint hint if needed
             if (!string.IsNullOrEmpty(agentType)
