@@ -1,6 +1,5 @@
 using Birko.AI.Resilience.Stores;
 using Birko.Data.SQL.Repositories;
-using Birko.Data.SQL.SchemaDrift;
 using Birko.Data.Stores;
 using Birko.Configuration;
 using DraCode.KoboldLair.Data.Entities;
@@ -31,38 +30,27 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         public async Task InitializeAsync()
         {
             await _repository.CreateSchemaAsync();
-            await AddMissingColumnsAsync();
+            EnsureColumns();
             _logger.LogInformation("SqlUsageRepository initialized");
         }
 
         /// <summary>
-        /// Adds columns the entity declares but the table lacks (TASK-082; <c>CreateSchemaAsync</c> never
-        /// alters an existing table — Birko TASK-510 tracks a framework fix). Each column is added nullable
-        /// with a type default, because SQLite refuses <c>ADD COLUMN … NOT NULL</c> without one on a table
-        /// that has rows; older rows therefore read back with zero cost.
+        /// Adds columns the entity declares but an older table lacks (TASK-082/087; Birko TASK-510) —
+        /// <c>CreateSchemaAsync</c> never alters an existing table. A failure is logged as an error and startup
+        /// continues: usage tracking degrades, the server does not stop.
         /// </summary>
-        private async Task AddMissingColumnsAsync()
+        private void EnsureColumns()
         {
-            var connector = _repository.Connector
-                ?? throw new InvalidOperationException("SqlUsageRepository has no SQLite connector after CreateSchemaAsync");
-            var report = connector.DetectDrift(typeof(KoboldLairUsageRecord));
-            foreach (var drift in report.Drifts.Where(d => d.Kind == ColumnDriftKind.Missing))
+            try
             {
-                var type = drift.Declared ?? "TEXT";
-                var defaultValue = type.Contains("TEXT", StringComparison.OrdinalIgnoreCase) ? "''" : "0";
-                var sql = $"ALTER TABLE \"{drift.Table}\" ADD COLUMN \"{drift.Column}\" {type} DEFAULT {defaultValue}";
-                try
-                {
-                    await connector.DoCommandAsync(
-                        cmd => { cmd.CommandText = sql; return Task.CompletedTask; },
-                        cmd => cmd.ExecuteNonQueryAsync());
-                    _logger.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, type);
-                }
-                catch (Exception ex) when (ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Another process sharing this database file added it between DetectDrift and the ALTER.
-                    _logger.LogDebug("Column {Table}.{Column} was added concurrently", drift.Table, drift.Column);
-                }
+                var connector = _repository.Connector
+                    ?? throw new InvalidOperationException("SqlUsageRepository has no SQLite connector after CreateSchemaAsync");
+                foreach (var drift in connector.EnsureColumns(typeof(KoboldLairUsageRecord)))
+                    _logger.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, drift.Declared);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not add missing usage_records columns — usage records may fail to save");
             }
         }
 
