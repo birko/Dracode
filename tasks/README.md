@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-03 20:31. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-03 20:50. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13 | 31 | — |
-| todo         | — | — | 58 |
+| todo         | — | — | 57 |
 | in-progress  | 1 | 3 | 0 |
 | verify       | — | — | 2 |
-| blocked      | — | — | 26 |
-| done         | 1 | 2 | 21 |
+| blocked      | — | — | 25 |
+| done         | 1 | 2 | 22 |
 | cancelled    | 0 | 0 | 0 |
 
-_`blocked` is a flag, not a state: 26 of the 26 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
+_`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 16× P1 · 39× P2 · 3× P3.
+`todo` by priority: 15× P1 · 39× P2 · 3× P3.
 
 ## In progress now
 
@@ -74,7 +74,7 @@ _None_
     - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
     - [x] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints (P1) · FEATURE-018
     - [x] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1) · FEATURE-018
-    - [ ] [TASK-045](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-045-sse-events-endpoint.md) SSE stream: GET /api/v1/runs/{id}/events (P1) ⚠ blocked · FEATURE-018
+    - [ ] [TASK-045](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-045-sse-events-endpoint.md) SSE stream: GET /api/v1/runs/{id}/events (P1) · FEATURE-018
     - [ ] [TASK-046](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-046-agents-cost-endpoints.md) agents/active + cost-report endpoints (P2) · FEATURE-018
     - [ ] [TASK-074](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-074-rest-delete-project-policy.md) REST DELETE /projects — match the Dragon delete policy + clean up files (P2) · FEATURE-018
     - [ ] [TASK-075](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-075-serialize-rest-spec-feature-edits.md) Serialize concurrent REST spec/feature edits (lost-update guard) (P2) · FEATURE-018
@@ -150,7 +150,7 @@ _None_
 
 - [x] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1)
 - [x] [TASK-078](_loose/TASK-078-migrate-the-41-tool-overrides-to-the-token-signature.md) Migrate the 41 tool overrides — this repo has not compiled since 2026-07-09 (P1)
-- [ ] [TASK-082](_loose/TASK-082-usage-records-missing-estimated-cost-column.md) Usage records are never saved: the usage_records table has no EstimatedCostUsd column (P1)
+- [x] [TASK-082](_loose/TASK-082-usage-records-missing-estimated-cost-column.md) Usage records are never saved: the usage_records table has no EstimatedCostUsd column (P1)
 - [x] [TASK-076](_loose/TASK-076-birko-owned-package-versions-below-the-framework.md) Birko-owned package versions were below the framework, and one pin was holding a High advisory open (P2)
 - [x] [TASK-077](_loose/TASK-077-clear-the-two-high-advisories-deferred-by-task-076.md) Clear the two High advisories TASK-076 deferred (P2)
 - [ ] [TASK-079](_loose/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies (P2)
