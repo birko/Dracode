@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-10-03 20:35. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-03 20:50. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -8,10 +8,10 @@ _Generated 2026-10-03 20:35. Run `/tasks triage` to refresh. **Do not hand-edit*
 |--------------|-------|---------|-------|
 | planned      | 13 | 31 | — |
 | todo         | — | — | 57 |
-| in-progress  | 1 | 3 | 1 |
+| in-progress  | 1 | 3 | 0 |
 | verify       | — | — | 2 |
 | blocked      | — | — | 25 |
-| done         | 1 | 2 | 21 |
+| done         | 1 | 2 | 22 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
@@ -20,7 +20,7 @@ _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted i
 
 ## In progress now
 
-- [TASK-082](_loose/TASK-082-usage-records-missing-estimated-cost-column.md) Usage records are never saved: the usage_records table has no EstimatedCostUsd column (P1, ai) — loose
+_None_
 
 ## In review (code complete, awaiting human sign-off)
 
@@ -150,7 +150,7 @@ _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted i
 
 - [x] [TASK-073](_loose/TASK-073-db-backed-provider-config.md) Store LLM provider configuration in the database (editable, not files/env) (P1)
 - [x] [TASK-078](_loose/TASK-078-migrate-the-41-tool-overrides-to-the-token-signature.md) Migrate the 41 tool overrides — this repo has not compiled since 2026-07-09 (P1)
-- [ ] [TASK-082](_loose/TASK-082-usage-records-missing-estimated-cost-column.md) Usage records are never saved: the usage_records table has no EstimatedCostUsd column (P1) ← in-progress
+- [x] [TASK-082](_loose/TASK-082-usage-records-missing-estimated-cost-column.md) Usage records are never saved: the usage_records table has no EstimatedCostUsd column (P1)
 - [x] [TASK-076](_loose/TASK-076-birko-owned-package-versions-below-the-framework.md) Birko-owned package versions were below the framework, and one pin was holding a High advisory open (P2)
 - [x] [TASK-077](_loose/TASK-077-clear-the-two-high-advisories-deferred-by-task-076.md) Clear the two High advisories TASK-076 deferred (P2)
 - [ ] [TASK-079](_loose/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies (P2)

@@ -36,12 +36,10 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         }
 
         /// <summary>
-        /// Adds columns the entity declares but the table lacks (TASK-082). Until Birko mapped
-        /// <c>double</c> to a column (Birko 34928514, 2026-08-08) <c>EstimatedCostUsd</c> was silently left
-        /// out of <c>CREATE TABLE</c>, and <c>CREATE TABLE IF NOT EXISTS</c> never alters an existing table —
-        /// so every insert into an older database failed. Each column is added nullable with a type default,
-        /// because SQLite refuses <c>ADD COLUMN … NOT NULL</c> without one on a table that has rows; older
-        /// rows therefore read back with zero cost.
+        /// Adds columns the entity declares but the table lacks (TASK-082; <c>CreateSchemaAsync</c> never
+        /// alters an existing table — Birko TASK-510 tracks a framework fix). Each column is added nullable
+        /// with a type default, because SQLite refuses <c>ADD COLUMN … NOT NULL</c> without one on a table
+        /// that has rows; older rows therefore read back with zero cost.
         /// </summary>
         private async Task AddMissingColumnsAsync()
         {
@@ -53,10 +51,18 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 var type = drift.Declared ?? "TEXT";
                 var defaultValue = type.Contains("TEXT", StringComparison.OrdinalIgnoreCase) ? "''" : "0";
                 var sql = $"ALTER TABLE \"{drift.Table}\" ADD COLUMN \"{drift.Column}\" {type} DEFAULT {defaultValue}";
-                await connector.DoCommandAsync(
-                    cmd => { cmd.CommandText = sql; return Task.CompletedTask; },
-                    cmd => cmd.ExecuteNonQueryAsync());
-                _logger.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, type);
+                try
+                {
+                    await connector.DoCommandAsync(
+                        cmd => { cmd.CommandText = sql; return Task.CompletedTask; },
+                        cmd => cmd.ExecuteNonQueryAsync());
+                    _logger.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, type);
+                }
+                catch (Exception ex) when (ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Another process sharing this database file added it between DetectDrift and the ALTER.
+                    _logger.LogDebug("Column {Table}.{Column} was added concurrently", drift.Table, drift.Column);
+                }
             }
         }
 
