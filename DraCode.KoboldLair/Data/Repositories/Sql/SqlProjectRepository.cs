@@ -169,9 +169,9 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             EnsureCache();
             lock (_lock)
             {
-                var normalizedPath = Path.GetFullPath(specPath);
+                var normalizedPath = NormalizeSpecPath(specPath);
                 return _cache.FirstOrDefault(p =>
-                    string.Equals(p.Paths.Specification, normalizedPath, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(NormalizeSpecPath(p.Paths.Specification), normalizedPath, StringComparison.OrdinalIgnoreCase));
             }
         }
 
@@ -394,6 +394,13 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 _ => throw new ArgumentException($"Unknown agent type: {agentType}")
             };
         }
+
+        /// <summary>
+        /// Full path with the platform separator, so a path stored with mixed separators (a forward-slash ProjectsPath
+        /// combined with Path.Combine) matches its normalised form. Empty stays empty.
+        /// </summary>
+        private static string NormalizeSpecPath(string? path) =>
+            string.IsNullOrWhiteSpace(path) ? string.Empty : Path.GetFullPath(path);
 
         private static string SanitizeProjectName(string projectName)
         {
