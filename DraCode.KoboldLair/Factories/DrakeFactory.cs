@@ -21,7 +21,6 @@ namespace DraCode.KoboldLair.Factories
     {
         private readonly KoboldFactory _koboldFactory;
         private readonly ProviderConfigurationService _providerConfigService;
-        private readonly ProjectConfigurationService _projectConfigService;
         private readonly IProjectRepository? _projectRepository;
         private readonly ITaskRepository? _taskRepository;
         private readonly GitService? _gitService;
@@ -57,17 +56,15 @@ namespace DraCode.KoboldLair.Factories
         /// </summary>
         /// <param name="koboldFactory">Kobold factory for creating workers</param>
         /// <param name="providerConfigService">Provider configuration service</param>
-        /// <param name="projectConfigService">Project configuration service for parallel limits</param>
         /// <param name="koboldLairConfig">KoboldLair configuration (extracts projectsPath and planning settings internally)</param>
         /// <param name="loggerFactory">Optional logger factory for Drake logging</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
-        /// <param name="projectRepository">Optional project repository for resolving project paths</param>
+        /// <param name="projectRepository">Optional project repository for resolving project paths and per-project parallel limits</param>
         /// <param name="circuitBreaker">Optional circuit breaker for provider failure tracking</param>
         /// <param name="sharedPlanningContext">Optional shared planning context service for cross-agent coordination</param>
         public DrakeFactory(
             KoboldFactory koboldFactory,
             ProviderConfigurationService providerConfigService,
-            ProjectConfigurationService projectConfigService,
             KoboldLairConfiguration koboldLairConfig,
             ILoggerFactory? loggerFactory = null,
             GitService? gitService = null,
@@ -79,7 +76,6 @@ namespace DraCode.KoboldLair.Factories
         {
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
-            _projectConfigService = projectConfigService;
             _koboldLairConfig = koboldLairConfig;
             _projectRepository = projectRepository;
             _taskRepository = taskRepository;
@@ -236,7 +232,6 @@ namespace DraCode.KoboldLair.Factories
                 projectId,
                 logger,
                 _providerConfigService,
-                _projectConfigService,
                 _projectRepository,
                 _gitService,
                 planService,
@@ -288,7 +283,7 @@ namespace DraCode.KoboldLair.Factories
         public bool CanCreateDrakeForProject(string? projectId)
         {
             var currentCount = GetActiveDrakeCountForProject(projectId);
-            var maxAllowed = _projectConfigService.GetMaxParallelDrakes(projectId ?? string.Empty);
+            var maxAllowed = AgentLimitResolver.GetMaxParallel(_projectRepository, _koboldLairConfig.Limits, projectId, "drake");
             return currentCount < maxAllowed;
         }
 

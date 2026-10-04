@@ -18,8 +18,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
     {
         private readonly Func<string, ProjectAgentConfig?>? _getProjectConfig;
         private readonly Func<List<(string Id, string Name)>>? _getAllProjects;
-        private readonly Action<string, string, bool>? _setAgentEnabled;
-        private readonly Action<string, string, int>? _setAgentLimit;
+        private readonly Func<string, string, bool, Task>? _setAgentEnabled;
+        private readonly Func<string, string, int, Task>? _setAgentLimit;
         private readonly Func<string, string, Task>? _addExternalPath;
         private readonly Func<string, string, Task<bool>>? _removeExternalPath;
         private readonly Func<string, IReadOnlyList<string>>? _getExternalPaths;
@@ -54,8 +54,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             AgentOptions? options = null,
             Func<string, ProjectAgentConfig?>? getProjectConfig = null,
             Func<List<(string Id, string Name)>>? getAllProjects = null,
-            Action<string, string, bool>? setAgentEnabled = null,
-            Action<string, string, int>? setAgentLimit = null,
+            Func<string, string, bool, Task>? setAgentEnabled = null,
+            Func<string, string, int, Task>? setAgentLimit = null,
             Func<string, string, Task>? addExternalPath = null,
             Func<string, string, Task<bool>>? removeExternalPath = null,
             Func<string, IReadOnlyList<string>>? getExternalPaths = null,

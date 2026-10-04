@@ -2,7 +2,7 @@
 id: TASK-094
 parent: STORY-032
 feature: null
-status: todo
+status: verify
 priority: P1
 assignee: ai
 created: 2026-10-04
@@ -34,16 +34,17 @@ in `./project-configs.json`, but every field it stores already lives on the SQL 
 
 ## Acceptance criteria
 
-- [ ] The factories read parallel limits from the project repository (falling back to the global defaults); Dragon/Warden `manage_agents` (status, get, enable, disable, set_limit) reads and writes the project repository
-- [ ] `ProjectConfigurationService` and its JSON file are deleted, with their DI registrations and constructor parameters; nothing reads or writes `project-configs.json`
-- [ ] Tests: a limit set through `ProjectService` is the one a factory enforces; `manage_agents` enable/disable changes what `IsAgentEnabled` returns
-- [ ] CLAUDE.md no longer documents the service; full suite green
+- [x] The factories read parallel limits from the project repository (falling back to the global defaults); Dragon/Warden `manage_agents` (status, get, enable, disable, set_limit) reads and writes the project repository
+- [x] `ProjectConfigurationService` and its JSON file are deleted, with their DI registrations and constructor parameters; nothing reads or writes `project-configs.json`
+- [x] Tests: a limit set through `ProjectService` is the one a factory enforces; `manage_agents` enable/disable changes what `IsAgentEnabled` returns
+- [x] CLAUDE.md no longer documents the service; full suite green
 - [ ] Live: on the dev server, disabling and re-enabling an agent through Dragon changes the stored flag the pipeline reads
 
 ## Out of scope
 
 - Making Drake respect the flag — TASK-095
 - The other file-based artifacts of STORY-032 (wyrm-recommendation.json, analysis.json, planning-context.json, notifications.json)
+- Deferred to TASK-096 — the dead `project-config-client.js` calling unserved `/api/project-configs` routes
 
 ## Human test plan
 
@@ -51,4 +52,26 @@ in `./project-configs.json`, but every field it stores already lives on the SQL 
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-094` — leave empty until then._
+**Decided 2026-10-04:** "falling back to the global defaults" means an unknown or empty project id only; a DB project's stored `MaxParallel` always wins. (`AgentConfig.MaxParallel` is a non-nullable `int`, default 1, and new DB projects never copied `KoboldLairConfiguration.Limits` — so a deployment with `Limits.MaxParallelKobolds > 1` gets 1 for projects whose limit was never set. Accepted.)
+
+**Findings.** `IProjectRepository` already has `GetAgentConfig`, `GetMaxParallel`, `IsAgentEnabled` (sync, served from `SqlProjectRepository`'s in-memory cache) and `SetAgentLimitAsync` / `SetAgentEnabledAsync` (async). The factories' sync `CanCreateXForProject` checks can read directly — no sync-over-async. `manage_agents` (`AgentConfigurationTool`) uses `Action<>` setters + `Task.FromResult`, so it needs to become truly async.
+
+1. **Limit resolver** — static `AgentLimitResolver.GetMaxParallel(IProjectRepository?, AgentLimits defaults, string? projectId, string agentType)` in `Factories/`: project's `MaxParallel` when the project exists, else the per-type default (planner → 1).
+2. **Factories** — replace the `ProjectConfigurationService` ctor param with `IProjectRepository`: `WyvernFactory`, `WyrmFactory` (defaults from `providerCfg.GetDefaultLimits()`), `KoboldFactory` (drop the `Func<string?,int>` seam), `DrakeFactory` (use its existing `_projectRepository`; stop passing the service to `Drake`).
+3. **Drake.cs / ProjectService.cs** — delete the unused field + ctor param; fix the positional `Drake` call in `DrakeFactory`.
+4. **manage_agents** — `AgentConfigurationTool` + `WardenAgent` take `Func<…,Task>` setters (or a `ForRepository(IProjectRepository, …)` factory so tests run the same wiring as `DragonService`); `ExecuteAsync` becomes `async`. `DragonService` setters await the repository; `GetProjectAgentConfig` resolves `GetById ?? GetByName` and maps from `project.Agents`.
+5. **Program.cs** — drop the service registration/comment; pass `IProjectRepository` into the factory / ProjectService / DragonService registrations (no DI cycle).
+6. **Delete** `ProjectConfigurationService.cs` and config-only models (`ProjectConfig`, `ProjectConfigurations`, `ProjectIdentity`, `MetadataConfig`); keep `AgentConfig`/`AgentsConfig`/`SecurityConfig` (used by `Project`).
+7. **Docs** — CLAUDE.md § Allowed External Paths, `DraCode.KoboldLair/README.md` tree, `KoboldLairConfiguration.cs:64` comment, `.gitignore` line, CHANGELOG Unreleased. Leave historical docs.
+8. **Tests** — fix `ProjectServiceOwnershipTests` setup; add `Services/AgentSettingsDbTests.cs` (temp SQLite): (a) limit set via `ProjectService.SetMaxParallelKoboldsAsync` is enforced by `KoboldFactory.CanCreateKoboldForProject`, and a later change is read live; (b) `manage_agents` disable/enable flips `ProjectService.IsAgentEnabled`, `get` reports the DB value; (c) unknown project falls back to `config.Limits`.
+9. `dotnet test DraCode.slnx`; `rg project-configs` hits only history + the dead `/api/project-configs` JS client (→ deferred to TASK-096).
+10. **Live** — before deleting `DraCode.KoboldLair.Server/project-configs.json`, compare its "presenter" entry (2 external paths) with the DB row; then disable/re-enable an agent via Dragon and check `AgentsJson` in SQLite.
+
+**Risks.** Dragon `set_limit`/`enable` now actually affect the pipeline and UI; Warden status shows DB values, which may differ from what it showed before. `SetAgent*Async` throws on unknown project — the tool resolves first and catches.
+## Progress log
+
+- 2026-10-04 — factories (`Wyvern`/`Drake`/`Wyrm`/`Kobold`) resolve limits via `AgentLimitResolver` → `IProjectRepository.GetMaxParallel`, global `AgentLimits.GetDefaultMaxParallel` only for an unknown/empty project id; `manage_agents` setters are `Func<…,Task>` awaiting `SetAgentEnabledAsync`/`SetAgentLimitAsync`, lookup via `AgentConfigurationTool.ResolveFromRepository`; `ProjectConfigurationService` + `ProjectConfig`/`ProjectConfigurations`/`ProjectIdentity`/`MetadataConfig` deleted; DI + `Drake`/`ProjectService`/`DragonService` params removed.
+- 2026-10-04 — `AgentSettingsDbTests` (5 tests) added; the two limit tests proven to fail with the resolver forced to the global default. Full suite: 189 passed.
+- 2026-10-04 — dev data: `C:\Source\DraCode-Projects\koboldlair.db` has 0 projects, so the only `project-configs.json` entry ("presenter", limits 1, 2 external paths) is orphaned — nothing to migrate. The gitignored file `DraCode.KoboldLair.Server/project-configs.json` is left on disk (nothing reads it); the `.gitignore` line stays so it is never committed.
+- 2026-10-04 — close gate: `manage_agents` resolved projects across every owner (pre-existing, harmless while it wrote a file nothing read; now it writes the real project). Lookup scoped to the session's visible projects (`AgentConfigurationTool.Resolve(GetVisibleProjects(session), …)`); `ManageAgents_ShouldNotChange_AProjectOutsideTheCallersVisibleProjects` added and proven to fail without the scope. Full suite: 190 passed.
+- 2026-10-04 — parked at `verify`: the Live criterion and the Human test plan need the dev server (the dev DB has no projects yet).

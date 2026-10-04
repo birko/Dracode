@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-04 07:39. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-04 (pick TASK-094). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
-| planned      | 13 | 31 | — |
+| planned      | 12 | 30 | — |
 | todo         | — | — | 60 |
-| in-progress  | 1 | 3 | 0 |
-| verify       | — | — | 2 |
+| in-progress  | 2 | 4 | 0 |
+| verify       | — | — | 3 |
 | blocked      | — | — | 25 |
 | done         | 1 | 2 | 28 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 17× P1 · 40× P2 · 3× P3.
+`todo` by priority: 16× P1 · 41× P2 · 3× P3.
 
 ## In progress now
 
@@ -24,6 +24,7 @@ _None_
 
 ## In review (code complete, awaiting human sign-off)
 
+- [TASK-094](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-094-remove-project-configs-json.md) Remove project-configs.json — the database is the only store for per-project agent settings (P1, ai) — EPIC-016 → STORY-032
 - [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
 - [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
 
@@ -138,9 +139,10 @@ _None_
     - [ ] [TASK-027](EPIC-015-self-reasoning-depth/STORY-030-budget-aware-reflection/TASK-027-budget-aware-reflection.md) Surface real token/cost spend into reflect tool & monitor (P2) · FEATURE-033
   - STORY-031 Cross-step coherence re-plan check — planned (0/1)
     - [ ] [TASK-028](EPIC-015-self-reasoning-depth/STORY-031-cross-step-replan-check/TASK-028-cross-step-coherence-check.md) Lightweight re-plan check when a step is revised/failed (P2) · FEATURE-034
-- **EPIC-016 Database-backed agent working state** — planned (0/1)
-  - STORY-032 Migrate remaining file-based working artifacts to the database — planned (0/1)
+- **EPIC-016 Database-backed agent working state** — in-progress (0/2)
+  - STORY-032 Migrate remaining file-based working artifacts to the database — in-progress (0/2)
     - [ ] [TASK-094](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-094-remove-project-configs-json.md) Remove project-configs.json — the database is the only store for per-project agent settings (P1)
+    - [ ] [TASK-096](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-096-remove-dead-project-config-client.md) Remove the dead project-config-client.js (calls /api/project-configs routes nothing serves) (P2)
   - STORY-033 Persist structured decision & reasoning records — planned (0/0)
   - STORY-034 Codify and enforce the deliverable-vs-working-state boundary — planned (0/0)
 - **EPIC-017 Generalized agent consensus** — planned (0/0)

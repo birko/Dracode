@@ -1,6 +1,7 @@
 using Birko.AI;
 using Birko.AI.Agents;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
@@ -14,7 +15,7 @@ namespace DraCode.KoboldLair.Factories
     /// </summary>
     public class WyrmFactory
     {
-        private readonly ProjectConfigurationService _projectConfigService;
+        private readonly IProjectRepository _projectRepository;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ConcurrentDictionary<Guid, string?> _activeWyrms; // Maps wyrm ID to project ID
         private readonly object _lock = new object();
@@ -22,13 +23,13 @@ namespace DraCode.KoboldLair.Factories
         /// <summary>
         /// Creates a new WyrmFactory
         /// </summary>
-        /// <param name="projectConfigService">Project configuration service for parallel limits</param>
+        /// <param name="projectRepository">Project repository holding per-project parallel limits</param>
         /// <param name="providerConfigService">Provider configuration service</param>
         public WyrmFactory(
-            ProjectConfigurationService projectConfigService,
+            IProjectRepository projectRepository,
             ProviderConfigurationService providerConfigService)
         {
-            _projectConfigService = projectConfigService;
+            _projectRepository = projectRepository;
             _providerConfigService = providerConfigService;
             _activeWyrms = new ConcurrentDictionary<Guid, string?>();
         }
@@ -69,7 +70,7 @@ namespace DraCode.KoboldLair.Factories
         public bool CanCreateWyrmForProject(string? projectId)
         {
             var currentCount = GetActiveWyrmCountForProject(projectId);
-            var maxAllowed = _projectConfigService.GetMaxParallelWyrms(projectId ?? string.Empty);
+            var maxAllowed = AgentLimitResolver.GetMaxParallel(_projectRepository, _providerConfigService.GetDefaultLimits(), projectId, "wyrm");
             return currentCount < maxAllowed;
         }
 

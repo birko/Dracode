@@ -1,4 +1,5 @@
 ﻿using Birko.AI.Tools;
+using DraCode.KoboldLair.Models.Projects;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -38,21 +39,21 @@ namespace DraCode.KoboldLair.Agents.Tools
     {
         private readonly Func<string, ProjectAgentConfig?>? _getProjectConfig;
         private readonly Func<List<(string Id, string Name)>>? _getAllProjects;
-        private readonly Action<string, string, bool>? _setAgentEnabled;
-        private readonly Action<string, string, int>? _setAgentLimit;
+        private readonly Func<string, string, bool, Task>? _setAgentEnabled;
+        private readonly Func<string, string, int, Task>? _setAgentLimit;
 
         /// <summary>
         /// Creates a new AgentConfigurationTool
         /// </summary>
         /// <param name="getProjectConfig">Function to get project agent configuration by project ID or name</param>
         /// <param name="getAllProjects">Function to get list of all projects (Id, Name)</param>
-        /// <param name="setAgentEnabled">Action to set agent enabled state (projectId, agentType, enabled)</param>
-        /// <param name="setAgentLimit">Action to set agent parallel limit (projectId, agentType, limit)</param>
+        /// <param name="setAgentEnabled">Function to set agent enabled state (projectId, agentType, enabled)</param>
+        /// <param name="setAgentLimit">Function to set agent parallel limit (projectId, agentType, limit)</param>
         public AgentConfigurationTool(
             Func<string, ProjectAgentConfig?>? getProjectConfig,
             Func<List<(string Id, string Name)>>? getAllProjects,
-            Action<string, string, bool>? setAgentEnabled,
-            Action<string, string, int>? setAgentLimit)
+            Func<string, string, bool, Task>? setAgentEnabled,
+            Func<string, string, int, Task>? setAgentLimit)
         {
             _getProjectConfig = getProjectConfig;
             _getAllProjects = getAllProjects;
@@ -100,22 +101,22 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "action" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;
             var agentType = input.TryGetValue("agent_type", out var agentObj) ? agentObj?.ToString()?.ToLowerInvariant() : null;
             var limit = input.TryGetValue("limit", out var limitObj) ? Convert.ToInt32(limitObj) : 0;
 
-            return Task.FromResult(action switch
+            return action switch
             {
                 "status" => GetAllProjectsStatus(),
                 "get" => GetProjectDetails(project),
-                "enable" => SetAgentEnabled(project, agentType, true),
-                "disable" => SetAgentEnabled(project, agentType, false),
-                "set_limit" => SetAgentLimit(project, agentType, limit),
+                "enable" => await SetAgentEnabledAsync(project, agentType, true),
+                "disable" => await SetAgentEnabledAsync(project, agentType, false),
+                "set_limit" => await SetAgentLimitAsync(project, agentType, limit),
                 _ => "Unknown action. Use 'status', 'get', 'enable', 'disable', or 'set_limit'."
-            });
+            };
         }
 
         private string GetAllProjectsStatus()
@@ -227,7 +228,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string SetAgentEnabled(string? project, string? agentType, bool enabled)
+        private async Task<string> SetAgentEnabledAsync(string? project, string? agentType, bool enabled)
         {
             if (string.IsNullOrEmpty(project))
             {
@@ -255,7 +256,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return $"Error: Project '{project}' not found.";
                 }
 
-                _setAgentEnabled(config.ProjectId, agentType, enabled);
+                await _setAgentEnabled(config.ProjectId, agentType, enabled);
 
                 var agentName = char.ToUpper(agentType[0]) + agentType[1..];
                 var action = enabled ? "enabled" : "disabled";
@@ -267,7 +268,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             }
         }
 
-        private string SetAgentLimit(string? project, string? agentType, int limit)
+        private async Task<string> SetAgentLimitAsync(string? project, string? agentType, int limit)
         {
             if (string.IsNullOrEmpty(project))
             {
@@ -299,7 +300,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                     return $"Error: Project '{project}' not found.";
                 }
 
-                _setAgentLimit(config.ProjectId, agentType, limit);
+                await _setAgentLimit(config.ProjectId, agentType, limit);
 
                 var agentName = char.ToUpper(agentType[0]) + agentType[1..];
                 return $"✅ {agentName} max parallel limit set to {limit} for project '{config.ProjectName ?? config.ProjectId}'.";
@@ -308,6 +309,39 @@ namespace DraCode.KoboldLair.Agents.Tools
             {
                 return $"Error setting agent limit: {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// Resolves a project by ID, then by name, among the projects the caller may see, and maps its stored agent settings
+        /// </summary>
+        public static ProjectAgentConfig? Resolve(IEnumerable<Project> visibleProjects, string projectIdOrName)
+        {
+            var projects = visibleProjects.ToList();
+            var project = projects.FirstOrDefault(p => p.Id == projectIdOrName)
+                ?? projects.FirstOrDefault(p => p.Name.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase));
+            return project == null ? null : FromProject(project);
+        }
+
+        public static ProjectAgentConfig FromProject(Project project)
+        {
+            var agents = project.Agents;
+            return new ProjectAgentConfig
+            {
+                ProjectId = project.Id,
+                ProjectName = project.Name,
+                WyvernEnabled = agents.Wyvern.Enabled,
+                WyrmEnabled = agents.Wyrm.Enabled,
+                DrakeEnabled = agents.Drake.Enabled,
+                KoboldEnabled = agents.Kobold.Enabled,
+                MaxParallelWyverns = agents.Wyvern.MaxParallel,
+                MaxParallelWyrms = agents.Wyrm.MaxParallel,
+                MaxParallelDrakes = agents.Drake.MaxParallel,
+                MaxParallelKobolds = agents.Kobold.MaxParallel,
+                WyvernProvider = agents.Wyvern.Provider,
+                WyrmProvider = agents.Wyrm.Provider,
+                DrakeProvider = agents.Drake.Provider,
+                KoboldProvider = agents.Kobold.Provider
+            };
         }
 
         private static bool IsValidAgentType(string agentType)

@@ -33,11 +33,7 @@ public class ProjectServiceOwnershipTests : IAsyncLifetime
             NullLogger<ProviderConfigurationService>.Instance,
             Options.Create(config),
             Path.Combine(_dir, "user-settings.json"));
-        var projectConfig = new ProjectConfigurationService(
-            providerConfig,
-            NullLogger<ProjectConfigurationService>.Instance,
-            Path.Combine(_dir, "project-configs.json"));
-        var wyvernFactory = new WyvernFactory(providerConfig, projectConfig, config);
+        var wyvernFactory = new WyvernFactory(providerConfig, _repo, config);
         var gitService = new GitService(NullLogger<GitService>.Instance);
 
         _service = new ProjectService(_repo, wyvernFactory, NullLogger<ProjectService>.Instance, gitService, config);

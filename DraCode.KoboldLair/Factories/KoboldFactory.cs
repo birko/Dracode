@@ -1,5 +1,6 @@
 using Birko.AI;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Services;
@@ -19,8 +20,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ConcurrentDictionary<Guid, KoboldModel> _kobolds;
         private readonly AgentOptions? _defaultOptions;
         private readonly Dictionary<string, string>? _defaultConfig;
-        private readonly ProjectConfigurationService _projectConfigService;
-        private readonly Func<string?, int> _getProjectMaxParallelKobolds;
+        private readonly IProjectRepository? _projectRepository;
         private readonly ILoggerFactory _loggerFactory;
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly ProviderRateLimiter? _rateLimiter;
@@ -36,10 +36,9 @@ namespace DraCode.KoboldLair.Factories
         /// Creates a new KoboldFactory with optional default settings
         /// </summary>
         public KoboldFactory(
-            ProjectConfigurationService projectConfigService,
+            IProjectRepository? projectRepository,
             ILoggerFactory loggerFactory,
             KoboldLairConfiguration koboldLairConfig,
-            Func<string?, int>? getProjectMaxParallelKobolds = null,
             AgentOptions? defaultOptions = null,
             Dictionary<string, string>? defaultConfig = null,
             ProviderRateLimiter? rateLimiter = null,
@@ -47,10 +46,9 @@ namespace DraCode.KoboldLair.Factories
             KoboldRunEventSource? runEventSource = null)
         {
             _kobolds = new ConcurrentDictionary<Guid, KoboldModel>();
-            _projectConfigService = projectConfigService;
+            _projectRepository = projectRepository;
             _loggerFactory = loggerFactory;
             _koboldLairConfig = koboldLairConfig;
-            _getProjectMaxParallelKobolds = getProjectMaxParallelKobolds ?? ((projectId) => projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty));
             _defaultOptions = defaultOptions;
             _defaultConfig = defaultConfig;
             _rateLimiter = rateLimiter;
@@ -199,7 +197,7 @@ namespace DraCode.KoboldLair.Factories
         public bool CanCreateKoboldForProject(string? projectId)
         {
             var currentCount = GetActiveKoboldCountForProject(projectId);
-            var maxAllowed = _getProjectMaxParallelKobolds(projectId);
+            var maxAllowed = AgentLimitResolver.GetMaxParallel(_projectRepository, _koboldLairConfig.Limits, projectId, "kobold");
 
             if (currentCount >= maxAllowed)
             {

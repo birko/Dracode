@@ -33,7 +33,6 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly string? _projectId;
         private readonly ILogger<Drake>? _logger;
         private readonly ProviderConfigurationService? _providerConfigService;
-        private readonly ProjectConfigurationService? _projectConfigService;
         private readonly IProjectRepository? _projectRepository;
         private readonly GitService? _gitService;
         private readonly KoboldPlanService? _planService;
@@ -78,7 +77,6 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="projectId">Optional project identifier for resource limiting</param>
         /// <param name="logger">Optional logger for diagnostics</param>
         /// <param name="providerConfigService">Optional provider configuration service for agent-type-specific providers</param>
-        /// <param name="projectConfigService">Optional project configuration service for external path access</param>
         /// <param name="projectRepository">Optional project repository for accessing project-level timeout configuration</param>
         /// <param name="gitService">Optional git service for committing changes on task completion</param>
         /// <param name="planService">Optional plan service for implementation plan persistence</param>
@@ -102,7 +100,6 @@ namespace DraCode.KoboldLair.Orchestrators
             string? projectId = null,
             ILogger<Drake>? logger = null,
             ProviderConfigurationService? providerConfigService = null,
-            ProjectConfigurationService? projectConfigService = null,
             IProjectRepository? projectRepository = null,
             GitService? gitService = null,
             KoboldPlanService? planService = null,
@@ -130,7 +127,6 @@ namespace DraCode.KoboldLair.Orchestrators
             _projectId = projectId;
             _logger = logger;
             _providerConfigService = providerConfigService;
-            _projectConfigService = projectConfigService;
             _projectRepository = projectRepository;
             _gitService = gitService;
             _planService = planService;
