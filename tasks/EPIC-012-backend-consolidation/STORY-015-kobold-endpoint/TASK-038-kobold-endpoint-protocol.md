@@ -3,7 +3,7 @@ id: TASK-038
 parent: STORY-015
 feature: FEATURE-017
 status: verify
-blocked: needs an unassigned task to run through /kobold project mode, but Drake picks a freshly analyzed task up within a second and resetting a task over REST fails (TASK-091) — Z.AI access is fixed (TASK-086)
+blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
 priority: P1
 assignee: ai
 created: 2026-06-11

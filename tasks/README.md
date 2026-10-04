@@ -1,13 +1,13 @@
 # Tasks — DraCode
 
-_Generated 2026-10-03 23:15. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-04 07:39. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 13 | 31 | — |
-| todo         | — | — | 58 |
+| todo         | — | — | 60 |
 | in-progress  | 1 | 3 | 0 |
 | verify       | — | — | 2 |
 | blocked      | — | — | 25 |
@@ -16,7 +16,7 @@ _Generated 2026-10-03 23:15. Run `/tasks triage` to refresh. **Do not hand-edit*
 
 _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 15× P1 · 40× P2 · 3× P3.
+`todo` by priority: 17× P1 · 40× P2 · 3× P3.
 
 ## In progress now
 
@@ -24,8 +24,8 @@ _None_
 
 ## In review (code complete, awaiting human sign-off)
 
-- [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: needs an unassigned task to run through /kobold project mode, but Drake picks a freshly analyzed task up within a second and resetting a task over REST fails (TASK-091) — Z.AI access is fixed (TASK-086)
-- [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: needs an unassigned task to run through /kobold project mode, but Drake picks a freshly analyzed task up within a second and resetting a task over REST fails (TASK-091) — Z.AI access is fixed (TASK-086)
+- [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
+- [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
 
 ## Tree
 
@@ -58,17 +58,18 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: does external evaluator catch failures the reflect tool misses? — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (15/26)
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (15/27)
   - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko (P1) · FEATURE-077
   - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` (P2) · FEATURE-021
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2) (done)
     - [x] [TASK-029](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-029-delete-old-stack.md) Retire DraCode.WebSocket and DraCode.Web (P1) · FEATURE-016
     - [x] [TASK-070](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-070-scrub-full-project-spec.md) Retire FULL_PROJECT_SPECIFICATION.md (stale regeneration spec) (P2) · FEATURE-016
-  - STORY-015 /kobold WebSocket endpoint — ad-hoc + project-scoped Kobold execution — in-progress (2/5)
+  - STORY-015 /kobold WebSocket endpoint — ad-hoc + project-scoped Kobold execution — in-progress (2/6)
     - [x] [TASK-037](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-037-run-event-source.md) Internal per-run event source (Kobold tool-loop event sink) (P1) · FEATURE-017
     - [ ] [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1) 🔍 verify ⚠ blocked · FEATURE-017
     - [x] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1) · FEATURE-017
     - [ ] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1) 🔍 verify ⚠ blocked · FEATURE-017
+    - [ ] [TASK-095](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-095-per-project-drake-switch.md) Per-project Drake switch: Drake skips a project whose Drake is off, /kobold project mode still runs it (P1) · FEATURE-017
     - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
   - STORY-016 REST + SSE facade for non-streaming clients — in-progress (3/7)
     - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
@@ -137,8 +138,9 @@ _None_
     - [ ] [TASK-027](EPIC-015-self-reasoning-depth/STORY-030-budget-aware-reflection/TASK-027-budget-aware-reflection.md) Surface real token/cost spend into reflect tool & monitor (P2) · FEATURE-033
   - STORY-031 Cross-step coherence re-plan check — planned (0/1)
     - [ ] [TASK-028](EPIC-015-self-reasoning-depth/STORY-031-cross-step-replan-check/TASK-028-cross-step-coherence-check.md) Lightweight re-plan check when a step is revised/failed (P2) · FEATURE-034
-- **EPIC-016 Database-backed agent working state** — planned (0/0)
-  - STORY-032 Migrate remaining file-based working artifacts to the database — planned (0/0)
+- **EPIC-016 Database-backed agent working state** — planned (0/1)
+  - STORY-032 Migrate remaining file-based working artifacts to the database — planned (0/1)
+    - [ ] [TASK-094](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-094-remove-project-configs-json.md) Remove project-configs.json — the database is the only store for per-project agent settings (P1)
   - STORY-033 Persist structured decision & reasoning records — planned (0/0)
   - STORY-034 Codify and enforce the deliverable-vs-working-state boundary — planned (0/0)
 - **EPIC-017 Generalized agent consensus** — planned (0/0)
