@@ -6,7 +6,7 @@ status: in-progress
 priority: P1
 assignee: ai
 created: 2026-10-04
-depends-on: [TASK-094]
+depends-on: [TASK-094, TASK-097]
 blocks: [TASK-038, TASK-040]
 findings: []
 pr: null
