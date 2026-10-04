@@ -56,3 +56,4 @@ modified" log line, 0 tasks. The JSON-file `ProjectRepository` has the same comp
 ## Progress log
 
 - 2026-10-04 — `SpecificationPathLookupTests` (3) written first and red (the first draft passed vacuously through `?.`, tightened to assert non-null); fixed both lookups; green. Full suite: 195 passed.
+- 2026-10-04 — live (dev server, build with TASK-095): re-triggering `drake-switch-check`'s approved features now logs `📝 Specification modified … will be reprocessed` and Wyvern re-analyses (`[Wyvern] REANALYZE`) — the lookup fix works. The "and create its tasks" half could not be shown: the re-analysis returned 0 tasks for a separate reason, filed as TASK-098 (and TASK-099).
