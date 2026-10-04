@@ -169,7 +169,6 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ConcurrentDictionary<string, DragonSession> _sessions;
         private readonly ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
         private readonly ProviderConfigurationService _providerConfigService;
-        private readonly ProjectConfigurationService _projectConfigService;
         private readonly ProjectService _projectService;
         private readonly IProjectRepository _projectRepository;
         private readonly DraCode.KoboldLair.Data.Repositories.IUserRepository? _userRepository;
@@ -198,7 +197,6 @@ namespace DraCode.KoboldLair.Server.Services
         public DragonService(
             ILogger<DragonService> logger,
             ProviderConfigurationService providerConfigService,
-            ProjectConfigurationService projectConfigService,
             ProjectService projectService,
             IProjectRepository projectRepository,
             GitService gitService,
@@ -216,7 +214,6 @@ namespace DraCode.KoboldLair.Server.Services
             _sessions = new ConcurrentDictionary<string, DragonSession>();
             _sessionWebSockets = new ConcurrentDictionary<string, WebSocket>();
             _providerConfigService = providerConfigService;
-            _projectConfigService = projectConfigService;
             _projectService = projectService;
             _projectRepository = projectRepository;
             _userRepository = userRepository;
@@ -602,16 +599,16 @@ namespace DraCode.KoboldLair.Server.Services
             session.Warden = new WardenAgent(
                 llmProvider,
                 options,
-                getProjectConfig: GetProjectAgentConfig,
+                getProjectConfig: idOrName => AgentConfigurationTool.Resolve(GetVisibleProjects(session), idOrName),
                 getAllProjects: () => GetVisibleProjects(session).Select(p => (p.Id, p.Name)).ToList(),
-                setAgentEnabled: (id, type, enabled) =>
+                setAgentEnabled: async (id, type, enabled) =>
                 {
-                    _projectConfigService.SetAgentEnabled(id, type, enabled);
+                    await _projectRepository.SetAgentEnabledAsync(id, type, enabled);
                     _logger.LogInformation("Agent {Type} {State} for {Project}", type, enabled ? "enabled" : "disabled", id);
                 },
-                setAgentLimit: (id, type, limit) =>
+                setAgentLimit: async (id, type, limit) =>
                 {
-                    _projectConfigService.SetAgentLimit(id, type, limit);
+                    await _projectRepository.SetAgentLimitAsync(id, type, limit);
                     _logger.LogInformation("Agent {Type} limit set to {Limit} for {Project}", type, limit, id);
                 },
                 addExternalPath: async (id, path) =>
@@ -1001,52 +998,6 @@ namespace DraCode.KoboldLair.Server.Services
                     memberName, totalDuration.TotalMilliseconds.ToString("F0"));
                 return $"Error from {councilMember}: {ex.Message}";
             }
-        }
-
-        /// <summary>
-        /// Gets project agent configuration by ID or name
-        /// </summary>
-        private ProjectAgentConfig? GetProjectAgentConfig(string projectIdOrName)
-        {
-            var config = _projectConfigService.GetProjectConfig(projectIdOrName);
-            if (config != null)
-            {
-                return MapToProjectAgentConfig(config);
-            }
-
-            var projects = _projectService.GetAllProjects();
-            var project = projects.FirstOrDefault(p =>
-                p.Name.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase) ||
-                p.Id.Equals(projectIdOrName, StringComparison.OrdinalIgnoreCase));
-
-            if (project != null)
-            {
-                var projectConfig = _projectConfigService.GetOrCreateProjectConfig(project.Id, project.Name);
-                return MapToProjectAgentConfig(projectConfig, project.Name);
-            }
-
-            return null;
-        }
-
-        private static ProjectAgentConfig MapToProjectAgentConfig(DraCode.KoboldLair.Models.Configuration.ProjectConfig config, string? fallbackName = null)
-        {
-            return new ProjectAgentConfig
-            {
-                ProjectId = config.Project.Id,
-                ProjectName = config.Project.Name ?? fallbackName,
-                WyvernEnabled = config.Agents.Wyvern.Enabled,
-                WyrmEnabled = config.Agents.Wyrm.Enabled,
-                DrakeEnabled = config.Agents.Drake.Enabled,
-                KoboldEnabled = config.Agents.Kobold.Enabled,
-                MaxParallelWyverns = config.Agents.Wyvern.MaxParallel,
-                MaxParallelWyrms = config.Agents.Wyrm.MaxParallel,
-                MaxParallelDrakes = config.Agents.Drake.MaxParallel,
-                MaxParallelKobolds = config.Agents.Kobold.MaxParallel,
-                WyvernProvider = config.Agents.Wyvern.Provider,
-                WyrmProvider = config.Agents.Wyrm.Provider,
-                DrakeProvider = config.Agents.Drake.Provider,
-                KoboldProvider = config.Agents.Kobold.Provider
-            };
         }
 
         private async Task HandleMessageAsync(WebSocket webSocket, DragonSession session, string messageText)

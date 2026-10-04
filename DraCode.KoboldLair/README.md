@@ -68,7 +68,6 @@ DraCode.KoboldLair/
     ├── GitService.cs       # Git operations (branch, merge, commit)
     ├── ProjectService.cs   # Project lifecycle management
     ├── ProjectRepository.cs # Data persistence
-    ├── ProjectConfigurationService.cs
     └── ProviderConfigurationService.cs
 ```
 

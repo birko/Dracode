@@ -61,7 +61,7 @@ namespace DraCode.KoboldLair.Models.Configuration
 
     /// <summary>
     /// Default parallel execution limits for agents.
-    /// Can be overridden per-project in project-configs.json.
+    /// Used for a project the project repository does not know; a known project's stored AgentsConfig limit wins.
     /// </summary>
     public class AgentLimits
     {
@@ -69,6 +69,18 @@ namespace DraCode.KoboldLair.Models.Configuration
         public int MaxParallelDrakes { get; set; } = 1;
         public int MaxParallelWyrms { get; set; } = 1;
         public int MaxParallelWyverns { get; set; } = 1;
+
+        /// <summary>
+        /// Default parallel limit for an agent type (kobold-planner is always 1)
+        /// </summary>
+        public int GetDefaultMaxParallel(string agentType) => agentType.ToLowerInvariant() switch
+        {
+            "wyrm" => MaxParallelWyrms,
+            "wyvern" => MaxParallelWyverns,
+            "drake" => MaxParallelDrakes,
+            "kobold" => MaxParallelKobolds,
+            _ => 1
+        };
 
         /// <summary>
         /// Interval in seconds between Drake monitoring runs (default: 60)

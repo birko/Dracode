@@ -668,7 +668,7 @@ namespace DraCode.KoboldLair.Services
             }
         }
 
-        // ===== Agent Configuration Methods (consolidated from ProjectConfigurationService) =====
+        // ===== Agent Configuration Methods =====
 
         /// <summary>
         /// Gets the agent configuration for a specific agent type in a project

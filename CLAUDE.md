@@ -577,8 +577,8 @@ LLM usage tracking with per-call token recording, cost estimation, and budget en
 ### Allowed External Paths
 
 Per-project access control for directories outside workspace:
-- Managed via `manage_external_paths` tool or `ProjectConfigurationService`
-- Stored in project config (`AllowedExternalPaths` property)
+- Managed via the `manage_external_paths` tool (Warden), persisted through `IProjectRepository`
+- Stored on the project row (`Project.Security.AllowedExternalPaths`, `SecurityJson` column) — the database is the only store for per-project agent settings
 - Kobolds inherit project's allowed paths during execution
 - PathHelper validates all file operations against workspace + allowed paths
 

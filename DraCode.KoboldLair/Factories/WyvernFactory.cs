@@ -19,7 +19,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly object _lock = new object();
 
         private readonly ProviderConfigurationService _providerConfigService;
-        private readonly ProjectConfigurationService _projectConfigService;
+        private readonly IProjectRepository _projectRepository;
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly GitService? _gitService;
         private readonly ITaskRepository? _taskRepository;
@@ -28,7 +28,7 @@ namespace DraCode.KoboldLair.Factories
 
         public WyvernFactory(
             ProviderConfigurationService providerConfigService,
-            ProjectConfigurationService projectConfigService,
+            IProjectRepository projectRepository,
             KoboldLairConfiguration koboldLairConfig,
             AgentOptions? defaultOptions = null,
             GitService? gitService = null,
@@ -38,7 +38,7 @@ namespace DraCode.KoboldLair.Factories
             _Wyverns = new Dictionary<string, Wyvern>(StringComparer.OrdinalIgnoreCase);
             _wyvernProjectIds = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             _providerConfigService = providerConfigService;
-            _projectConfigService = projectConfigService;
+            _projectRepository = projectRepository;
             _koboldLairConfig = koboldLairConfig;
             _gitService = gitService;
             _taskRepository = taskRepository;
@@ -161,7 +161,7 @@ namespace DraCode.KoboldLair.Factories
         public bool CanCreateWyvernForProject(string? projectId)
         {
             var currentCount = GetActiveWyvernCountForProject(projectId);
-            var maxAllowed = _projectConfigService.GetMaxParallelWyverns(projectId ?? string.Empty);
+            var maxAllowed = AgentLimitResolver.GetMaxParallel(_projectRepository, _koboldLairConfig.Limits, projectId, "wyvern");
             return currentCount < maxAllowed;
         }
 

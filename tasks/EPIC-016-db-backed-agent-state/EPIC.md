@@ -1,6 +1,6 @@
 ---
 id: EPIC-016
-status: planned
+status: in-progress
 created: 2026-05-29
 owner: human
 affects: []
@@ -44,6 +44,6 @@ Out of scope at the epic level:
 
 | Feature | Covers | Status |
 |---------|--------|--------|
-| [FEATURE-035](../../docs/features/FEATURE-035-migrate-remaining-artifacts/idea.md) | STORY-032 (no tasks yet) | idea |
+| [FEATURE-035](../../docs/features/FEATURE-035-migrate-remaining-artifacts/idea.md) | STORY-032 (TASK-094, TASK-096) | idea |
 | [FEATURE-036](../../docs/features/FEATURE-036-persist-decisions-reasoning/idea.md) | STORY-033 (no tasks yet) | idea |
 | [FEATURE-037](../../docs/features/FEATURE-037-codify-deliverable-boundary/idea.md) | STORY-034 (no tasks yet) | idea |

@@ -196,7 +196,7 @@ builder.Services.AddSingleton<IValidator<AgentsConfig>, ProjectConfigValidator>(
 builder.Services.Configure<KoboldLairConfiguration>(
     builder.Configuration.GetSection("KoboldLair"));
 
-// Register provider configuration service (must be registered before ProjectConfigurationService).
+// Register provider configuration service.
 // TASK-073: when a provider-config master key is configured (config or KOBOLDLAIR_MASTER_KEY env), run in
 // DB-backed mode — providers + models + agent assignments in the database, API keys encrypted at rest. The
 // master key is resolved through Birko's ISecretProvider (Phase 1 = config; Phase 2 = Vault, a DI swap here
@@ -241,9 +241,6 @@ builder.Services.AddSingleton<ProviderConfigurationService>(sp =>
     svc.InitializeAsync().GetAwaiter().GetResult();
     return svc;
 });
-
-// Register project configuration service (depends on ProviderConfigurationService for defaults)
-builder.Services.AddSingleton<ProjectConfigurationService>();
 
 // Canonical spec/feature persistence (TASK-043) — shared by the Dragon council tools and the
 // /api/v1 resource endpoints so the two surfaces can't drift on the on-disk spec layout.
@@ -423,10 +420,10 @@ builder.Services.AddSingleton<SharedPlanningContextService>(sp =>
 builder.Services.AddSingleton<WyvernFactory>(sp =>
 {
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var gitService = sp.GetRequiredService<GitService>();
-    return new WyvernFactory(providerConfigService, projectConfigService, config, gitService: gitService, taskRepository: sp.GetService<ITaskRepository>());
+    return new WyvernFactory(providerConfigService, projectRepository, config, gitService: gitService, taskRepository: sp.GetService<ITaskRepository>());
 });
 
 // Register factories as singletons
@@ -435,7 +432,6 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
 {
     var koboldFactory = sp.GetRequiredService<KoboldFactory>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
     var gitService = sp.GetRequiredService<GitService>();
     var projectRepository = sp.GetRequiredService<IProjectRepository>();
@@ -444,7 +440,7 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var taskRepository = sp.GetService<ITaskRepository>();
     var eventBus = sp.GetService<IEventBus>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    var factory = new DrakeFactory(koboldFactory, providerConfigService, projectConfigService, config,
+    var factory = new DrakeFactory(koboldFactory, providerConfigService, config,
         loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext, taskRepository, eventBus);
 
     // Wire feature completion notifications so users get notified when branches are ready for merge
@@ -477,10 +473,9 @@ builder.Services.AddSingleton<ProjectService>(sp =>
     var wyvernFactory = sp.GetRequiredService<WyvernFactory>();
     var logger = sp.GetRequiredService<ILogger<ProjectService>>();
     var gitService = sp.GetRequiredService<GitService>();
-    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
-    return new ProjectService(repository, wyvernFactory, logger, gitService, config, projectConfigService, drakeFactory);
+    return new ProjectService(repository, wyvernFactory, logger, gitService, config, drakeFactory);
 });
 
 // Register remaining factories
@@ -500,27 +495,21 @@ builder.Services.AddSingleton<KoboldEndpointService>();
 
 builder.Services.AddSingleton<KoboldFactory>(sp =>
 {
-    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-
-    // Use ProjectConfigurationService for max parallel kobolds
-    Func<string?, int> getMaxParallel = (projectId) =>
-    {
-        return projectConfigService.GetMaxParallelKobolds(projectId ?? string.Empty);
-    };
 
     var rateLimiter = sp.GetRequiredService<ProviderRateLimiter>();
     var costTracker = sp.GetRequiredService<CostTrackingService>();
     var runEventSource = sp.GetRequiredService<KoboldRunEventSource>();
-    return new KoboldFactory(projectConfigService, loggerFactory, config, getMaxParallel,
+    return new KoboldFactory(projectRepository, loggerFactory, config,
         rateLimiter: rateLimiter, costTracker: costTracker, runEventSource: runEventSource);
 });
 builder.Services.AddSingleton<WyrmFactory>(sp =>
 {
-    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
+    var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    return new WyrmFactory(projectConfigService, providerConfigService);
+    return new WyrmFactory(projectRepository, providerConfigService);
 });
 builder.Services.AddSingleton<ProjectNotificationService>(sp =>
 {
@@ -583,7 +572,6 @@ builder.Services.AddSingleton<DragonService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<DragonService>>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    var projectConfigService = sp.GetRequiredService<ProjectConfigurationService>();
     var projectService = sp.GetRequiredService<ProjectService>();
     var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var gitService = sp.GetRequiredService<GitService>();
@@ -596,7 +584,7 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var historyRepository = sp.GetService<SqlHistoryRepository>();
     var specEventService = sp.GetService<SpecificationEventService>();
     var userRepository = sp.GetService<IUserRepository>();
-    return new DragonService(logger, providerConfigService, projectConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService, userRepository);
+    return new DragonService(logger, providerConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService, userRepository);
 });
 
 // Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)

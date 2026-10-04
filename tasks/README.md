@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-04 07:39. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-04 (close TASK-094). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
-| planned      | 13 | 31 | — |
+| planned      | 12 | 30 | — |
 | todo         | — | — | 60 |
-| in-progress  | 1 | 3 | 0 |
+| in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 2 |
 | blocked      | — | — | 25 |
-| done         | 1 | 2 | 28 |
+| done         | 1 | 2 | 29 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 17× P1 · 40× P2 · 3× P3.
+`todo` by priority: 16× P1 · 41× P2 · 3× P3.
 
 ## In progress now
 
@@ -138,9 +138,10 @@ _None_
     - [ ] [TASK-027](EPIC-015-self-reasoning-depth/STORY-030-budget-aware-reflection/TASK-027-budget-aware-reflection.md) Surface real token/cost spend into reflect tool & monitor (P2) · FEATURE-033
   - STORY-031 Cross-step coherence re-plan check — planned (0/1)
     - [ ] [TASK-028](EPIC-015-self-reasoning-depth/STORY-031-cross-step-replan-check/TASK-028-cross-step-coherence-check.md) Lightweight re-plan check when a step is revised/failed (P2) · FEATURE-034
-- **EPIC-016 Database-backed agent working state** — planned (0/1)
-  - STORY-032 Migrate remaining file-based working artifacts to the database — planned (0/1)
-    - [ ] [TASK-094](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-094-remove-project-configs-json.md) Remove project-configs.json — the database is the only store for per-project agent settings (P1)
+- **EPIC-016 Database-backed agent working state** — in-progress (1/2)
+  - STORY-032 Migrate remaining file-based working artifacts to the database — in-progress (1/2)
+    - [x] [TASK-094](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-094-remove-project-configs-json.md) Remove project-configs.json — the database is the only store for per-project agent settings (P1)
+    - [ ] [TASK-096](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-096-remove-dead-project-config-client.md) Remove the dead project-config-client.js (calls /api/project-configs routes nothing serves) (P2)
   - STORY-033 Persist structured decision & reasoning records — planned (0/0)
   - STORY-034 Codify and enforce the deliverable-vs-working-state boundary — planned (0/0)
 - **EPIC-017 Generalized agent consensus** — planned (0/0)

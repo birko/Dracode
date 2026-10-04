@@ -51,7 +51,6 @@ namespace DraCode.KoboldLair.Services
         private readonly WyvernFactory _wyvernFactory;
         private readonly ILogger<ProjectService> _logger;
         private readonly GitService _gitService;
-        private readonly ProjectConfigurationService? _projectConfigService;
         private readonly DrakeFactory? _drakeFactory;
         private readonly string _projectsPath;
 
@@ -61,14 +60,12 @@ namespace DraCode.KoboldLair.Services
             ILogger<ProjectService> logger,
             GitService gitService,
             KoboldLairConfiguration config,
-            ProjectConfigurationService? projectConfigService = null,
             DrakeFactory? drakeFactory = null)
         {
             _repository = repository;
             _wyvernFactory = wyvernFactory;
             _logger = logger;
             _gitService = gitService;
-            _projectConfigService = projectConfigService;
             _drakeFactory = drakeFactory;
             _projectsPath = config.ProjectsPath ?? "./projects";
         }
