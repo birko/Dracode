@@ -6,7 +6,7 @@ status: in-progress
 priority: P1
 assignee: ai
 created: 2026-10-04
-depends-on: [TASK-094, TASK-097]
+depends-on: [TASK-094, TASK-097, TASK-098]
 blocks: [TASK-038, TASK-040]
 findings: []
 pr: null
@@ -61,3 +61,4 @@ Logging: the skip logs one Info line per disabled project per cycle (every 30 s)
 
 - 2026-10-04 — `DrakeExecutionService.SelectProjects` splits candidates into ToProcess / Paused / DrakeDisabled; the cycle logs `⏭️ Skipping project … - Drake disabled` at Info per cycle (as Wyvern does); a predicate that throws counts as disabled. `PATCH /api/v1/projects/{id}/agents/{type}` `{ enabled }` (ManageProjects, owner-scoped 404, 400 on unknown type / missing enabled); `AgentConfigurationTool.IsValidAgentType` made public so REST and Dragon share one list. `/kobold` project mode is untouched (`EnsureRunnable` never read the flag; test pins that). New-project default already covered by TASK-090's test.
 - 2026-10-04 — tests: `DrakeExecutionSelectionTests` (4; three proven to fail with the flag ignored), `EnsureRunnable_passes_when_the_projects_Drake_is_switched_off`, five PATCH tests. Full suite: 202 passed. FEATURE-017 ledger: D7 recorded (owner's decision from this task's Context) → TASK-095.
+- 2026-10-04 — live check, partial (project `drake-switch-check`, still on the dev server): Drake switched off through Dragon before approval; through Wyrm, two Wyvern analyses and 20+ minutes the cycle logged `⏭️ Skipping project drake-switch-check - Drake disabled` and started nothing. Not completed: Wyvern produced 0 tasks, so there was nothing to run through `/kobold`. Blockers filed: TASK-097 (spec-path lookup — fixed, merged into this branch for the run), TASK-098 (empty Wyvern reply → silent 0-task analysis; now a dependency), TASK-099 (features never passed to Wyvern).
