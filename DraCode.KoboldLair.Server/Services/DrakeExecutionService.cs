@@ -48,32 +48,49 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
+        /// Splits the analyzed/in-progress projects into those Drake should process this cycle, those whose
+        /// execution state is not Running, and those whose per-project Drake is switched off.
+        /// </summary>
+        public static DrakeCycleSelection SelectProjects(IEnumerable<Project> allProjects, Func<string, bool> isDrakeEnabled)
+        {
+            var candidates = allProjects
+                .Where(p => p.Status == ProjectStatus.Analyzed || p.Status == ProjectStatus.InProgress)
+                .ToList();
+            var running = candidates.Where(p => p.ExecutionState == ProjectExecutionState.Running).ToList();
+            var paused = candidates.Where(p => p.ExecutionState != ProjectExecutionState.Running).ToList();
+
+            var toProcess = new List<Project>();
+            var drakeDisabled = new List<Project>();
+            foreach (var project in running)
+            {
+                bool enabled;
+                try { enabled = isDrakeEnabled(project.Id); }
+                catch (Exception) { enabled = false; } // e.g. the project was deleted mid-cycle
+                (enabled ? toProcess : drakeDisabled).Add(project);
+            }
+
+            return new DrakeCycleSelection(toProcess, paused, drakeDisabled);
+        }
+
+        private bool IsDrakeEnabled(string projectId) => _projectService.IsAgentEnabled(projectId, "drake");
+
+        /// <summary>
         /// Executes a single cycle: find analyzed projects, create Drakes, execute tasks
         /// </summary>
         protected override async Task ExecuteCycleAsync(CancellationToken cancellationToken)
         {
-            // Get all projects
-            var allProjects = _projectService.GetAllProjects();
+            var selection = SelectProjects(_projectService.GetAllProjects(), IsDrakeEnabled);
+            var projectsToProcess = selection.ToProcess;
 
-            // Find projects that are analyzed or in progress AND actively running
-            var projectsToProcess = allProjects
-                .Where(p => (p.Status == ProjectStatus.Analyzed || p.Status == ProjectStatus.InProgress) 
-                            && p.ExecutionState == ProjectExecutionState.Running)
-                .ToList();
-
-            // Log skipped projects with non-Running execution states
-            var skippedProjects = allProjects
-                .Where(p => (p.Status == ProjectStatus.Analyzed || p.Status == ProjectStatus.InProgress)
-                            && p.ExecutionState != ProjectExecutionState.Running)
-                .ToList();
-
-            if (skippedProjects.Count > 0)
+            foreach (var skipped in selection.Paused)
             {
-                foreach (var skipped in skippedProjects)
-                {
-                    _logger.LogDebug("⏸️ Skipping project {ProjectName} - execution state: {State}", 
-                        skipped.Name, skipped.ExecutionState);
-                }
+                _logger.LogDebug("⏸️ Skipping project {ProjectName} - execution state: {State}",
+                    skipped.Name, skipped.ExecutionState);
+            }
+
+            foreach (var disabled in selection.DrakeDisabled)
+            {
+                _logger.LogInformation("⏭️ Skipping project {ProjectName} - Drake disabled", disabled.Name);
             }
 
             if (projectsToProcess.Count == 0)
@@ -679,4 +696,9 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
     }
+
+    /// <summary>
+    /// One Drake cycle's project split — see <see cref="DrakeExecutionService.SelectProjects"/>
+    /// </summary>
+    public sealed record DrakeCycleSelection(List<Project> ToProcess, List<Project> Paused, List<Project> DrakeDisabled);
 }

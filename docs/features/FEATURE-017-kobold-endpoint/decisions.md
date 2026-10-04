@@ -17,6 +17,7 @@ created: 2026-05-31
 | D4 | Project mode reuses the existing plan and isolated workspace, then commits to the project's feature branch | approved | Reuses the existing project pipeline; commits to the feature branch like normal execution | 2026-06-17 | human | TASK-040 |
 | D5 | Stream live progress (start, tool calls, self-checks, completion, errors) reusing existing message shapes | approved | Per-run event source reusing existing message shapes for non-browser clients | 2026-06-17 | human | TASK-037 |
 | D6 | Ad-hoc runs stay off the project registry, keyed only by run id, with cleanup after a retention window | approved | Keeps throwaway runs out of the registry; retention-window cleanup | 2026-06-17 | human | TASK-039 |
+| D7 | A project can switch its background task supervisor off, so its tasks are run only on demand through project mode; switching it back on resumes automatic running | approved | Project mode cannot be checked live while the background supervisor takes every new task within seconds; the existing per-project on/off setting was chosen over a new "manual" execution state | 2026-10-04 | human | TASK-095 |
 
 **States:** proposed · approved · deferred · changed · removed.
 Only `approved` and `changed` generate tasks.
@@ -24,3 +25,4 @@ Only `approved` and `changed` generate tasks.
 ## History log
 - 2026-05-31 — feature created; decisions seeded from STORY-015 behaviour and open questions.
 - 2026-06-17 — decide: D1–D6 proposed → approved (ratifying the STORY-015 design; work not yet started); `→ Tasks` wired to TASK-037…041 and feature back-link added to those tasks. Phase → building (0/5 done).
+- 2026-10-04 — D7 recorded as approved: the owner's decision of 2026-10-04 (documented in TASK-095's Context, filed before this row existed); `→ Tasks` TASK-095.

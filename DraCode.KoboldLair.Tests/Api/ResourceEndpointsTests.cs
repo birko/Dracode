@@ -310,4 +310,68 @@ public class ResourceEndpointsTests : IDisposable
         using var doc = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
         doc.RootElement.GetArrayLength().Should().Be(0);
     }
+
+    [Fact]
+    public async Task Patch_agent_switches_the_owners_project_Drake_off_and_on()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = MintToken(factory, UserA, OwnerScopes);
+        var id = await CreateProject(client, token, "DrakeSwitch");
+        var repo = factory.Services.GetRequiredService<IProjectRepository>();
+
+        var off = await client.SendAsync(Authed(HttpMethod.Patch, $"/api/v1/projects/{id}/agents/drake", token, new { enabled = false }));
+        off.StatusCode.Should().Be(HttpStatusCode.OK);
+        repo.IsAgentEnabled(id, "drake").Should().BeFalse();
+
+        var on = await client.SendAsync(Authed(HttpMethod.Patch, $"/api/v1/projects/{id}/agents/Drake", token, new { enabled = true }));
+        on.StatusCode.Should().Be(HttpStatusCode.OK);
+        repo.IsAgentEnabled(id, "drake").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Patch_agent_on_another_users_project_returns_404_and_changes_nothing()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var id = await CreateProject(client, MintToken(factory, UserA, OwnerScopes), "NotYours");
+
+        var resp = await client.SendAsync(Authed(HttpMethod.Patch, $"/api/v1/projects/{id}/agents/drake",
+            MintToken(factory, UserB, OwnerScopes), new { enabled = false }));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        factory.Services.GetRequiredService<IProjectRepository>().IsAgentEnabled(id, "drake").Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("dragon", "{\"enabled\":false}")]
+    [InlineData("drake", "{}")]
+    public async Task Patch_agent_rejects_an_unknown_type_or_a_missing_enabled(string type, string body)
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = MintToken(factory, UserA, OwnerScopes);
+        var id = await CreateProject(client, token, "BadPatch");
+        var req = Authed(HttpMethod.Patch, $"/api/v1/projects/{id}/agents/{type}", token);
+        req.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+
+        var resp = await client.SendAsync(req);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Patch_agent_needs_a_token_and_manage_projects()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var id = await CreateProject(client, MintToken(factory, UserA, OwnerScopes), "Guarded");
+
+        var anonymous = await client.PatchAsJsonAsync($"/api/v1/projects/{id}/agents/drake", new { enabled = false });
+        var viewOnly = await client.SendAsync(Authed(HttpMethod.Patch, $"/api/v1/projects/{id}/agents/drake",
+            MintToken(factory, UserA, "view_own"), new { enabled = false }));
+
+        anonymous.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        viewOnly.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
 }

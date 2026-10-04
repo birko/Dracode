@@ -29,6 +29,17 @@ public class ProjectRunModeHandlerTests
     }
 
     [Fact]
+    public void EnsureRunnable_passes_when_the_projects_Drake_is_switched_off()
+    {
+        var project = RunnableProject();
+        project.Agents.Drake.Enabled = false;
+
+        var act = () => ProjectRunModeHandler.EnsureRunnable(project, Req());
+
+        act.Should().NotThrow("a project whose background Drake is off is driven through /kobold project mode");
+    }
+
+    [Fact]
     public void EnsureRunnable_rejects_missing_projectId()
     {
         var req = Req(); req.ProjectId = null;
