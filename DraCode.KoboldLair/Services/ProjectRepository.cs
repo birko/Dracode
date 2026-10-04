@@ -570,7 +570,7 @@ namespace DraCode.KoboldLair.Services
                 // Resolve the input path for comparison
                 var normalizedPath = ResolvePath(specPath);
                 return _projects.FirstOrDefault(p =>
-                    string.Equals(p.Paths.Specification, normalizedPath, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(string.IsNullOrWhiteSpace(p.Paths.Specification) ? string.Empty : ResolvePath(p.Paths.Specification), normalizedPath, StringComparison.OrdinalIgnoreCase));
             }
         }
 
