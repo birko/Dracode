@@ -7,6 +7,7 @@ using DraCode.KoboldLair.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace DraCode.KoboldLair.Tests.Services;
 
@@ -141,6 +142,25 @@ public class AgentSettingsDbTests : IAsyncLifetime
         var projectId = RegisterProject();
 
         (await RunAsync(NewManageAgentsTool(), "set_limit", projectId, "kobold", 4)).Should().StartWith("✅");
+
+        _service.GetMaxParallelKobolds(projectId).Should().Be(4);
+    }
+
+    [Theory]
+    [InlineData("4")]
+    [InlineData("\"4\"")]
+    public async Task ManageAgents_SetLimit_ShouldAccept_TheJsonElementTheLlmSends(string limitJson)
+    {
+        var projectId = RegisterProject();
+        var input = new Dictionary<string, object>
+        {
+            ["action"] = JsonDocument.Parse("\"set_limit\"").RootElement,
+            ["project"] = JsonDocument.Parse($"\"{projectId}\"").RootElement,
+            ["agent_type"] = JsonDocument.Parse("\"kobold\"").RootElement,
+            ["limit"] = JsonDocument.Parse(limitJson).RootElement
+        };
+
+        (await NewManageAgentsTool().ExecuteAsync(".", input)).Should().StartWith("✅");
 
         _service.GetMaxParallelKobolds(projectId).Should().Be(4);
     }

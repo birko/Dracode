@@ -2,7 +2,7 @@
 id: TASK-094
 parent: STORY-032
 feature: null
-status: verify
+status: done
 priority: P1
 assignee: ai
 created: 2026-10-04
@@ -38,7 +38,7 @@ in `./project-configs.json`, but every field it stores already lives on the SQL 
 - [x] `ProjectConfigurationService` and its JSON file are deleted, with their DI registrations and constructor parameters; nothing reads or writes `project-configs.json`
 - [x] Tests: a limit set through `ProjectService` is the one a factory enforces; `manage_agents` enable/disable changes what `IsAgentEnabled` returns
 - [x] CLAUDE.md no longer documents the service; full suite green
-- [ ] Live: on the dev server, disabling and re-enabling an agent through Dragon changes the stored flag the pipeline reads
+- [x] Live: on the dev server, disabling and re-enabling an agent through Dragon changes the stored flag the pipeline reads — run 2026-10-04: wyrm.enabled 1 → 0 → 1 in AgentsJson
 
 ## Out of scope
 
@@ -48,7 +48,7 @@ in `./project-configs.json`, but every field it stores already lives on the SQL 
 
 ## Human test plan
 
-- [ ] In the web UI, change a project's Kobold max-parallel, then confirm Dragon/Warden reports the same value (and vice versa)
+- [x] In the web UI, change a project's Kobold max-parallel, then confirm Dragon/Warden reports the same value (and vice versa) — run 2026-10-04 through the web UI's own `/wyvern` commands (`update_project_config` 3 → Dragon reports 3; Dragon `set_limit` 2 → `get_project_config` returns 2); Chrome extension was not connected, so not clicked in the browser
 
 ## Implementation plan
 
@@ -76,3 +76,4 @@ in `./project-configs.json`, but every field it stores already lives on the SQL 
 - 2026-10-04 — close gate: `manage_agents` resolved projects across every owner (pre-existing, harmless while it wrote a file nothing read; now it writes the real project). Lookup scoped to the session's visible projects (`AgentConfigurationTool.Resolve(GetVisibleProjects(session), …)`); `ManageAgents_ShouldNotChange_AProjectOutsideTheCallersVisibleProjects` added and proven to fail without the scope. Full suite: 190 passed.
 - 2026-10-04 — parked at `verify`: the Live criterion and the Human test plan need the dev server (the dev DB has no projects yet).
 - 2026-10-04 — the orphaned dev file `DraCode.KoboldLair.Server/project-configs.json` deleted (gitignored, never committed); branch kept local by request.
+- 2026-10-04 — live checks on the dev server (throwaway project `task094-check`, 158bf551…): Dragon disable/enable flips `wyrm.enabled` 1 → 0 → 1 in `AgentsJson`; UI `update_project_config` 3 is what Dragon reports. The reverse first FAILED — Dragon `set_limit` threw `Unable to cast JsonElement to IConvertible` (`Convert.ToInt32` on the LLM's `JsonElement` argument; pre-existing, hidden because the unit test passed an `int`). Fixed with a `ParseInt` like `ReflectionTool`'s (number or quoted number); `ManageAgents_SetLimit_ShouldAccept_TheJsonElementTheLlmSends` red before, green after. Re-run: Dragon `set_limit` 2 → UI `get_project_config` returns 2. Full suite: 192 passed.

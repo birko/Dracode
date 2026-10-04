@@ -1,5 +1,6 @@
 ﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
+using System.Text.Json;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -106,7 +107,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             var action = input.TryGetValue("action", out var actionObj) ? actionObj?.ToString()?.ToLowerInvariant() : null;
             var project = input.TryGetValue("project", out var projObj) ? projObj?.ToString() : null;
             var agentType = input.TryGetValue("agent_type", out var agentObj) ? agentObj?.ToString()?.ToLowerInvariant() : null;
-            var limit = input.TryGetValue("limit", out var limitObj) ? Convert.ToInt32(limitObj) : 0;
+            var limit = ParseInt(input, "limit");
 
             return action switch
             {
@@ -342,6 +343,19 @@ namespace DraCode.KoboldLair.Agents.Tools
                 DrakeProvider = agents.Drake.Provider,
                 KoboldProvider = agents.Kobold.Provider
             };
+        }
+
+        private static int ParseInt(Dictionary<string, object> input, string key)
+        {
+            if (!input.TryGetValue(key, out var val)) return 0;
+            if (val is JsonElement je)
+            {
+                if (je.ValueKind == JsonValueKind.Number && je.TryGetInt32(out var number)) return number;
+                return je.ValueKind == JsonValueKind.String && int.TryParse(je.GetString(), out var text) ? text : 0;
+            }
+            if (val is int i) return i;
+            if (val is long l) return (int)l;
+            return int.TryParse(val?.ToString(), out var parsed) ? parsed : 0;
         }
 
         private static bool IsValidAgentType(string agentType)
