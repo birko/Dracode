@@ -394,9 +394,10 @@ namespace DraCode.KoboldLair.Services
                 }
 
                 // Create tasks (process only pending areas if reprocessing)
+                // Always merge into the existing task files: a re-analysis adds work, it does not drop earlier areas
                 var (taskFiles, failedAreas) = await wyvern.CreateTasksAsync(
                     areasToProcess,
-                    isReprocessing ? project.Paths.TaskFiles : null
+                    project.Paths.TaskFiles
                 );
 
                 // Compute content hash for change detection
@@ -409,7 +410,7 @@ namespace DraCode.KoboldLair.Services
                 // Determine which areas still need processing
                 var areasWithTasks = taskFiles.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var pendingAreas = allAreas
-                    .Where(a => !areasWithTasks.Contains(a))
+                    .Where(a => !areasWithTasks.Contains(a) && !wyvern.AreasWithoutNewTasks.Contains(a))
                     .Concat(failedAreas)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();

@@ -2,7 +2,7 @@
 id: TASK-102
 parent: null
 feature: null
-status: todo
+status: in-progress
 priority: P2
 assignee: ai
 created: 2026-10-06
@@ -36,11 +36,11 @@ them in the prompt, assigns them (`AssignedToWyvern`, persisted) and creates the
 
 ## Acceptance criteria
 
-- [ ] Every task Wyvern creates for a feature carries that feature's id (and the feature lists its task ids), on first analysis and on re-analysis
+- [x] Every task Wyvern creates for a feature carries that feature's id (and the feature lists its task ids), on first analysis and on re-analysis
 - [ ] Re-analysing after a feature is added yields at least one task for the new feature and does not duplicate tasks that are already Done
 - [ ] A task with a feature id is committed on that feature's branch by both Drake and `/kobold` project mode
-- [ ] Regression tests for the linking and the incremental re-analysis; proven to fail before the fix
-- [ ] Full suite green
+- [x] Regression tests for the linking and the incremental re-analysis; proven to fail before the fix
+- [x] Full suite green
 - [ ] Live: add a feature to an analysed project → its task appears linked to the feature, and running it commits on `feature/<id>-…`
 
 ## Out of scope
@@ -53,4 +53,15 @@ them in the prompt, assigns them (`AssignedToWyvern`, persisted) and creates the
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-102` — leave empty until then._
+Decided 2026-10-06 (owner): schema `featureId` with an exact-name fallback (substring heuristic dropped); a new feature that receives no task stays Ready and is retried; duplicates skipped by id in any area, or by name only against Done tasks.
+
+1. Prompt names each new feature `(id: …)`; the reply schema gains `featureId`; the system prompt requires a task per new feature and forbids re-emitting listed Existing Tasks (overriding the always-README rule).
+2. Re-analysis prompt lists `## Existing Tasks` (`[id] name — status`) from `tasks/*-tasks.md` (`Wyvern.LoadExistingTaskSummaries`).
+3. `Wyvern.LinkTasksToFeatures(analysis, features)` (static) replaces the unused substring matcher; only features that received a task are assigned, the rest stay Ready (logged); the sidecar is persisted once.
+4. `CreateTasksAsync` sets `TaskRecord.FeatureId`, dedups across all area files, writes no file for an area with only duplicates (`AreasWithoutNewTasks`, not counted as pending), and merges into the existing task-file map case-insensitively; `ProjectService` always passes the existing map.
+5. Drake resolves the branch from the task's `FeatureId` and the features sidecar (`Drake.ResolveFeatureBranch`) — it no longer needs a Wyvern instance (`SetWyvern` has no callers) — so both Drake and `/kobold` project mode commit on the feature branch. Commit-message feature info prefers `FeatureId`.
+6. Live: add a feature to an analysed project, run its task via `/kobold` and via Drake, check `git log feature/…`.
+
+## Progress log
+
+- 2026-10-06 — implemented per the plan. `WyvernFeatureLinkingTests` (5): featureId reaches the task record and the feature's `TaskIds` and the prompt shows `id: f1`; a name echo links, an unknown id does not; a feature without a task stays Ready; a re-analysis lists existing tasks and adds only the new feature's task (id dedup + Done-name dedup), keeping earlier areas; `Drake.ResolveFeatureBranch`. Four mutations (no FeatureId copy, no linking, no Done-name dedup, no Existing Tasks section) each turn a test red. TASK-099's assignment test now sends a `featureId` (a feature is assigned only when it receives a task). Full suite: 221 passed.
