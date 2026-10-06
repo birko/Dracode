@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-04 (close TASK-094). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-06 (close TASK-097). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 12 | 30 | — |
-| todo         | — | — | 60 |
+| todo         | — | — | 62 |
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 2 |
 | blocked      | — | — | 25 |
-| done         | 1 | 2 | 29 |
+| done         | 1 | 2 | 30 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 16× P1 · 41× P2 · 3× P3.
+`todo` by priority: 17× P1 · 42× P2 · 3× P3.
 
 ## In progress now
 
@@ -166,6 +166,9 @@ _None_
 - [x] [TASK-091](_loose/TASK-091-new-project-tasks-not-in-database.md) Tasks of a new project never reach the database, so the REST task endpoints can't see them (P2)
 - [ ] [TASK-092](_loose/TASK-092-view-cost-report-tool-not-wired.md) The view_cost_report tool exists but no agent has it (P2)
 - [ ] [TASK-093](_loose/TASK-093-deleted-project-wyvern-reused-by-name.md) A deleted project's Wyvern stays registered by name and is reused by a new project with that name (P2)
+- [x] [TASK-097](_loose/TASK-097-spec-path-lookup-fails-on-mixed-separators.md) Approved features never reach Wyvern when ProjectsPath uses forward slashes (spec-path lookup compares mixed separators) (P1)
+- [ ] [TASK-098](_loose/TASK-098-empty-wyvern-reply-becomes-zero-task-analysis.md) An empty or unparseable Wyvern reply silently becomes a 0-task analysis and the project is marked Analyzed (P1)
+- [ ] [TASK-099](_loose/TASK-099-features-never-passed-to-wyvern.md) Approved features are never given to Wyvern — analysis sees only specification.md and features stay Ready (P2)
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
 - [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [ ] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)
