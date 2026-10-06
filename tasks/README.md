@@ -7,7 +7,7 @@ _Generated 2026-10-06 (close TASK-095, TASK-098, TASK-099, TASK-100). Run `/task
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 12 | 30 | — |
-| todo         | — | — | 61 |
+| todo         | — | — | 62 |
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 0 |
 | blocked      | — | — | 24 |
@@ -16,7 +16,7 @@ _Generated 2026-10-06 (close TASK-095, TASK-098, TASK-099, TASK-100). Run `/task
 
 _`blocked` is a flag, not a state: 24 of the 24 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 15× P1 · 42× P2 · 4× P3.
+`todo` by priority: 15× P1 · 43× P2 · 4× P3.
 
 ## In progress now
 
@@ -171,6 +171,7 @@ _None_
 - [x] [TASK-099](_loose/TASK-099-features-never-passed-to-wyvern.md) Approved features are never given to Wyvern — analysis sees only specification.md and features stay Ready (P2)
 - [ ] [TASK-101](_loose/TASK-101-diagnose-next-unusable-wyvern-reply.md) Find the root cause of empty Wyvern replies once the new log captures one (P3) ⚠ blocked: waiting for the next "Wyvern reply unusable" log line
 - [ ] [TASK-102](_loose/TASK-102-tasks-never-linked-to-features.md) Wyvern tasks are never linked to their features, so no work lands on feature branches; re-analysis of a new feature yields no task for it (P2)
+- [ ] [TASK-103](_loose/TASK-103-delete-project-leaves-git-repo-and-task-rows.md) delete_project reports success but leaves a git project's folder and the project's task rows behind (P2)
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
 - [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [ ] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)
