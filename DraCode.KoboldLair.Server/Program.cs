@@ -475,7 +475,8 @@ builder.Services.AddSingleton<ProjectService>(sp =>
     var gitService = sp.GetRequiredService<GitService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var drakeFactory = sp.GetRequiredService<DrakeFactory>();
-    return new ProjectService(repository, wyvernFactory, logger, gitService, config, drakeFactory);
+    return new ProjectService(repository, wyvernFactory, logger, gitService, config, drakeFactory,
+        sp.GetService<ITaskRepository>(), sp.GetService<SqlPlanRepository>());
 });
 
 // Register remaining factories

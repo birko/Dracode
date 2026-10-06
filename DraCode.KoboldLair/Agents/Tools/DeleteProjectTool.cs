@@ -1,5 +1,6 @@
 ﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Agents.Tools
 {
@@ -10,12 +11,12 @@ namespace DraCode.KoboldLair.Agents.Tools
     public class DeleteProjectTool : Tool
     {
         private readonly Func<string, Project?>? _getProject;
-        private readonly Func<string, bool, bool>? _deleteProject;
+        private readonly Func<string, bool, Task<ProjectDeletionResult>>? _deleteProject;
         private readonly Func<List<(string Id, string Name)>>? _getAllProjects;
 
         public DeleteProjectTool(
             Func<string, Project?>? getProject = null,
-            Func<string, bool, bool>? deleteProject = null,
+            Func<string, bool, Task<ProjectDeletionResult>>? deleteProject = null,
             Func<List<(string Id, string Name)>>? getAllProjects = null)
         {
             _getProject = getProject;
@@ -55,16 +56,16 @@ namespace DraCode.KoboldLair.Agents.Tools
             required = new[] { "project", "confirm" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> input, CancellationToken cancellationToken = default)
         {
             if (_getProject == null || _deleteProject == null)
-                return Task.FromResult("Delete project functionality is not available.");
+                return "Delete project functionality is not available.";
 
             if (!input.TryGetValue("project", out var projectVal) || string.IsNullOrEmpty(projectVal?.ToString()))
-                return Task.FromResult("Error: 'project' parameter is required.");
+                return "Error: 'project' parameter is required.";
 
             if (!input.TryGetValue("confirm", out var confirmVal) || confirmVal?.ToString()?.ToLower() != "confirmed")
-                return Task.FromResult("Error: Confirmation required. Set confirm to 'confirmed' to permanently delete this project.");
+                return "Error: Confirmation required. Set confirm to 'confirmed' to permanently delete this project.";
 
             var projectIdOrName = projectVal.ToString()!;
             var deleteFiles = input.TryGetValue("delete_files", out var deleteFilesVal) &&
@@ -87,30 +88,30 @@ namespace DraCode.KoboldLair.Agents.Tools
                 }
 
                 if (project == null)
-                    return Task.FromResult($"Project '{projectIdOrName}' not found.");
+                    return $"Project '{projectIdOrName}' not found.";
 
                 // Only allow deleting cancelled projects
                 if (project.ExecutionState != ProjectExecutionState.Cancelled)
                 {
-                    return Task.FromResult($"Cannot delete project '{project.Name}': Execution state is '{project.ExecutionState}'.\n" +
-                           "Only cancelled projects can be deleted. Use `cancel_project` first to cancel it.");
+                    return $"Cannot delete project '{project.Name}': Execution state is '{project.ExecutionState}'.\n" +
+                           "Only cancelled projects can be deleted. Use `cancel_project` first to cancel it.";
                 }
 
                 var projectName = project.Name;
                 var projectId = project.Id;
 
-                var success = _deleteProject(projectId, deleteFiles);
-                if (!success)
-                    return Task.FromResult($"Failed to delete project '{projectName}'.");
+                var result = await _deleteProject(projectId, deleteFiles);
+                if (!result.Deleted)
+                    return $"Failed to delete project '{projectName}': {result.Message}";
 
                 SendMessage("success", $"Project deleted: {projectName}");
 
-                var filesMsg = deleteFiles ? " Project files have also been removed from disk." : " Project files remain on disk.";
-                return Task.FromResult($"✅ Project '{projectName}' has been permanently deleted from the registry.{filesMsg}");
+                // The message names anything that could not be removed, so the reply never claims more than happened
+                return $"✅ Project '{projectName}' has been permanently deleted from the registry ({result.Message}).";
             }
             catch (Exception ex)
             {
-                return Task.FromResult($"Error deleting project: {ex.Message}");
+                return $"Error deleting project: {ex.Message}";
             }
         }
     }
