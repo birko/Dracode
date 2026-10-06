@@ -1011,8 +1011,10 @@ Respond with ONLY valid JSON (no markdown, no explanations):
         /// </summary>
         private void ValidateAndFixTaskDependencies(WyvernAnalysis analysis)
         {
-            // Build a set of all valid task IDs across all areas
-            var validTaskIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Build a set of all valid task IDs across all areas — plus tasks already written by an earlier analysis,
+            // which a re-analysis's new tasks may depend on without re-emitting them
+            var validTaskIds = new HashSet<string>(
+                LoadExistingTaskSummaries(_outputPath).Select(t => t.Id), StringComparer.OrdinalIgnoreCase);
             foreach (var area in analysis.Areas)
             {
                 foreach (var task in area.Tasks)

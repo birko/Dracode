@@ -58,12 +58,18 @@ public class WyvernFeatureLinkingTests : IDisposable
             throw new NotSupportedException();
     }
 
+    // A task id written "cli-2>cli-1" depends on cli-1
     private static string Reply(params (string Area, string Id, string Name, string? FeatureId)[] tasks)
     {
         var areas = tasks.GroupBy(t => t.Area).Select(g =>
             "{\"name\":\"" + g.Key + "\",\"tasks\":[" + string.Join(",", g.Select(t =>
-                "{\"id\":\"" + t.Id + "\",\"name\":\"" + t.Name + "\",\"description\":\"" + t.Name + "\",\"agentType\":\"python\"" +
-                (t.FeatureId == null ? "" : ",\"featureId\":\"" + t.FeatureId + "\"") + "}")) + "]}");
+            {
+                var parts = t.Id.Split('>');
+                var deps = parts.Length > 1 ? "\"" + parts[1] + "\"" : "";
+                return "{\"id\":\"" + parts[0] + "\",\"name\":\"" + t.Name + "\",\"description\":\"" + t.Name + "\",\"agentType\":\"python\"" +
+                    ",\"dependencies\":[" + deps + "]" +
+                    (t.FeatureId == null ? "" : ",\"featureId\":\"" + t.FeatureId + "\"") + "}";
+            })) + "]}");
         return "{\"projectName\":\"p\",\"areas\":[" + string.Join(",", areas) + "]}";
     }
 
@@ -169,7 +175,7 @@ public class WyvernFeatureLinkingTests : IDisposable
         var provider = new SequenceProvider(Reply(
             ("cli", "cli-1", "Implement greet.py", "f1"),
             ("docs", "docs-1", "Write README.md usage documentation", null),
-            ("cli", "cli-2", "Add --upper flag to greet.py", "f2")));
+            ("cli", "cli-2>doc-1", "Add --upper flag to greet.py", "f2")));
         var second = NewWyvern(provider);
 
         await second.AnalyzeProjectAsync(spec);
@@ -178,7 +184,9 @@ public class WyvernFeatureLinkingTests : IDisposable
         provider.Prompts.First().Should().Contain("[cli-1] Implement greet.py — Done").And.Contain("id: f2");
         var records = AllTaskRecords();
         records.Should().HaveCount(3, "only cli-2 is new: cli-1 exists by id, docs-1 repeats the Done README task");
-        records.Single(r => r.Task.StartsWith("[cli-2]")).FeatureId.Should().Be("f2");
+        var newTask = records.Single(r => r.Task.StartsWith("[cli-2]"));
+        newTask.FeatureId.Should().Be("f2");
+        newTask.Task.Should().Contain("(depends on: doc-1)", "a new task may depend on work planned earlier and not re-emitted");
         records.Single(r => r.Task.StartsWith("[cli-1]")).Status.Should().Be(TaskStatus.Done);
         files.Keys.Should().Contain(new[] { "cli", "documentation" }).And.NotContain("docs");
         second.AreasWithoutNewTasks.Should().Contain("docs");
