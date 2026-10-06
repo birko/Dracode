@@ -370,21 +370,34 @@ namespace DraCode.KoboldLair.Server.Services
 
             // Find the area task-file that holds the task, build a Drake for it, resolve the task + agent type.
             var (taskFilePath, area) = LocateTaskFile(project!, request.TaskId!);
+            // The Drake counts against the project's Drake limit until it is removed, so every exit path removes it —
+            // otherwise the background Drake is locked out of this project until a restart.
+            var drakeName = $"{project!.Name}:{area}:kobold-{runId:N}";
             var drake = _drakeFactory.CreateDrake(
                 taskFilePath: taskFilePath,
-                drakeName: $"{project!.Name}:{area}:kobold-{runId:N}",
+                drakeName: drakeName,
                 specificationPath: project.Paths.Specification,
                 projectId: project.Id);
 
-            await drake.ReloadTasksFromFileAsync();
+            TaskRecord task;
+            string agentType;
+            try
+            {
+                await drake.ReloadTasksFromFileAsync();
 
-            var match = drake.GetUnassignedTasks()
-                .FirstOrDefault(t => string.Equals(t.Task.Id, request.TaskId, StringComparison.OrdinalIgnoreCase));
-            if (match.Task is null)
-                throw new InvalidOperationException(
-                    $"task '{request.TaskId}' is not an unassigned, ready task in project '{project.Name}' (already running/done, or blocked by dependencies)");
+                var match = drake.GetUnassignedTasks()
+                    .FirstOrDefault(t => string.Equals(t.Task.Id, request.TaskId, StringComparison.OrdinalIgnoreCase));
+                if (match.Task is null)
+                    throw new InvalidOperationException(
+                        $"task '{request.TaskId}' is not an unassigned, ready task in project '{project.Name}' (already running/done, or blocked by dependencies)");
 
-            var (task, agentType) = match;
+                (task, agentType) = match;
+            }
+            catch
+            {
+                _drakeFactory.RemoveDrake(drakeName);
+                throw;
+            }
 
             // Run in the background; the Kobold publishes under runId (the endpoint is already subscribed).
             // The pump terminates when the event source completes the run or we publish a terminal error below.
@@ -409,6 +422,10 @@ namespace DraCode.KoboldLair.Server.Services
                     // if the Kobold already completed the run in its finally).
                     _eventSource.Publish(new RunErrorEvent { RunId = runId, Message = ex.Message });
                     _eventSource.CompleteRun(runId);
+                }
+                finally
+                {
+                    _drakeFactory.RemoveDrake(drakeName);
                 }
             }, CancellationToken.None);
 
