@@ -2,7 +2,7 @@
 id: TASK-099
 parent: null
 feature: null
-status: todo
+status: in-progress
 priority: P2
 assignee: ai
 created: 2026-10-04
@@ -30,9 +30,9 @@ features, two analyses, both features still `Ready`, `processedFeatures: []`.
 ## Acceptance criteria
 
 - [ ] Wyvern analysis receives the project's specification with its features; `Ready`/`Draft` features appear in the prompt and move to `AssignedToWyvern` with their feature branches
-- [ ] `analysis.processedFeatures` lists the features that were analysed
-- [ ] Regression test: analysing a project whose spec has `Ready` features assigns them; proven to fail before the fix
-- [ ] Full suite green
+- [x] `analysis.processedFeatures` lists the features that were analysed
+- [x] Regression test: analysing a project whose spec has `Ready` features assigns them; proven to fail before the fix
+- [x] Full suite green
 
 ## Out of scope
 
@@ -44,4 +44,10 @@ features, two analyses, both features still `Ready`, `processedFeatures: []`.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-099` — leave empty until then._
+1. `ProjectService.LoadSpecificationForAnalysisAsync(project)` (static) builds the `Specification` from `project.Paths.Specification` and loads the features sidecar beside it; both analysis calls (full and pending-areas) pass it to `Wyvern.AnalyzeProjectAsync`.
+2. `Wyvern.AnalyzeProjectAsync` assigns the Ready/Draft features only after the analysis succeeds (a failed one leaves them Ready for the next attempt) and persists the sidecar with `SpecificationService.PersistFeaturesAsync` — before, the status change was in memory only.
+3. Tests with a recording `ILlmProvider`; live: add a feature to `drake-switch-check` and check status + feature branch.
+
+## Progress log
+
+- 2026-10-06 — `WyvernFeatureAssignmentTests` (3): the loader carries the features; a successful analysis puts the Ready feature in the prompt, persists it `AssignedToWyvern` and lists it in `processedFeatures` (red against the previous Wyvern — status was never persisted); a failed analysis leaves it Ready. Full suite: 202 passed. Feature branches need a git service, so they are left to the live check.
