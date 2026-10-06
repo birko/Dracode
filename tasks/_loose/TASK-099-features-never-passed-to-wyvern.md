@@ -2,7 +2,7 @@
 id: TASK-099
 parent: null
 feature: null
-status: in-progress
+status: done
 priority: P2
 assignee: ai
 created: 2026-10-04
@@ -29,7 +29,7 @@ features, two analyses, both features still `Ready`, `processedFeatures: []`.
 
 ## Acceptance criteria
 
-- [ ] Wyvern analysis receives the project's specification with its features; `Ready`/`Draft` features appear in the prompt and move to `AssignedToWyvern` with their feature branches
+- [x] Wyvern analysis receives the project's specification with its features; `Ready`/`Draft` features appear in the prompt and move to `AssignedToWyvern` with their feature branches — live 2026-10-06
 - [x] `analysis.processedFeatures` lists the features that were analysed
 - [x] Regression test: analysing a project whose spec has `Ready` features assigns them; proven to fail before the fix
 - [x] Full suite green
@@ -40,7 +40,7 @@ features, two analyses, both features still `Ready`, `processedFeatures: []`.
 
 ## Human test plan
 
-- [ ] On the dev server, approve a feature → after analysis `specification.features.json` shows it `AssignedToWyvern` and `git branch` in the project lists `feature/<id>-…`
+- [x] On the dev server, approve a feature → after analysis `specification.features.json` shows it `AssignedToWyvern` and `git branch` in the project lists `feature/<id>-…` — observed 2026-10-06: three features `AssignedToWyvern` with `gitBranch`, three `feature/…` branches
 
 ## Implementation plan
 
@@ -51,3 +51,4 @@ features, two analyses, both features still `Ready`, `processedFeatures: []`.
 ## Progress log
 
 - 2026-10-06 — `WyvernFeatureAssignmentTests` (3): the loader carries the features; a successful analysis puts the Ready feature in the prompt, persists it `AssignedToWyvern` and lists it in `processedFeatures` (red against the previous Wyvern — status was never persisted); a failed analysis leaves it Ready. Full suite: 202 passed. Feature branches need a git service, so they are left to the live check.
+- 2026-10-06 — live (dev server, combined build): added and approved "Uppercase flag" on `drake-switch-check` → Wyvern re-analysis: all three features `AssignedToWyvern` and persisted with `gitBranch`, branches `feature/21ea737c-greeting-script`, `feature/d710eb88-usage-readme`, `feature/cd126c51-uppercase-flag` created, `processedFeatures` lists all three. Tasks were not linked to features and the new feature got no task — filed as TASK-102.
