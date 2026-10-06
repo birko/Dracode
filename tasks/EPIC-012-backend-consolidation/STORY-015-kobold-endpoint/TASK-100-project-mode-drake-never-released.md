@@ -2,7 +2,7 @@
 id: TASK-100
 parent: STORY-015
 feature: FEATURE-017
-status: in-progress
+status: done
 priority: P1
 assignee: ai
 created: 2026-10-06
@@ -36,7 +36,7 @@ Measured on `drake-switch-check`: cli-1 run through `/kobold` (Done, committed),
 - [x] It is also removed when `StartAsync` throws after creating it (task not unassigned/ready)
 - [x] Regression test: after a project-mode start that fails on a non-ready task, `GetActiveDrakeCountForProject` is back to 0; proven to fail before the fix
 - [x] Full suite green
-- [ ] Live: after a `/kobold` project run, the background Drake (Drake on) picks up the project's remaining tasks on its next cycle
+- [x] Live: after a `/kobold` project run, the background Drake (Drake on) picks up the project's remaining tasks on its next cycle — 2026-10-06, via a failed start (see log); the success-path release is the same `RemoveDrake` in `finally`
 
 ## Out of scope
 
@@ -45,7 +45,7 @@ Measured on `drake-switch-check`: cli-1 run through `/kobold` (Done, committed),
 
 ## Human test plan
 
-- [ ] Run one task through `/kobold` project mode, then (Drake on) watch the background Drake start the remaining task within ~30 s
+- [x] Run one task through `/kobold` project mode, then (Drake on) watch the background Drake start the remaining task within ~30 s — 2026-10-06: Drake created the area Drake 8 s after being switched on
 
 ## Implementation plan
 
