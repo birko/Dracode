@@ -4,6 +4,7 @@ using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Data.Repositories.Sql;
 using DraCode.KoboldLair.Orchestrators;
 
 namespace DraCode.KoboldLair.Services
@@ -52,6 +53,8 @@ namespace DraCode.KoboldLair.Services
         private readonly ILogger<ProjectService> _logger;
         private readonly GitService _gitService;
         private readonly DrakeFactory? _drakeFactory;
+        private readonly ITaskRepository? _taskRepository;
+        private readonly SqlPlanRepository? _planRepository;
         private readonly string _projectsPath;
 
         public ProjectService(
@@ -60,8 +63,12 @@ namespace DraCode.KoboldLair.Services
             ILogger<ProjectService> logger,
             GitService gitService,
             KoboldLairConfiguration config,
-            DrakeFactory? drakeFactory = null)
+            DrakeFactory? drakeFactory = null,
+            ITaskRepository? taskRepository = null,
+            SqlPlanRepository? planRepository = null)
         {
+            _taskRepository = taskRepository;
+            _planRepository = planRepository;
             _repository = repository;
             _wyvernFactory = wyvernFactory;
             _logger = logger;
@@ -597,6 +604,91 @@ namespace DraCode.KoboldLair.Services
             _logger.LogInformation("🔄 Retry initiated for project '{ProjectName}' - reset to New status", project.Name);
 
             return true;
+        }
+
+        /// <summary>
+        /// Permanently deletes a project: its registry row, its task and plan rows, and — when
+        /// <paramref name="deleteFiles"/> — its folder under the projects path. A folder outside the projects path (an
+        /// imported project's source) is never deleted. The message says what was removed and what could not be.
+        /// </summary>
+        public async Task<ProjectDeletionResult> DeleteProjectAsync(string projectId, bool deleteFiles)
+        {
+            var project = _repository.GetById(projectId);
+            if (project == null)
+                return new ProjectDeletionResult(false, $"Project '{projectId}' not found.");
+
+            var notes = new List<string>();
+            if (deleteFiles)
+            {
+                var folder = GetOwnedProjectFolder(project);
+                if (folder == null)
+                {
+                    notes.Add("no project folder inside the projects path — nothing deleted on disk");
+                }
+                else
+                {
+                    try
+                    {
+                        DeleteDirectory(folder);
+                        notes.Add($"deleted {folder}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to delete project files for {Project}", project.Name);
+                        notes.Add($"⚠ could not delete {folder} ({ex.Message}) — remove it by hand");
+                    }
+                }
+            }
+
+            if (_taskRepository != null)
+            {
+                var tasks = await _taskRepository.GetByProjectAsync(projectId);
+                foreach (var task in tasks)
+                    await _taskRepository.DeleteTaskAsync(task.Id);
+                notes.Add($"{tasks.Count} task(s) removed");
+            }
+
+            if (_planRepository != null)
+            {
+                var plans = await _planRepository.GetPlansForProjectAsync(projectId);
+                foreach (var plan in plans)
+                    await _planRepository.DeletePlanAsync(projectId, plan.TaskId);
+                notes.Add($"{plans.Count} plan(s) removed");
+            }
+
+            await _repository.DeleteAsync(projectId);
+            _logger.LogInformation("Project {Name} ({Id}) deleted: {Notes}", project.Name, projectId, string.Join("; ", notes));
+            return new ProjectDeletionResult(true, string.Join("; ", notes));
+        }
+
+        /// <summary>
+        /// The project's own folder under the projects path, or null when it has none there
+        /// </summary>
+        private string? GetOwnedProjectFolder(Project project)
+        {
+            var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_projectsPath)) + Path.DirectorySeparatorChar;
+            var candidates = new[]
+            {
+                string.IsNullOrWhiteSpace(project.Paths.Specification)
+                    ? null
+                    : Path.GetDirectoryName(Path.GetFullPath(project.Paths.Specification)),
+                Path.Combine(root, SpecificationService.SanitizeProjectName(project.Name))
+            };
+
+            return candidates
+                .Where(c => !string.IsNullOrEmpty(c))
+                .Select(c => Path.GetFullPath(c!))
+                .FirstOrDefault(c => c.StartsWith(root, StringComparison.OrdinalIgnoreCase) && Directory.Exists(c));
+        }
+
+        /// <summary>
+        /// Deletes a folder recursively, clearing read-only attributes first (git leaves its object files read-only)
+        /// </summary>
+        private static void DeleteDirectory(string folder)
+        {
+            foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+                File.SetAttributes(file, FileAttributes.Normal);
+            Directory.Delete(folder, recursive: true);
         }
 
         /// <summary>
@@ -1316,4 +1408,9 @@ namespace DraCode.KoboldLair.Services
             return _repository.GetMaxParallel(projectId, "kobold", defaultValue: 1);
         }
     }
+
+    /// <summary>
+    /// Outcome of <see cref="ProjectService.DeleteProjectAsync"/>: whether the project was deleted, and what was removed or left
+    /// </summary>
+    public sealed record ProjectDeletionResult(bool Deleted, string Message);
 }

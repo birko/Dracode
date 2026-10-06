@@ -665,7 +665,7 @@ namespace DraCode.KoboldLair.Server.Services
                 viewWorkspaceTool: new ViewWorkspaceTool(_projectService),
                 deleteProjectTool: new DeleteProjectTool(
                     getProject: id => _projectService.GetProject(id),
-                    deleteProject: (id, deleteFiles) => DeleteProjectFromRegistry(id, deleteFiles),
+                    deleteProject: (id, deleteFiles) => _projectService.DeleteProjectAsync(id, deleteFiles),
                     getAllProjects: () => GetVisibleProjects(session).Select(p => (p.Id, p.Name)).ToList()),
                 notificationsTool: _notificationService != null ? new NotificationsTool(
                     getPendingNotifications: projectName =>
@@ -1920,45 +1920,6 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Gets list of failed projects for retry tool
         /// </summary>
-        /// <summary>
-        /// Deletes a project from the registry. Optionally removes project files from disk.
-        /// </summary>
-        private bool DeleteProjectFromRegistry(string projectId, bool deleteFiles)
-        {
-            try
-            {
-                var project = _projectService.GetProject(projectId);
-                if (project == null) return false;
-
-                if (deleteFiles)
-                {
-                    // Delete the project folder from disk
-                    var folder = _projectService.CreateProjectFolder(project.Name);
-                    if (Directory.Exists(folder))
-                    {
-                        try
-                        {
-                            Directory.Delete(folder, recursive: true);
-                            _logger.LogInformation("Deleted project files: {Folder}", folder);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to delete project files for {Project}", project.Name);
-                        }
-                    }
-                }
-
-                _projectRepository.Delete(projectId);
-                _logger.LogInformation("Project {Name} ({Id}) deleted from registry (files: {DeleteFiles})", project.Name, projectId, deleteFiles);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting project {Id}", projectId);
-                return false;
-            }
-        }
-
         private List<(string Id, string Name, string Status, string? ErrorMessage)> GetFailedProjects()
         {
             return _projectService.GetAllProjects()
