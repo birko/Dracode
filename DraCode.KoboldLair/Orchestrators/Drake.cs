@@ -1403,9 +1403,20 @@ namespace DraCode.KoboldLair.Orchestrators
         /// Sets up a git worktree for the task's feature branch, enabling parallel work across branches.
         /// Returns (branchName, worktreePath) if a worktree was created, (null, null) otherwise.
         /// </summary>
+        /// <summary>
+        /// The git branch of the feature a task belongs to (its <see cref="TaskRecord.FeatureId"/>), or null
+        /// </summary>
+        public static string? ResolveFeatureBranch(TaskRecord task, IEnumerable<Feature> features)
+        {
+            if (string.IsNullOrEmpty(task.FeatureId))
+                return null;
+            var branch = features.FirstOrDefault(f => string.Equals(f.Id, task.FeatureId, StringComparison.Ordinal))?.GitBranch;
+            return string.IsNullOrWhiteSpace(branch) ? null : branch;
+        }
+
         private async Task<(string? BranchName, string? WorktreePath)> SetupFeatureBranchWorktreeAsync(TaskRecord task)
         {
-            if (_gitService == null || _wyvern == null)
+            if (_gitService == null)
                 return (null, null);
 
             try
@@ -1419,14 +1430,16 @@ namespace DraCode.KoboldLair.Orchestrators
                 // Find the feature branch for this task
                 string? featureBranch = null;
 
-                // First try: task has explicit FeatureId
+                // First try: the task's own FeatureId against the features sidecar (no Wyvern instance needed)
                 if (!string.IsNullOrEmpty(task.FeatureId))
                 {
-                    featureBranch = _wyvern.GetFeatureBranch(task.FeatureId);
+                    var specification = await LoadSpecificationAsync();
+                    featureBranch = ResolveFeatureBranch(task, specification?.Features ?? new List<Feature>())
+                        ?? _wyvern?.GetFeatureBranch(task.FeatureId);
                 }
 
                 // Second try: find via Wyvern analysis task-to-feature mapping
-                if (featureBranch == null && _wyvern.Analysis != null)
+                if (featureBranch == null && _wyvern?.Analysis != null)
                 {
                     foreach (var area in _wyvern.Analysis.Areas)
                     {
@@ -1725,6 +1738,17 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         private (string? featureId, string? featureName) GetFeatureInfoForTask(TaskRecord task, string? currentBranch)
         {
+            // The task's own feature link wins; the branch name supplies a readable feature name
+            if (!string.IsNullOrEmpty(task.FeatureId))
+            {
+                var name = string.IsNullOrEmpty(currentBranch)
+                    ? null
+                    : System.Text.RegularExpressions.Regex.Match(currentBranch, @"^feature/[^-]+-(.+)$") is { Success: true } m
+                        ? m.Groups[1].Value.Replace("-", " ")
+                        : null;
+                return (task.FeatureId, _wyvern?.GetFeatureNameById(task.FeatureId) ?? name);
+            }
+
             // Try to get feature info from Wyvern analysis first
             if (_wyvern?.Analysis != null)
             {

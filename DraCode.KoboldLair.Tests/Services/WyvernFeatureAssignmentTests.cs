@@ -17,8 +17,9 @@ namespace DraCode.KoboldLair.Tests.Services;
 /// </summary>
 public class WyvernFeatureAssignmentTests : IDisposable
 {
+    // The task carries the feature's id: since TASK-102 only a feature that received a task is assigned
     private const string ReplyWithTasks =
-        "{\"projectName\":\"p\",\"areas\":[{\"name\":\"cli\",\"tasks\":[{\"id\":\"cli-1\",\"name\":\"greet\",\"description\":\"Write greet.py\",\"agentType\":\"python\"}]}]}";
+        "{\"projectName\":\"p\",\"areas\":[{\"name\":\"cli\",\"tasks\":[{\"id\":\"cli-1\",\"name\":\"greet\",\"description\":\"Write greet.py\",\"agentType\":\"python\",\"featureId\":\"f1\"}]}]}";
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"dracode_wyvern_features_test_{Guid.NewGuid():N}");
     private readonly string _specPath;

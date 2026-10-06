@@ -336,36 +336,64 @@ namespace DraCode.KoboldLair.Orchestrators
                 .ToList();
         }
 
+        private readonly HashSet<string> _areasWithoutNewTasks = new(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>
-        /// Links tasks to features based on feature context in task description
-        /// Call this after analysis to associate tasks with features
+        /// Areas of the last <see cref="CreateTasksAsync"/> whose tasks all existed already, so no task file was written
         /// </summary>
-        public void LinkTasksToFeatures()
+        public IReadOnlyCollection<string> AreasWithoutNewTasks => _areasWithoutNewTasks;
+
+        private static readonly System.Text.RegularExpressions.Regex TaskLine =
+            new(@"^\[(?<id>[^\]]+)\]\s*(?<name>.*?)(?:\s*\(depends on:[^)]*\))?\s*$");
+
+        /// <summary>
+        /// The tasks already written to a project's task files (<c>tasks/*-tasks.md</c>): Wyvern id, name and status
+        /// </summary>
+        public static List<(string Id, string Name, TaskStatus Status)> LoadExistingTaskSummaries(string outputPath)
         {
-            if (_specification == null || _analysis == null)
-                return;
+            var summaries = new List<(string Id, string Name, TaskStatus Status)>();
+            var taskDir = Path.Combine(outputPath, "tasks");
+            if (!Directory.Exists(taskDir))
+                return summaries;
 
-            foreach (var feature in _specification.Features.Where(f => f.Status == FeatureStatus.AssignedToWyvern))
+            foreach (var file in Directory.GetFiles(taskDir, "*-tasks.md"))
             {
-                // Find tasks that mention this feature
-                var relatedTasks = _analysis.Areas
-                    .SelectMany(area => area.Tasks)
-                    .Where(task =>
-                        task.Description.Contains(feature.Name, StringComparison.OrdinalIgnoreCase) ||
-                        task.Name.Contains(feature.Name, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-
-                // Link tasks to feature
-                foreach (var task in relatedTasks)
+                var tracker = new TaskTracker();
+                tracker.LoadFromFile(file);
+                foreach (var record in tracker.GetAllTasks())
                 {
-                    task.FeatureId = feature.Id;
-
-                    // Add task ID to feature's task list
-                    if (!feature.TaskIds.Contains(task.Id))
-                    {
-                        feature.TaskIds.Add(task.Id);
-                    }
+                    var match = TaskLine.Match(record.Task);
+                    if (match.Success)
+                        summaries.Add((match.Groups["id"].Value, match.Groups["name"].Value, record.Status));
                 }
+            }
+            return summaries;
+        }
+
+        private static string NormalizeTaskName(string name) =>
+            System.Text.RegularExpressions.Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9]+", " ").Trim();
+
+        /// <summary>
+        /// Links each analysed task to the feature its <c>featureId</c> names. A reply that echoes the feature's name
+        /// instead of its id is accepted on an exact (case-insensitive) match; anything else unlinks the task. Each
+        /// linked task id is added to its feature's <see cref="Feature.TaskIds"/>.
+        /// </summary>
+        public static void LinkTasksToFeatures(WyvernAnalysis analysis, IReadOnlyCollection<Feature> features)
+        {
+            foreach (var task in analysis.Areas.SelectMany(area => area.Tasks))
+            {
+                if (string.IsNullOrWhiteSpace(task.FeatureId))
+                {
+                    task.FeatureId = null;
+                    continue;
+                }
+
+                var feature = features.FirstOrDefault(f => string.Equals(f.Id, task.FeatureId, StringComparison.Ordinal))
+                    ?? features.FirstOrDefault(f => string.Equals(f.Name, task.FeatureId.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                task.FeatureId = feature?.Id;
+                if (feature != null && !feature.TaskIds.Contains(task.Id))
+                    feature.TaskIds.Add(task.Id);
             }
         }
 
@@ -560,8 +588,19 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 prompt += "\n\n## New Features to Implement:\n\n";
                 foreach (var feature in newFeatures)
                 {
-                    prompt += $"### {feature.Name} (Priority: {feature.Priority})\n";
+                    prompt += $"### {feature.Name} (id: {feature.Id}, Priority: {feature.Priority})\n";
                     prompt += $"{feature.Description}\n\n";
+                }
+            }
+
+            // On re-analysis, show the work already planned so the model adds only what the new features need
+            var existingTasks = LoadExistingTaskSummaries(_outputPath);
+            if (existingTasks.Any())
+            {
+                prompt += "\n\n## Existing Tasks (already planned — do NOT re-emit; create tasks only for New Features):\n\n";
+                foreach (var existing in existingTasks)
+                {
+                    prompt += $"- [{existing.Id}] {existing.Name} — {existing.Status}\n";
                 }
             }
 
@@ -654,12 +693,24 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                         "Wyvern analysis contained no tasks — the model reply was empty or not in the expected shape");
                 }
 
-                // Assign the analysed features only now, so a failed analysis leaves them Ready for the next attempt,
-                // and persist the change — the sidecar is what the next analysis and Sage read
-                if (newFeatures.Any())
+                // Link tasks to features, then assign only the features that received a task: one the model left
+                // without work stays Ready, so the next analysis offers it again. Persist once — the sidecar is what
+                // the next analysis, Drake's branch choice and Sage read.
+                if (_specification != null)
                 {
-                    await AssignFeaturesAsync(newFeatures);
-                    if (_specification != null)
+                    LinkTasksToFeatures(_analysis, _specification.Features);
+
+                    var linkedFeatureIds = _analysis.Areas.SelectMany(a => a.Tasks)
+                        .Where(t => t.FeatureId != null).Select(t => t.FeatureId!).ToHashSet();
+                    var covered = newFeatures.Where(f => linkedFeatureIds.Contains(f.Id)).ToList();
+                    foreach (var missed in newFeatures.Except(covered))
+                    {
+                        _logger?.LogWarning("Wyvern produced no task for feature {Feature} ({FeatureId}); it stays Ready for the next analysis",
+                            missed.Name, missed.Id);
+                    }
+
+                    await AssignFeaturesAsync(covered);
+                    if (covered.Any() || linkedFeatureIds.Any())
                         await SpecificationService.PersistFeaturesAsync(_specification);
                 }
 
@@ -747,15 +798,25 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 throw new InvalidOperationException("Must call AnalyzeProjectAsync() first");
             }
 
-            var taskFiles = existingTaskFiles != null
-                ? new Dictionary<string, string>(existingTaskFiles)
-                : new Dictionary<string, string>();
+            // Area names are matched case-insensitively ("CLI" from an earlier run and "cli" now are one file)
+            var taskFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (existingArea, existingPath) in existingTaskFiles ?? new Dictionary<string, string>())
+                taskFiles[existingArea] = existingPath;
             var failedAreas = new List<string>();
 
             // Determine which areas to process
             var areas = areasToProcess != null
                 ? _analysis.Areas.Where(a => areasToProcess.Contains(a.Name, StringComparer.OrdinalIgnoreCase)).ToList()
                 : _analysis.Areas;
+
+            _areasWithoutNewTasks.Clear();
+
+            // A re-analysis re-plans against everything already written, in every area: skip a task whose id exists
+            // anywhere, or whose name matches a task that is already Done (a repeated not-yet-done task is kept)
+            var existingTasks = LoadExistingTaskSummaries(_outputPath);
+            var existingTaskIds = existingTasks.Select(t => t.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var doneTaskNames = existingTasks.Where(t => t.Status == TaskStatus.Done)
+                .Select(t => NormalizeTaskName(t.Name)).ToHashSet();
 
             foreach (var area in areas)
             {
@@ -786,31 +847,22 @@ Respond with ONLY valid JSON (no markdown, no explanations):
 
                     // Load existing tracker if file exists to preserve task statuses
                     var tracker = new TaskTracker();
-                    var existingTaskIds = new HashSet<string>();
-
-                    if (File.Exists(areaOutputPath))
+                    var areaFileExists = File.Exists(areaOutputPath);
+                    if (areaFileExists)
                     {
                         tracker.LoadFromFile(areaOutputPath);
-                        // Index existing tasks by their task ID (e.g., "BE-001")
-                        foreach (var existingTask in tracker.GetAllTasks())
-                        {
-                            // Extract task ID from task format: [frontend-1] Task name...
-                            var match = System.Text.RegularExpressions.Regex.Match(
-                                existingTask.Task, @"^\[([a-zA-Z]+-\d+)\]");
-                            if (match.Success)
-                            {
-                                existingTaskIds.Add(match.Groups[1].Value);
-                            }
-                        }
                     }
 
+                    var added = 0;
                     foreach (var task in area.Tasks.OrderBy(t => t.DependencyLevel))
                     {
                         // Skip tasks that already exist - preserve their current status
-                        if (existingTaskIds.Contains(task.Id))
+                        if (existingTaskIds.Contains(task.Id) || doneTaskNames.Contains(NormalizeTaskName(task.Name)))
                         {
                             continue;
                         }
+                        existingTaskIds.Add(task.Id);
+                        added++;
 
                         // Format: [task-id] Task name: Description
                         var deps = task.Dependencies.Any()
@@ -821,6 +873,7 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                         // Parse priority from string to enum
                         var priority = ParsePriority(task.Priority);
                         var taskRecord = tracker.AddTask(taskDescription, priority);
+                        taskRecord.FeatureId = task.FeatureId;
 
                         // Capture specification version for drift detection
                         if (_specification != null)
@@ -835,6 +888,13 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                             var normalizedAgentType = AgentTypeValidator.Normalize(task.AgentType);
                             tracker.UpdateTask(taskRecord, TaskStatus.Unassigned, normalizedAgentType);
                         }
+                    }
+
+                    // An area whose tasks all exist already adds no new file — it is done, not pending
+                    if (added == 0 && !areaFileExists)
+                    {
+                        _areasWithoutNewTasks.Add(area.Name);
+                        continue;
                     }
 
                     // Save the tracker with all individual tasks
@@ -951,8 +1011,10 @@ Respond with ONLY valid JSON (no markdown, no explanations):
         /// </summary>
         private void ValidateAndFixTaskDependencies(WyvernAnalysis analysis)
         {
-            // Build a set of all valid task IDs across all areas
-            var validTaskIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Build a set of all valid task IDs across all areas — plus tasks already written by an earlier analysis,
+            // which a re-analysis's new tasks may depend on without re-emitting them
+            var validTaskIds = new HashSet<string>(
+                LoadExistingTaskSummaries(_outputPath).Select(t => t.Id), StringComparer.OrdinalIgnoreCase);
             foreach (var area in analysis.Areas)
             {
                 foreach (var task in area.Tasks)

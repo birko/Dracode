@@ -94,6 +94,10 @@ Kobolds can escalate back with: `task_infeasible` / `missing_dependency` / `need
   * CSS → css/ or styles/ (NEVER root)
   * Python/C# entry points (main.py, Program.cs) → root or src/
 
+## Features and Existing Tasks:
+- Every feature under ""New Features to Implement"" gets at least one task, and each such task sets `featureId` to that feature's id exactly as given; tasks that implement no listed feature set `featureId` to null
+- When the message lists ""Existing Tasks"", that work is already planned: do NOT emit those tasks again (not even the README task) — emit only the new work the New Features need; a new task may list existing task ids in `dependencies`
+
 ## Requirements Traceability (mandatory):
 After generating tasks, re-scan the spec and verify every requirement maps to a task. If any requirement is uncovered, CREATE a task for it. Output the mapping in `requirementsCoverage`.
 
@@ -159,7 +163,8 @@ The output JSON schema is supplied in your user message. Respond with PURE JSON 
           ""complexity"": ""low|medium|high"",
           ""dependencies"": [],
           ""dependencyLevel"": 0,
-          ""priority"": ""critical|high|normal|low""
+          ""priority"": ""critical|high|normal|low"",
+          ""featureId"": ""id of the New Feature this task implements, or null""
         }}
       ]
     }}
