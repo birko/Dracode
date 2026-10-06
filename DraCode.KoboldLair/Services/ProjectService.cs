@@ -289,6 +289,28 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Loads the project's specification with its features (the <c>specification.features.json</c> sidecar beside
+        /// it) for Wyvern, or <c>null</c> when the specification file does not exist.
+        /// </summary>
+        public static async Task<Specification?> LoadSpecificationForAnalysisAsync(Project project)
+        {
+            var specPath = project.Paths.Specification;
+            if (string.IsNullOrWhiteSpace(specPath) || !File.Exists(specPath))
+                return null;
+
+            var folder = Path.GetDirectoryName(Path.GetFullPath(specPath)) ?? string.Empty;
+            var spec = new Specification
+            {
+                Name = project.Name,
+                FilePath = specPath,
+                ProjectFolder = folder,
+                Content = await File.ReadAllTextAsync(specPath)
+            };
+            await SpecificationService.LoadFeaturesAsync(spec, folder);
+            return spec;
+        }
+
+        /// <summary>
         /// Runs Wyvern analysis on a project's specification.
         /// Only sets status to Analyzed if Wyrm is enabled and all areas have tasks assigned.
         /// If some areas fail, they are stored as pending areas for reprocessing on subsequent runs.
@@ -347,7 +369,7 @@ namespace DraCode.KoboldLair.Services
                     }
 
                     // Run full analysis with optional Wyrm recommendations
-                    analysis = await wyvern.AnalyzeProjectAsync(null, wyrmRecommendation);
+                    analysis = await wyvern.AnalyzeProjectAsync(await LoadSpecificationForAnalysisAsync(project), wyrmRecommendation);
 
                     // Save analysis report (simplified name - project folder provides context)
                     var analysisReportPath = Path.Combine(project.Paths.Output, "analysis.md");
@@ -361,7 +383,7 @@ namespace DraCode.KoboldLair.Services
                         project.Tracking.PendingAreas.Count, project.Name);
 
                     // For reprocessing, we need the existing analysis
-                    analysis = wyvern.Analysis ?? await wyvern.AnalyzeProjectAsync();
+                    analysis = wyvern.Analysis ?? await wyvern.AnalyzeProjectAsync(await LoadSpecificationForAnalysisAsync(project));
                 }
 
                 // Create tasks (process only pending areas if reprocessing)
