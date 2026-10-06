@@ -1,6 +1,6 @@
 ---
 id: FEATURE-017
-generated: 2026-10-03
+generated: 2026-10-06
 ---
 
 # /kobold WebSocket endpoint — ad-hoc + project-scoped Kobold execution — Status
@@ -13,7 +13,7 @@ generated: 2026-10-03
 
 | State | Count |
 |-------|-------|
-| ✅ approved | 6 |
+| ✅ approved | 7 |
 | ✏️ changed | 0 |
 | ⏸️ deferred | 0 |
 | ❌ removed | 0 |
@@ -21,21 +21,26 @@ generated: 2026-10-03
 
 ## Build progress
 
-2 / 5 tasks done.
+6 / 7 tasks done.
 
 | Task | Status |
 |------|--------|
 | Live progress feed for a single run (TASK-037) | ✅ done |
-| The worker endpoint + its opening-message protocol (TASK-038) | 🔍 built, awaiting live check — ⚠ blocked |
+| The worker endpoint + its opening-message protocol (TASK-038) | ✅ done |
 | Ad-hoc mode — point it at a folder (TASK-039) | ✅ done |
-| Project mode — point it at an existing task (TASK-040) | 🔍 built, awaiting live check — ⚠ blocked |
+| Project mode — point it at an existing task (TASK-040) | ✅ done |
 | Allow the worker to work in folders outside a project (TASK-041) | ⬜ todo |
+| Switch a project's background supervisor off, so its tasks run only on demand (TASK-095) | ✅ done |
+| Project mode no longer blocks the background supervisor afterwards (TASK-100) | ✅ done |
 
 ## What can be tested now
 
-Ad-hoc runs work end to end: on 2026-10-03 a run pointed at a scratch folder did its job and saved the result
-on its own branch. The live check of **project mode** could not be run: it needs a project that has been through
-the planning agents, and those agents are currently refused by the AI provider (account balance — TASK-086).
+Both modes work end to end. On 2026-10-06 a small test project was run with its background supervisor switched off:
+nothing started on its own; one task was run on demand through project mode and its result was saved; switching the
+supervisor back on made it pick up the remaining task within seconds and finish it.
+
+One part of project mode is not shown yet: saving the result on the feature's own branch. The planning step does not yet
+attach tasks to their features, so results are saved on the main line instead — tracked as TASK-102.
 
 ## Prototype
 
@@ -43,5 +48,4 @@ Skipped — this is a backend worker endpoint; the test suite and a live run are
 
 ## Next step
 
-Resolve the AI-provider access for the planning agents (TASK-086), then run the project-mode live check to sign
-off TASK-038 and TASK-040. TASK-041 can be built meanwhile.
+TASK-041 (working in folders outside a project). Saving project-mode results on feature branches follows TASK-102.

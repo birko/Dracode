@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-06 (close TASK-097). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-06 (close TASK-095, TASK-098, TASK-099, TASK-100). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 12 | 30 | — |
-| todo         | — | — | 62 |
+| todo         | — | — | 61 |
 | in-progress  | 2 | 4 | 0 |
-| verify       | — | — | 2 |
-| blocked      | — | — | 25 |
-| done         | 1 | 2 | 30 |
+| verify       | — | — | 0 |
+| blocked      | — | — | 24 |
+| done         | 1 | 2 | 36 |
 | cancelled    | 0 | 0 | 0 |
 
-_`blocked` is a flag, not a state: 25 of the 25 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
+_`blocked` is a flag, not a state: 24 of the 24 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 17× P1 · 42× P2 · 3× P3.
+`todo` by priority: 15× P1 · 42× P2 · 4× P3.
 
 ## In progress now
 
@@ -24,8 +24,7 @@ _None_
 
 ## In review (code complete, awaiting human sign-off)
 
-- [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
-- [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1, ai) — EPIC-012 → STORY-015 ⚠ blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
+_None_
 
 ## Tree
 
@@ -58,18 +57,19 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: does external evaluator catch failures the reflect tool misses? — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (15/27)
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (19/28)
   - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko (P1) · FEATURE-077
   - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` (P2) · FEATURE-021
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2) (done)
     - [x] [TASK-029](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-029-delete-old-stack.md) Retire DraCode.WebSocket and DraCode.Web (P1) · FEATURE-016
     - [x] [TASK-070](EPIC-012-backend-consolidation/STORY-014-retire-old-stack/TASK-070-scrub-full-project-spec.md) Retire FULL_PROJECT_SPECIFICATION.md (stale regeneration spec) (P2) · FEATURE-016
-  - STORY-015 /kobold WebSocket endpoint — ad-hoc + project-scoped Kobold execution — in-progress (2/6)
+  - STORY-015 /kobold WebSocket endpoint — ad-hoc + project-scoped Kobold execution — in-progress (6/7)
     - [x] [TASK-037](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-037-run-event-source.md) Internal per-run event source (Kobold tool-loop event sink) (P1) · FEATURE-017
-    - [ ] [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1) 🔍 verify ⚠ blocked · FEATURE-017
+    - [x] [TASK-038](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-038-kobold-endpoint-protocol.md) /kobold WebSocket endpoint + message protocol (P1)
     - [x] [TASK-039](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-039-adhoc-mode.md) /kobold ad-hoc mode (P1) · FEATURE-017
-    - [ ] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1) 🔍 verify ⚠ blocked · FEATURE-017
-    - [ ] [TASK-095](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-095-per-project-drake-switch.md) Per-project Drake switch: Drake skips a project whose Drake is off, /kobold project mode still runs it (P1) · FEATURE-017
+    - [x] [TASK-040](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-040-project-mode.md) /kobold project mode (P1)
+    - [x] [TASK-095](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-095-per-project-drake-switch.md) Per-project Drake switch: Drake skips a project whose Drake is off, /kobold project mode still runs it (P1) · FEATURE-017
+    - [x] [TASK-100](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-100-project-mode-drake-never-released.md) /kobold project mode never releases its Drake, so the project's background Drake is locked out afterwards (P1) · FEATURE-017
     - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
   - STORY-016 REST + SSE facade for non-streaming clients — in-progress (3/7)
     - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
@@ -167,8 +167,10 @@ _None_
 - [ ] [TASK-092](_loose/TASK-092-view-cost-report-tool-not-wired.md) The view_cost_report tool exists but no agent has it (P2)
 - [ ] [TASK-093](_loose/TASK-093-deleted-project-wyvern-reused-by-name.md) A deleted project's Wyvern stays registered by name and is reused by a new project with that name (P2)
 - [x] [TASK-097](_loose/TASK-097-spec-path-lookup-fails-on-mixed-separators.md) Approved features never reach Wyvern when ProjectsPath uses forward slashes (spec-path lookup compares mixed separators) (P1)
-- [ ] [TASK-098](_loose/TASK-098-empty-wyvern-reply-becomes-zero-task-analysis.md) An empty or unparseable Wyvern reply silently becomes a 0-task analysis and the project is marked Analyzed (P1)
-- [ ] [TASK-099](_loose/TASK-099-features-never-passed-to-wyvern.md) Approved features are never given to Wyvern — analysis sees only specification.md and features stay Ready (P2)
+- [x] [TASK-098](_loose/TASK-098-empty-wyvern-reply-becomes-zero-task-analysis.md) An empty or unparseable Wyvern reply silently becomes a 0-task analysis and the project is marked Analyzed (P1)
+- [x] [TASK-099](_loose/TASK-099-features-never-passed-to-wyvern.md) Approved features are never given to Wyvern — analysis sees only specification.md and features stay Ready (P2)
+- [ ] [TASK-101](_loose/TASK-101-diagnose-next-unusable-wyvern-reply.md) Find the root cause of empty Wyvern replies once the new log captures one (P3) ⚠ blocked: waiting for the next "Wyvern reply unusable" log line
+- [ ] [TASK-102](_loose/TASK-102-tasks-never-linked-to-features.md) Wyvern tasks are never linked to their features, so no work lands on feature branches; re-analysis of a new feature yields no task for it (P2)
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
 - [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [ ] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)
