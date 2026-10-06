@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-06 (close TASK-096). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-06 (close TASK-101, TASK-102). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 12 | 30 | — |
-| todo         | — | — | 60 |
+| todo         | — | — | 58 |
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 0 |
-| blocked      | — | — | 24 |
-| done         | 1 | 2 | 38 |
+| blocked      | — | — | 23 |
+| done         | 1 | 2 | 40 |
 | cancelled    | 0 | 0 | 0 |
 
-_`blocked` is a flag, not a state: 24 of the 24 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
+_`blocked` is a flag, not a state: 23 of the 23 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 15× P1 · 41× P2 · 4× P3.
+`todo` by priority: 15× P1 · 40× P2 · 3× P3.
 
 ## In progress now
 
@@ -169,8 +169,8 @@ _None_
 - [x] [TASK-097](_loose/TASK-097-spec-path-lookup-fails-on-mixed-separators.md) Approved features never reach Wyvern when ProjectsPath uses forward slashes (spec-path lookup compares mixed separators) (P1)
 - [x] [TASK-098](_loose/TASK-098-empty-wyvern-reply-becomes-zero-task-analysis.md) An empty or unparseable Wyvern reply silently becomes a 0-task analysis and the project is marked Analyzed (P1)
 - [x] [TASK-099](_loose/TASK-099-features-never-passed-to-wyvern.md) Approved features are never given to Wyvern — analysis sees only specification.md and features stay Ready (P2)
-- [ ] [TASK-101](_loose/TASK-101-diagnose-next-unusable-wyvern-reply.md) Find the root cause of empty Wyvern replies once the new log captures one (P3) ⚠ blocked: waiting for the next "Wyvern reply unusable" log line
-- [ ] [TASK-102](_loose/TASK-102-tasks-never-linked-to-features.md) Wyvern tasks are never linked to their features, so no work lands on feature branches; re-analysis of a new feature yields no task for it (P2)
+- [x] [TASK-101](_loose/TASK-101-diagnose-next-unusable-wyvern-reply.md) Find the root cause of empty Wyvern replies once the new log captures one (P3)
+- [x] [TASK-102](_loose/TASK-102-tasks-never-linked-to-features.md) Wyvern tasks are never linked to their features, so no work lands on feature branches; re-analysis of a new feature yields no task for it (P2)
 - [x] [TASK-103](_loose/TASK-103-delete-project-leaves-git-repo-and-task-rows.md) delete_project reports success but leaves a git project's folder and the project's task rows behind (P2)
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
 - [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
