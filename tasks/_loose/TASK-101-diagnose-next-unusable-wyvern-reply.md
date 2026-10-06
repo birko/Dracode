@@ -2,8 +2,7 @@
 id: TASK-101
 parent: null
 feature: null
-status: todo
-blocked: 'waiting for the next "Wyvern reply unusable" log line — the failure has not recurred since logging was added'
+status: in-progress
 priority: P3
 assignee: ai
 created: 2026-10-06
@@ -42,4 +41,11 @@ N/A — the evidence is a server log line and the fix is covered by its regressi
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-101` — leave empty until then._
+1. Make the raw-reply warning reach the log: `Program.cs` built `WyvernFactory` without a logger factory, so every Wyvern had a null logger and TASK-098's warning never logged.
+2. Fix the cause in the provider (Birko Framework TASK-516): `glm-5.3` was capped at 4096 output tokens and a `length` stop was reported as `end_turn`.
+3. Live: re-run Wyvern on a small project with both fixes.
+
+## Progress log
+
+- 2026-10-06 — the empty reply recurred during TASK-102's live check (`branch-check`: "Analysis failed: Agent returned empty response."), but the "Wyvern reply unusable" warning did not appear: `WyvernFactory` was built without a logger factory, so Wyvern's logger was null. Wired `loggerFactory` in `Program.cs`.
+- 2026-10-06 — cause identified in the provider: every agent runs on `pi-zai` (type `zai`, model `glm-5.3`); `ZAiProvider.GetMaxTokensForModel` had no `glm-5.3` entry and requested the 4096 default (Z.AI documents 65536 default / 131072 maximum for GLM-5.3); with deep thinking on, reasoning shares that budget and a long reply ends empty, while `ParseResponse` reported `end_turn` regardless of `finish_reason`. Fixed in Birko Framework TASK-516 (`2150d0c8`, local, not pushed): glm-5.3 → 131072, glm-5.3-flash → 65536, `length` → `max_tokens`. DraCode builds the framework from source; full suite 216 passed.
