@@ -2,7 +2,7 @@
 id: TASK-097
 parent: null
 feature: null
-status: in-progress
+status: done
 priority: P1
 assignee: ai
 created: 2026-10-04
@@ -35,17 +35,19 @@ modified" log line, 0 tasks. The JSON-file `ProjectRepository` has the same comp
 
 - [x] Spec-path lookup matches regardless of separator style or a relative/absolute form (both sides normalised the same way) in every `IProjectRepository` implementation
 - [x] Regression test: a project registered under a forward-slash `ProjectsPath` is found by `GetBySpecificationPath` with the backslash form (and vice versa), and `MarkSpecificationModified` moves an Analyzed project to `SpecificationModified`; proven to fail before the fix
-- [ ] Live: approving a new feature on an analyzed project on the dev server makes Wyvern re-analyse it and create its tasks
+- [ ] Live: approving a new feature on an analyzed project on the dev server makes Wyvern re-analyse it and create its tasks — ⚠ PARTLY MET: re-analysis now triggers (verified live 2026-10-04); "create its tasks" NOT MET — split to TASK-098
 - [x] Full suite green
 
 ## Out of scope
 
 - Normalising the stored paths of existing projects (the lookup fix makes them match as they are)
 - Other path comparisons in the codebase — this task fixes the spec-path lookup that gates re-analysis
+- Deferred to TASK-098 — Wyvern returning 0 tasks for the re-analysed project (empty reply → silent empty analysis)
+- Deferred to TASK-099 — approved features never passed to Wyvern
 
 ## Human test plan
 
-- [ ] In Dragon, add and approve a feature on an analyzed project → within ~60 s Wyvern logs a re-analysis and the feature's tasks appear
+- [ ] In Dragon, add and approve a feature on an analyzed project → within ~60 s Wyvern logs a re-analysis and the feature's tasks appear — ⚠ re-analysis observed 2026-10-04; tasks appearing is TASK-098's live check
 
 ## Implementation plan
 
@@ -57,3 +59,4 @@ modified" log line, 0 tasks. The JSON-file `ProjectRepository` has the same comp
 
 - 2026-10-04 — `SpecificationPathLookupTests` (3) written first and red (the first draft passed vacuously through `?.`, tightened to assert non-null); fixed both lookups; green. Full suite: 195 passed.
 - 2026-10-04 — live (dev server, build with TASK-095): re-triggering `drake-switch-check`'s approved features now logs `📝 Specification modified … will be reprocessed` and Wyvern re-analyses (`[Wyvern] REANALYZE`) — the lookup fix works. The "and create its tasks" half could not be shown: the re-analysis returned 0 tasks for a separate reason, filed as TASK-098 (and TASK-099).
+- 2026-10-06 — closed on delivered scope (the lookup fix, verified live); the task-creation half of the live criterion moved to TASK-098, recorded unticked above.
