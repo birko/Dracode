@@ -563,9 +563,6 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                     prompt += $"### {feature.Name} (Priority: {feature.Priority})\n";
                     prompt += $"{feature.Description}\n\n";
                 }
-
-                // Mark features as assigned
-                await AssignFeaturesAsync(newFeatures);
             }
 
             // Add Wyrm recommendations as hints
@@ -655,6 +652,15 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                     LogUnusableReply("analysis has no tasks");
                     throw new InvalidOperationException(
                         "Wyvern analysis contained no tasks — the model reply was empty or not in the expected shape");
+                }
+
+                // Assign the analysed features only now, so a failed analysis leaves them Ready for the next attempt,
+                // and persist the change — the sidecar is what the next analysis and Sage read
+                if (newFeatures.Any())
+                {
+                    await AssignFeaturesAsync(newFeatures);
+                    if (_specification != null)
+                        await SpecificationService.PersistFeaturesAsync(_specification);
                 }
 
                 _analysis.AnalyzedAt = DateTime.UtcNow;
