@@ -358,7 +358,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             return int.TryParse(val?.ToString(), out var parsed) ? parsed : 0;
         }
 
-        private static bool IsValidAgentType(string agentType)
+        public static bool IsValidAgentType(string agentType)
         {
             return agentType == "wyvern" || agentType == "wyrm" || agentType == "drake" || agentType == "kobold";
         }

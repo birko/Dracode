@@ -2,8 +2,7 @@
 id: TASK-038
 parent: STORY-015
 feature: FEATURE-017
-status: verify
-blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -35,7 +34,7 @@ jira-key: null
 ## Human test plan
 
 **Deferred — both mode handlers are stubs until TASK-039 (ad-hoc) / TASK-040 (project), so a live connection currently returns an `error` frame, not a full run. The protocol/translation/cleanup are unit-tested (`KoboldEndpointProtocolTests`, 90/90 suite green); the live observation needs a real run. Task stays in `review` until TASK-040 lands:**
-- [ ] Connect a WS client (e.g. `websocat`) to `/kobold`, send a project-mode payload, observe the ordered `kobold_*` message stream through to `kobold_complete`
+- [x] Connect a WS client (e.g. `websocat`) to `/kobold`, send a project-mode payload, observe the ordered `kobold_*` message stream through to `kobold_complete` — run 2026-10-06 (TASK-095 live check, `drake-switch-check`, cli-1): `kobold_run_started` → 30× `kobold_tool_call`, 2× `kobold_reflect`, 2× `kobold_stream` → `kobold_complete` (Done)
 
 ## Implementation plan
 
@@ -53,3 +52,4 @@ jira-key: null
 7. Register `KoboldEndpointService` + the two handlers in DI.
 
 **Tests** (`DraCode.KoboldLair.Tests`, references Server): `KoboldEndpointProtocolTests` drive `PumpAsync` directly against a real `KoboldRunEventSource` + a list-collecting send — publish ToolCall→Reflection→PlanStep→RunCompleted for the runId and assert the ordered wire stream `kobold_run_started … kobold_complete`; assert `RunError` → `error`; assert disposing the subscription (simulated disconnect) stops relay and does not call `CompleteRun` (Kobold survives).
+- 2026-10-06 — live sign-off during TASK-095's check (see the Human test plan line); unblocked and closed.

@@ -2,8 +2,7 @@
 id: TASK-040
 parent: STORY-015
 feature: FEATURE-017
-status: verify
-blocked: waiting on TASK-095 (per-project Drake switch, after TASK-094) — the background Drake takes every new task before /kobold project mode can run one
+status: done
 priority: P1
 assignee: ai
 created: 2026-06-11
@@ -26,7 +25,7 @@ Project mode runs a Kobold against an already-analyzed project task: `{ mode: "p
 - [x] Spawns Kobold against that plan; streams via TASK-038 — `ProjectRunModeHandler` runs `ExecuteTaskAsync(runId:)` in the background; the Kobold adopts the endpoint's `runId` (new `Kobold.AssignRunId`) and publishes to `KoboldRunEventSource`, which the `/kobold` pump relays
 - [x] On completion, commits to the feature branch and cleans up the worktree — the existing `ExecuteTaskAsync` tail (`SyncTaskFromKoboldAsync` → `CommitTaskCompletionAsync` → `CleanupWorktreeAsync`); unchanged
 - [x] Respects per-project parallel Kobold limits and execution state — `EnsureRunnable` rejects non-`Running` projects (Paused/Suspended/Cancelled → `error` frame); the per-project parallel-Kobold limit is enforced in `SummonKoboldAsync` (null → relayed as a terminal `error` frame so the pump ends)
-- [~] Tests: project-mode run on a seeded analyzed project commits to the right branch — the **commit-to-branch end-to-end needs a live Kobold** (no fake LLM provider), so it lives in the human test plan; the validation gate (5 cases incl. execution-state) + reuse/runId wiring are unit-tested (`ProjectRunModeHandlerTests`; full suite 97/97 green)
+- [x] Tests: project-mode run on a seeded analyzed project commits to the right branch — the **commit-to-branch end-to-end needs a live Kobold** (no fake LLM provider), so it lives in the human test plan; the validation gate (5 cases incl. execution-state) + reuse/runId wiring are unit-tested (`ProjectRunModeHandlerTests`; full suite 97/97 green) — live 2026-10-06: committed `8675142` (Kobold-python) to the featureless task's target, `main`; the feature-branch case → TASK-102
 
 ## Out of scope
 
@@ -36,7 +35,7 @@ Project mode runs a Kobold against an already-analyzed project task: `{ mode: "p
 ## Human test plan
 
 **Now runnable end-to-end (also satisfies TASK-038's deferred live step).** Needs a live LLM-backed Kobold, so it's a manual run. _Provider name→type resolution for DB-backed providers was fixed in `Drake.SummonKoboldAsync` (2026-06-25, found via TASK-039's live run) — the path no longer passes the provider name to the factory, so a live project run can now resolve `pi-zai`→`zai` etc._
-- [ ] Run project mode against a seeded analyzed project/task (`websocat` to `/kobold`, payload `{ "mode": "project", "projectId": "...", "taskId": "..." }`) → observe the ordered `kobold_*` stream to `kobold_complete`, confirm the commit lands on the task's feature branch and the worktree is cleaned up
+- [x] Run project mode against a seeded analyzed project/task (`websocat` to `/kobold`, payload `{ "mode": "project", "projectId": "...", "taskId": "..." }`) → observe the ordered `kobold_*` stream to `kobold_complete`, confirm the commit lands on the task's feature branch and the worktree is cleaned up — run 2026-10-06 (`drake-switch-check`, cli-1): ordered `kobold_*` stream to `kobold_complete`, commit `8675142` on `main`, no worktree left. ⚠ The task had no feature (Wyvern never links tasks to features), so "lands on the task's feature branch" could not be shown — split to TASK-102
   - _Attempted 2026-10-03: a throwaway project was created over REST, but approving it through Dragon failed — first on a stale `dragonProvider: zai` setting (TASK-084), then on Z.AI "insufficient balance" for non-coding agents (TASK-086). The ad-hoc path of the same engine passed live (TASK-044). Re-run once TASK-086 is resolved._
 
 ## Implementation plan
@@ -53,3 +52,4 @@ Project mode runs a Kobold against an already-analyzed project task: `{ mode: "p
 5. `ProjectRunModeHandlerTests` (7) — validation gate incl. Paused/Suspended/Cancelled.
 
 **Out of scope kept:** ad-hoc mechanics (TASK-039); no change to Drake's background loop.
+- 2026-10-06 — live sign-off during TASK-095's check (see the Human test plan line); unblocked and closed.

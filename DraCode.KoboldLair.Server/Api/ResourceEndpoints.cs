@@ -1,4 +1,5 @@
 using Birko.Security.AspNetCore;
+using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
@@ -117,6 +118,24 @@ public static class ResourceEndpoints
                     return Results.BadRequest(new { error = "content is required" });
                 var spec = await specs.SaveContentAsync(project.Name, dto.Content);
                 return Results.Ok(new { spec.Name, spec.Version, spec.ContentHash });
+            })
+            .RequirePermission(KoboldLairPermissionChecker.ManageProjects);
+
+        // PATCH /projects/{id}/agents/{type} — switch one pipeline agent on or off for the project (a Drake
+        // switched off leaves the project to /kobold project mode).
+        api.MapPatch("/projects/{id}/agents/{type}", async (string id, string type, SetAgentEnabledDto dto,
+                ICurrentUser user, ProjectService projects) =>
+            {
+                var project = projects.GetProject(id);
+                if (project is null || !ApiOwnership.CanAccess(user, project.OwnerId))
+                    return Results.NotFound();
+                var agentType = type.ToLowerInvariant();
+                if (!AgentConfigurationTool.IsValidAgentType(agentType))
+                    return Results.BadRequest(new { error = "type must be one of: wyvern, wyrm, drake, kobold" });
+                if (dto.Enabled is null)
+                    return Results.BadRequest(new { error = "enabled is required" });
+                await projects.SetAgentEnabledAsync(project.Id, agentType, dto.Enabled.Value);
+                return Results.Ok(new { projectId = project.Id, agentType, enabled = dto.Enabled.Value });
             })
             .RequirePermission(KoboldLairPermissionChecker.ManageProjects);
 
@@ -359,4 +378,5 @@ public static class ResourceEndpoints
     public sealed record UpdateSpecDto(string? Content);
     public sealed record CreateFeatureDto(string Name, string Description, string? Priority);
     public sealed record SetPriorityDto(string Priority);
+    public sealed record SetAgentEnabledDto(bool? Enabled);
 }
