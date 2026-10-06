@@ -629,7 +629,16 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 prompt += "Use these recommendations as guidance for your analysis, but feel free to adjust based on the full specification.\n\n";
             }
 
-            var analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(prompt);
+            string analysisJson;
+            try
+            {
+                analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(prompt);
+            }
+            catch (InvalidOperationException ex)
+            {
+                LogUnusableReply(ex.Message);
+                throw;
+            }
 
             try
             {
@@ -638,6 +647,14 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 if (_analysis == null)
                 {
                     throw new InvalidOperationException("Failed to parse Wyvern analysis");
+                }
+
+                // A reply that parses but carries no tasks is not "nothing to do" — it is a reply we could not use
+                if (_analysis.Areas.All(a => a.Tasks.Count == 0))
+                {
+                    LogUnusableReply("analysis has no tasks");
+                    throw new InvalidOperationException(
+                        "Wyvern analysis contained no tasks — the model reply was empty or not in the expected shape");
                 }
 
                 _analysis.AnalyzedAt = DateTime.UtcNow;
@@ -698,6 +715,14 @@ Respond with ONLY valid JSON (no markdown, no explanations):
             {
                 throw new InvalidOperationException($"Failed to parse Wyvern analysis JSON: {ex.Message}");
             }
+        }
+
+        private void LogUnusableReply(string reason)
+        {
+            var raw = _analyzerAgent.LastRawResponse ?? string.Empty;
+            _logger?.LogWarning(
+                "Wyvern reply unusable for {SpecificationPath} ({Reason}). Raw reply, {Length} chars: {Excerpt}",
+                _specificationPath, reason, raw.Length, raw.Length > 2000 ? raw[..2000] + "…" : raw);
         }
 
         /// <summary>

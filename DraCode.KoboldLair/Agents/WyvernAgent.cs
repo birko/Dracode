@@ -101,6 +101,11 @@ The output JSON schema is supplied in your user message. Respond with PURE JSON 
       }
 
       /// <summary>
+      /// The text of the model's last reply, before JSON extraction — for diagnosing an unusable analysis
+      /// </summary>
+      public string? LastRawResponse { get; private set; }
+
+      /// <summary>
       /// Analyzes a specification and returns organized task structure
       /// </summary>
       /// <param name="specificationContent">Content of the specification file</param>
@@ -173,11 +178,10 @@ Response must be pure JSON — starts with {{, ends with }}, no other text.";
 
          // Extract text from content blocks (Content is object but contains List<ContentBlock>)
          var content = ExtractTextFromContent(lastMessage?.Content);
+         LastRawResponse = content;
 
-         if (string.IsNullOrWhiteSpace(content))
-            content = "{}";
-
-         // Extract JSON from the response if the LLM added extra text
+         // Extract JSON from the response if the LLM added extra text; an empty reply throws rather than
+         // passing for an analysis with no work in it
          return ExtractJson(content);
       }
    }
