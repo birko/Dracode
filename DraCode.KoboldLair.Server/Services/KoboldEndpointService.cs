@@ -129,6 +129,8 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 await foreach (var evt in reader.ReadAllAsync(ct))
                 {
+                    if (evt is RunStartedEvent)
+                        continue; // already announced by the kobold_run_started frame above
                     await send(KoboldWireMessage.From(evt), ct);
                     if (evt is RunCompletedEvent or RunErrorEvent)
                         break; // terminal — stop relaying
