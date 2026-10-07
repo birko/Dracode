@@ -10,11 +10,11 @@ _Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, T
 | todo         | — | — | 52 |
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 0 |
-| blocked      | — | — | 23 |
+| blocked      | — | — | 22 |
 | done         | 1 | 2 | 50 |
 | cancelled    | 0 | 0 | 0 |
 
-_`blocked` is a flag, not a state: 23 of the 23 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
+_`blocked` is a flag, not a state: 22 of the 22 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
 `todo` by priority: 14× P1 · 37× P2 · 1× P3.
 
@@ -117,7 +117,7 @@ _None_
     - [ ] [TASK-072](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-072-mount-ts-shell-in-served-page.md) Mount the TypeScript shell in the served page (P1) · FEATURE-026
     - [ ] [TASK-055](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-055-daemon-status-project-switcher.md) Web header: daemon status indicator + project switcher (P2) · FEATURE-026
     - [ ] [TASK-056](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-056-oauth-login-key-management.md) Web OAuth login button + service-account key management UI (P2) ⚠ blocked · FEATURE-026
-    - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-057-run-viewer.md) Web run viewer for external /kobold runs (P2) ⚠ blocked · FEATURE-026
+    - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-057-run-viewer.md) Web run viewer for external /kobold runs (P2) · FEATURE-026
     - [ ] [TASK-058](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-058-tab-reorder-workspace-layouts.md) Drag-and-drop tabs + workspace layout save/load (P2) · FEATURE-026
 - **EPIC-014 Human-in-the-loop decision gates** — planned (0/6)
   - STORY-024 Blocking "AwaitingHumanDecision" escalation tier — planned (0/2)
