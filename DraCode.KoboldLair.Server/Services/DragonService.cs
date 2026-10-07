@@ -188,12 +188,6 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ProjectNotificationService? _notificationService;
         private readonly DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? _historyRepository;
         private readonly DraCode.KoboldLair.Services.EventSourcing.SpecificationEventService? _specEventService;
-
-        // Cache for specification file enumeration to avoid frequent filesystem calls
-        private List<string>? _specFilesCache;
-        private DateTime _specFilesCacheTime = DateTime.MinValue;
-        private readonly TimeSpan _specFilesCacheExpiry = TimeSpan.FromSeconds(30);
-        private readonly object _specFilesCacheLock = new();
         private bool _disposed;
 
         public DragonService(
@@ -1169,7 +1163,7 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     try
                     {
-                        await CheckForNewSpecifications(webSocket, session);
+                        await CheckForNewSpecifications(webSocket, session, dragonRequest.QueuedAt);
                     }
                     catch (Exception ex)
                     {
@@ -1196,16 +1190,30 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private async Task CheckForNewSpecifications(WebSocket webSocket, DragonSession session)
+        /// <summary>
+        /// The most recently written <c>specification.md</c> directly under a project folder of <paramref name="projectsPath"/>
+        /// that was written at or after <paramref name="sinceUtc"/>, or null. Compares UTC with UTC: a local file time
+        /// against <see cref="DateTime.UtcNow"/> made every spec look new east of Greenwich (TASK-085).
+        /// </summary>
+        public static string? FindSpecificationWrittenSince(string projectsPath, DateTime sinceUtc)
         {
-            if (!Directory.Exists(_projectsPath)) return;
+            if (!Directory.Exists(projectsPath)) return null;
 
-            var specFiles = GetCachedSpecificationFiles();
-            var latestSpec = specFiles.FirstOrDefault();
+            return Directory.GetDirectories(projectsPath)
+                .Select(dir => Path.Combine(dir, "specification.md"))
+                .Where(File.Exists)
+                .Select(path => (Path: path, WrittenUtc: File.GetLastWriteTimeUtc(path)))
+                .Where(s => s.WrittenUtc >= sinceUtc)
+                .OrderByDescending(s => s.WrittenUtc)
+                .Select(s => s.Path)
+                .FirstOrDefault();
+        }
+
+        private async Task CheckForNewSpecifications(WebSocket webSocket, DragonSession session, DateTime requestStartedUtc)
+        {
+            var latestSpec = FindSpecificationWrittenSince(_projectsPath, requestStartedUtc);
             if (latestSpec != null)
             {
-                var specInfo = new FileInfo(latestSpec);
-                if ((DateTime.UtcNow - specInfo.LastWriteTime).TotalSeconds < 5)
                 {
                     var projectFolder = Path.GetDirectoryName(latestSpec)!;
                     var projectName = Path.GetFileName(projectFolder);
@@ -1265,53 +1273,12 @@ namespace DraCode.KoboldLair.Server.Services
                             var project = _projectService.RegisterProject(projectName, latestSpec, session.OwnerSub);
                             _logger.LogInformation("Auto-registered project: {Name} ({Id}, Owner: {Owner})", projectName, project.Id, session.OwnerSub);
                         }
-
-                        // Invalidate cache so we don't re-process this same spec file
-                        InvalidateSpecFilesCache();
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Failed to auto-register project: {Path}", latestSpec);
                     }
                 }
-            }
-        }
-
-        /// <summary>
-        /// Gets specification files with caching to avoid frequent filesystem enumeration.
-        /// Cache is refreshed every 30 seconds.
-        /// </summary>
-        private List<string> GetCachedSpecificationFiles()
-        {
-            lock (_specFilesCacheLock)
-            {
-                // Check if cache is still valid
-                if (_specFilesCache != null && DateTime.UtcNow - _specFilesCacheTime < _specFilesCacheExpiry)
-                {
-                    return _specFilesCache;
-                }
-
-                // Refresh cache
-                _specFilesCache = Directory.GetDirectories(_projectsPath)
-                    .Select(dir => Path.Combine(dir, "specification.md"))
-                    .Where(File.Exists)
-                    .OrderByDescending(File.GetLastWriteTime)
-                    .ToList();
-                _specFilesCacheTime = DateTime.UtcNow;
-
-                return _specFilesCache;
-            }
-        }
-
-        /// <summary>
-        /// Invalidates the specification files cache (call when a new spec is created)
-        /// </summary>
-        private void InvalidateSpecFilesCache()
-        {
-            lock (_specFilesCacheLock)
-            {
-                _specFilesCache = null;
-                _specFilesCacheTime = DateTime.MinValue;
             }
         }
 
