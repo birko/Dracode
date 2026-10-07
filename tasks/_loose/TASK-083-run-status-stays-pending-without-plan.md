@@ -2,7 +2,7 @@
 id: TASK-083
 parent: null
 feature: null
-status: todo
+status: done
 priority: P3
 assignee: ai
 created: 2026-10-03
@@ -24,12 +24,13 @@ Found 2026-10-03 during TASK-044's live sign-off. `RunRegistry` moves a run to `
 
 ## Acceptance criteria
 
-- [ ] A run moves to `running` as soon as its Kobold starts (first started/iteration event), with or without a plan
-- [ ] `RunRegistryTests` covers a plan-less run going pending → running → completed
+- [x] A run moves to `running` as soon as its Kobold starts (first started/iteration event), with or without a plan — new `RunStartedEvent`, published when either start path assigns the run id; the `/kobold` WebSocket pump skips it (its own `kobold_run_started` frame already announces the start)
+- [x] `RunRegistryTests` covers a plan-less run going pending → running → completed — `A_run_without_a_plan_goes_pending_running_completed` drives a real plan-less Kobold whose LLM call waits on a gate; fails without the event (stays `Pending`)
 
 ## Out of scope
 
 - SSE streaming (TASK-045)
+- Plan-less runs publish no tool-call events at all (only start and completion) — TASK-106
 
 ## Human test plan
 
@@ -37,4 +38,14 @@ N/A — the state transition is asserted by RunRegistryTests.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-083` — leave empty until then._
+Done 2026-10-07.
+
+1. `KoboldRunEvent.cs`: `RunStartedEvent` (`run_started`).
+2. `Kobold.StartWorkingWithPlanAsync` / `StartWorkingWithPlanEnhancedAsync`: publish it right after the run id is assigned.
+   `RunRegistry` already folds any non-terminal event into `Running`.
+3. `KoboldEndpointService.PumpAsync`: does not forward it (the transport sends `kobold_run_started` itself).
+4. Test in `RunRegistryTests`.
+
+## Close notes
+
+- Closed 2026-10-07. Suite 245/245.

@@ -61,6 +61,57 @@ public class RunRegistryTests
         rec.Summary.Should().Be(nameof(KoboldStatus.Done));
     }
 
+    /// <summary>Answers once the test opens the gate, so the run is observably in flight until then.</summary>
+    private sealed class GatedProvider(Task gate) : Birko.AI.Providers.ILlmProvider
+    {
+        public string Name => "gated";
+        public Action<string, string>? MessageCallback { get; set; }
+
+        public async Task<Birko.AI.Models.LlmResponse> SendMessageAsync(List<Birko.AI.Models.Message> messages,
+            List<Birko.AI.Tools.Tool> tools, string systemPrompt, CancellationToken cancellationToken = default)
+        {
+            await gate;
+            return new Birko.AI.Models.LlmResponse
+            {
+                StopReason = "end_turn",
+                Content = new List<Birko.AI.Models.ContentBlock> { new() { Type = "text", Text = "done" } }
+            };
+        }
+
+        public Task<Birko.AI.Models.LlmStreamingResponse> SendMessageStreamingAsync(List<Birko.AI.Models.Message> messages,
+            List<Birko.AI.Tools.Tool> tools, string systemPrompt, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task A_run_without_a_plan_goes_pending_running_completed()
+    {
+        // An ad-hoc run has no plan, so no plan-step events: it read "pending" until it finished (TASK-083)
+        var events = new KoboldRunEventSource();
+        var registry = new RunRegistry(events);
+        registry.Register(Run, "user-a", "adhoc");
+        var gate = new TaskCompletionSource();
+        var kobold = new Kobold(new Birko.AI.Agents.CodingAgent(new GatedProvider(gate.Task),
+            new Birko.AI.AgentOptions { WorkingDirectory = Path.GetTempPath(), Verbose = false }), "coding");
+        kobold.SetRunEventSource(events);
+        kobold.AssignRunId(Run);
+        kobold.AssignTask(Guid.NewGuid(), "say done");
+
+        var work = kobold.StartWorkingWithPlanAsync(planService: null, maxIterations: 2);
+        try
+        {
+            await WaitUntil(() => registry.Get(Run)!.State == RunRegistry.RunState.Running);
+            registry.Get(Run)!.State.Should().Be(RunRegistry.RunState.Running, "the Kobold is working while its LLM call is open");
+        }
+        finally
+        {
+            gate.TrySetResult();
+        }
+        await work;
+        await WaitUntil(() => registry.Get(Run)!.IsTerminal);
+        registry.Get(Run)!.State.Should().Be(RunRegistry.RunState.Completed);
+    }
+
     [Fact]
     public async Task Run_error_event_marks_failed()
     {

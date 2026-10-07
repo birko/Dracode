@@ -849,6 +849,7 @@ You are working on a task that is part of a larger project. Below is the project
             RunId = ConsumeAssignedRunId();
             StartedAt = DateTime.UtcNow;
             LastLlmResponseAt = DateTime.UtcNow; // Initialize to start time
+            PublishRunEvent(new RunStartedEvent()); // a run without a plan emits nothing else until it ends
 
             // If we have a plan, inject the update_plan_step tool and register context
             bool toolInjected = false;
@@ -1075,6 +1076,7 @@ You are working on a task that is part of a larger project. Below is the project
             Status = KoboldStatus.Working;
             RunId = ConsumeAssignedRunId();
             StartedAt = DateTime.UtcNow;
+            PublishRunEvent(new RunStartedEvent());
 
             // Register the plan context for the tool (including shared planning context for file tracking)
             UpdatePlanStepTool.RegisterContext(

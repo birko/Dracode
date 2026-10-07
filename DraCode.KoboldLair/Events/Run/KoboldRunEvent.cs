@@ -24,6 +24,12 @@ namespace DraCode.KoboldLair.Events.Run
         public abstract string Kind { get; }
     }
 
+    /// <summary>The Kobold started working on the run (first event of every run, with or without a plan).</summary>
+    public sealed record RunStartedEvent : KoboldRunEvent
+    {
+        public override string Kind => "run_started";
+    }
+
     /// <summary>A tool invocation began. <paramref name="InputJson"/> is best-effort (may be a preview).</summary>
     public sealed record ToolCallStartedEvent : KoboldRunEvent
     {
