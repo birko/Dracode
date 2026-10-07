@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-10-07 (close TASK-093, TASK-084; new TASK-104). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092; new TASK-104, TASK-105). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,7 +11,7 @@ _Generated 2026-10-07 (close TASK-093, TASK-084; new TASK-104). Run `/tasks tria
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 0 |
 | blocked      | — | — | 23 |
-| done         | 1 | 2 | 42 |
+| done         | 1 | 2 | 43 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 23 of the 23 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
@@ -164,7 +164,7 @@ _None_
 - [x] [TASK-084](_loose/TASK-084-agent-provider-setting-names-missing-provider.md) A stored agent provider setting that names a missing provider breaks Dragon completely (P2)
 - [x] [TASK-086](_loose/TASK-086-zai-coding-plan-for-non-coding-agents.md) Z.AI: Dragon, Wyrm and Wyvern fail with "insufficient balance" and the model list is out of date (P2)
 - [x] [TASK-091](_loose/TASK-091-new-project-tasks-not-in-database.md) Tasks of a new project never reach the database, so the REST task endpoints can't see them (P2)
-- [ ] [TASK-092](_loose/TASK-092-view-cost-report-tool-not-wired.md) The view_cost_report tool exists but no agent has it (P2)
+- [x] [TASK-092](_loose/TASK-092-view-cost-report-tool-not-wired.md) The view_cost_report tool exists but no agent has it (P2)
 - [x] [TASK-093](_loose/TASK-093-deleted-project-wyvern-reused-by-name.md) A deleted project's Wyvern stays registered by name and is reused by a new project with that name (P2)
 - [x] [TASK-097](_loose/TASK-097-spec-path-lookup-fails-on-mixed-separators.md) Approved features never reach Wyvern when ProjectsPath uses forward slashes (spec-path lookup compares mixed separators) (P1)
 - [x] [TASK-098](_loose/TASK-098-empty-wyvern-reply-becomes-zero-task-analysis.md) An empty or unparseable Wyvern reply silently becomes a 0-task analysis and the project is marked Analyzed (P1)
@@ -173,6 +173,7 @@ _None_
 - [x] [TASK-102](_loose/TASK-102-tasks-never-linked-to-features.md) Wyvern tasks are never linked to their features, so no work lands on feature branches; re-analysis of a new feature yields no task for it (P2)
 - [x] [TASK-103](_loose/TASK-103-delete-project-leaves-git-repo-and-task-rows.md) delete_project reports success but leaves a git project's folder and the project's task rows behind (P2)
 - [ ] [TASK-104](_loose/TASK-104-test-host-loads-developer-appsettings-local.md) The API test host loads the developer's appsettings.local.json, so tests depend on the machine they run on (P2)
+- [ ] [TASK-105](_loose/TASK-105-only-kobold-llm-calls-are-cost-tracked.md) Only Kobold LLM calls are cost-tracked — Dragon, the council, Wyrm, Wyvern and the planner are never recorded (P2)
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
 - [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [ ] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)
