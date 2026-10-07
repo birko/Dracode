@@ -232,10 +232,10 @@ namespace DraCode.KoboldLair.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
+            var existingWyvern = GetOwnWyvern(project);
             if (project.Status != ProjectStatus.New)
             {
                 _logger.LogWarning("Project {ProjectId} already has status {Status}, skipping Wyvern assignment", projectId, project.Status);
-                var existingWyvern = _wyvernFactory.GetWyvern(project.Name);
                 if (existingWyvern != null)
                 {
                     return existingWyvern;
@@ -296,6 +296,36 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// The Wyvern registered under the project's name, or null. Wyverns are keyed by name, so one created for another
+        /// project with the same name (a deleted one) is stale: it is removed rather than returned, or its tasks would
+        /// carry the other project's id.
+        /// </summary>
+        private Wyvern? GetOwnWyvern(Project project)
+        {
+            var wyvern = _wyvernFactory.GetWyvern(project.Name);
+            if (wyvern == null || wyvern.ProjectId == null || wyvern.ProjectId == project.Id)
+                return wyvern;
+
+            _logger.LogWarning("Removing stale Wyvern '{Name}' left by project {OldId}; project {ProjectId} gets its own",
+                project.Name, wyvern.ProjectId, project.Id);
+            _wyvernFactory.RemoveWyvern(project.Name);
+            return null;
+        }
+
+        /// <summary>
+        /// Removes the project's Drakes and its Wyvern from the factories. Returns how many Drakes were removed and whether
+        /// a Wyvern was. A Wyvern found by name but created for another project is left alone.
+        /// </summary>
+        public (int Drakes, bool Wyvern) ReleaseAgents(Project project)
+        {
+            var drakes = _drakeFactory?.RemoveAllDrakesForProject(project.Id) ?? 0;
+            var own = _wyvernFactory.GetWyvern(project.Name);
+            var wyvern = own != null && (own.ProjectId == null || own.ProjectId == project.Id)
+                && _wyvernFactory.RemoveWyvern(project.Name);
+            return (drakes, wyvern);
+        }
+
+        /// <summary>
         /// Loads the project's specification with its features (the <c>specification.features.json</c> sidecar beside
         /// it) for Wyvern, or <c>null</c> when the specification file does not exist.
         /// </summary>
@@ -330,7 +360,7 @@ namespace DraCode.KoboldLair.Services
                 throw new InvalidOperationException($"Project not found: {projectId}");
             }
 
-            var wyvern = _wyvernFactory.GetWyvern(project.Name);
+            var wyvern = GetOwnWyvern(project);
             if (wyvern == null)
             {
                 // Wyvern may have been lost after server restart - re-assign it
@@ -577,23 +607,14 @@ namespace DraCode.KoboldLair.Services
                 return false;
             }
 
-            // Stop any running Drakes for this project to prevent Kobolds from continuing
-            if (_drakeFactory != null)
+            // Stop any running Drakes (so Kobolds don't continue) and clear the Wyvern so it gets recreated
+            var (removedCount, _) = ReleaseAgents(project);
+            if (removedCount > 0)
             {
-                var removedCount = _drakeFactory.RemoveAllDrakesForProject(project.Id);
-                if (removedCount > 0)
-                {
-                    _logger.LogInformation("🛑 Stopped {Count} Drake(s) for project '{ProjectName}' before retry",
-                        removedCount, project.Name);
-                }
+                _logger.LogInformation("🛑 Stopped {Count} Drake(s) for project '{ProjectName}' before retry",
+                    removedCount, project.Name);
             }
-
-            // Clear Wyvern assignment so it gets recreated
-            if (project.Tracking.WyvernId != null)
-            {
-                _wyvernFactory.RemoveWyvern(project.Name);
-                project.Tracking.WyvernId = null;
-            }
+            project.Tracking.WyvernId = null;
 
             // Reset project state
             project.Status = ProjectStatus.New;
@@ -619,6 +640,10 @@ namespace DraCode.KoboldLair.Services
                 return new ProjectDeletionResult(false, $"Project '{projectId}' not found.");
 
             var notes = new List<string>();
+            var (drakes, wyvern) = ReleaseAgents(project);
+            if (drakes > 0 || wyvern)
+                notes.Add($"stopped {drakes} Drake(s){(wyvern ? " and its Wyvern" : "")}");
+
             if (deleteFiles)
             {
                 var folder = GetOwnedProjectFolder(project);
@@ -712,20 +737,11 @@ namespace DraCode.KoboldLair.Services
 
             _logger.LogInformation("🔄 Resetting project '{ProjectName}' to initial state...", project.Name);
 
-            // 1. Stop all active Drakes (which stops their Kobolds)
-            if (_drakeFactory != null)
-            {
-                var removedCount = _drakeFactory.RemoveAllDrakesForProject(project.Id);
-                if (removedCount > 0)
-                    _logger.LogInformation("🛑 Stopped {Count} Drake(s) for project '{ProjectName}'", removedCount, project.Name);
-            }
-
-            // 2. Clear Wyvern assignment
-            if (project.Tracking.WyvernId != null)
-            {
-                _wyvernFactory.RemoveWyvern(project.Name);
-                project.Tracking.WyvernId = null;
-            }
+            // 1-2. Stop all active Drakes (which stops their Kobolds) and clear the Wyvern assignment
+            var (removedCount, _) = ReleaseAgents(project);
+            if (removedCount > 0)
+                _logger.LogInformation("🛑 Stopped {Count} Drake(s) for project '{ProjectName}'", removedCount, project.Name);
+            project.Tracking.WyvernId = null;
 
             // 3. Resolve project folder
             var projectFolder = ResolveProjectFolder(project);

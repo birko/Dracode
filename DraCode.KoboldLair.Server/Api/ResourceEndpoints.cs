@@ -89,6 +89,7 @@ public static class ResourceEndpoints
                 var project = projects.GetProject(id);
                 if (project is null || !ApiOwnership.CanAccess(user, project.OwnerId))
                     return Results.NotFound();
+                projects.ReleaseAgents(project);
                 await repo.DeleteAsync(id);
                 return Results.NoContent();
             })
