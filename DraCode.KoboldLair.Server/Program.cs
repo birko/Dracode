@@ -586,7 +586,9 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var historyRepository = sp.GetService<SqlHistoryRepository>();
     var specEventService = sp.GetService<SpecificationEventService>();
     var userRepository = sp.GetService<IUserRepository>();
-    return new DragonService(logger, providerConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService, userRepository);
+    var costTracker = sp.GetService<CostTrackingService>();
+    var rateLimiter = sp.GetService<ProviderRateLimiter>();
+    return new DragonService(logger, providerConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService, userRepository, costTracker, rateLimiter);
 });
 
 // Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)

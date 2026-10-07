@@ -45,6 +45,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly UserSettingsTool? _userSettingsTool;
         private readonly ViewAnalysisTool? _viewAnalysisTool;
         private readonly BatchTaskTool? _batchTaskTool;
+        private readonly ViewCostReportTool? _viewCostReportTool;
         private readonly Func<string, bool, Task<(bool Success, string Message)>>? _resetProject;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
@@ -81,7 +82,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             UserSettingsTool? userSettingsTool = null,
             ViewAnalysisTool? viewAnalysisTool = null,
             BatchTaskTool? batchTaskTool = null,
-            Func<string, bool, Task<(bool Success, string Message)>>? resetProject = null)
+            Func<string, bool, Task<(bool Success, string Message)>>? resetProject = null,
+            ViewCostReportTool? viewCostReportTool = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -114,6 +116,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _viewAnalysisTool = viewAnalysisTool;
             _batchTaskTool = batchTaskTool;
             _resetProject = resetProject;
+            _viewCostReportTool = viewCostReportTool;
             RebuildTools();
         }
 
@@ -157,6 +160,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 tools.Add(_batchTaskTool);
             if (_resetProject != null)
                 tools.Add(new ResetProjectTool(_resetProject));
+            if (_viewCostReportTool != null)
+                tools.Add(_viewCostReportTool);
 
             return tools;
         }
@@ -175,6 +180,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
 5. Control project execution (pause, resume, suspend, cancel, reset)
 6. View notifications and analysis results
 7. Manage global LLM provider settings per agent type
+8. Report LLM usage, costs, budgets and rate limits
 
 ## Your Tools:
 You have ~20 tools spanning agent configuration, project lifecycle, task management, and analysis viewing. Each tool's `action` parameter and required arguments are documented in its description — read them when called. Major groups:
@@ -185,6 +191,7 @@ You have ~20 tools spanning agent configuration, project lifecycle, task managem
 - **Visibility**: `view_workspace`, `view_notifications`
 - **Cleanup**: `delete_project` (cancelled projects only)
 - **Verification**: `retry_verification`, `view_verification_report`, `skip_verification`
+- **Costs**: `view_cost_report` (usage, cost, budget and rate-limit status)
 
 ## Agent Types You Oversee:
 - **Wyrm**: pre-analyzer + task delegator (recommends tech stack; selects Kobold specialist per task)

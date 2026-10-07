@@ -2,7 +2,7 @@
 id: TASK-092
 parent: null
 feature: null
-status: todo
+status: verify
 priority: P2
 assignee: ai
 created: 2026-10-03
@@ -25,8 +25,8 @@ report is now being saved again (TASK-082/087): 14 rows on 2026-10-03.
 
 ## Acceptance criteria
 
-- [ ] Find which council agent should own it (CLAUDE.md lists it with the Dragon tools; Warden owns progress/config tools) and wire it in with the `CostTrackingService` (and rate limiter when present)
-- [ ] A test proves the agent's tool list includes `view_cost_report`
+- [x] Find which council agent should own it (CLAUDE.md lists it with the Dragon tools; Warden owns progress/config tools) and wire it in with the `CostTrackingService` (and rate limiter when present) — Warden (it owns progress/config tools); `DragonService` builds it from the registered `CostTrackingService` + `ProviderRateLimiter`; Dragon's and `delegate_to_council`'s Warden descriptions now mention cost reports
+- [x] A test proves the agent's tool list includes `view_cost_report` — `WardenCostReportToolTests` (proven to fail without the tool)
 - [ ] Live: asking Dragon for the cost summary returns the usage rows (requests/tokens; cost stays 0 until `CostTracking.Pricing` is configured) — this is TASK-082's remaining criterion
 
 ## Out of scope
@@ -39,4 +39,13 @@ report is now being saved again (TASK-082/087): 14 rows on 2026-10-03.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-092` — leave empty until then._
+Drafted and done 2026-10-07.
+
+1. `WardenAgent`: optional `ViewCostReportTool` parameter, added to its tools; prompt lists it under **Costs**.
+2. `DragonService`: takes `CostTrackingService` + `ProviderRateLimiter` (optional), passes the tool to Warden; `Program.cs` resolves both.
+3. Dragon's council description and `delegate_to_council` name cost reports as Warden's, so Dragon routes the question there.
+4. Test: `WardenCostReportToolTests`.
+
+## Close notes
+
+- 2026-10-07: code complete, suite 235/235. Parked at `verify` on `task/TASK-092`: the live criterion (ask Dragon for the cost summary on a running server) has not been run.
