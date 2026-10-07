@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083, TASK-106, TASK-081, TASK-045; new TASK-107). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083, TASK-106, TASK-081, TASK-045, TASK-036; new TASK-107, TASK-108). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,12 +11,12 @@ _Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, T
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 0 |
 | blocked      | — | — | 22 |
-| done         | 1 | 2 | 50 |
+| done         | 1 | 2 | 51 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 22 of the 22 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 14× P1 · 37× P2 · 1× P3.
+`todo` by priority: 14× P1 · 36× P2 · 2× P3.
 
 ## In progress now
 
@@ -57,7 +57,7 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: does external evaluator catch failures the reflect tool misses? — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (20/29)
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (21/30)
   - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko (P1) · FEATURE-077
   - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` (P2) · FEATURE-021
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2) (done)
@@ -80,14 +80,15 @@ _None_
     - [ ] [TASK-074](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-074-rest-delete-project-policy.md) REST DELETE /projects — match the Dragon delete policy + clean up files (P2) · FEATURE-018
     - [ ] [TASK-075](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-075-serialize-rest-spec-feature-edits.md) Serialize concurrent REST spec/feature edits (lost-update guard) (P2) · FEATURE-018
     - [ ] [TASK-107](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-107-verify-sse-behind-nginx.md) Verify the run events stream survives behind nginx (P3, human) · FEATURE-018
-  - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (6/7)
+  - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (7/8)
     - [x] [TASK-030](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-030-host-oauth-server.md) Host Birko OAuth server endpoints in KoboldLair.Server (P1) · FEATURE-019
     - [x] [TASK-031](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-031-sqlite-oauth-stores.md) SQLite-backed OAuth server stores (P1) · FEATURE-019
     - [x] [TASK-032](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-032-jwt-validation-middleware.md) Enable JWT validation middleware (P1) · FEATURE-019
     - [x] [TASK-033](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-033-github-federation.md) GitHub federation for human login (P1) · FEATURE-019
     - [x] [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership, and projects.json migration (P1) · FEATURE-019
     - [x] [TASK-035](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-035-service-account-registration.md) Service-account client registration (P2) · FEATURE-019
-    - [ ] [TASK-036](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-036-deprecate-legacy-auth.md) Deprecate and remove legacy auth (P2) · FEATURE-019
+    - [x] [TASK-036](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-036-deprecate-legacy-auth.md) Deprecate and remove legacy auth (P2) · FEATURE-019
+    - [ ] [TASK-108](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-108-persist-github-refresh-tokens.md) GitHub sign-in sessions are lost on every server restart (in-memory refresh tokens) (P3) · FEATURE-019
   - STORY-018 Daemon mode for KoboldLair.Server — planned (0/3)
     - [ ] [TASK-047](EPIC-012-backend-consolidation/STORY-018-daemon-mode/TASK-047-daemon-lifecycle.md) Daemon lifecycle flags (P2) · FEATURE-020
     - [ ] [TASK-048](EPIC-012-backend-consolidation/STORY-018-daemon-mode/TASK-048-dynamic-port-state-file.md) Dynamic port + daemon.json state + absolute ProjectsPath (P2) ⚠ blocked · FEATURE-020
