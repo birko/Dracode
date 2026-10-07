@@ -18,6 +18,8 @@ jira-key: null
 
 ## Context
 
+> **Build on the framework (2026-10-07 review):** don't write the redirect parsing, JWT expiry check or refresh timer app-side — they are Birko TASK-524 (`Birko.Web.Shell` auth). Read the token only from the Shell auth store (DraCode TASK-114), use the `/login` route from TASK-113, and the real `b-tabs` API for the API-keys tab (TASK-112). The refresh route may change with TASK-108 (refresh moving onto the Birko OAuth server).
+
 Replace the existing token-paste field (`auth-store.ts`) with a GitHub OAuth login button integrating STORY-017's flow (TASK-033), and add a service-account key management UI under Settings → API Keys (mirrors CLI `koboldlair keys`, TASK-035).
 
 ## Acceptance criteria

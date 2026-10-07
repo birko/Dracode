@@ -17,6 +17,8 @@ jira-key: null
 
 ## Context
 
+> **2026-10-07 review:** `docs/Birko.Web.Investigation-Report.md` is mostly outdated — the esbuild aliases and the render error handling it blamed are fixed; the unmounted shell is the remaining cause of the blank page (TASK-117 archives the doc). Point the UI e2e smoke at the TS shell when it is served. Correct routing is TASK-113; styling from framework tokens is part of TASK-115.
+
 The served `DraCode.KoboldLair.Client/wwwroot/index.html` is a self-contained **legacy
 vanilla-JS app** (its own router + mock data); it does not load the built TypeScript shell
 (`wwwroot/dist/app.js`) and does not mount `#app-shell` / `#route-outlet`. As a result the

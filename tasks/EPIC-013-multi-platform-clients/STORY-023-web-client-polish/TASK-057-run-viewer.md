@@ -17,6 +17,8 @@ jira-key: null
 
 ## Context
 
+> **Build on the framework (2026-10-07 review):** use Birko.Web.Core's `SseClient` (`http/event-source.ts` — `?token=`, reconnect) for `GET /api/v1/runs/{id}/events` (TASK-045, guide `docs/setup-guides/RUN_EVENTS_SSE.md`); take the token from the Shell auth store (TASK-114). No local EventSource wrapper.
+
 A "Recent runs" panel that surfaces ad-hoc `/kobold` runs started outside the web UI (e.g. by the CLI) and lets the user watch the live SSE stream (TASK-045's `/api/v1/runs/{id}/events`). Builds on the existing `api-client.ts`.
 
 ## Acceptance criteria

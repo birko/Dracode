@@ -17,6 +17,8 @@ jira-key: null
 
 ## Context
 
+> **Build on the framework (2026-10-07 review):** tab drag-and-drop, split sizes and the layout serialize/restore hook are Birko TASK-525 (`b-tabs` / `b-split-panel`); only the server-side per-user layout storage stays here.
+
 The polish items reclaimed from the deleted EPIC-003. Drag-and-drop tab reordering in the project workspace view, and named workspace layouts (open panels, splitter sizes, active tabs) persisted to the user profile on the server. Builds on the existing Shadow-DOM client; persistence coordinates with STORY-017's `users` table (TASK-034) — likely a `user_workspaces` table or `user_settings` extension.
 
 ## Acceptance criteria

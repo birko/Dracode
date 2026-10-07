@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083, TASK-106, TASK-081, TASK-045, TASK-036; new TASK-107, TASK-108). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083, TASK-106, TASK-081, TASK-045, TASK-036; new TASK-107 – TASK-117, EPIC-018 adopt Birko upstreams). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
-| planned      | 12 | 30 | — |
-| todo         | — | — | 52 |
-| in-progress  | 2 | 4 | 0 |
+| planned      | 13 | 32 | — |
+| todo         | — | — | 61 |
+| in-progress  | 2 | 3 | 0 |
 | verify       | — | — | 0 |
-| blocked      | — | — | 22 |
-| done         | 1 | 2 | 51 |
+| blocked      | — | — | 27 |
+| done         | 1 | 3 | 51 |
 | cancelled    | 0 | 0 | 0 |
 
-_`blocked` is a flag, not a state: 22 of the 22 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
+_`blocked` is a flag, not a state: 27 of the 27 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 14× P1 · 36× P2 · 2× P3.
+`todo` by priority: 14× P1 · 41× P2 · 6× P3.
 
 ## In progress now
 
@@ -57,7 +57,7 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: does external evaluator catch failures the reflect tool misses? — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (21/30)
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (21/29)
   - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko (P1) · FEATURE-077
   - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` (P2) · FEATURE-021
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2) (done)
@@ -80,7 +80,7 @@ _None_
     - [ ] [TASK-074](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-074-rest-delete-project-policy.md) REST DELETE /projects — match the Dragon delete policy + clean up files (P2) · FEATURE-018
     - [ ] [TASK-075](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-075-serialize-rest-spec-feature-edits.md) Serialize concurrent REST spec/feature edits (lost-update guard) (P2) · FEATURE-018
     - [ ] [TASK-107](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-107-verify-sse-behind-nginx.md) Verify the run events stream survives behind nginx (P3, human) · FEATURE-018
-  - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (7/8)
+  - STORY-017 OAuth/OIDC authentication and per-caller identity — done (7/7) (done)
     - [x] [TASK-030](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-030-host-oauth-server.md) Host Birko OAuth server endpoints in KoboldLair.Server (P1) · FEATURE-019
     - [x] [TASK-031](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-031-sqlite-oauth-stores.md) SQLite-backed OAuth server stores (P1) · FEATURE-019
     - [x] [TASK-032](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-032-jwt-validation-middleware.md) Enable JWT validation middleware (P1) · FEATURE-019
@@ -88,7 +88,6 @@ _None_
     - [x] [TASK-034](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-034-user-entity-ownership-migration.md) User entity, project ownership, and projects.json migration (P1) · FEATURE-019
     - [x] [TASK-035](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-035-service-account-registration.md) Service-account client registration (P2) · FEATURE-019
     - [x] [TASK-036](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-036-deprecate-legacy-auth.md) Deprecate and remove legacy auth (P2) · FEATURE-019
-    - [ ] [TASK-108](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-108-persist-github-refresh-tokens.md) GitHub sign-in sessions are lost on every server restart (in-memory refresh tokens) (P3) · FEATURE-019
   - STORY-018 Daemon mode for KoboldLair.Server — planned (0/3)
     - [ ] [TASK-047](EPIC-012-backend-consolidation/STORY-018-daemon-mode/TASK-047-daemon-lifecycle.md) Daemon lifecycle flags (P2) · FEATURE-020
     - [ ] [TASK-048](EPIC-012-backend-consolidation/STORY-018-daemon-mode/TASK-048-dynamic-port-state-file.md) Dynamic port + daemon.json state + absolute ProjectsPath (P2) ⚠ blocked · FEATURE-020
@@ -150,6 +149,20 @@ _None_
   - STORY-035 Reusable ConsensusService abstraction — planned (0/0)
   - STORY-036 Diverse-panel consensus (heterogeneous agents) — planned (0/0)
   - STORY-037 Retrofit EPIC-010 voting integrations onto the shared mechanism — planned (0/0)
+
+- **EPIC-018 Adopt Birko framework upstreams** — planned (0/10)
+  - STORY-038 Adopt the Birko security / OAuth upstreams — planned (0/4)
+    - [ ] [TASK-108](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-108-move-github-refresh-onto-birko-oauth-server.md) GitHub sign-in sessions are lost on every server restart — move refresh onto the Birko OAuth server (P2) ⚠ blocked
+    - [ ] [TASK-109](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-109-use-birko-oauth-server-stores.md) Use the framework OAuth server stores; delete SqliteOAuthStores and InMemoryOAuthStores (P2) ⚠ blocked · FEATURE-019
+    - [ ] [TASK-110](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-110-use-birko-oauth-endpoint-mapping.md) Use the framework OAuth endpoint mapping and client-credentials hook (P3) ⚠ blocked · FEATURE-019
+    - [ ] [TASK-111](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-111-use-birko-web-sign-in-and-loopback-helpers.md) Use the framework GitHub web sign-in helpers and loopback bypass (P3) ⚠ blocked · FEATURE-019
+  - STORY-039 Adopt Birko.Web upstreams in the web client — planned (0/6)
+    - [ ] [TASK-112](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-112-fix-toasts-and-settings-tabs.md) Toasts show nothing and the settings tabs never render — both use Birko.Web components wrongly (P2) · FEATURE-026
+    - [ ] [TASK-113](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-113-use-birko-router-and-module-routes.md) Use the Birko.Web router with module routes and an auth guard (P2) · FEATURE-026
+    - [ ] [TASK-114](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-114-one-token-store.md) One token store: the Shell auth store feeds WebSocket, REST and SSE (P2) · FEATURE-026
+    - [ ] [TASK-115](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-115-replace-hand-rolled-widgets-with-birko-web.md) Replace hand-rolled widgets and helpers with Birko.Web ones (P3) · FEATURE-026
+    - [ ] [TASK-116](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-116-adopt-birko-web-core-upstreams.md) Adopt WsClient.request and the runtime-config loader from Birko.Web.Core (P3) ⚠ blocked · FEATURE-026
+    - [ ] [TASK-117](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-117-archive-stale-birko-web-docs.md) Archive the two stale Birko.Web docs (P3)
 
 ## Loose tasks
 
