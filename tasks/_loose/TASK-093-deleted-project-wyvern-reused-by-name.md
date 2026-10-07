@@ -2,7 +2,7 @@
 id: TASK-093
 parent: null
 feature: null
-status: in-progress
+status: done
 priority: P2
 assignee: ai
 created: 2026-10-03
@@ -61,3 +61,13 @@ name and never check that its `ProjectId` is this project's.
 4. Tests (`ProjectDeletionTests`, with an ollama provider config so a Wyvern/Drake can be built without a request):
    delete via `DeleteProjectAsync` removes the Wyvern and Drakes; a new project with the same name gets a Wyvern whose
    `ProjectId` is the new id (both through deletion and through the stale-Wyvern guard). Prove each fails without its fix.
+
+## Close notes
+
+- Closed 2026-10-07. Review gate (inline): correctness found that `ReleaseAgents` removed a Wyvern matched by
+  *sanitized* name, which could be another live project's (`My App` vs `my-app`); it now removes only a Wyvern whose
+  `ProjectId` is this project's — test `Deleting_leaves_another_projects_Wyvern_whose_name_sanitizes_the_same`, proven
+  to fail without the guard. Conventions: no agent prompt touched; no new pattern. Security: the REST delete keeps its
+  ownership and permission checks; no new surface.
+- No REST-level test: in `ResourceEndpointsTests` the test host resolved the Wyvern provider `pi-zai`, which the
+  temp setup does not define, so a Wyvern cannot be built there. REST calls the service-tested `ReleaseAgents`.

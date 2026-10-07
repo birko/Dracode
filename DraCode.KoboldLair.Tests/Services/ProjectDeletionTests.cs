@@ -166,6 +166,18 @@ public class ProjectDeletionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Deleting_leaves_another_projects_Wyvern_whose_name_sanitizes_the_same()
+    {
+        var other = _wyverns.CreateWyvern("Same Name", Path.Combine(_dir, "x", "specification.md"), Path.Combine(_dir, "x"),
+            projectId: Guid.NewGuid().ToString());
+        var (project, _) = await ProjectWithGitObjectAsync("same-name");
+
+        await _service.DeleteProjectAsync(project.Id, deleteFiles: false);
+
+        _wyverns.GetWyvern("Same Name").Should().BeSameAs(other);
+    }
+
+    [Fact]
     public async Task A_new_project_with_a_deleted_projects_name_gets_its_own_Wyvern()
     {
         var (old, _) = await ProjectWithGitObjectAsync("reused");

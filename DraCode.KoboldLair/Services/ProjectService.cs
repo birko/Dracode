@@ -314,12 +314,14 @@ namespace DraCode.KoboldLair.Services
 
         /// <summary>
         /// Removes the project's Drakes and its Wyvern from the factories. Returns how many Drakes were removed and whether
-        /// a Wyvern was.
+        /// a Wyvern was. A Wyvern found by name but created for another project is left alone.
         /// </summary>
         public (int Drakes, bool Wyvern) ReleaseAgents(Project project)
         {
             var drakes = _drakeFactory?.RemoveAllDrakesForProject(project.Id) ?? 0;
-            var wyvern = _wyvernFactory.RemoveWyvern(project.Name);
+            var own = _wyvernFactory.GetWyvern(project.Name);
+            var wyvern = own != null && (own.ProjectId == null || own.ProjectId == project.Id)
+                && _wyvernFactory.RemoveWyvern(project.Name);
             return (drakes, wyvern);
         }
 
