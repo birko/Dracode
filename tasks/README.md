@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083, TASK-106, TASK-081). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083, TASK-106, TASK-081, TASK-045; new TASK-107). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,12 +11,12 @@ _Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, T
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 0 |
 | blocked      | — | — | 23 |
-| done         | 1 | 2 | 49 |
+| done         | 1 | 2 | 50 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 23 of the 23 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 15× P1 · 37× P2.
+`todo` by priority: 14× P1 · 37× P2 · 1× P3.
 
 ## In progress now
 
@@ -57,7 +57,7 @@ _None_
   - STORY-011 Design EvaluatorAgent — planned (0/0)
   - STORY-012 Integrate EvaluatorAgent into the Kobold tool loop — planned (0/0)
   - STORY-013 Measure: does external evaluator catch failures the reflect tool misses? — planned (0/0)
-- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (19/28)
+- **EPIC-012 Backend consolidation — unify on KoboldLair.Server** — in-progress (20/29)
   - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko (P1) · FEATURE-077
   - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` (P2) · FEATURE-021
   - STORY-014 Retire DraCode.WebSocket and DraCode.Web — done (2/2) (done)
@@ -71,14 +71,15 @@ _None_
     - [x] [TASK-095](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-095-per-project-drake-switch.md) Per-project Drake switch: Drake skips a project whose Drake is off, /kobold project mode still runs it (P1) · FEATURE-017
     - [x] [TASK-100](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-100-project-mode-drake-never-released.md) /kobold project mode never releases its Drake, so the project's background Drake is locked out afterwards (P1) · FEATURE-017
     - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
-  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (3/7)
+  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (4/8)
     - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
     - [x] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints (P1) · FEATURE-018
     - [x] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1) · FEATURE-018
-    - [ ] [TASK-045](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-045-sse-events-endpoint.md) SSE stream: GET /api/v1/runs/{id}/events (P1) · FEATURE-018
+    - [x] [TASK-045](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-045-sse-events-endpoint.md) SSE stream: GET /api/v1/runs/{id}/events (P1) · FEATURE-018
     - [ ] [TASK-046](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-046-agents-cost-endpoints.md) agents/active + cost-report endpoints (P2) · FEATURE-018
     - [ ] [TASK-074](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-074-rest-delete-project-policy.md) REST DELETE /projects — match the Dragon delete policy + clean up files (P2) · FEATURE-018
     - [ ] [TASK-075](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-075-serialize-rest-spec-feature-edits.md) Serialize concurrent REST spec/feature edits (lost-update guard) (P2) · FEATURE-018
+    - [ ] [TASK-107](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-107-verify-sse-behind-nginx.md) Verify the run events stream survives behind nginx (P3, human) · FEATURE-018
   - STORY-017 OAuth/OIDC authentication and per-caller identity — in-progress (6/7)
     - [x] [TASK-030](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-030-host-oauth-server.md) Host Birko OAuth server endpoints in KoboldLair.Server (P1) · FEATURE-019
     - [x] [TASK-031](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-031-sqlite-oauth-stores.md) SQLite-backed OAuth server stores (P1) · FEATURE-019
