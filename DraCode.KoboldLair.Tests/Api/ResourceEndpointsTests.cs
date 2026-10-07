@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Birko.Security;
 using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Server.Auth;
 using FluentAssertions;
@@ -42,9 +43,9 @@ public class ResourceEndpointsTests : IDisposable
         try { if (Directory.Exists(_projectsPath)) Directory.Delete(_projectsPath, recursive: true); } catch { }
     }
 
-    private WebApplicationFactory<Program> CreateFactory()
+    private WebApplicationFactory<Program> CreateFactory(Dictionary<string, string?>? extraConfig = null)
     {
-        var config = new Dictionary<string, string?>
+        var config = new Dictionary<string, string?>(extraConfig ?? new())
         {
             ["Authentication:Jwt:Enabled"] = "true",
             ["Authentication:Jwt:Secret"] = Secret,
@@ -187,6 +188,46 @@ public class ResourceEndpointsTests : IDisposable
 
         var get = await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/projects/{id}", token));
         get.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public void The_test_host_does_not_read_the_developers_appsettings_local_json()
+    {
+        // The file is the developer's own (git-ignored); a test host reading it behaves differently per machine (TASK-104)
+        using var factory = CreateFactory();
+
+        var sources = ((IConfigurationRoot)factory.Services.GetRequiredService<IConfiguration>()).Providers
+            .OfType<Microsoft.Extensions.Configuration.Json.JsonConfigurationProvider>()
+            .Select(p => p.Source.Path);
+
+        sources.Should().NotContain(path => path != null && path.EndsWith("appsettings.local.json", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Delete_project_releases_its_Wyvern()
+    {
+        // The test's own provider, so a Wyvern can be built without anything from the machine (TASK-093 / TASK-104)
+        using var factory = CreateFactory(new()
+        {
+            ["KoboldLair:DefaultProvider"] = "test-ollama",
+            ["KoboldLair:Providers:0:Name"] = "test-ollama",
+            ["KoboldLair:Providers:0:Type"] = "ollama",
+            ["KoboldLair:Providers:0:DefaultModel"] = "m1",
+            ["KoboldLair:Providers:0:IsEnabled"] = "true",
+            ["KoboldLair:Providers:0:RequiresApiKey"] = "false",
+            ["KoboldLair:Providers:0:CompatibleAgents:0"] = "all",
+        });
+        var client = factory.CreateClient();
+        var token = MintToken(factory, UserA, OwnerScopes);
+        var id = await CreateProject(client, token, "WithWyvern");
+        var wyverns = factory.Services.GetRequiredService<WyvernFactory>();
+        wyverns.CreateWyvern("WithWyvern", Path.Combine(_projectsPath, "withwyvern", "specification.md"),
+            Path.Combine(_projectsPath, "withwyvern"), projectId: id);
+
+        var del = await client.SendAsync(Authed(HttpMethod.Delete, $"/api/v1/projects/{id}", token));
+
+        del.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        wyverns.GetWyvern("WithWyvern").Should().BeNull();
     }
 
     [Fact]
