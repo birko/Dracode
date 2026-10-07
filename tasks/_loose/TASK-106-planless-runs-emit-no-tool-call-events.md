@@ -2,7 +2,7 @@
 id: TASK-106
 parent: null
 feature: null
-status: todo
+status: done
 priority: P2
 assignee: ai
 created: 2026-10-07
@@ -27,10 +27,10 @@ TASK-095 live check saw 30 `kobold_tool_call` frames only because that run had a
 
 ## Acceptance criteria
 
-- [ ] A run through `StartWorkingWithPlanAsync` publishes `ToolCallStartedEvent` / `ToolCallResultEvent` for each tool
-      call, like the enhanced path
-- [ ] Test: a plan-less Kobold that makes a tool call publishes started + result events in order before completion
-      (fails without the fix)
+- [x] A run through `StartWorkingWithPlanAsync` publishes `ToolCallStartedEvent` / `ToolCallResultEvent` for each tool
+      call, like the enhanced path — while `Agent.RunAsync` runs, the Kobold wraps each agent tool in `RunEventPublishingTool` (publishes started/result) and restores the originals afterwards
+- [x] Test: a plan-less Kobold that makes a tool call publishes started + result events in order before completion
+      (fails without the fix) — `PlanlessRunEventsTests` (without the wrapping: only `run_started`, `run_completed`)
 
 ## Out of scope
 
@@ -42,3 +42,16 @@ TASK-095 live check saw 30 `kobold_tool_call` frames only because that run had a
 N/A — the event sequence is asserted by a test with a scripted provider.
 
 ## Implementation plan
+
+Done 2026-10-07.
+
+1. `RunEventPublishingTool`: a `Tool` decorator that publishes `ToolCallStartedEvent` / `ToolCallResultEvent` around the inner call.
+2. `Kobold.StartWorkingWithPlanAsync`: wrap the agent's tools (only when the run has an event source) around `Agent.RunAsync`,
+   unwrap in `finally`. A wrapper is needed because Birko's `Agent.RunAsync` reports tool calls only as text messages through
+   the single message callback that Drake already uses.
+3. Test: `PlanlessRunEventsTests`.
+
+## Close notes
+
+- Closed 2026-10-07. Suite 246/246. A structured tool-call hook on Birko's `Agent` would make the wrapper unnecessary; not
+  needed while the decorator works.

@@ -830,6 +830,34 @@ You are working on a task that is part of a larger project. Below is the project
         /// <param name="planService">Service for plan persistence (can be null to skip plan updates)</param>
         /// <param name="maxIterations">Maximum iterations for agent execution</param>
         /// <returns>Messages from agent execution</returns>
+        /// <summary>
+        /// Wraps the agent's tools so <c>Agent.RunAsync</c> publishes tool-call events (TASK-106). Returns the wrappers to
+        /// undo; none when the run has no event source.
+        /// </summary>
+        private List<RunEventPublishingTool> WrapToolsForRunEvents()
+        {
+            var wrappers = new List<RunEventPublishingTool>();
+            if (_runEventSource == null) return wrappers;
+
+            foreach (var tool in Agent.Tools.ToList())
+            {
+                Agent.RemoveTool(tool.Name);
+                var wrapper = new RunEventPublishingTool(tool, PublishRunEvent);
+                Agent.AddTool(wrapper);
+                wrappers.Add(wrapper);
+            }
+            return wrappers;
+        }
+
+        private void UnwrapTools(List<RunEventPublishingTool> wrappers)
+        {
+            foreach (var wrapper in wrappers)
+            {
+                Agent.RemoveTool(wrapper.Name);
+                Agent.AddTool(wrapper.Inner);
+            }
+        }
+
         public async Task<List<Message>> StartWorkingWithPlanAsync(
             KoboldPlanService? planService,
             int maxIterations = 30,
@@ -912,7 +940,16 @@ You are working on a task that is part of a larger project. Below is the project
                 }
 
                 // Execute the task through the underlying agent
-                var messages = await Agent.RunAsync(fullTaskPrompt, effectiveMaxIterations);
+                List<Message> messages;
+                var wrapped = WrapToolsForRunEvents();
+                try
+                {
+                    messages = await Agent.RunAsync(fullTaskPrompt, effectiveMaxIterations);
+                }
+                finally
+                {
+                    UnwrapTools(wrapped);
+                }
 
                 // Check if execution encountered errors
                 var planExecutionError = ExtractErrorFromMessages(messages);
