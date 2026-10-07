@@ -27,6 +27,8 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProviderCircuitBreaker? _circuitBreaker;
         private readonly SharedPlanningContextService? _sharedPlanningContext;
         private readonly IEventBus? _eventBus;
+        private readonly ProviderRateLimiter? _rateLimiter;
+        private readonly CostTrackingService? _costTracker;
         private readonly ILoggerFactory? _loggerFactory;
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly string _projectsPath;
@@ -72,8 +74,12 @@ namespace DraCode.KoboldLair.Factories
             ProviderCircuitBreaker? circuitBreaker = null,
             SharedPlanningContextService? sharedPlanningContext = null,
             ITaskRepository? taskRepository = null,
-            IEventBus? eventBus = null)
+            IEventBus? eventBus = null,
+            ProviderRateLimiter? rateLimiter = null,
+            CostTrackingService? costTracker = null)
         {
+            _rateLimiter = rateLimiter;
+            _costTracker = costTracker;
             _koboldFactory = koboldFactory;
             _providerConfigService = providerConfigService;
             _koboldLairConfig = koboldLairConfig;
@@ -208,7 +214,11 @@ namespace DraCode.KoboldLair.Factories
                     _koboldLairConfig,
                     plannerOptions,
                     plannerConfig,
-                    "kobold-planner");
+                    "kobold-planner",
+                    _rateLimiter,
+                    _costTracker,
+                    _loggerFactory?.CreateLogger<TrackedLlmProvider>(),
+                    projectId);
             }
 
             // Create implementation service for specification tracking

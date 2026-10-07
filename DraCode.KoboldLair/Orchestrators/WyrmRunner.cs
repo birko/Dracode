@@ -1,5 +1,7 @@
 using Birko.AI;
 using Birko.AI.Models;
+using Birko.AI.Resilience.Services;
+using Microsoft.Extensions.Logging;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Configuration;
@@ -195,13 +197,17 @@ namespace DraCode.KoboldLair.Orchestrators
             string task,
             AgentOptions? options = null,
             Dictionary<string, string>? config = null,
-            Action<string, string>? messageCallback = null)
+            Action<string, string>? messageCallback = null,
+            ProviderRateLimiter? rateLimiter = null,
+            CostTrackingService? costTracker = null,
+            ILogger? trackingLogger = null)
         {
             options ??= new AgentOptions();
-            
+
             SelectAgentTool.ClearSelection();
 
-            var wyrm = KoboldLairAgentFactory.Create(provider, koboldLairConfig, options, config, "wyrm");
+            var wyrm = KoboldLairAgentFactory.Create(provider, koboldLairConfig, options, config, "wyrm",
+                rateLimiter, costTracker, trackingLogger);
             if (messageCallback != null)
             {
                 wyrm.SetMessageCallback(messageCallback);

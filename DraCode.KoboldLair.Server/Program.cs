@@ -424,7 +424,8 @@ builder.Services.AddSingleton<WyvernFactory>(sp =>
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var gitService = sp.GetRequiredService<GitService>();
     return new WyvernFactory(providerConfigService, projectRepository, config, gitService: gitService,
-        loggerFactory: sp.GetRequiredService<ILoggerFactory>(), taskRepository: sp.GetService<ITaskRepository>());
+        loggerFactory: sp.GetRequiredService<ILoggerFactory>(), taskRepository: sp.GetService<ITaskRepository>(),
+        rateLimiter: sp.GetService<ProviderRateLimiter>(), costTracker: sp.GetService<CostTrackingService>());
 });
 
 // Register factories as singletons
@@ -442,7 +443,8 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var eventBus = sp.GetService<IEventBus>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var factory = new DrakeFactory(koboldFactory, providerConfigService, config,
-        loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext, taskRepository, eventBus);
+        loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext, taskRepository, eventBus,
+        sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>());
 
     // Wire feature completion notifications so users get notified when branches are ready for merge
     var notificationService = sp.GetRequiredService<ProjectNotificationService>();
@@ -511,7 +513,8 @@ builder.Services.AddSingleton<WyrmFactory>(sp =>
 {
     var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
-    return new WyrmFactory(projectRepository, providerConfigService);
+    return new WyrmFactory(projectRepository, providerConfigService, sp.GetService<ProviderRateLimiter>(),
+        sp.GetService<CostTrackingService>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger<TrackedLlmProvider>());
 });
 builder.Services.AddSingleton<ProjectNotificationService>(sp =>
 {
@@ -542,7 +545,8 @@ builder.Services.AddSingleton<WyrmService>(sp =>
     var providerConfigService = sp.GetRequiredService<ProviderConfigurationService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var commandHandler = sp.GetRequiredService<WebSocketCommandHandler>();
-    return new WyrmService(logger, providerConfigService, config, commandHandler);
+    return new WyrmService(logger, providerConfigService, config, commandHandler,
+        sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>());
 });
 
 // Register SQL history repository (null when not using SQLite)

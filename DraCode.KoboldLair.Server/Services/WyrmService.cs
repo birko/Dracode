@@ -26,6 +26,8 @@ namespace DraCode.KoboldLair.Server.Services
 
         private readonly TaskTracker _taskTracker;
         private readonly ILogger<WyrmService> _logger;
+        private readonly ProviderRateLimiter? _rateLimiter;
+        private readonly CostTrackingService? _costTracker;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly KoboldLairConfiguration _koboldLairConfig;
         private readonly WebSocketCommandHandler? _commandHandler;
@@ -34,8 +36,12 @@ namespace DraCode.KoboldLair.Server.Services
             ILogger<WyrmService> logger,
             ProviderConfigurationService providerConfigService,
             KoboldLairConfiguration koboldLairConfig,
-            WebSocketCommandHandler? commandHandler = null)
+            WebSocketCommandHandler? commandHandler = null,
+            ProviderRateLimiter? rateLimiter = null,
+            CostTrackingService? costTracker = null)
         {
+            _rateLimiter = rateLimiter;
+            _costTracker = costTracker;
             _logger = logger;
             _taskTracker = new TaskTracker();
             _providerConfigService = providerConfigService;
@@ -195,7 +201,10 @@ namespace DraCode.KoboldLair.Server.Services
                     taskRecord.Task,
                     options,
                     config,
-                    messageCallback
+                    messageCallback,
+                    _rateLimiter,
+                    _costTracker,
+                    _logger
                 );
 
                 var agentType = result.selectedAgentType;

@@ -1,5 +1,6 @@
 using Birko.AI;
 using Birko.AI.Agents;
+using Birko.AI.Resilience.Services;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Configuration;
@@ -25,10 +26,20 @@ namespace DraCode.KoboldLair.Factories
         /// </summary>
         /// <param name="projectRepository">Project repository holding per-project parallel limits</param>
         /// <param name="providerConfigService">Provider configuration service</param>
+        private readonly ProviderRateLimiter? _rateLimiter;
+        private readonly CostTrackingService? _costTracker;
+        private readonly ILogger? _trackingLogger;
+
         public WyrmFactory(
             IProjectRepository projectRepository,
-            ProviderConfigurationService providerConfigService)
+            ProviderConfigurationService providerConfigService,
+            ProviderRateLimiter? rateLimiter = null,
+            CostTrackingService? costTracker = null,
+            ILogger? trackingLogger = null)
         {
+            _rateLimiter = rateLimiter;
+            _costTracker = costTracker;
+            _trackingLogger = trackingLogger;
             _projectRepository = projectRepository;
             _providerConfigService = providerConfigService;
             _activeWyrms = new ConcurrentDictionary<Guid, string?>();
@@ -108,7 +119,8 @@ namespace DraCode.KoboldLair.Factories
             var (providerType, config, agentOptions) = GetProviderSettings(project, options);
             var koboldLairConfig = BuildKoboldLairConfig(providerType);
 
-            var wyrm = KoboldLairAgentFactory.Create(providerType, koboldLairConfig, agentOptions, config, "wyrm");
+            var wyrm = KoboldLairAgentFactory.Create(providerType, koboldLairConfig, agentOptions, config, "wyrm",
+                _rateLimiter, _costTracker, _trackingLogger, project.Id);
 
             RegisterWyrm(project.Id);
 
@@ -125,7 +137,8 @@ namespace DraCode.KoboldLair.Factories
         public WyrmPreAnalysisAgent CreateWyrmPreAnalysisAgent(Project project, AgentOptions? options = null)
         {
             var (providerType, config, agentOptions) = GetProviderSettings(project, options);
-            var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(providerType, config, "wyrm-preanalysis");
+            var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(providerType, config, "wyrm-preanalysis",
+                _rateLimiter, _costTracker, _trackingLogger, project.Id);
 
             var agent = new WyrmPreAnalysisAgent(llmProvider, agentOptions);
 

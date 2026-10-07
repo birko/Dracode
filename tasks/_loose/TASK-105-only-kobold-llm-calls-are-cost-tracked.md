@@ -2,7 +2,7 @@
 id: TASK-105
 parent: null
 feature: null
-status: todo
+status: done
 priority: P2
 assignee: ai
 created: 2026-10-07
@@ -30,11 +30,11 @@ to these agents.
 
 ## Acceptance criteria
 
-- [ ] Every agent that calls an LLM — Dragon and its council, Wyrm (pre-analysis and delegation), Wyvern, the Kobold
-      planner, Drake if it calls one — records its calls through the cost tracker and goes through the rate limiter
-- [ ] Each record carries its agent type (and project id where the agent has one), so the report can tell them apart
-- [ ] Tests prove each of those construction paths produces a tracked provider (fails without the fix)
-- [ ] Live: a Dragon conversation followed by `view_cost_report` shows today's Dragon requests
+- [x] Every agent that calls an LLM — Dragon and its council, Wyrm (pre-analysis and delegation), Wyvern, the Kobold
+      planner, Drake if it calls one — records its calls through the cost tracker and goes through the rate limiter — `DragonService` (one tracked provider per council member), `WyvernFactory`, `WyrmFactory` (both agents), `WyrmRunner.GetRecommendationAsync` via `WyrmService`, `DrakeFactory` (planner). Drake itself makes no LLM call
+- [x] Each record carries its agent type (and project id where the agent has one), so the report can tell them apart — `KoboldLairAgentFactory.Create`/`CreateLlmProvider` take a `projectId`; Wyrm, Wyvern, the planner and Drake-summoned Kobolds pass theirs (Kobold rows had none before either)
+- [x] Tests prove each of those construction paths produces a tracked provider (fails without the fix) — `LlmUsageTrackingTests` (Wyvern, Wyrm + pre-analysis, planner, Kobold; all four fail with the wiring reverted). Dragon's council is covered by the live check: its agents are built inside a WebSocket session
+- [x] Live: a Dragon conversation followed by `view_cost_report` shows today's Dragon requests — 2026-10-07: the report showed 4 requests / 10,389 tokens for today; `usage_records` then held `dragon` 4 and `warden` 2 rows
 
 ## Out of scope
 
@@ -43,6 +43,22 @@ to these agents.
 
 ## Human test plan
 
-- [ ] On the dev server, chat with Dragon, then ask for the cost report summary → today's requests include the dragon/council calls
+- [x] On the dev server, chat with Dragon, then ask for the cost report summary → today's requests include the dragon/council calls
 
 ## Implementation plan
+
+Done 2026-10-07.
+
+1. `KoboldLairAgentFactory.Create` / `CreateLlmProvider`: optional `projectId`, set on the `TrackedLlmProvider`.
+2. Trackers passed in by constructor (as `KoboldFactory` already was): `WyvernFactory`, `WyrmFactory`, `DrakeFactory`,
+   `WyrmService` (→ `WyrmRunner.GetRecommendationAsync`); `DragonService` already had them (TASK-092). `Program.cs` wires them.
+3. `DragonService.CreateSessionAgents`: one tracked provider per council member (`dragon`, `sage`, `seeker`, `sentinel`, `warden`).
+4. `KoboldFactory.CreateKobold(…, projectId)`; Drake passes the task's project.
+5. Read-only `Wyvern.AnalyzerProvider` and `Drake.PlannerProvider` so tests can see which provider those agents call.
+6. Tests: `LlmUsageTrackingTests`.
+
+## Close notes
+
+- Closed 2026-10-07. Suite 239/239. Review (inline): no blockers. `WyrmRunner.RunAsync` / `RunMultipleAsync` still build
+  untracked agents, but nothing calls them (only `GetRecommendationAsync` is used, by `WyrmService`).
+- Ad-hoc `/kobold` runs have no project, so their Kobold rows carry none — correct.

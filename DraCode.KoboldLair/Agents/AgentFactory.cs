@@ -26,7 +26,8 @@ namespace DraCode.KoboldLair.Agents
             string agentType = "coding",
             ProviderRateLimiter? rateLimiter = null,
             CostTrackingService? costTracker = null,
-            ILogger? logger = null)
+            ILogger? logger = null,
+            string? projectId = null)
         {
             options ??= new AgentOptions();
             config ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -44,27 +45,27 @@ namespace DraCode.KoboldLair.Agents
             // Handle KoboldLair-specific agents locally
             if (agentType.Equals("wyrm", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger, projectId);
                 return new WyrmAgent(llmProvider, options, provider, config);
             }
             else if (agentType.Equals("dragon", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger, projectId);
                 return new DragonAgent(llmProvider, options);
             }
             else if (agentType.Equals("wyvern", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger, projectId);
                 return new WyvernAgent(llmProvider, options);
             }
             else if (agentType.Equals("kobold-planner", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger, projectId);
                 return new KoboldPlannerAgent(llmProvider, options);
             }
             else if (agentType.Equals("wyrm-preanalysis", StringComparison.OrdinalIgnoreCase))
             {
-                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger);
+                var llmProvider = CreateLlmProvider(providerType, config, agentType, rateLimiter, costTracker, logger, projectId);
                 return new WyrmPreAnalysisAgent(llmProvider, options);
             }
 
@@ -74,7 +75,8 @@ namespace DraCode.KoboldLair.Agents
                 var baseProvider = CreateBaseProvider(providerType, config, agentType);
                 var trackedProvider = new TrackedLlmProvider(baseProvider, rateLimiter, costTracker, logger)
                 {
-                    AgentType = agentType
+                    AgentType = agentType,
+                    ProjectId = projectId
                 };
                 return AgentFactory.Create(trackedProvider, options, agentType);
             }
@@ -91,7 +93,8 @@ namespace DraCode.KoboldLair.Agents
             string? agentType = null,
             ProviderRateLimiter? rateLimiter = null,
             CostTrackingService? costTracker = null,
-            ILogger? logger = null)
+            ILogger? logger = null,
+            string? projectId = null)
         {
             var baseProvider = CreateBaseProvider(provider, config, agentType);
 
@@ -99,7 +102,8 @@ namespace DraCode.KoboldLair.Agents
             {
                 return new TrackedLlmProvider(baseProvider, rateLimiter, costTracker, logger)
                 {
-                    AgentType = agentType
+                    AgentType = agentType,
+                    ProjectId = projectId
                 };
             }
 
