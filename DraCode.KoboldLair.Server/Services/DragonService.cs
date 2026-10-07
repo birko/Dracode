@@ -458,7 +458,29 @@ namespace DraCode.KoboldLair.Server.Services
                 else
                 {
                     // Create all agents for this session
-                    CreateSessionAgents(session);
+                    try
+                    {
+                        CreateSessionAgents(session);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Without a reply the client only sees the socket close; tell it why (e.g. no usable provider)
+                        _logger.LogError(ex, "Could not create the Dragon agents for session {SessionId}", currentSessionId);
+                        await SendTrackedMessageAsync(webSocket, session, "error", new
+                        {
+                            type = "error",
+                            errorType = "configuration",
+                            sessionId = currentSessionId,
+                            message = $"Dragon could not start: {ex.Message}",
+                            timestamp = DateTime.UtcNow
+                        });
+                        try
+                        {
+                            await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Dragon could not start", CancellationToken.None);
+                        }
+                        catch (WebSocketException) { }
+                        return;
+                    }
 
                     // Set message callback for Dragon (handles final response)
                     Action<string, string> dragonCallback = (type, content) =>
