@@ -2,7 +2,7 @@
 id: TASK-085
 parent: null
 feature: null
-status: todo
+status: done
 priority: P3
 assignee: ai
 created: 2026-10-03
@@ -24,8 +24,8 @@ for a failure.
 
 ## Acceptance criteria
 
-- [ ] Find what emits `specification_created` after the response and why it fires on a failed request
-- [ ] A failed Dragon request emits no `specification_created` (test covers it)
+- [x] Find what emits `specification_created` after the response and why it fires on a failed request — `DragonService.CheckForNewSpecifications`, run after every response, announced the newest `specification.md` if `DateTime.UtcNow - LastWriteTime < 5 s`. `LastWriteTime` is local time, so on a UTC+2 machine the difference is about −7200 s and *every* existing spec passed — on every response, failed or not (it also re-ran project auto-registration each time). A 30-second cached file list could also miss a spec written during the request
+- [x] A failed Dragon request emits no `specification_created` (test covers it) — only a spec written (UTC) since the request was queued is announced; `SpecificationCreatedDetectionTests` (the before-the-request case fails under the old comparison on this UTC+2 machine)
 
 ## Out of scope
 
@@ -37,4 +37,14 @@ N/A — covered by a DragonService test once the trigger is found.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-085` — leave empty until then._
+Done 2026-10-07.
+
+1. `DragonService.FindSpecificationWrittenSince(projectsPath, sinceUtc)`: fresh listing, UTC write times, newest written at or
+   after `sinceUtc`.
+2. `CheckForNewSpecifications` takes the request's `QueuedAt` and uses it; the 30-second spec-file cache (its only reader) is removed.
+3. Tests: `SpecificationCreatedDetectionTests`.
+
+## Close notes
+
+- Closed 2026-10-07. Suite 244/244. A Sage *edit* of an existing spec during the request is still announced as
+  `specification_created` (as before); only stale specs stopped being announced.
