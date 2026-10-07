@@ -21,22 +21,24 @@ generated: 2026-10-03
 
 ## Build progress
 
-3 / 7 tasks done.
+4 / 8 tasks done.
 
 | Task | Status |
 |------|--------|
 | The web API skeleton and its published description (TASK-042) | ✅ done |
 | Projects, specifications, features, tasks and plans over the web API (TASK-043) | ✅ done |
 | Start a run and check on it (TASK-044) | ✅ done — live check passed 2026-10-03 |
-| Live stream of a run's progress (TASK-045) | ⬜ todo — now unblocked |
+| Live stream of a run's progress (TASK-045) | ✅ done — live check passed 2026-10-07 |
+| The live stream works behind nginx (TASK-107) | ⬜ todo — needs a machine with nginx |
 | Active agents and cost report (TASK-046) | ⬜ todo |
 | Deleting a project removes its files too, like in chat (TASK-074) | ⬜ todo |
 | Two people editing a specification at once don't overwrite each other (TASK-075) | ⬜ todo |
 
 ## What can be tested now
 
-A client can start a run and poll it to completion — verified live on 2026-10-03. While a run without a plan is
-working it still reads "pending" rather than "running" (small fix filed as TASK-083).
+A client can start a run and poll it to completion (verified live 2026-10-03), and watch it live over SSE — every tool
+call as it happens, then the result (verified live 2026-10-07). See `docs/setup-guides/RUN_EVENTS_SSE.md`. A run reads
+"running" from its start (TASK-083).
 
 ## Prototype
 
