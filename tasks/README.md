@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083; new TASK-106). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,12 +11,12 @@ _Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, T
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 0 |
 | blocked      | — | — | 23 |
-| done         | 1 | 2 | 46 |
+| done         | 1 | 2 | 47 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 23 of the 23 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 15× P1 · 37× P2 · 2× P3.
+`todo` by priority: 15× P1 · 38× P2 · 1× P3.
 
 ## In progress now
 
@@ -174,8 +174,9 @@ _None_
 - [x] [TASK-103](_loose/TASK-103-delete-project-leaves-git-repo-and-task-rows.md) delete_project reports success but leaves a git project's folder and the project's task rows behind (P2)
 - [x] [TASK-104](_loose/TASK-104-test-host-loads-developer-appsettings-local.md) The API test host loads the developer's appsettings.local.json, so tests depend on the machine they run on (P2)
 - [x] [TASK-105](_loose/TASK-105-only-kobold-llm-calls-are-cost-tracked.md) Only Kobold LLM calls are cost-tracked — Dragon, the council, Wyrm, Wyvern and the planner are never recorded (P2)
+- [ ] [TASK-106](_loose/TASK-106-planless-runs-emit-no-tool-call-events.md) A run without the enhanced plan path publishes no tool-call events — `/kobold` ad-hoc clients see no progress (P2)
 - [ ] [TASK-081](_loose/TASK-081-decide-koboldlair-sqlite-reference.md) Decide whether DraCode.KoboldLair needs its own Microsoft.Data.Sqlite reference (P3)
-- [ ] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
+- [x] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [x] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)
 - [x] [TASK-087](_loose/TASK-087-use-birko-ensurecolumns-in-usage-repository.md) Replace SqlUsageRepository's local add-missing-columns helper with Birko's EnsureColumns (P3)
 
