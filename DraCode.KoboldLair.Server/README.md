@@ -1,13 +1,13 @@
 # DraCode.KoboldLair.Server
 
-WebSocket server for the KoboldLair autonomous multi-agent coding system with token-based IP authentication.
+WebSocket and REST server for the KoboldLair autonomous multi-agent coding system.
 
 ## Features
 
 - **WebSocket Endpoints**:
   - `/wyvern` - Wyvern project analysis endpoint
   - `/dragon` - Dragon requirements gathering endpoint
-- **Token-based Authentication** with IP binding support
+- **JWT authentication** (Birko.Security) with GitHub sign-in and an OAuth 2.1 server (device code, service accounts)
 - **REST API** for project management and provider configuration
 - **Multi-provider AI support** (OpenAI, Claude, Gemini, Ollama, Azure OpenAI, GitHub Copilot, Z.AI, vLLM, SGLang, LlamaCpp)
 - **Per-project resource limiting** to control parallel kobold execution
@@ -202,85 +202,48 @@ Kobold Planner creates structured implementation plans before task execution, en
 
 ## Authentication
 
-The server supports token-based authentication with optional IP address binding for enhanced security.
-
-### Configuration
-
-Authentication is configured in `appsettings.json`:
+Authentication is built on Birko.Framework: `Birko.Security.Jwt` signs tokens, `Birko.Security.AspNetCore` validates
+them (JWT bearer, `?token=` for WebSockets and SSE, `RequirePermission` on endpoints) and `Birko.Security.OAuth.Server`
+is the OAuth 2.1 server. It is **off by default**; with it off, the server is a single-user local service and the
+`/api/v1` routes are not mapped.
 
 ```json
 {
   "Authentication": {
-    "Enabled": false,
-    "Tokens": [],
-    "TokenBindings": []
+    "Jwt": {
+      "Enabled": true,
+      "Secret": "${KOBOLDLAIR_JWT_SECRET}",
+      "Issuer": "KoboldLair",
+      "Audience": "KoboldLair",
+      "ExpirationMinutes": 60,
+      "RefreshExpirationDays": 7
+    },
+    "GitHub": { "Enabled": true, "ClientId": "...", "ClientSecret": "...", "AllowedGitHubIds": [12345] },
+    "OAuth": { "Enabled": true }
   }
 }
 ```
 
-### Authentication Modes
+### Signing in
 
-#### 1. Disabled (Default)
-```json
-{
-  "Authentication": {
-    "Enabled": false
-  }
-}
-```
-All connections are allowed without authentication.
+- **People — GitHub:** `GET /auth/github/login` → GitHub → `/auth/github/callback`, which returns an access token and a
+  refresh token. Renew with `POST /auth/refresh {refreshToken}`; end the session with `POST /auth/logout {refreshToken}`.
+  Only GitHub ids in `AllowedGitHubIds` may sign in.
+- **CLIs and devices — OAuth device code:** `POST /device_authorization`, approve at `/device/approve` while signed in,
+  then poll `POST /token`.
+- **Services:** OAuth client credentials through `POST /token` for a registered service account.
 
-#### 2. Simple Token Authentication
-```json
-{
-  "Authentication": {
-    "Enabled": true,
-    "Tokens": [
-      "your-secret-token-here",
-      "${MY_TOKEN_ENV_VAR}"
-    ]
-  }
-}
-```
-Clients must provide a valid token in the query string: `ws://server/wyvern?token=your-secret-token-here`
+Send the token as `Authorization: Bearer <token>`, or as `?token=<token>` where headers cannot be set (WebSocket upgrades,
+browser `EventSource`). A token's `scope` claim carries its permissions (`view_own`, `manage_projects`, `execute_agents`,
+`view_all`, `manage_config`, `manage_users`).
 
-#### 3. Token with IP Binding (Recommended for Production)
-```json
-{
-  "Authentication": {
-    "Enabled": true,
-    "TokenBindings": [
-      {
-        "Token": "production-token-1",
-        "AllowedIps": ["192.168.1.100", "10.0.0.50"]
-      },
-      {
-        "Token": "${SECURE_TOKEN}",
-        "AllowedIps": ["${CLIENT_IP_ADDRESS}"]
-      }
-    ]
-  }
-}
-```
-Tokens are bound to specific IP addresses. Only requests from allowed IPs with matching tokens are accepted.
+The old shared-token / IP-binding configuration (`Authentication:Enabled`, `Tokens`, `TokenBindings`) and the
+username/password `/auth/login` with `Authentication:Jwt:Users` were removed in TASK-036.
 
-### Environment Variables
+### Local daemon
 
-Tokens and IP addresses can be loaded from environment variables using the `${VAR_NAME}` syntax:
-
-```json
-{
-  "Token": "${KOBOLDLAIR_AUTH_TOKEN}",
-  "AllowedIps": ["${TRUSTED_CLIENT_IP}"]
-}
-```
-
-### Behind Proxy/Load Balancer
-
-The server automatically detects client IP addresses from:
-1. `X-Forwarded-For` header (takes the first IP for the original client)
-2. `X-Real-IP` header (nginx)
-3. Direct connection IP (fallback)
+`Authentication:Daemon:LoopbackBypass: true` lets requests through without a token when the server listens on loopback
+addresses only.
 
 ## Running the Server
 
@@ -291,9 +254,8 @@ dotnet run --project DraCode.KoboldLair.Server
 
 ### Production
 ```bash
-# Set environment variables for authentication
-export KOBOLDLAIR_AUTH_TOKEN="your-production-token"
-export TRUSTED_CLIENT_IP="192.168.1.100"
+# The JWT signing secret (at least 32 characters)
+export KOBOLDLAIR_JWT_SECRET="..."
 
 # Run the server
 dotnet run --project DraCode.KoboldLair.Server --configuration Release
@@ -307,8 +269,8 @@ dotnet run --project DraCode.KoboldLair.Server --configuration Release
 
 ### Connection
 ```
-ws://server:port/wyvern?token=your-token-here
-ws://server:port/dragon?token=your-token-here
+ws://server:port/wyvern?token=<jwt>
+ws://server:port/dragon?token=<jwt>
 ```
 
 ### Message Format
@@ -323,20 +285,18 @@ All messages are JSON:
 ## Security Best Practices
 
 1. **Always enable authentication in production**
-2. **Use environment variables for tokens** - never commit secrets to source control
-3. **Use IP binding** when possible to restrict access to known clients
+2. **Keep the JWT secret in an environment variable** - never commit secrets to source control
+3. **Restrict GitHub sign-in** with `AllowedGitHubIds`
 4. **Use HTTPS/WSS** in production (configure reverse proxy like nginx)
-5. **Rotate tokens regularly**
-6. **Monitor authentication logs** for suspicious activity
+5. **Monitor authentication logs** for suspicious activity
 
 ## Project Structure
 
 ```
 DraCode.KoboldLair.Server/
+├── Api/                            # /api/v1 REST endpoints (projects, runs, SSE events, providers)
+├── Auth/                           # JWT config, GitHub sign-in, OAuth server wiring, refresh tokens
 ├── Models/                         # Server-specific models
-│   ├── Configuration/              # Authentication configuration
-│   │   ├── AuthenticationConfiguration.cs
-│   │   └── TokenIpBinding.cs
 │   └── WebSocket/                  # WebSocket protocol models
 │       ├── WebSocketCommand.cs
 │       └── WebSocketRequest.cs
@@ -346,7 +306,6 @@ DraCode.KoboldLair.Server/
 │   ├── WyvernProcessingService.cs  # Wyvern background processing (60s)
 │   ├── DrakeExecutionService.cs    # Drake task execution service (30s)
 │   ├── DrakeMonitoringService.cs   # Drake background monitoring (60s)
-│   ├── WebSocketAuthenticationService.cs  # Token/IP authentication
 │   └── WebSocketCommandHandler.cs  # WebSocket command routing
 ├── Program.cs                      # ASP.NET Core startup & DI
 ├── appsettings.json                # Base configuration

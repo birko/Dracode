@@ -5,64 +5,15 @@ using Microsoft.Extensions.Options;
 namespace DraCode.KoboldLair.Server.Auth;
 
 /// <summary>
-/// Minimal API endpoints for JWT authentication: login, refresh, logout.
+/// Token refresh and logout for interactively issued tokens (GitHub login, TASK-033). Sign-in itself is GitHub federation
+/// or the OAuth server; the static username/password <c>/auth/login</c> was removed (TASK-036).
 /// </summary>
 public static class AuthEndpoints
 {
     public static void MapAuthEndpoints(this WebApplication app)
     {
-        app.MapPost("/auth/login", HandleLogin);
         app.MapPost("/auth/refresh", HandleRefresh);
         app.MapPost("/auth/logout", HandleLogout);
-    }
-
-    private static IResult HandleLogin(
-        LoginRequest request,
-        IOptions<JwtAuthenticationConfiguration> config,
-        ITokenProvider tokenProvider,
-        IPasswordHasher passwordHasher,
-        RefreshTokenStore refreshStore)
-    {
-        var jwtConfig = config.Value;
-
-        var user = jwtConfig.Users.FirstOrDefault(u =>
-            u.Username.Equals(request.Username, StringComparison.OrdinalIgnoreCase));
-
-        if (user == null)
-            return Results.Unauthorized();
-
-        if (!passwordHasher.Verify(request.Password, user.PasswordHash))
-            return Results.Unauthorized();
-
-        // Generate access token with claims. The "scope" claim carries the expanded
-        // role permissions so ClaimsCurrentUser.Permissions + PermissionEndpointFilter
-        // can enforce per-endpoint scopes — the same claim OAuth service-account tokens
-        // use (TASK-032). Comma-joined; ClaimsCurrentUser splits it back into discrete values.
-        var permissions = KoboldLairPermissionChecker.ExpandRolesToPermissions(user.Roles);
-        var claims = new Dictionary<string, string>
-        {
-            [JwtRegisteredClaimNames.Sub] = user.Id.ToString(),
-            ["name"] = user.Username,
-            ["roles"] = string.Join(",", user.Roles),
-            ["scope"] = string.Join(",", permissions)
-        };
-
-        var tokenResult = tokenProvider.GenerateToken(claims);
-        var refreshToken = tokenProvider.GenerateRefreshToken();
-
-        // Store refresh token keyed on the string sub (FEATURE-019 D12) — config users use their
-        // Guid id as the sub; federated users (TASK-033) use e.g. "github:{id}".
-        var refreshExpiry = DateTime.UtcNow.AddDays(jwtConfig.RefreshExpirationDays);
-        refreshStore.Store(refreshToken, user.Id.ToString(), user.Username, user.Roles, refreshExpiry);
-
-        return Results.Ok(new LoginResponse
-        {
-            Token = tokenResult.Token,
-            RefreshToken = refreshToken,
-            ExpiresAt = tokenResult.ExpiresAt,
-            Roles = user.Roles,
-            Username = user.Username
-        });
     }
 
     private static IResult HandleRefresh(
@@ -78,7 +29,7 @@ public static class AuthEndpoints
         // Revoke old refresh token (rotation)
         refreshStore.Revoke(request.RefreshToken);
 
-        // Generate new token pair (mirror the login claim set, including the scope/permission claim)
+        // Generate a new token pair with the same claim set, including the scope/permission claim
         var permissions = KoboldLairPermissionChecker.ExpandRolesToPermissions(entry.Roles);
         var claims = new Dictionary<string, string>
         {
@@ -115,7 +66,6 @@ public static class AuthEndpoints
 }
 
 // Request/Response DTOs
-public record LoginRequest(string Username, string Password);
 public record RefreshRequest(string RefreshToken);
 public record LogoutRequest(string RefreshToken);
 

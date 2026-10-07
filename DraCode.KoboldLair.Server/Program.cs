@@ -1,13 +1,10 @@
-using Birko.Communication.WebSocket.Middleware;
 using Birko.AI.Resilience.Services;
-using Birko.Communication.WebSocket.Services;
 using Birko.Security;
 using Birko.Security.AspNetCore;
 using Birko.Security.Authorization;
 using Birko.Security.Jwt;
 using Birko.Security.OAuth.Server;
 using Birko.Security.OAuth.Server.Stores;
-using Birko.Security.Hashing;
 using System.Security.Claims;
 using Birko.AI;
 using Birko.AI.Agents;
@@ -51,11 +48,6 @@ if (!builder.Environment.IsEnvironment("Testing"))
 // Add services
 builder.AddServiceDefaults();
 
-// Register Birko.Communication authentication service (legacy token auth)
-builder.Services.Configure<WebSocketAuthenticationConfiguration>(
-    builder.Configuration.GetSection("Authentication"));
-builder.Services.AddSingleton<WebSocketAuthenticationService>();
-
 // Register Birko.Security.Jwt authentication
 builder.Services.Configure<JwtAuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication:Jwt"));
@@ -77,8 +69,6 @@ builder.Services.AddSingleton<ITokenProvider>(sp =>
         RefreshExpirationDays = config.RefreshExpirationDays
     });
 });
-builder.Services.AddSingleton<IPasswordHasher>(new Pbkdf2PasswordHasher());
-builder.Services.AddSingleton<IRoleProvider, KoboldLairRoleProvider>();
 builder.Services.AddSingleton<RefreshTokenStore>();
 
 // GitHub federation (TASK-033 / FEATURE-019 D1, D11, D13). Bound + registered unconditionally so
@@ -1069,8 +1059,7 @@ app.UseWebSockets(webSocketOptions);
 
 // WebSocket endpoints for Wyvern + Dragon. Authenticated via the JWT bearer pipeline
 // (UseAuthentication populates context.User from the `?token=` query for WS upgrades) instead
-// of the legacy shared-token validator (TASK-034 / FEATURE-019 D8). The full teardown of the
-// legacy WebSocketAuthenticationService stays TASK-036.
+// of the legacy shared-token validator (TASK-034 / FEATURE-019 D8; removed in TASK-036).
 //
 // jwtCaptured snapshots whether JWT is enabled; when disabled (auth-off local dev) the connection
 // is treated as the loopback single-user owner. When enabled, an unauthenticated upgrade is

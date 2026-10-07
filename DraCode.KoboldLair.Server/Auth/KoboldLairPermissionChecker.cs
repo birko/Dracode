@@ -1,15 +1,11 @@
-using Birko.Security.Authorization;
-using Microsoft.Extensions.Options;
-
 namespace DraCode.KoboldLair.Server.Auth;
 
 /// <summary>
-/// Permission checker with role-to-permission mapping for KoboldLair.
+/// KoboldLair's permission names and the role → permission map used when a token is minted. Enforcement reads the
+/// token's <c>scope</c> claim (Birko's <c>PermissionEndpointFilter</c>); there is no server-side user lookup (TASK-036).
 /// </summary>
-public class KoboldLairPermissionChecker : IPermissionChecker
+public static class KoboldLairPermissionChecker
 {
-    private readonly JwtAuthenticationConfiguration _config;
-
     // Permission constants
     public const string ManageProjects = "manage_projects";
     public const string ExecuteAgents = "execute_agents";
@@ -25,11 +21,6 @@ public class KoboldLairPermissionChecker : IPermissionChecker
         ["viewer"] = [ViewAll]
     };
 
-    public KoboldLairPermissionChecker(IOptions<JwtAuthenticationConfiguration> config)
-    {
-        _config = config.Value;
-    }
-
     /// <summary>
     /// Expands a set of role names into the distinct permissions they grant. Used when minting
     /// tokens (TASK-032) so the JWT carries a permission/scope claim that
@@ -41,29 +32,4 @@ public class KoboldLairPermissionChecker : IPermissionChecker
             .SelectMany(role => RolePermissions[role])
             .Distinct()
             .ToList();
-
-    public Task<bool> HasPermissionAsync(Guid userId, string permission, CancellationToken ct = default)
-    {
-        var user = _config.Users.FirstOrDefault(u => u.Id == userId);
-        if (user == null) return Task.FromResult(false);
-
-        var hasPermission = user.Roles.Any(role =>
-            RolePermissions.TryGetValue(role, out var perms) && perms.Contains(permission));
-
-        return Task.FromResult(hasPermission);
-    }
-
-    public Task<IReadOnlyList<string>> GetPermissionsAsync(Guid userId, CancellationToken ct = default)
-    {
-        var user = _config.Users.FirstOrDefault(u => u.Id == userId);
-        if (user == null) return Task.FromResult<IReadOnlyList<string>>([]);
-
-        var permissions = user.Roles
-            .Where(role => RolePermissions.ContainsKey(role))
-            .SelectMany(role => RolePermissions[role])
-            .Distinct()
-            .ToList();
-
-        return Task.FromResult<IReadOnlyList<string>>(permissions.AsReadOnly());
-    }
 }
