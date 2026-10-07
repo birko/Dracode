@@ -2,7 +2,7 @@
 id: TASK-092
 parent: null
 feature: null
-status: verify
+status: done
 priority: P2
 assignee: ai
 created: 2026-10-03
@@ -27,15 +27,17 @@ report is now being saved again (TASK-082/087): 14 rows on 2026-10-03.
 
 - [x] Find which council agent should own it (CLAUDE.md lists it with the Dragon tools; Warden owns progress/config tools) and wire it in with the `CostTrackingService` (and rate limiter when present) — Warden (it owns progress/config tools); `DragonService` builds it from the registered `CostTrackingService` + `ProviderRateLimiter`; Dragon's and `delegate_to_council`'s Warden descriptions now mention cost reports
 - [x] A test proves the agent's tool list includes `view_cost_report` — `WardenCostReportToolTests` (proven to fail without the tool)
-- [ ] Live: asking Dragon for the cost summary returns the usage rows (requests/tokens; cost stays 0 until `CostTracking.Pricing` is configured) — this is TASK-082's remaining criterion
+- [x] Live: asking Dragon for the cost summary returns the usage rows (requests/tokens; cost stays 0 until `CostTracking.Pricing` is configured) — this is TASK-082's remaining criterion — 2026-10-07: Dragon → `delegate_to_council` (Warden) → `view_cost_report`; reply listed Oct 3 (31 requests, 124,917 tokens) and Oct 6 (27 requests, 156,631 tokens), $0.00
 
 ## Out of scope
 
 - Configuring prices (`CostTracking.Pricing` is empty — a settings decision, not this task)
 
+- Only Kobold calls are recorded: Dragon, the council, Wyrm, Wyvern and the planner build their providers without the cost tracker, so the report shows 0 for today's Dragon conversation — TASK-105
+
 ## Human test plan
 
-- [ ] Ask Dragon "show me the cost report summary" → it calls the tool and shows request/token totals for today
+- [x] Ask Dragon "show me the cost report summary" → it calls the tool and shows request/token totals for today — the tool ran and showed the recorded days; today read 0 because Dragon's own calls are not recorded (TASK-105)
 
 ## Implementation plan
 
@@ -48,4 +50,4 @@ Drafted and done 2026-10-07.
 
 ## Close notes
 
-- 2026-10-07: code complete, suite 235/235. Parked at `verify` on `task/TASK-092`: the live criterion (ask Dragon for the cost summary on a running server) has not been run.
+- 2026-10-07: code complete, suite 235/235. Live check run the same day on the dev server (task branch build, `pi-zai`): Dragon delegated to Warden, Warden called `view_cost_report` (four actions), and the answer showed the recorded rows. Today read 0 because only Kobold calls are recorded (64 rows: coding, documentation, python) — filed as TASK-105.
