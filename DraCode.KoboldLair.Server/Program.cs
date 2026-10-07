@@ -43,8 +43,10 @@ using DraCode.KoboldLair.MessageQueue;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load local configuration (not committed to git)
-builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+// Load local configuration (not committed to git). It belongs to the developer's machine, so the Testing environment
+// never reads it — tests must behave the same on every machine (TASK-104).
+if (!builder.Environment.IsEnvironment("Testing"))
+    builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
 // Add services
 builder.AddServiceDefaults();
