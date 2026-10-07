@@ -2,7 +2,7 @@
 id: TASK-036
 parent: STORY-017
 feature: FEATURE-019
-status: todo
+status: done
 priority: P2
 assignee: ai
 created: 2026-06-11
@@ -23,10 +23,17 @@ The old shared-token `WebSocketAuthenticationConfiguration` and the static usern
 
 ## Acceptance criteria
 
-- [ ] `WebSocketAuthenticationConfiguration` and static `AuthEndpoints` marked `[Obsolete]` with a migration message
-- [ ] Docs updated to point at OAuth/device-code login instead of `/auth/login`
-- [ ] Removal tracked behind a one-release window (note the target release in the PR)
-- [ ] After removal: no references remain; build + tests green
+> **Rescoped 2026-10-07, at pick, before the work (user decision):** remove immediately — no `[Obsolete]` step and no
+> one-release window. `Authentication:Jwt:Users` was empty in every config, so no one could sign in through `/auth/login`.
+> `/auth/refresh` and `/auth/logout` are **not** legacy: GitHub sign-in (TASK-033) renews through them, and TASK-056 uses them.
+
+- [x] The legacy pieces are removed: `WebSocketAuthenticationService` + `WebSocketAuthenticationConfiguration` registration
+      (`Authentication:Enabled|Tokens|TokenBindings`), `POST /auth/login`, `Authentication:Jwt:Users` / `JwtUser`, the
+      static-user `KoboldLairRoleProvider` and the static-user lookups in `KoboldLairPermissionChecker` (now a static class
+      of permission names + the role → permission map), `IPasswordHasher`
+- [x] Docs updated to point at GitHub / OAuth device-code sign-in instead of `/auth/login` — `DraCode.KoboldLair.Server/README.md`
+      Authentication section rewritten (the shared-token / IP-binding text was stale since TASK-034)
+- [x] After removal: no references remain; build + tests green — `dotnet build DraCode.slnx` clean, suite 252/252
 
 ## Out of scope
 
@@ -34,8 +41,23 @@ The old shared-token `WebSocketAuthenticationConfiguration` and the static usern
 
 ## Human test plan
 
-- [ ] During the deprecation window, confirm an existing static-user login still works; after removal, confirm only OAuth/device-code login is accepted
+N/A — no deprecation window (decision above). That `/auth/login` is gone and that a GitHub-issued refresh token still
+renews are asserted by `JwtMiddlewareTests` (`The_static_password_login_is_gone` — proven to fail with the route back;
+`Refresh_reissues_a_working_token_and_rotates_the_refresh_token`); the WebSocket/JWT path by `DragonWebSocketAuthTests`.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-036` — leave empty until then._
+Done 2026-10-07.
+
+1. `Program.cs`: drop the `WebSocketAuthenticationService` / config registration, `IPasswordHasher`, `IRoleProvider`, and
+   the now-unused `using`s.
+2. `AuthEndpoints`: only `/auth/refresh` + `/auth/logout`. `JwtAuthenticationConfiguration`: no `Users` / `JwtUser`.
+   `KoboldLairRoleProvider` deleted; `KoboldLairPermissionChecker` → static class.
+3. `appsettings.json`: legacy keys removed. Tests no longer seed static users; the password-login test is replaced by a
+   "route is gone" test and a refresh round-trip test.
+4. Server README: Authentication section describes JWT + GitHub + OAuth (Birko.Security*).
+
+## Close notes
+
+- Closed 2026-10-07. `RefreshTokenStore` (behind `/auth/refresh`) is DraCode's own in-memory store, so GitHub sessions do
+  not survive a server restart; whether to move refresh onto the Birko OAuth server is TASK-108.

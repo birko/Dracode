@@ -16,7 +16,7 @@ public sealed class FederationDeniedException(string message) : Exception(messag
 /// Turns an authenticated GitHub identity into a DraCode-issued token (TASK-033). Resolves the
 /// GitHub user, enforces the numeric-id allowlist, upserts the DraCode <see cref="User"/> (keyed on
 /// the string <c>sub</c> = <c>github:{id}</c>, FEATURE-019 D9/D11), then mints a JWT + refresh token
-/// exactly like <see cref="AuthEndpoints.HandleLogin"/>.
+/// with the same claim set <c>/auth/refresh</c> re-issues.
 /// </summary>
 public sealed class GitHubFederationService(
     IGitHubUserInfoClient userInfo,
@@ -57,7 +57,7 @@ public sealed class GitHubFederationService(
             }).ConfigureAwait(false);
         }
 
-        // Mint exactly like HandleLogin: scope carries the expanded role permissions (comma-joined),
+        // The scope claim carries the expanded role permissions (comma-joined),
         // so ClaimsCurrentUser.Permissions + PermissionEndpointFilter enforce per-endpoint scopes.
         var roles = _gitHub.DefaultRoles;
         var permissions = KoboldLairPermissionChecker.ExpandRolesToPermissions(roles);

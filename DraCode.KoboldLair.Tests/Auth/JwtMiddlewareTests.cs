@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Birko.Security;
-using Birko.Security.Hashing;
 using DraCode.KoboldLair.Server.Auth;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -63,7 +62,6 @@ public class JwtMiddlewareTests
         bool loopbackBypass = false,
         string? bindUrls = null)
     {
-        var hash = new Pbkdf2PasswordHasher().Hash("pw-correct-horse");
         var projectsPath = Path.Combine(Path.GetTempPath(), "kl-jwt-tests", Guid.NewGuid().ToString("N"));
 
         var config = new Dictionary<string, string?>
@@ -72,10 +70,6 @@ public class JwtMiddlewareTests
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["Authentication:Jwt:Users:0:Id"] = AdminId.ToString(),
-            ["Authentication:Jwt:Users:0:Username"] = "admin",
-            ["Authentication:Jwt:Users:0:PasswordHash"] = hash,
-            ["Authentication:Jwt:Users:0:Roles:0"] = "admin",
             ["Authentication:Daemon:LoopbackBypass"] = loopbackBypass ? "true" : "false",
             // JSON-file backend avoids SQLite migration + SQL repos for a light test host.
             ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
@@ -158,21 +152,35 @@ public class JwtMiddlewareTests
     }
 
     [Fact]
-    public async Task Login_then_call_protected_endpoint_succeeds_end_to_end()
+    public async Task The_static_password_login_is_gone()
     {
+        // Sign-in is GitHub federation or the OAuth server; the username/password route was removed (TASK-036)
         using var factory = CreateFactory();
         var client = factory.CreateClient();
 
         var login = await client.PostAsJsonAsync("/auth/login", new { username = "admin", password = "pw-correct-horse" });
-        login.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await login.Content.ReadFromJsonAsync<LoginResponse>();
-        body!.Token.Should().NotBeNullOrEmpty();
+
+        login.StatusCode.Should().BeOneOf(HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed);
+    }
+
+    [Fact]
+    public async Task Refresh_reissues_a_working_token_and_rotates_the_refresh_token()
+    {
+        // GitHub login stores a refresh token like this one; /auth/refresh and /auth/logout stay (TASK-036)
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var store = factory.Services.GetRequiredService<RefreshTokenStore>();
+        store.Store("refresh-1", "github:42", "octocat", ["user"], DateTime.UtcNow.AddDays(1));
+
+        var refresh = await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = "refresh-1" });
+        refresh.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await refresh.Content.ReadFromJsonAsync<LoginResponse>();
 
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/whoami");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", body.Token);
-        var response = await client.SendAsync(request);
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);
+        (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = "refresh-1" })).StatusCode
+            .Should().Be(HttpStatusCode.Unauthorized, "a used refresh token is revoked");
     }
 
     [Fact]

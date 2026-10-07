@@ -1,6 +1,5 @@
 using System.Net.WebSockets;
 using Birko.Security;
-using Birko.Security.Hashing;
 using DraCode.KoboldLair.Server.Auth;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -29,7 +28,6 @@ public class DragonWebSocketAuthTests
         bool loopbackBypass = false,
         string? bindUrls = null)
     {
-        var hash = new Pbkdf2PasswordHasher().Hash("pw-correct-horse");
         var projectsPath = Path.Combine(Path.GetTempPath(), "kl-dragon-ws-tests", Guid.NewGuid().ToString("N"));
 
         var config = new Dictionary<string, string?>
@@ -38,10 +36,6 @@ public class DragonWebSocketAuthTests
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["Authentication:Jwt:Users:0:Id"] = UserId.ToString(),
-            ["Authentication:Jwt:Users:0:Username"] = "alice",
-            ["Authentication:Jwt:Users:0:PasswordHash"] = hash,
-            ["Authentication:Jwt:Users:0:Roles:0"] = "user",
             ["Authentication:Daemon:LoopbackBypass"] = loopbackBypass ? "true" : "false",
             // Legacy static-token validator config — present to prove it no longer gates Dragon.
             ["Authentication:Enabled"] = "true",
