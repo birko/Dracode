@@ -175,6 +175,8 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly GitService _gitService;
         private readonly KoboldFactory? _koboldFactory;
         private readonly DrakeFactory? _drakeFactory;
+        private readonly CostTrackingService? _costTracker;
+        private readonly ProviderRateLimiter? _rateLimiter;
         private readonly KoboldPlanService? _planService;
         private readonly string _projectsPath;
         private readonly Timer _cleanupTimer;
@@ -208,8 +210,12 @@ namespace DraCode.KoboldLair.Server.Services
             ProjectNotificationService? notificationService = null,
             DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? historyRepository = null,
             DraCode.KoboldLair.Services.EventSourcing.SpecificationEventService? specEventService = null,
-            DraCode.KoboldLair.Data.Repositories.IUserRepository? userRepository = null)
+            DraCode.KoboldLair.Data.Repositories.IUserRepository? userRepository = null,
+            CostTrackingService? costTracker = null,
+            ProviderRateLimiter? rateLimiter = null)
         {
+            _costTracker = costTracker;
+            _rateLimiter = rateLimiter;
             _logger = logger;
             _sessions = new ConcurrentDictionary<string, DragonSession>();
             _sessionWebSockets = new ConcurrentDictionary<string, WebSocket>();
@@ -728,7 +734,8 @@ namespace DraCode.KoboldLair.Server.Services
                     getAllProjects: () => GetVisibleProjects(session).Select(p => (p.Id, p.Name)).ToList()
                 ),
                 batchTaskTool: _drakeFactory != null ? new BatchTaskTool(_drakeFactory, _projectService) : null,
-                resetProject: async (name, keepHistory) => await _projectService.ResetProjectAsync(name, keepHistory));
+                resetProject: async (name, keepHistory) => await _projectService.ResetProjectAsync(name, keepHistory),
+                viewCostReportTool: _costTracker != null ? new ViewCostReportTool(_costTracker, _rateLimiter) : null);
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(

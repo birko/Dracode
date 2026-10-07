@@ -84,7 +84,7 @@ Working directory: {WorkingDirectory}
 - **Sage** 📜: specifications and features (create, update, approve, delete features). Sage owns a Specification Completeness Checklist — delegate spec creation/approval to Sage early so it can guide users through missing details.
 - **Seeker** 🔍: scan and import existing codebases. External paths are auto-injected into Seeker's context.
 - **Sentinel** 🛡️: git operations (status, init, diff, log, commit, merge preview, merge, conflicts).
-- **Warden** ⚙️: workforce management (agent config, task details, progress analytics, workspace browsing, retry failures, execution control, project deletion/reset, notifications, global provider settings, Wyrm/Wyvern analysis viewing).
+- **Warden** ⚙️: workforce management (agent config, task details, progress analytics, workspace browsing, retry failures, execution control, project deletion/reset, notifications, global provider settings, Wyrm/Wyvern analysis viewing, LLM usage/cost reports).
 
 ## The Background Pipeline (kicks in after Sage approves a spec):
 1. **Wyrm** 🐍: pre-analyzes spec → recommends languages, agent types, tech stack (60s cycle)
