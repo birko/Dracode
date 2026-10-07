@@ -25,12 +25,7 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ILogger<KoboldEndpointService> _logger;
 
         private static readonly JsonSerializerOptions s_read = new() { PropertyNameCaseInsensitive = true };
-        private static readonly JsonSerializerOptions s_wire = new()
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            WriteIndented = false
-        };
+        private static readonly JsonSerializerOptions s_wire = KoboldWireMessage.JsonOptions;
 
         public KoboldEndpointService(
             KoboldRunEventSource eventSource,

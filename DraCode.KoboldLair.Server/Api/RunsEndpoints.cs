@@ -1,4 +1,5 @@
 using Birko.Security.AspNetCore;
+using DraCode.KoboldLair.Events.Run;
 using DraCode.KoboldLair.Server.Auth;
 using DraCode.KoboldLair.Server.Models.WebSocket;
 using DraCode.KoboldLair.Server.Services;
@@ -92,8 +93,102 @@ public static class RunsEndpoints
             })
             .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
 
+        // GET /api/v1/runs/{id}/events — the run's events as a text/event-stream, from now until the run ends
+        // (TASK-045). Same frames as the /kobold WebSocket: `event:` is the frame type, `data:` its JSON. Browsers
+        // authenticate with ?token= (EventSource cannot set headers). Same ownership rule as GET /runs/{id}.
+        api.MapGet("/runs/{id:guid}/events", (Guid id, ICurrentUser user, RunRegistry registry,
+                KoboldRunEventSource events, HttpContext ctx) =>
+            {
+                var run = registry.Get(id);
+                var owner = user.UserGuid?.ToString();
+                if (run is null || (!IsAdmin(user) && (owner is null || run.Owner is null || run.Owner != owner)))
+                    return Task.FromResult<IResult>(Results.NotFound());
+
+                return StreamRunEventsAsync(id, registry, events, ctx);
+            })
+            .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
+
         return api;
     }
+
+    /// <summary>How often the stream sends a comment line, keeping proxies from closing an idle connection and
+    /// letting the stream notice a run that ended without delivering its terminal event.</summary>
+    public static TimeSpan SseHeartbeat { get; set; } = TimeSpan.FromSeconds(15);
+
+    private static async Task<IResult> StreamRunEventsAsync(Guid id, RunRegistry registry, KoboldRunEventSource events,
+        HttpContext ctx)
+    {
+        // Subscribe before the headers go out, so a client that has the headers is already receiving events
+        using var subscription = events.Subscribe(id, out var reader);
+
+        var response = ctx.Response;
+        response.ContentType = "text/event-stream";
+        response.Headers.CacheControl = "no-cache";
+        response.Headers["X-Accel-Buffering"] = "no"; // nginx: do not buffer the stream
+        await response.Body.FlushAsync(ctx.RequestAborted);
+
+        var ct = ctx.RequestAborted;
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                // The run may have ended before the subscription existed (no replay) — then report how it ended
+                if (registry.Get(id) is { IsTerminal: true } ended && !reader.TryPeek(out _))
+                {
+                    await WriteFrameAsync(response, TerminalFrame(ended), ct);
+                    break;
+                }
+
+                using var beat = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                beat.CancelAfter(SseHeartbeat);
+                KoboldRunEvent evt;
+                try
+                {
+                    if (!await reader.WaitToReadAsync(beat.Token))
+                    {
+                        // Reader completed (run dropped); the registry check above ends the stream once it has folded the end
+                        await Task.Delay(50, ct);
+                        continue;
+                    }
+                    if (!reader.TryRead(out evt!))
+                        continue;
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    await response.WriteAsync(": heartbeat\n\n", ct);
+                    await response.Body.FlushAsync(ct);
+                    continue;
+                }
+
+                await WriteFrameAsync(response, KoboldWireMessage.From(evt), ct);
+                if (evt is RunCompletedEvent or RunErrorEvent)
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected — disposing the subscription detaches it
+        }
+
+        return Results.Empty;
+    }
+
+    private static async Task WriteFrameAsync(HttpResponse response, KoboldWireMessage frame, CancellationToken ct)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(frame, KoboldWireMessage.JsonOptions);
+        await response.WriteAsync($"id: {frame.Seq}\nevent: {frame.Type}\ndata: {json}\n\n", ct);
+        await response.Body.FlushAsync(ct);
+    }
+
+    /// <summary>The closing frame for a run that had already ended, rebuilt from its registry record.</summary>
+    private static KoboldWireMessage TerminalFrame(RunRegistry.RunRecord run) =>
+        run.State == RunRegistry.RunState.Completed
+            ? new KoboldWireMessage
+            {
+                Type = "kobold_complete", RunId = run.RunId, FinalStatus = run.Summary,
+                CompletedSteps = run.CompletedSteps, TotalSteps = run.TotalSteps
+            }
+            : new KoboldWireMessage { Type = "error", RunId = run.RunId, Message = run.Summary };
 
     private static bool IsAdmin(ICurrentUser user) => ApiOwnership.IsAdmin(user);
 }

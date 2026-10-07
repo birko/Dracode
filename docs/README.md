@@ -131,6 +131,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair.Proje
 - **[Provider Setup](setup-guides/PROVIDER_SETUP.md)** - All LLM providers (OpenAI, Claude, Gemini, Azure, Ollama)
 - [CLI Options Guide](setup-guides/CLI_OPTIONS.md) - Complete command-line reference
 - [GitHub OAuth Setup](setup-guides/GITHUB_OAUTH_SETUP.md) - GitHub Copilot OAuth configuration
+- [Run events over SSE](setup-guides/RUN_EVENTS_SSE.md) - `GET /api/v1/runs/{id}/events`: frames, auth, reverse-proxy settings
 
 ### Troubleshooting
 - **[Troubleshooting Guide](troubleshooting/TROUBLESHOOTING.md)** - All common issues and solutions

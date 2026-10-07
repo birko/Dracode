@@ -47,6 +47,14 @@ namespace DraCode.KoboldLair.Server.Models.WebSocket
         // --- error ---
         public string? Message { get; init; }
 
+        /// <summary>How every transport (the /kobold WebSocket, the SSE stream) serializes a frame.</summary>
+        public static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+            WriteIndented = false
+        };
+
         /// <summary>The first frame: the run was accepted and started.</summary>
         public static KoboldWireMessage RunStarted(Guid runId, string mode, string? worktree) => new()
         {
@@ -68,6 +76,7 @@ namespace DraCode.KoboldLair.Server.Models.WebSocket
         /// <summary>Projects a run-event-source record onto its wire frame.</summary>
         public static KoboldWireMessage From(KoboldRunEvent evt) => evt switch
         {
+            RunStartedEvent e => new KoboldWireMessage { Type = "kobold_run_started", RunId = e.RunId, Seq = e.Sequence },
             ToolCallStartedEvent e => new KoboldWireMessage
             {
                 Type = "kobold_tool_call", RunId = e.RunId, Seq = e.Sequence,

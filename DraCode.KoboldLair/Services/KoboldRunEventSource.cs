@@ -79,6 +79,13 @@ namespace DraCode.KoboldLair.Services
             return new Subscription(run, channel);
         }
 
+        /// <summary>How many subscribers the run currently has (0 for an unknown run).</summary>
+        public int SubscriberCount(Guid runId)
+        {
+            if (!_runs.TryGetValue(runId, out var run)) return 0;
+            lock (run.Gate) return run.Subscribers.Count;
+        }
+
         /// <summary>
         /// Completes all subscriber readers for the run and drops it. Call from the Kobold's <c>finally</c>
         /// so abandoned runs don't leak channels.
