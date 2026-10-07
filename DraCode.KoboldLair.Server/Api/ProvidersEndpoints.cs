@@ -78,8 +78,14 @@ public static class ProvidersEndpoints
         api.MapDelete("/providers/{name}", async (string name, SqlProviderConfigRepository repo, ProviderConfigurationService svc) =>
             {
                 if (await repo.GetProviderAsync(name) is null) return Results.NotFound();
-                await repo.DeleteProviderAsync(name);
-                await svc.ReloadAsync();
+                try
+                {
+                    await svc.DeleteProviderAsync(name);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.Conflict(new { error = ex.Message });
+                }
                 return Results.NoContent();
             })
             .RequirePermission(KoboldLairPermissionChecker.ManageConfig);

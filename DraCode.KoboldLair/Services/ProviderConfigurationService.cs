@@ -207,15 +207,15 @@ namespace DraCode.KoboldLair.Services
             lock (_lock)
             {
                 var providerName = GetProviderForKoboldAgentType(agentType);
-                var providerConfig = _providers.FirstOrDefault(p => p.Name == providerName)
-                    ?? throw new InvalidOperationException($"Provider '{providerName}' not found for Kobold agent type '{agentType}'");
+                var providerConfig = ResolveConfiguredProvider(providerName, $"Kobold agent type '{agentType}'", out var fellBack);
 
                 var config = new Dictionary<string, string>(providerConfig.Configuration);
 
                 var agentTypeSetting = _userSettings.KoboldAgentTypeSettings
                     .FirstOrDefault(s => s.AgentType.Equals(agentType, StringComparison.OrdinalIgnoreCase));
 
-                var modelOverride = agentTypeSetting?.Model ?? _userSettings.KoboldModel;
+                // A model chosen for a provider that is gone means nothing to the fallback provider
+                var modelOverride = fellBack ? null : agentTypeSetting?.Model ?? _userSettings.KoboldModel;
                 config["model"] = modelOverride ?? providerConfig.DefaultModel;
 
                 ApplyApiKey(providerConfig, config);
@@ -311,12 +311,11 @@ namespace DraCode.KoboldLair.Services
             lock (_lock)
             {
                 var providerName = GetProviderForAgent(agentType);
-                var providerConfig = _providers.FirstOrDefault(p => p.Name == providerName)
-                    ?? throw new InvalidOperationException($"Provider '{providerName}' not found for agent type '{agentType}'");
+                var providerConfig = ResolveConfiguredProvider(providerName, $"agent type '{agentType}'", out var fellBack);
 
                 var config = new Dictionary<string, string>(providerConfig.Configuration);
 
-                var modelOverride = agentType.ToLowerInvariant() switch
+                var modelOverride = fellBack ? null : agentType.ToLowerInvariant() switch
                 {
                     "dragon" => _userSettings.DragonModel,
                     "wyvern" => _userSettings.WyvernModel,
@@ -337,6 +336,70 @@ namespace DraCode.KoboldLair.Services
 
                 return (providerConfig.Type, config, options);
             }
+        }
+
+        /// <summary>
+        /// The provider a setting names, or — when no provider has that name any more (deleted, renamed) — the default
+        /// provider, with a warning, so a stale setting does not take the agent down. Throws only when the default is
+        /// missing too. Callers hold <see cref="_lock"/>.
+        /// </summary>
+        private ProviderConfig ResolveConfiguredProvider(string providerName, string usedFor, out bool fellBack)
+        {
+            fellBack = false;
+            var provider = _providers.FirstOrDefault(p => p.Name == providerName);
+            if (provider != null)
+                return provider;
+
+            var defaultName = EffectiveDefault();
+            var fallback = _providers.FirstOrDefault(p => p.Name == defaultName)
+                ?? throw new InvalidOperationException(
+                    $"No provider for {usedFor}: '{providerName}' is not configured, and neither is the default provider " +
+                    $"'{defaultName}'. Add the provider or choose another one in the provider settings.");
+
+            _logger.LogWarning("Provider '{Provider}' set for {UsedFor} is not configured — using the default provider '{Default}'",
+                providerName, usedFor, defaultName);
+            fellBack = true;
+            return fallback;
+        }
+
+        /// <summary>
+        /// Deletes a provider (DB mode only) and clears every agent setting that names it, so nothing points at a
+        /// provider that no longer exists. Refuses to delete the default provider. Returns the agent keys it cleared.
+        /// </summary>
+        public async Task<IReadOnlyList<string>> DeleteProviderAsync(string providerName)
+        {
+            if (!_dbMode)
+                throw new InvalidOperationException("providers can only be deleted in DB mode");
+
+            var cleared = new List<string>();
+            lock (_lock)
+            {
+                if (string.Equals(EffectiveDefault(), providerName, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        $"'{providerName}' is the default provider — choose another default before deleting it");
+
+                bool Names(string? p) => string.Equals(p, providerName, StringComparison.OrdinalIgnoreCase);
+                var us = _userSettings;
+                if (Names(us.DragonProvider)) { us.DragonProvider = null; us.DragonModel = null; cleared.Add("dragon"); }
+                if (Names(us.WyvernProvider)) { us.WyvernProvider = null; us.WyvernModel = null; cleared.Add("wyvern"); }
+                if (Names(us.WyrmProvider)) { us.WyrmProvider = null; us.WyrmModel = null; cleared.Add("wyrm"); }
+                if (Names(us.KoboldProvider)) { us.KoboldProvider = null; us.KoboldModel = null; cleared.Add("kobold"); }
+                foreach (var s in us.KoboldAgentTypeSettings.Where(s => Names(s.Provider)).ToList())
+                {
+                    us.KoboldAgentTypeSettings.Remove(s);
+                    cleared.Add($"kobold:{s.AgentType}");
+                }
+
+                if (cleared.Count > 0)
+                    PersistUserSettings();
+            }
+
+            await _repo!.DeleteProviderAsync(providerName);
+            await ReloadCacheAsync();
+            if (cleared.Count > 0)
+                _logger.LogInformation("Deleted provider {Provider}; cleared the agent settings that named it: {Agents}",
+                    providerName, string.Join(", ", cleared));
+            return cleared;
         }
 
         /// <summary>
