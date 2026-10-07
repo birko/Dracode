@@ -2,7 +2,7 @@
 id: TASK-081
 parent: null
 feature: null
-status: todo
+status: done
 priority: P3
 assignee: ai
 created: 2026-10-03
@@ -26,9 +26,9 @@ not visible to a grep for type names. This task settles whether the explicit ref
 
 ## Acceptance criteria
 
-- [ ] Remove the reference on a branch and confirm `dotnet build` + the full test suite pass
-- [ ] Confirm the native SQLite assets still land in the Server's output and the Server starts and opens its SQLite database
-- [ ] Either the reference is deleted, or it stays with a one-line reason next to it
+- [x] Remove the reference on a branch and confirm `dotnet build` + the full test suite pass — `dotnet build DraCode.slnx`: no errors, no NU warnings; suite 246/246
+- [x] Confirm the native SQLite assets still land in the Server's output and the Server starts and opens its SQLite database — freshly written `DraCode.KoboldLair.Server.deps.json` lists `Microsoft.Data.Sqlite` 10.0.12 and `SQLitePCLRaw.lib.e_sqlite3` 2.1.12, `runtimes/win-x64/native/e_sqlite3.dll` present; the Server started and the project, provider-config, task and plan repositories initialized against `koboldlair.db`; `/health` 200
+- [x] Either the reference is deleted, or it stays with a one-line reason next to it — deleted (with its comment): the package and its native assets arrive through `DraCode.Birko`
 
 ## Out of scope
 
@@ -40,4 +40,5 @@ N/A — the build, the test suite and a Server start against SQLite are all mech
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-081` — leave empty until then._
+Done 2026-10-07: removed the `Microsoft.Data.Sqlite` reference and its comment from `DraCode.KoboldLair.csproj`, then ran the
+checks above.
