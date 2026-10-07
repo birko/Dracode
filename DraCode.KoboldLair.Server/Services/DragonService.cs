@@ -574,7 +574,10 @@ namespace DraCode.KoboldLair.Server.Services
         private void CreateSessionAgents(DragonSession session)
         {
             var (providerName, config, options) = _providerConfigService.GetProviderSettingsForAgent("dragon");
-            var llmProvider = KoboldLairAgentFactory.CreateLlmProvider(providerName, config);
+            // One tracked provider per council member, so usage records tell Dragon, Sage, Seeker, Sentinel and Warden apart
+            Birko.AI.Providers.ILlmProvider ProviderFor(string agentType) =>
+                KoboldLairAgentFactory.CreateLlmProvider(providerName, config, agentType, _rateLimiter, _costTracker, _logger);
+            var llmProvider = ProviderFor("dragon");
 
             // Enable streaming for Dragon (better UX for interactive chat)
             options.EnableStreaming = true;
@@ -587,7 +590,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             // Create sub-agents
             session.Sage = new SageAgent(
-                llmProvider,
+                ProviderFor("sage"),
                 options,
                 specifications,
                 onSpecificationUpdated: path => _projectService.MarkSpecificationModified(path),
@@ -599,7 +602,7 @@ namespace DraCode.KoboldLair.Server.Services
                 eventService: _specEventService);
 
             session.Seeker = new SeekerAgent(
-                llmProvider,
+                ProviderFor("seeker"),
                 options,
                 registerExistingProject: (name, path) =>
                 {
@@ -614,7 +617,7 @@ namespace DraCode.KoboldLair.Server.Services
                 });
 
             session.Sentinel = new SentinelAgent(
-                llmProvider,
+                ProviderFor("sentinel"),
                 _gitService,
                 options,
                 getProjectFolder: name =>
@@ -625,7 +628,7 @@ namespace DraCode.KoboldLair.Server.Services
                 projectsPath: _projectsPath);
 
             session.Warden = new WardenAgent(
-                llmProvider,
+                ProviderFor("warden"),
                 options,
                 getProjectConfig: idOrName => AgentConfigurationTool.Resolve(GetVisibleProjects(session), idOrName),
                 getAllProjects: () => GetVisibleProjects(session).Select(p => (p.Id, p.Name)).ToList(),

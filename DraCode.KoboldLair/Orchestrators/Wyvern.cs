@@ -27,6 +27,9 @@ namespace DraCode.KoboldLair.Orchestrators
 
         /// <summary>Project id the task rows carry; set by WyvernFactory together with <see cref="TaskRepository"/>.</summary>
         public string? ProjectId { get; set; }
+
+        /// <summary>The LLM provider the analyzer agent calls.</summary>
+        public Birko.AI.Providers.ILlmProvider AnalyzerProvider => _analyzerAgent.Provider;
         private readonly string _specificationPath;
         private readonly WyvernAgent _analyzerAgent;
         private readonly string _provider;

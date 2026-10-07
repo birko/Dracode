@@ -183,6 +183,11 @@ namespace DraCode.KoboldLair.Orchestrators
         public KoboldPlanService? PlanService => _planService;
 
         /// <summary>
+        /// Gets the LLM provider the planner agent calls (null when planning is off)
+        /// </summary>
+        public Birko.AI.Providers.ILlmProvider? PlannerProvider => _plannerAgent?.Provider;
+
+        /// <summary>
         /// Gets the project ID this Drake is managing
         /// </summary>
         public string? ProjectId => _projectId;
@@ -350,7 +355,8 @@ namespace DraCode.KoboldLair.Orchestrators
                 providerForFactory,
                 agentType,
                 effectiveOptions,
-                configForFactory
+                configForFactory,
+                projectId
             );
 
             // Set shared planning context for workspace awareness

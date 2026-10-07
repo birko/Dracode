@@ -68,7 +68,8 @@ namespace DraCode.KoboldLair.Factories
             string provider,
             string agentType,
             AgentOptions? options = null,
-            Dictionary<string, string>? config = null)
+            Dictionary<string, string>? config = null,
+            string? projectId = null)
         {
             var trackingLogger = _loggerFactory.CreateLogger<TrackedLlmProvider>();
             var agent = KoboldLairAgentFactory.Create(
@@ -79,7 +80,8 @@ namespace DraCode.KoboldLair.Factories
                 agentType,
                 _rateLimiter,
                 _costTracker,
-                trackingLogger
+                trackingLogger,
+                projectId
             );
 
             var logger = _loggerFactory.CreateLogger<KoboldModel>();

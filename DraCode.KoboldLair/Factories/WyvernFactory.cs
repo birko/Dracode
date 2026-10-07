@@ -1,4 +1,5 @@
 using Birko.AI;
+using Birko.AI.Resilience.Services;
 using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Configuration;
@@ -25,6 +26,8 @@ namespace DraCode.KoboldLair.Factories
         private readonly ITaskRepository? _taskRepository;
         private readonly AgentOptions _defaultOptions;
         private readonly ILoggerFactory? _loggerFactory;
+        private readonly ProviderRateLimiter? _rateLimiter;
+        private readonly CostTrackingService? _costTracker;
 
         public WyvernFactory(
             ProviderConfigurationService providerConfigService,
@@ -33,8 +36,12 @@ namespace DraCode.KoboldLair.Factories
             AgentOptions? defaultOptions = null,
             GitService? gitService = null,
             ILoggerFactory? loggerFactory = null,
-            ITaskRepository? taskRepository = null)
+            ITaskRepository? taskRepository = null,
+            ProviderRateLimiter? rateLimiter = null,
+            CostTrackingService? costTracker = null)
         {
+            _rateLimiter = rateLimiter;
+            _costTracker = costTracker;
             _Wyverns = new Dictionary<string, Wyvern>(StringComparer.OrdinalIgnoreCase);
             _wyvernProjectIds = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             _providerConfigService = providerConfigService;
@@ -113,7 +120,8 @@ namespace DraCode.KoboldLair.Factories
                     }
                 }
 
-                var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, _koboldLairConfig, wyvernOptions, wyvernConfig, "wyvern");
+                var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, _koboldLairConfig, wyvernOptions, wyvernConfig, "wyvern",
+                    _rateLimiter, _costTracker, _loggerFactory?.CreateLogger<TrackedLlmProvider>(), projectId);
 
                 var logger = _loggerFactory?.CreateLogger<Wyvern>();
 
