@@ -28,8 +28,8 @@ is worth checking on its own.
 
 ## Acceptance criteria
 
-- [ ] Deleting a project (REST and Dragon) removes its Wyvern (and any Drakes) from the factories
-- [ ] A new project with a deleted project's name gets a fresh Wyvern carrying its own project id — covered by a test
+- [x] Deleting a project (REST and Dragon) removes its Wyvern (and any Drakes) from the factories — `ProjectService.ReleaseAgents`, called by `DeleteProjectAsync` and REST `DELETE /projects/{id}`
+- [x] A new project with a deleted project's name gets a fresh Wyvern carrying its own project id — covered by a test (`ProjectDeletionTests`; a stale Wyvern left any other way is replaced too)
 - [x] Decide what an analysis with zero areas/tasks should do (fail and retry, or mark Failed with a reason) instead of reaching Analyzed; implement and test it — done by TASK-098 (an empty or task-less reply fails the analysis; regression test `WyvernUnusableReplyTests`)
 
 ## Out of scope

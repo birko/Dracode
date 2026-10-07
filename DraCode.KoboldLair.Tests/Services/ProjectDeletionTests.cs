@@ -14,6 +14,7 @@ namespace DraCode.KoboldLair.Tests.Services;
 /// <summary>
 /// Deleting a project removes its folder even with a git repo inside (read-only object files), removes its task and plan
 /// rows, never touches an imported project's source folder, and says when something could not be removed (TASK-103 / FIELD-017).
+/// It also releases the project's Wyvern and Drakes, so a new project with the same name never inherits them (TASK-093 / FIELD-010).
 /// </summary>
 public class ProjectDeletionTests : IAsyncLifetime
 {
@@ -21,6 +22,8 @@ public class ProjectDeletionTests : IAsyncLifetime
     private SqlProjectRepository _repo = null!;
     private SqlTaskRepository _tasks = null!;
     private SqlPlanRepository _plans = null!;
+    private WyvernFactory _wyverns = null!;
+    private DrakeFactory _drakes = null!;
     private ProjectService _service = null!;
 
     public async Task InitializeAsync()
@@ -36,12 +39,29 @@ public class ProjectDeletionTests : IAsyncLifetime
         _plans = new SqlPlanRepository(db);
         await _plans.InitializeAsync();
 
-        var config = new KoboldLairConfiguration { ProjectsPath = _dir };
+        // A provider must exist to build a Wyvern or a Drake; nothing here sends a request to it
+        var config = new KoboldLairConfiguration
+        {
+            ProjectsPath = _dir,
+            DefaultProvider = "ollama",
+            Providers = new()
+            {
+                new ProviderConfig
+                {
+                    Name = "ollama", Type = "ollama", DefaultModel = "m1",
+                    IsEnabled = true, RequiresApiKey = false, CompatibleAgents = new() { "all" },
+                    Configuration = new()
+                }
+            }
+        };
         var providerConfig = new ProviderConfigurationService(
             NullLogger<ProviderConfigurationService>.Instance, Options.Create(config), Path.Combine(_dir, "user-settings.json"));
-        _service = new ProjectService(_repo, new WyvernFactory(providerConfig, _repo, config),
+        _wyverns = new WyvernFactory(providerConfig, _repo, config);
+        _drakes = new DrakeFactory(new KoboldFactory(_repo, NullLoggerFactory.Instance, config), providerConfig, config,
+            NullLoggerFactory.Instance, projectRepository: _repo);
+        _service = new ProjectService(_repo, _wyverns,
             NullLogger<ProjectService>.Instance, new GitService(NullLogger<GitService>.Instance), config,
-            taskRepository: _tasks, planRepository: _plans);
+            drakeFactory: _drakes, taskRepository: _tasks, planRepository: _plans);
     }
 
     public Task DisposeAsync()
@@ -130,5 +150,46 @@ public class ProjectDeletionTests : IAsyncLifetime
         {
             Directory.Delete(source, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task Deleting_releases_the_projects_Wyvern_and_Drakes()
+    {
+        var (project, folder) = await ProjectWithGitObjectAsync("agents");
+        _wyverns.CreateWyvern(project.Name, project.Paths.Specification, folder, projectId: project.Id);
+        _drakes.CreateDrake(Path.Combine(folder, "tasks", "cli-tasks.md"), "agents-cli", projectId: project.Id);
+
+        await _service.DeleteProjectAsync(project.Id, deleteFiles: false);
+
+        _wyverns.GetWyvern(project.Name).Should().BeNull();
+        _drakes.GetActiveDrakeCountForProject(project.Id).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_new_project_with_a_deleted_projects_name_gets_its_own_Wyvern()
+    {
+        var (old, _) = await ProjectWithGitObjectAsync("reused");
+        await _service.AssignWyvernAsync(old.Id);
+        await _service.DeleteProjectAsync(old.Id, deleteFiles: true);
+
+        var (fresh, _) = await ProjectWithGitObjectAsync("reused");
+        var wyvern = await _service.AssignWyvernAsync(fresh.Id);
+
+        wyvern.ProjectId.Should().Be(fresh.Id);
+    }
+
+    [Fact]
+    public async Task A_Wyvern_left_by_another_project_with_the_same_name_is_replaced()
+    {
+        // The project row went some other way (not through DeleteProjectAsync), so its Wyvern is still registered
+        _wyverns.CreateWyvern("stale", Path.Combine(_dir, "stale", "specification.md"), Path.Combine(_dir, "stale"),
+            projectId: Guid.NewGuid().ToString());
+        var (project, _) = await ProjectWithGitObjectAsync("stale");
+        project.Status = ProjectStatus.WyrmAssigned;
+        _repo.Update(project);
+
+        var wyvern = await _service.AssignWyvernAsync(project.Id);
+
+        wyvern.ProjectId.Should().Be(project.Id);
     }
 }
