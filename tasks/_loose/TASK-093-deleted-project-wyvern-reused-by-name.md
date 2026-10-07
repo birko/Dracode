@@ -2,7 +2,7 @@
 id: TASK-093
 parent: null
 feature: null
-status: todo
+status: in-progress
 priority: P2
 assignee: ai
 created: 2026-10-03
@@ -30,7 +30,7 @@ is worth checking on its own.
 
 - [ ] Deleting a project (REST and Dragon) removes its Wyvern (and any Drakes) from the factories
 - [ ] A new project with a deleted project's name gets a fresh Wyvern carrying its own project id — covered by a test
-- [ ] Decide what an analysis with zero areas/tasks should do (fail and retry, or mark Failed with a reason) instead of reaching Analyzed; implement and test it
+- [x] Decide what an analysis with zero areas/tasks should do (fail and retry, or mark Failed with a reason) instead of reaching Analyzed; implement and test it — done by TASK-098 (an empty or task-less reply fails the analysis; regression test `WyvernUnusableReplyTests`)
 
 ## Out of scope
 
@@ -42,4 +42,22 @@ N/A — factory state and the zero-area rule are unit-testable.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-093` — leave empty until then._
+Drafted 2026-10-07 from the code as of `9207ea1`.
+
+**Where it goes wrong.** `ProjectService.DeleteProjectAsync` (Dragon's `delete_project`) removes folder, task and plan
+rows and the project row, but never touches `WyvernFactory` / `DrakeFactory`. REST `DELETE /api/v1/projects/{id}`
+(`ResourceEndpoints.cs:86`) only calls `repo.DeleteAsync`. `RetryAnalysis` and `ResetProjectAsync` already do the
+release (Drakes by project id, Wyvern by name). `AssignWyvernAsync` / `AnalyzeProjectAsync` look the Wyvern up by
+name and never check that its `ProjectId` is this project's.
+
+1. `ProjectService`: add `ReleaseAgents(Project)` — `RemoveAllDrakesForProject(project.Id)` + `RemoveWyvern(project.Name)`,
+   returning what it removed; call it from `DeleteProjectAsync` (adds a note) and reuse it in `RetryAnalysis` /
+   `ResetProjectAsync`, which do the same by hand.
+2. REST `DELETE /projects/{id}`: call `projects.ReleaseAgents(project)` before `repo.DeleteAsync`. Switching REST to
+   `DeleteProjectAsync` (rows/files policy) stays with TASK-074.
+3. Guard: wherever `ProjectService` takes a Wyvern by name (`AssignWyvernAsync`, `AnalyzeProjectAsync`), a Wyvern whose
+   `ProjectId` is not this project's is stale — remove it and create a fresh one. Covers a project row deleted by any
+   other path.
+4. Tests (`ProjectDeletionTests`, with an ollama provider config so a Wyvern/Drake can be built without a request):
+   delete via `DeleteProjectAsync` removes the Wyvern and Drakes; a new project with the same name gets a Wyvern whose
+   `ProjectId` is the new id (both through deletion and through the stale-Wyvern guard). Prove each fails without its fix.
