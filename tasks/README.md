@@ -1,22 +1,22 @@
 # Tasks — DraCode
 
-_Generated 2026-10-06 (close TASK-101, TASK-102). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-07 (close TASK-093). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics | Stories | Tasks |
 |--------------|-------|---------|-------|
 | planned      | 12 | 30 | — |
-| todo         | — | — | 58 |
+| todo         | — | — | 57 |
 | in-progress  | 2 | 4 | 0 |
 | verify       | — | — | 0 |
 | blocked      | — | — | 23 |
-| done         | 1 | 2 | 40 |
+| done         | 1 | 2 | 41 |
 | cancelled    | 0 | 0 | 0 |
 
 _`blocked` is a flag, not a state: 23 of the 23 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
-`todo` by priority: 15× P1 · 40× P2 · 3× P3.
+`todo` by priority: 15× P1 · 39× P2 · 3× P3.
 
 ## In progress now
 
@@ -165,7 +165,7 @@ _None_
 - [x] [TASK-086](_loose/TASK-086-zai-coding-plan-for-non-coding-agents.md) Z.AI: Dragon, Wyrm and Wyvern fail with "insufficient balance" and the model list is out of date (P2)
 - [x] [TASK-091](_loose/TASK-091-new-project-tasks-not-in-database.md) Tasks of a new project never reach the database, so the REST task endpoints can't see them (P2)
 - [ ] [TASK-092](_loose/TASK-092-view-cost-report-tool-not-wired.md) The view_cost_report tool exists but no agent has it (P2)
-- [ ] [TASK-093](_loose/TASK-093-deleted-project-wyvern-reused-by-name.md) A deleted project's Wyvern stays registered by name and is reused by a new project with that name (P2)
+- [x] [TASK-093](_loose/TASK-093-deleted-project-wyvern-reused-by-name.md) A deleted project's Wyvern stays registered by name and is reused by a new project with that name (P2)
 - [x] [TASK-097](_loose/TASK-097-spec-path-lookup-fails-on-mixed-separators.md) Approved features never reach Wyvern when ProjectsPath uses forward slashes (spec-path lookup compares mixed separators) (P1)
 - [x] [TASK-098](_loose/TASK-098-empty-wyvern-reply-becomes-zero-task-analysis.md) An empty or unparseable Wyvern reply silently becomes a 0-task analysis and the project is marked Analyzed (P1)
 - [x] [TASK-099](_loose/TASK-099-features-never-passed-to-wyvern.md) Approved features are never given to Wyvern — analysis sees only specification.md and features stay Ready (P2)
