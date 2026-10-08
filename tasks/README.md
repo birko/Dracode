@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-10-07 (close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083, TASK-106, TASK-081, TASK-045, TASK-036; new TASK-107 – TASK-117, EPIC-018 adopt Birko upstreams). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-10-08 (new TASK-118 – TASK-140: KoboldLair review — loose defects and EPIC-018 STORY-040; close TASK-093, TASK-084, TASK-092, TASK-105, TASK-104, TASK-085, TASK-083, TASK-106, TASK-081, TASK-045, TASK-036; new TASK-107 – TASK-117, EPIC-018 adopt Birko upstreams). Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -150,7 +150,7 @@ _None_
   - STORY-036 Diverse-panel consensus (heterogeneous agents) — planned (0/0)
   - STORY-037 Retrofit EPIC-010 voting integrations onto the shared mechanism — planned (0/0)
 
-- **EPIC-018 Adopt Birko framework upstreams** — planned (0/10)
+- **EPIC-018 Adopt Birko framework upstreams** — planned (0/26)
   - STORY-038 Adopt the Birko security / OAuth upstreams — planned (0/4)
     - [ ] [TASK-108](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-108-move-github-refresh-onto-birko-oauth-server.md) GitHub sign-in sessions are lost on every server restart — move refresh onto the Birko OAuth server (P2) ⚠ blocked
     - [ ] [TASK-109](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-109-use-birko-oauth-server-stores.md) Use the framework OAuth server stores; delete SqliteOAuthStores and InMemoryOAuthStores (P2) ⚠ blocked · FEATURE-019
@@ -163,6 +163,23 @@ _None_
     - [ ] [TASK-115](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-115-replace-hand-rolled-widgets-with-birko-web.md) Replace hand-rolled widgets and helpers with Birko.Web ones (P3) · FEATURE-026
     - [ ] [TASK-116](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-116-adopt-birko-web-core-upstreams.md) Adopt WsClient.request and the runtime-config loader from Birko.Web.Core (P3) ⚠ blocked · FEATURE-026
     - [ ] [TASK-117](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-117-archive-stale-birko-web-docs.md) Archive the two stale Birko.Web docs (P3)
+  - STORY-040 Adopt the Birko KoboldLair upstreams — planned (0/16)
+    - [ ] [TASK-125](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-125-rebuild-kobold-loop-on-birko-agent-hooks.md) Rebuild Kobold step detection on Birko Agent hooks; delete the loop fork and the tool-wrapping (P1) ⚠ blocked
+    - [ ] [TASK-126](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-126-use-birko-orchestration-plan-model.md) Use Birko.AI.Orchestration's plan model, analyzer and dispatcher; migrate stored plan statuses (P1) ⚠ blocked
+    - [ ] [TASK-127](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-127-use-birko-sql-event-store.md) Use the framework SQL event store; delete SqlEventStoreRepository and DomainEventEntity (P1) ⚠ blocked
+    - [ ] [TASK-128](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-128-persist-circuit-breaker-and-usage-via-birko.md) Persist circuit-breaker state and usage through Birko.AI.Resilience stores (P2) ⚠ blocked
+    - [ ] [TASK-129](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-129-use-classified-llm-failures.md) Use classified LLM failures; retire ErrorClassifier's substring matching (P2) ⚠ blocked
+    - [ ] [TASK-130](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-130-use-birko-secret-provider-and-cipher.md) Use the Birko config secret provider and field cipher; re-encrypt stored provider keys (P2) ⚠ blocked
+    - [ ] [TASK-131](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-131-use-birko-live-event-broadcaster.md) Use the Birko keyed broadcaster for run events; delete KoboldRunEventSource (P2) ⚠ blocked
+    - [ ] [TASK-132](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-132-use-birko-git-service-and-tools.md) Use the Birko git service and tools; delete GitService and the four git tools (P2) ⚠ blocked
+    - [ ] [TASK-133](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-133-use-birko-conversation-checkpoints.md) Use Birko conversation checkpoints; fix restored turns reading back empty (P2) ⚠ blocked
+    - [ ] [TASK-134](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-134-use-birko-websocket-endpoint-mapping.md) Map the WebSocket endpoints with Birko's mapping and RequireAuthorization; delete the three hand-written blocks (P1) ⚠ blocked
+    - [ ] [TASK-135](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-135-use-birko-websocket-connection.md) Use the Birko WebSocket connection; delete WebSocketSender and the hand-written receive loops (P1) ⚠ blocked
+    - [ ] [TASK-136](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-136-use-birko-background-jobs-hosting.md) Use Birko.BackgroundJobs hosting and registration; delete the two hosted-service bridges (P2) ⚠ blocked
+    - [ ] [TASK-137](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-137-use-birko-websocket-command-router.md) Use the Birko command router for Dragon commands; keep the handlers (P2) ⚠ blocked
+    - [ ] [TASK-138](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-138-use-birko-sse-result.md) Stream run events with the Birko SSE result (P3) ⚠ blocked
+    - [ ] [TASK-139](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-139-use-birko-ownership-check.md) Use the Birko owner-or-admin check; delete ApiOwnership (P3) ⚠ blocked
+    - [ ] [TASK-140](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-140-use-birko-websocket-proxy.md) Proxy /dragon and /wyvern in the client host with the Birko WebSocket proxy (P3) ⚠ blocked
 
 ## Loose tasks
 
@@ -194,6 +211,13 @@ _None_
 - [x] [TASK-083](_loose/TASK-083-run-status-stays-pending-without-plan.md) A run without a plan reports "pending" until it finishes — it never shows "running" (P3)
 - [x] [TASK-085](_loose/TASK-085-dragon-sends-specification-created-after-failed-request.md) Dragon sends specification_created after a request that failed (P3)
 - [x] [TASK-087](_loose/TASK-087-use-birko-ensurecolumns-in-usage-repository.md) Replace SqlUsageRepository's local add-missing-columns helper with Birko's EnsureColumns (P3)
+- [ ] [TASK-118](_loose/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment (P1)
+- [ ] [TASK-119](_loose/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller (P1)
+- [ ] [TASK-120](_loose/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other (P1)
+- [ ] [TASK-121](_loose/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping (P2)
+- [ ] [TASK-122](_loose/TASK-122-use-birko-path-validator.md) Replace ExternalPathValidator with Birko's PathValidator / PathHelper.IsPathSafe (P2)
+- [ ] [TASK-123](_loose/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation (P3)
+- [ ] [TASK-124](_loose/TASK-124-export-birko-telemetry.md) ServiceDefaults does not export Birko's traces and metrics (P3)
 
 <details><summary>Completed</summary>
 

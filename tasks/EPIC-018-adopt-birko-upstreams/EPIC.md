@@ -3,7 +3,7 @@ id: EPIC-018
 status: planned
 created: 2026-10-07
 owner: ai
-affects: [DraCode.KoboldLair.Server, DraCode.KoboldLair.Client]
+affects: [DraCode.KoboldLair, DraCode.KoboldLair.Server, DraCode.KoboldLair.Client, DraCode.ServiceDefaults]
 ---
 
 # Adopt Birko framework upstreams
@@ -22,3 +22,4 @@ Each task here is **blocked on its Birko task** until that one is done; the `blo
 
 - [[STORY-038]] Adopt the Birko security / OAuth upstreams (backend auth)
 - [[STORY-039]] Adopt Birko.Web upstreams (web client)
+- [[STORY-040]] Adopt the Birko KoboldLair upstreams (agent runtime, data, server plumbing) — from the 2026-10-08 review, framework STORY-060 / STORY-061
