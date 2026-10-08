@@ -1,6 +1,6 @@
 ---
 id: TASK-118
-parent: null
+parent: STORY-041
 feature: null
 status: todo
 priority: P1
@@ -11,6 +11,7 @@ blocks: []
 pr: null
 github-issue: null
 jira-key: null
+findings: [SEC-1]
 ---
 
 # With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment

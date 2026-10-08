@@ -1,6 +1,6 @@
 ---
 id: TASK-119
-parent: null
+parent: STORY-041
 feature: null
 status: todo
 priority: P1
@@ -11,6 +11,7 @@ blocks: []
 pr: null
 github-issue: null
 jira-key: null
+findings: [SEC-2]
 ---
 
 # The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller

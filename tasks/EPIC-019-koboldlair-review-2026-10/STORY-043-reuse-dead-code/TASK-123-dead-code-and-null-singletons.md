@@ -1,6 +1,6 @@
 ---
 id: TASK-123
-parent: null
+parent: STORY-043
 feature: null
 status: todo
 priority: P3
@@ -11,6 +11,7 @@ blocks: []
 pr: null
 github-issue: null
 jira-key: null
+findings: [CR-3]
 ---
 
 # Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation

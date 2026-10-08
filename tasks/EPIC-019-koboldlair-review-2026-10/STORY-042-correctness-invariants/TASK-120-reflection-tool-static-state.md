@@ -1,6 +1,6 @@
 ---
 id: TASK-120
-parent: null
+parent: STORY-042
 feature: null
 status: todo
 priority: P1
@@ -11,6 +11,7 @@ blocks: []
 pr: null
 github-issue: null
 jira-key: null
+findings: [CR-1]
 ---
 
 # ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other

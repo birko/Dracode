@@ -23,3 +23,4 @@ Each task here is **blocked on its Birko task** until that one is done; the `blo
 - [[STORY-038]] Adopt the Birko security / OAuth upstreams (backend auth)
 - [[STORY-039]] Adopt Birko.Web upstreams (web client)
 - [[STORY-040]] Adopt the Birko KoboldLair upstreams (agent runtime, data, server plumbing) — from the 2026-10-08 review, framework STORY-060 / STORY-061
+- [[STORY-044]] Follow Birko framework contract changes (TASK-079 cancellation tokens, TASK-080 Guid naming)

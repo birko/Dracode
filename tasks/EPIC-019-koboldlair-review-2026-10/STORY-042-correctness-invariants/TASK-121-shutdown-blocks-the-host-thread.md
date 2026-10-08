@@ -1,6 +1,6 @@
 ---
 id: TASK-121
-parent: null
+parent: STORY-042
 feature: null
 status: todo
 priority: P2
@@ -11,6 +11,7 @@ blocks: []
 pr: null
 github-issue: null
 jira-key: null
+findings: [CR-2]
 ---
 
 # Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping
