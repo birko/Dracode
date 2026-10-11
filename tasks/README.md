@@ -10,11 +10,11 @@ _Generated 2026-10-08 (organize loose tasks: TASK-118–121, TASK-123 → new re
 | todo         | — | — | 61 |
 | in-progress  | 2 | 3 | 0 |
 | verify       | — | — | 0 |
-| blocked      | — | — | 27 |
+| blocked      | — | — | 26 |
 | done         | 1 | 3 | 51 |
 | cancelled    | 0 | 0 | 0 |
 
-_`blocked` is a flag, not a state: 27 of the 27 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
+_`blocked` is a flag, not a state: 26 of the 26 blocked tasks are also counted in their own state, so the rows do not sum to the task total._
 
 `todo` by priority: 14× P1 · 41× P2 · 6× P3.
 
@@ -165,7 +165,7 @@ _None_
     - [ ] [TASK-117](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-117-archive-stale-birko-web-docs.md) Archive the two stale Birko.Web docs (P3)
   - STORY-040 Adopt the Birko KoboldLair upstreams — planned (0/18)
     - [ ] [TASK-125](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-125-rebuild-kobold-loop-on-birko-agent-hooks.md) Rebuild Kobold step detection on Birko Agent hooks; delete the loop fork and the tool-wrapping (P1) ⚠ blocked
-    - [ ] [TASK-126](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-126-use-birko-orchestration-plan-model.md) Use Birko.AI.Orchestration's plan model, analyzer and dispatcher; migrate stored plan statuses (P1) ⚠ blocked
+    - [ ] [TASK-126](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-126-use-birko-orchestration-plan-model.md) Use Birko.AI.Orchestration's plan model, analyzer and dispatcher; migrate stored plan statuses (P1)
     - [ ] [TASK-127](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-127-use-birko-sql-event-store.md) Use the framework SQL event store; delete SqlEventStoreRepository and DomainEventEntity (P1) ⚠ blocked
     - [ ] [TASK-128](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-128-persist-circuit-breaker-and-usage-via-birko.md) Persist circuit-breaker state and usage through Birko.AI.Resilience stores (P2) ⚠ blocked
     - [ ] [TASK-129](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-129-use-classified-llm-failures.md) Use classified LLM failures; retire ErrorClassifier's substring matching (P2) ⚠ blocked
