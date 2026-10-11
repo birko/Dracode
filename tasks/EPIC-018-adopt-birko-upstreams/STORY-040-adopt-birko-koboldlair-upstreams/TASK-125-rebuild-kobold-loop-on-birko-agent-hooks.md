@@ -8,7 +8,7 @@ assignee: ai
 created: 2026-10-08
 depends-on: []
 blocks: []
-blocked: 'waiting on Birko TASK-527 (Birko.Framework)'
+blocked: null
 pr: null
 github-issue: null
 jira-key: null
@@ -17,6 +17,8 @@ jira-key: null
 # Rebuild Kobold step detection on Birko Agent hooks; delete the loop fork and the tool-wrapping
 
 ## Context
+
+**Unblocked:** Birko TASK-527 landed (2026-10-09): `Agent.Hooks` / `IAgentHooks`, `ResumeAsync`; `AgentOptions.CheckpointInterval` removed, which is what currently breaks the KoboldLair.Server build.
 
 `Models/Agents/Kobold.cs` `RunWithStepDetectionAsync` (lines 1300–1675) is a copy of `Agent.RunAsync`; line 1443 reads `SystemPrompt` by reflection; `WrapToolsForRunEvents` / `UnwrapTools` + `RunEventPublishingTool` exist only to observe tool calls. The fork already drops the cancellation token (cf. `_loose/TASK-079`).
 

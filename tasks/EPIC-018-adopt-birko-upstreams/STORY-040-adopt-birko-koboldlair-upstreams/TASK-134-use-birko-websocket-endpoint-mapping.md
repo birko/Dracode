@@ -8,7 +8,7 @@ assignee: ai
 created: 2026-10-08
 depends-on: []
 blocks: []
-blocked: 'waiting on Birko TASK-536 (Birko.Framework)'
+blocked: null
 pr: null
 github-issue: null
 jira-key: null
@@ -17,6 +17,8 @@ jira-key: null
 # Map the WebSocket endpoints with Birko's mapping and RequireAuthorization; delete the three hand-written blocks
 
 ## Context
+
+**Unblocked:** Birko TASK-536 landed (2026-10-08): `requireAuthentication: true` now fails closed; for JWT use `requireAuthentication: false` + `.RequireAuthorization()`.
 
 `Program.cs` L1071–1140: three copy-pasted `app.Map` blocks (401 before accept, 400 if not a WebSocket request) and a hand-written claims parser `ResolveCaller`. They exist because Birko's `requireAuthentication` flag failed open.
 

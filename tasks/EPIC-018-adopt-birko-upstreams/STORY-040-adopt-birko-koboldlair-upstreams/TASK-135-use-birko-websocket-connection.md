@@ -8,7 +8,7 @@ assignee: ai
 created: 2026-10-08
 depends-on: []
 blocks: []
-blocked: 'waiting on Birko TASK-537 (Birko.Framework)'
+blocked: null
 pr: null
 github-issue: null
 jira-key: null
@@ -17,6 +17,8 @@ jira-key: null
 # Receive whole messages with Birko's ReceiveMessageAsync; delete WebSocketSender and the hand-written receive loops
 
 ## Context
+
+**Unblocked:** Birko TASK-537 landed (2026-10-08): capped `ReceiveMessageAsync`; no send queue (concurrent sends are already serialized).
 
 Live defects until this lands: `DragonService` / `WyrmService` ignore `EndOfMessage` (64 KB buffer — a larger message
 parses as partial JSON); `KoboldEndpointService` reads its first message uncapped; `WebSocketSender` reports undelivered

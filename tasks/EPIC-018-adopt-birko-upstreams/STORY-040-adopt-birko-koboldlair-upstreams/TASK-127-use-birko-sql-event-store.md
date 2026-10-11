@@ -8,7 +8,7 @@ assignee: ai
 created: 2026-10-08
 depends-on: []
 blocks: []
-blocked: 'waiting on Birko TASK-529 (Birko.Framework)'
+blocked: null
 pr: null
 github-issue: null
 jira-key: null
@@ -17,6 +17,8 @@ jira-key: null
 # Use the framework SQL event store; delete SqlEventStoreRepository and DomainEventEntity
 
 ## Context
+
+**Unblocked:** Birko TASK-529 landed (2026-10-10): `Birko.Data.EventSourcing.SQL` `SqlEventStore<DB>`, typed `EventStoreConcurrencyException`.
 
 `Data/Repositories/Sql/SqlEventStoreRepository.cs` (141) + `Data/Entities/DomainEventEntity.cs` (72): not atomic, no version uniqueness, version read in memory. `_loose/TASK-080` (rename `AggregateId`) is superseded if the framework owns the entity.
 
