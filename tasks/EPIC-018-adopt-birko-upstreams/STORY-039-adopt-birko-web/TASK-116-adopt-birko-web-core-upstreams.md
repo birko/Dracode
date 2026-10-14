@@ -8,13 +8,14 @@ assignee: ai
 created: 2026-10-07
 depends-on: []
 blocks: []
-blocked: 'waiting on Birko TASK-523, TASK-526 (Birko.Framework)'
 pr: null
 github-issue: null
 jira-key: null
 ---
 
 # Adopt WsClient.request and the runtime-config loader from Birko.Web.Core; delete the local copies
+
+> **Unblocked 2026-10-14:** Birko TASK-523 and TASK-526 shipped in **Birko.Web v0.1.8** — `WsClient.request()` / `requestMessage()` (correlation on the envelope's top-level `id`, which is how `WebSocketCommandHandler` replies; the current `api-client.ts` looks for the id inside `data`, so its replies may never match) and `RuntimeConfig` (`secretKeys: ['authToken']` keeps the token out of localStorage). Core README § WsClient, § Runtime configuration.
 
 ## Context
 

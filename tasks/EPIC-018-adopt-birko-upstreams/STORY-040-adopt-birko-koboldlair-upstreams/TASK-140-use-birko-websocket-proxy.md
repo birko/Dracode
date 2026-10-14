@@ -8,13 +8,14 @@ assignee: ai
 created: 2026-10-08
 depends-on: []
 blocks: []
-blocked: 'waiting on Birko TASK-542 (Birko.Framework)'
 pr: null
 github-issue: null
 jira-key: null
 ---
 
 # Proxy /dragon and /wyvern in the client host with the Birko WebSocket proxy
+
+> **Unblocked 2026-10-14:** Birko TASK-542 (the WebSocket reverse proxy, `MapWebSocketProxy`) is done; the blocker was stale. Subprotocol forwarding is still open as Birko TASK-569.
 
 ## Context
 
