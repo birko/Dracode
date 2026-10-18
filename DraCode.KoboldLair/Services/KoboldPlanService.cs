@@ -7,6 +7,8 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Birko.AI;
 using DraCode.KoboldLair.Models.Agents;
+// Birko.AI.Models has its own ConversationCheckpoint since Birko TASK-535; this service persists DraCode's.
+using ConversationCheckpoint = DraCode.KoboldLair.Models.Agents.ConversationCheckpoint;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Data.Repositories.Sql;
 using Microsoft.Extensions.Logging;

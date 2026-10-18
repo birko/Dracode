@@ -961,6 +961,9 @@ var jwtRuntimeEnabled = app.Services
 if (jwtRuntimeEnabled)
 {
     app.UseAuthentication();
+    // Birko TASK-161: AddBirkoSecurity requires the tenant header guard by default, and the host refuses to start
+    // without it. It compares an X-Tenant-Id header with the token's tenant claim; DraCode sends neither, so it is inert.
+    app.UseBirkoTenantHeaderGuard();
 
     // Daemon loopback bypass: when configured AND every bind is loopback, trust the OS user and run
     // requests as a synthetic principal with the "*" permission so both RequireAuthorization and

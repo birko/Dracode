@@ -205,6 +205,13 @@ namespace DraCode.KoboldLair.Models.Agents
         public Action<EscalationAlert>? OnEscalation { get; set; }
 
         /// <summary>
+        /// Inject the reflection prompt every this many iterations of one step (0 = never). It was
+        /// <c>AgentOptions.CheckpointInterval</c> until Birko TASK-527 removed that option (nothing in Birko read it);
+        /// the default 3 is the value it always had here.
+        /// </summary>
+        public int CheckpointInterval { get; set; } = 3;
+
+        /// <summary>
         /// Creates a new Kobold with an agent instance
         /// </summary>
         public Kobold(Agent agent, string agentType, ILogger<Kobold>? logger = null)
@@ -1415,7 +1422,7 @@ You are working on a task that is part of a larger project. Below is the project
                 }
 
                 // Inject checkpoint reminder every N iterations (P1 self-reflection)
-                var checkpointInterval = Agent.Options.CheckpointInterval;
+                var checkpointInterval = CheckpointInterval;
                 if (checkpointInterval > 0 && stepIterationCount > 1 && stepIterationCount % checkpointInterval == 0
                     && currentStepIndex < ImplementationPlan.Steps.Count)
                 {

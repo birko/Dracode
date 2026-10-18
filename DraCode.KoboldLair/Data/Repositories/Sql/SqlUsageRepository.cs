@@ -72,11 +72,11 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// <summary>
         /// Gets total usage aggregated by provider within a time range.
         /// </summary>
-        public async Task<List<ProviderUsageSummary>> GetUsageByProviderAsync(DateTime from, DateTime to)
+        public async Task<List<ProviderUsageSummary>> GetUsageByProviderAsync(DateTime from, DateTime to, CancellationToken ct = default)
         {
             var records = await _repository.ReadAsync(
                 filter: e => e.RecordedAt >= from && e.RecordedAt <= to,
-                orderBy: null, limit: null, offset: null);
+                orderBy: null, limit: null, offset: null, ct: ct);
 
             return records
                 .GroupBy(r => r.Provider)
@@ -94,11 +94,11 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// <summary>
         /// Gets usage for a specific project within a time range.
         /// </summary>
-        public async Task<ProjectUsageSummary?> GetUsageByProjectAsync(string projectId, DateTime from, DateTime to)
+        public async Task<ProjectUsageSummary?> GetUsageByProjectAsync(string projectId, DateTime from, DateTime to, CancellationToken ct = default)
         {
             var records = await _repository.ReadAsync(
                 filter: e => e.ProjectId == projectId && e.RecordedAt >= from && e.RecordedAt <= to,
-                orderBy: null, limit: null, offset: null);
+                orderBy: null, limit: null, offset: null, ct: ct);
 
             var recordList = records.ToList();
             if (recordList.Count == 0)
@@ -116,12 +116,12 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// <summary>
         /// Gets total spend for a time range, optionally filtered by provider.
         /// </summary>
-        public async Task<double> GetTotalSpendAsync(DateTime from, DateTime to, string? provider = null)
+        public async Task<double> GetTotalSpendAsync(DateTime from, DateTime to, string? provider = null, CancellationToken ct = default)
         {
             var records = await _repository.ReadAsync(
                 filter: e => e.RecordedAt >= from && e.RecordedAt <= to
                     && (provider == null || e.Provider == provider),
-                orderBy: null, limit: null, offset: null);
+                orderBy: null, limit: null, offset: null, ct: ct);
 
             return records.Sum(r => r.EstimatedCostUsd);
         }
@@ -129,18 +129,18 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// <summary>
         /// Gets total spend for a specific project (all time).
         /// </summary>
-        public async Task<double> GetProjectSpendAsync(string projectId)
+        public async Task<double> GetProjectSpendAsync(string projectId, CancellationToken ct = default)
         {
             var records = await _repository.ReadAsync(
                 filter: e => e.ProjectId == projectId,
-                orderBy: null, limit: null, offset: null);
+                orderBy: null, limit: null, offset: null, ct: ct);
 
             return records.Sum(r => r.EstimatedCostUsd);
         }
 
         #region IUsageRepository Implementation
 
-        async Task IUsageRepository.RecordUsageAsync(BirkoUsageRecord entity)
+        async Task IUsageRepository.RecordUsageAsync(BirkoUsageRecord entity, CancellationToken ct)
         {
             var koboldLairRecord = new KoboldLairUsageRecord
             {
@@ -159,11 +159,6 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 UpdatedAt = entity.UpdatedAt
             };
             await RecordUsageAsync(koboldLairRecord);
-        }
-
-        async Task<double> IUsageRepository.GetTotalSpendAsync(DateTime from, DateTime to)
-        {
-            return await GetTotalSpendAsync(from, to, provider: null);
         }
 
         #endregion
