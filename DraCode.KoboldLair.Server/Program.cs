@@ -109,8 +109,8 @@ builder.Services.Configure<DaemonAuthOptions>(
         options.Jwt.RefreshExpirationDays = jwtCfgForSecurity.RefreshExpirationDays;
         // Service-account tokens carry their granted scopes in the "scope" claim; interactive login
         // tokens emit the same claim (AuthEndpoints). Read permissions from it so PermissionEndpointFilter
-        // enforces both. NOTE: ClaimsCurrentUser splits the claim on commas — a single OAuth scope works,
-        // but a space-delimited multi-scope token is a known limitation (follow-up).
+        // enforces both. With PermissionClaim = "scope", ClaimsCurrentUser also splits on spaces (Birko TASK-520), so a
+        // space-delimited multi-scope OAuth token reads as separate permissions; commas still work.
         options.Jwt.Claims.PermissionClaim = "scope";
     });
 }

@@ -84,10 +84,14 @@ public class RunEventsSseTests
         return Guid.Parse(doc.RootElement.GetProperty("runId").GetString()!);
     }
 
-    private static Task<HttpResponseMessage> OpenStreamAsync(HttpClient client, Guid runId, string token) =>
-        // ?token= is how a browser EventSource authenticates — no Authorization header here on purpose
-        client.SendAsync(new HttpRequestMessage(HttpMethod.Get, $"/api/v1/runs/{runId}/events?token={token}"),
-            HttpCompletionOption.ResponseHeadersRead);
+    private static Task<HttpResponseMessage> OpenStreamAsync(HttpClient client, Guid runId, string token)
+    {
+        // ?token= is how a browser EventSource authenticates — no Authorization header here on purpose. An EventSource
+        // also sends Accept: text/event-stream, and since Birko TASK-165 that is what lets the query token be read.
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/runs/{runId}/events?token={token}");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        return client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+    }
 
     /// <summary>Reads SSE frames ("event" name, "data" JSON) until the server closes the stream.</summary>
     private static async Task<List<(string Event, string Data)>> ReadFramesAsync(HttpResponseMessage response, TimeSpan timeout)

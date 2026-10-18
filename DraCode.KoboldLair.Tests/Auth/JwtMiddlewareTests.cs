@@ -130,8 +130,11 @@ public class JwtMiddlewareTests
         var client = factory.CreateClient();
         var token = MintToken(factory, scope: KoboldLairPermissionChecker.ViewOwn);
 
-        // No Authorization header — token only in the query string (OnMessageReceived path).
-        var response = await client.GetAsync($"/api/v1/whoami?token={Uri.EscapeDataString(token)}");
+        // No Authorization header — token only in the query string (OnMessageReceived path). Since Birko TASK-165 a query
+        // token is read only where a header cannot be set: a WebSocket upgrade or an EventSource, which sends this Accept.
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/whoami?token={Uri.EscapeDataString(token)}");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        var response = await client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

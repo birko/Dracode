@@ -159,8 +159,8 @@ public class SqliteOAuthStoreTests : IAsyncLifetime, IDisposable
 
         // Fresh store instance pointed at the same db file — proves persistence + JSON round-trip.
         var dir = Path.GetDirectoryName(_dbPath)!;
-        var freshStore = new SqlOAuthClientStore(new PasswordSettings(dir, Path.GetFileName(_dbPath)));
-        await freshStore.InitializeAsync();
+        var freshStore = new Birko.Security.OAuth.Server.SqLite.Stores.SqLiteOAuthClientStore(new PasswordSettings(dir, Path.GetFileName(_dbPath)));
+        await freshStore.InitAsync();
 
         var loaded = await freshStore.GetByClientIdAsync(registered.ClientId);
 
@@ -170,5 +170,33 @@ public class SqliteOAuthStoreTests : IAsyncLifetime, IDisposable
         loaded.RedirectUris.Should().BeEquivalentTo(new[] { "https://app/cb", "https://app/cb2" });
         loaded.AllowedGrantTypes.Should().BeEquivalentTo(new[] { OAuthGrantTypes.AuthorizationCode, OAuthGrantTypes.RefreshToken });
         loaded.AllowedScopes.Should().BeEquivalentTo(new[] { "read", "write" });
+    }
+    [Fact]
+    public async Task A_refresh_token_table_from_before_the_adoption_gains_its_claims_column()
+    {
+        // DraCode's own store (before TASK-109) created oauth_refresh_tokens without ClaimsJson. Startup adds it.
+        var settings = new Birko.Data.SQL.SqLite.Stores.SqLiteSettings(Path.GetDirectoryName(_dbPath)!, Path.GetFileName(_dbPath));
+        var connector = Birko.Data.SQL.DataBase.GetConnector<Birko.Data.SQL.Connectors.SqLiteConnector>(settings);
+        using (var conn = connector.CreateConnection(connector.Settings))
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "CREATE TABLE oauth_refresh_tokens (Guid TEXT PRIMARY KEY, TokenHash TEXT, ClientId TEXT, " +
+                              "UserId TEXT, Scope TEXT, ExpiresAt TEXT, Revoked INTEGER)";
+            cmd.ExecuteNonQuery();
+        }
+
+        var services = new ServiceCollection();
+        services.AddOAuthServerStores(useSqlite: true, dbPath: _dbPath);
+        var store = services.BuildServiceProvider().GetRequiredService<IRefreshTokenStore>();
+        var record = new RefreshTokenRecord
+        {
+            TokenHash = "h1", ClientId = "web", UserId = "github:42", Scope = "read",
+            ExpiresAt = DateTime.UtcNow.AddDays(1), Claims = new Dictionary<string, string> { ["name"] = "octocat" },
+        };
+        await store.CreateAsync(record);
+
+        var loaded = await store.GetByHashAsync("h1");
+        loaded!.Claims.Should().ContainKey("name").WhoseValue.Should().Be("octocat");
     }
 }
