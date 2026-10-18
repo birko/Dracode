@@ -34,6 +34,7 @@
        Birko.Security.AspNetCore (TenantContextAdapter). Nothing in DraCode.Birko references it, so it
        compiles here in the web host rather than the plain-SDK aggregator. -->
   <Import Project="$(BirkoSrc)\Birko.Data.Tenant\Birko.Data.Tenant.projitems" Label="Shared" />
+  <Import Project="$(BirkoSrc)\Birko.Communication.AspNetCore\Birko.Communication.AspNetCore.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Security.AspNetCore\Birko.Security.AspNetCore.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Communication.WebSocket\Birko.Communication.WebSocket.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Communication.SSE\Birko.Communication.SSE.projitems" Label="Shared" />
