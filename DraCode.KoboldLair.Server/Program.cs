@@ -48,21 +48,31 @@ if (!builder.Environment.IsEnvironment("Testing"))
 // Add services
 builder.AddServiceDefaults();
 
+// TASK-118: the one place that resolves the JWT signing secret (token provider, bearer validation, OAuth server).
+// This fallback is public, so it is only accepted in Development, or when JWT auth is off and nothing signs with it.
+const string DevelopmentJwtSecret = "KoboldLair-Development-Secret-Key-Do-Not-Use-In-Production!";
+static string ResolveJwtSecret(JwtAuthenticationConfiguration jwt, IHostEnvironment env)
+{
+    var secret = jwt.ResolveSecret();
+    if (!string.IsNullOrEmpty(secret))
+        return secret;
+    if (jwt.Enabled && !env.IsDevelopment())
+        throw new InvalidOperationException(
+            "Authentication:Jwt:Enabled is true but Authentication:Jwt:Secret is empty (by default it reads the " +
+            "KOBOLDLAIR_JWT_SECRET environment variable). Set a secret of at least 32 characters; the built-in " +
+            $"development secret is only accepted in the Development environment, not in '{env.EnvironmentName}'.");
+    return DevelopmentJwtSecret;
+}
+
 // Register Birko.Security.Jwt authentication
 builder.Services.Configure<JwtAuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication:Jwt"));
 builder.Services.AddSingleton<ITokenProvider>(sp =>
 {
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
-    var secret = config.ResolveSecret();
-    if (string.IsNullOrEmpty(secret))
-    {
-        // Use a development-only key when no secret is configured
-        secret = "KoboldLair-Development-Secret-Key-Do-Not-Use-In-Production!";
-    }
     return new JwtTokenProvider(new TokenOptions
     {
-        Secret = secret,
+        Secret = ResolveJwtSecret(config, sp.GetRequiredService<IHostEnvironment>()),
         Issuer = config.Issuer,
         Audience = config.Audience,
         ExpirationMinutes = config.ExpirationMinutes,
@@ -96,9 +106,7 @@ builder.Services.Configure<DaemonAuthOptions>(
 {
     var jwtCfgForSecurity = builder.Configuration
         .GetSection("Authentication:Jwt").Get<JwtAuthenticationConfiguration>() ?? new JwtAuthenticationConfiguration();
-    var securitySecret = jwtCfgForSecurity.ResolveSecret();
-    if (string.IsNullOrEmpty(securitySecret))
-        securitySecret = "KoboldLair-Development-Secret-Key-Do-Not-Use-In-Production!";
+    var securitySecret = ResolveJwtSecret(jwtCfgForSecurity, builder.Environment);
 
     builder.Services.AddBirkoSecurity(options =>
     {
@@ -137,9 +145,7 @@ builder.Services.AddSingleton<OAuthServer>(sp =>
 {
     var jwt = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
     var oauth = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OAuthServerConfiguration>>().Value;
-    var secret = jwt.ResolveSecret();
-    if (string.IsNullOrEmpty(secret))
-        secret = "KoboldLair-Development-Secret-Key-Do-Not-Use-In-Production!";
+    var secret = ResolveJwtSecret(jwt, sp.GetRequiredService<IHostEnvironment>());
     var settings = new OAuthServerSettings
     {
         Issuer = jwt.Issuer,
@@ -956,10 +962,17 @@ app.UseCors();
 // server stays auth-free (backward compatible). UseAuthentication is always safe to run (it only
 // populates HttpContext.User from a valid bearer/?token= when present); UseAuthorization is what
 // enforces .RequireAuthorization()/.RequirePermission() metadata.
-var jwtRuntimeEnabled = app.Services
-    .GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value.Enabled;
+var jwtRuntimeConfig = app.Services
+    .GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
+var jwtRuntimeEnabled = jwtRuntimeConfig.Enabled;
 if (jwtRuntimeEnabled)
 {
+    // TASK-118: resolve the secret here, at startup, so a host without one fails now and not at the first login.
+    if (ResolveJwtSecret(jwtRuntimeConfig, app.Environment) == DevelopmentJwtSecret)
+        app.Logger.LogWarning(
+            "Authentication:Jwt:Secret is not set; tokens are signed with the public development secret. " +
+            "Set KOBOLDLAIR_JWT_SECRET before exposing this server.");
+
     app.UseAuthentication();
     // Birko TASK-161: AddBirkoSecurity requires the tenant header guard by default, and the host refuses to start
     // without it. It compares an X-Tenant-Id header with the token's tenant claim; DraCode sends neither, so it is inert.
