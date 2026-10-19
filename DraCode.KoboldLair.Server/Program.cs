@@ -965,6 +965,13 @@ app.UseCors();
 var jwtRuntimeConfig = app.Services
     .GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
 var jwtRuntimeEnabled = jwtRuntimeConfig.Enabled;
+
+app.UseAuthentication();
+// Birko TASK-161: AddBirkoSecurity requires the tenant header guard by default, and the host refuses to start
+// without it — with JWT off too, since AddBirkoSecurity is registered unconditionally. It compares an X-Tenant-Id
+// header with the token's tenant claim; DraCode sends neither, so it is inert.
+app.UseBirkoTenantHeaderGuard();
+
 if (jwtRuntimeEnabled)
 {
     // TASK-118: resolve the secret here, at startup, so a host without one fails now and not at the first login.
@@ -972,11 +979,6 @@ if (jwtRuntimeEnabled)
         app.Logger.LogWarning(
             "Authentication:Jwt:Secret is not set; tokens are signed with the public development secret. " +
             "Set KOBOLDLAIR_JWT_SECRET before exposing this server.");
-
-    app.UseAuthentication();
-    // Birko TASK-161: AddBirkoSecurity requires the tenant header guard by default, and the host refuses to start
-    // without it. It compares an X-Tenant-Id header with the token's tenant claim; DraCode sends neither, so it is inert.
-    app.UseBirkoTenantHeaderGuard();
 
     // Daemon loopback bypass: when configured AND every bind is loopback, trust the OS user and run
     // requests as a synthetic principal with the "*" permission so both RequireAuthorization and
