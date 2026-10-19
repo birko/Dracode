@@ -14,18 +14,45 @@ namespace DraCode.KoboldLair.Agents.Tools
     /// </summary>
     public class ReflectionTool : Tool
     {
-        private static readonly SemaphoreSlim _semaphore = new(1, 1);
-        private static KoboldImplementationPlan? _currentPlan;
-        private static KoboldPlanService? _planService;
-        private static ILogger? _logger;
-        private static string? _currentProjectId;
-        private static string? _currentTaskId;
-        private static Guid _koboldId;
-        private static string? _agentType;
-        private static Action<EscalationAlert>? _onEscalation;
-        private static ReflectionConfiguration? _config;
-        private static KoboldRunEventSource? _runEventSource;
-        private static Guid _runId;
+        // Per-run state, one tool instance per Kobold run (TASK-120): parallel Kobolds each record against their own plan.
+        private readonly SemaphoreSlim _semaphore = new(1, 1);
+        private readonly KoboldImplementationPlan _currentPlan;
+        private readonly KoboldPlanService? _planService;
+        private readonly ILogger? _logger;
+        private readonly string? _currentProjectId;
+        private readonly string? _currentTaskId;
+        private readonly Guid _koboldId;
+        private readonly string? _agentType;
+        private readonly Action<EscalationAlert>? _onEscalation;
+        private readonly ReflectionConfiguration? _config;
+        private readonly KoboldRunEventSource? _runEventSource;
+        private readonly Guid _runId;
+
+        public ReflectionTool(
+            KoboldImplementationPlan plan,
+            KoboldPlanService? planService,
+            ILogger? logger,
+            string? projectId,
+            string? taskId,
+            Guid koboldId,
+            string? agentType,
+            Action<EscalationAlert>? onEscalation,
+            ReflectionConfiguration? config,
+            KoboldRunEventSource? runEventSource = null,
+            Guid runId = default)
+        {
+            _currentPlan = plan;
+            _planService = planService;
+            _logger = logger;
+            _currentProjectId = projectId ?? plan.ProjectId;
+            _currentTaskId = taskId ?? plan.TaskId;
+            _koboldId = koboldId;
+            _agentType = agentType;
+            _onEscalation = onEscalation;
+            _config = config;
+            _runEventSource = runEventSource;
+            _runId = runId;
+        }
 
         public override string Name => "reflect";
 
@@ -111,14 +138,9 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                     _ => null
                 };
 
-                await _semaphore.WaitAsync();
+                await _semaphore.WaitAsync(cancellationToken);
                 try
                 {
-                    if (_currentPlan == null)
-                    {
-                        return "Error: No implementation plan is currently active.";
-                    }
-
                     var currentStepIndex = _currentPlan.CurrentStepIndex + 1; // 1-based for display
 
                     // Create reflection entry
@@ -279,69 +301,6 @@ Continue working on your current step. Call `update_plan_step` when complete.";
             catch (Exception ex)
             {
                 return $"Error recording reflection: {ex.Message}";
-            }
-        }
-
-        /// <summary>
-        /// Registers the context for the reflection tool.
-        /// </summary>
-        public static void RegisterContext(
-            KoboldImplementationPlan plan,
-            KoboldPlanService? planService,
-            ILogger? logger,
-            string? projectId,
-            string? taskId,
-            Guid koboldId,
-            string? agentType,
-            Action<EscalationAlert>? onEscalation,
-            ReflectionConfiguration? config,
-            KoboldRunEventSource? runEventSource = null,
-            Guid runId = default)
-        {
-            _semaphore.Wait();
-            try
-            {
-                _currentPlan = plan;
-                _planService = planService;
-                _logger = logger;
-                _currentProjectId = projectId ?? plan.ProjectId;
-                _currentTaskId = taskId ?? plan.TaskId;
-                _koboldId = koboldId;
-                _agentType = agentType;
-                _onEscalation = onEscalation;
-                _config = config;
-                _runEventSource = runEventSource;
-                _runId = runId;
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
-        /// <summary>
-        /// Clears the current context.
-        /// </summary>
-        public static void ClearContext()
-        {
-            _semaphore.Wait();
-            try
-            {
-                _currentPlan = null;
-                _planService = null;
-                _logger = null;
-                _currentProjectId = null;
-                _currentTaskId = null;
-                _koboldId = Guid.Empty;
-                _agentType = null;
-                _onEscalation = null;
-                _config = null;
-                _runEventSource = null;
-                _runId = Guid.Empty;
-            }
-            finally
-            {
-                _semaphore.Release();
             }
         }
 

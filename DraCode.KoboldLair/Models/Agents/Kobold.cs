@@ -890,27 +890,23 @@ You are working on a task that is part of a larger project. Below is the project
             bool toolInjected = false;
             if (ImplementationPlan != null)
             {
-                // Register the plan context for the tool (including shared planning context for file tracking)
-                UpdatePlanStepTool.RegisterContext(
+                // Plan tools carry this run's context, so parallel Kobolds never share it (TASK-120)
+                Agent.AddTool(new UpdatePlanStepTool(
                     ImplementationPlan,
                     planService,
                     _logger,
                     _sharedPlanningContext,
                     ProjectId,
                     TaskId?.ToString(),
-                    _runEventSource, RunId, Id, AgentType);
-
-                // Add the tool to the agent
-                Agent.AddTool(new UpdatePlanStepTool());
+                    _runEventSource, RunId, Id, AgentType));
                 toolInjected = true;
 
                 // Inject reflection tool for self-assessment
-                ReflectionTool.RegisterContext(
+                Agent.AddTool(new ReflectionTool(
                     ImplementationPlan, planService, _logger,
                     ProjectId, TaskId?.ToString(), Id, AgentType,
                     OnEscalation, null,
-                    _runEventSource, RunId);
-                Agent.AddTool(new ReflectionTool());
+                    _runEventSource, RunId));
             }
 
             try
@@ -1057,13 +1053,11 @@ You are working on a task that is part of a larger project. Below is the project
             }
             finally
             {
-                // Clean up: remove tool and clear context
+                // Clean up: remove the plan tools
                 if (toolInjected)
                 {
                     Agent.RemoveTool("update_plan_step");
-                    UpdatePlanStepTool.ClearContext();
                     Agent.RemoveTool("reflect");
-                    ReflectionTool.ClearContext();
                 }
 
                 // Per-run telemetry (TASK-037): emit a terminal event, then complete the stream so
@@ -1122,32 +1116,27 @@ You are working on a task that is part of a larger project. Below is the project
             StartedAt = DateTime.UtcNow;
             PublishRunEvent(new RunStartedEvent());
 
-            // Register the plan context for the tool (including shared planning context for file tracking)
-            UpdatePlanStepTool.RegisterContext(
+            // Plan tools carry this run's context, so parallel Kobolds never share it (TASK-120)
+            Agent.AddTool(new UpdatePlanStepTool(
                 ImplementationPlan,
                 planService,
                 _logger,
                 _sharedPlanningContext,
                 ProjectId,
                 TaskId?.ToString(),
-                _runEventSource, RunId, Id, AgentType);
-
-            // Add the tool to the agent
-            Agent.AddTool(new UpdatePlanStepTool());
+                _runEventSource, RunId, Id, AgentType));
 
             // Inject reflection tool for self-assessment
-            ReflectionTool.RegisterContext(
+            Agent.AddTool(new ReflectionTool(
                 ImplementationPlan, planService, _logger,
                 ProjectId, TaskId?.ToString(), Id, AgentType,
                 OnEscalation, null,
-                _runEventSource, RunId);
-            Agent.AddTool(new ReflectionTool());
+                _runEventSource, RunId));
 
             // Phase 4: Add modify_plan tool if enabled
             if (allowPlanModifications)
             {
-                ModifyPlanTool.RegisterContext(ImplementationPlan, planService, allowPlanModifications, autoApproveModifications, _logger);
-                Agent.AddTool(new ModifyPlanTool());
+                Agent.AddTool(new ModifyPlanTool(ImplementationPlan, planService, allowPlanModifications, autoApproveModifications, _logger));
             }
 
             try
@@ -1270,17 +1259,14 @@ You are working on a task that is part of a larger project. Below is the project
             }
             finally
             {
-                // Clean up: remove tool and clear context
+                // Clean up: remove the plan tools
                 Agent.RemoveTool("update_plan_step");
-                UpdatePlanStepTool.ClearContext();
                 Agent.RemoveTool("reflect");
-                ReflectionTool.ClearContext();
 
                 // Phase 4: Clean up modify_plan tool if it was added
                 if (allowPlanModifications)
                 {
                     Agent.RemoveTool("modify_plan");
-                    ModifyPlanTool.ClearContext();
                 }
 
                 // Per-run telemetry (TASK-037): terminal event + complete the stream (see basic path).

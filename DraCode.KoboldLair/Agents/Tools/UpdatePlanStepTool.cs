@@ -21,17 +21,42 @@ namespace DraCode.KoboldLair.Agents.Tools
     /// </summary>
     public class UpdatePlanStepTool : Tool
     {
-        private static readonly SemaphoreSlim _semaphore = new(1, 1);
-        private static KoboldImplementationPlan? _currentPlan;
-        private static KoboldPlanService? _planService;
-        private static SharedPlanningContextService? _sharedPlanningContext;
-        private static string? _currentTaskId;
-        private static string? _currentProjectId;
-        private static ILogger? _logger;
-        private static KoboldRunEventSource? _runEventSource;
-        private static Guid _runId;
-        private static Guid _koboldId;
-        private static string? _agentType;
+        // Per-run state, one tool instance per Kobold run (TASK-120): parallel Kobolds each update their own plan.
+        private readonly SemaphoreSlim _semaphore = new(1, 1);
+        private readonly KoboldImplementationPlan _currentPlan;
+        private readonly KoboldPlanService? _planService;
+        private readonly SharedPlanningContextService? _sharedPlanningContext;
+        private readonly string? _currentTaskId;
+        private readonly string? _currentProjectId;
+        private readonly ILogger? _logger;
+        private readonly KoboldRunEventSource? _runEventSource;
+        private readonly Guid _runId;
+        private readonly Guid _koboldId;
+        private readonly string? _agentType;
+
+        public UpdatePlanStepTool(
+            KoboldImplementationPlan plan,
+            KoboldPlanService? service,
+            ILogger? logger = null,
+            SharedPlanningContextService? sharedPlanningContext = null,
+            string? projectId = null,
+            string? taskId = null,
+            KoboldRunEventSource? runEventSource = null,
+            Guid runId = default,
+            Guid koboldId = default,
+            string? agentType = null)
+        {
+            _currentPlan = plan;
+            _planService = service;
+            _logger = logger;
+            _sharedPlanningContext = sharedPlanningContext;
+            _currentProjectId = projectId ?? plan.ProjectId;
+            _currentTaskId = taskId ?? plan.TaskId;
+            _runEventSource = runEventSource;
+            _runId = runId;
+            _koboldId = koboldId;
+            _agentType = agentType;
+        }
 
         public override string Name => "update_plan_step";
 
@@ -134,14 +159,9 @@ Returns: Confirmation of the update with current plan progress.";
                 };
 
                 // Update the plan
-                await _semaphore.WaitAsync();
+                await _semaphore.WaitAsync(cancellationToken);
                 try
                 {
-                    if (_currentPlan == null)
-                    {
-                        return "Error: No implementation plan is currently active. This tool can only be used when working with a plan.";
-                    }
-
                     // Find the step (1-based index from user, 0-based in list)
                     var arrayIndex = stepIndex - 1;
                     if (arrayIndex < 0 || arrayIndex >= _currentPlan.Steps.Count)
@@ -426,84 +446,6 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
         }
 
         /// <summary>
-        /// Registers the current plan and service for use by this tool.
-        /// Call this before the Kobold starts working with a plan.
-        /// </summary>
-        public static void RegisterContext(
-            KoboldImplementationPlan plan,
-            KoboldPlanService? service,
-            ILogger? logger = null,
-            SharedPlanningContextService? sharedPlanningContext = null,
-            string? projectId = null,
-            string? taskId = null,
-            KoboldRunEventSource? runEventSource = null,
-            Guid runId = default,
-            Guid koboldId = default,
-            string? agentType = null)
-        {
-            _semaphore.Wait();
-            try
-            {
-                _currentPlan = plan;
-                _planService = service;
-                _logger = logger;
-                _sharedPlanningContext = sharedPlanningContext;
-                _currentProjectId = projectId ?? plan.ProjectId;
-                _currentTaskId = taskId ?? plan.TaskId;
-                _runEventSource = runEventSource;
-                _runId = runId;
-                _koboldId = koboldId;
-                _agentType = agentType;
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
-        /// <summary>
-        /// Clears the current plan context.
-        /// Call this when the Kobold finishes working.
-        /// </summary>
-        public static void ClearContext()
-        {
-            _semaphore.Wait();
-            try
-            {
-                _currentPlan = null;
-                _planService = null;
-                _logger = null;
-                _sharedPlanningContext = null;
-                _currentProjectId = null;
-                _currentTaskId = null;
-                _runEventSource = null;
-                _runId = Guid.Empty;
-                _koboldId = Guid.Empty;
-                _agentType = null;
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
-        /// <summary>
-        /// Gets the current plan being tracked (for testing/debugging).
-        /// </summary>
-        public static KoboldImplementationPlan? GetCurrentPlan()
-        {
-            _semaphore.Wait();
-            try
-            {
-                return _currentPlan;
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
-        /// <summary>
         /// Skips steps that depend on the failed step.
         /// Uses file dependency analysis to determine which steps need to be skipped.
         /// </summary>
@@ -511,13 +453,8 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
         /// <param name="failedStepIndex">1-based index of the failed step</param>
         /// <param name="failureReason">Why the step failed</param>
         /// <returns>Number of steps that were skipped</returns>
-        private static int SkipDependentSteps(ImplementationStep failedStep, int failedStepIndex, string? failureReason)
+        private int SkipDependentSteps(ImplementationStep failedStep, int failedStepIndex, string? failureReason)
         {
-            if (_currentPlan == null)
-            {
-                return 0;
-            }
-
             var skippedCount = 0;
             var analyzer = new StepDependencyAnalyzer();
 

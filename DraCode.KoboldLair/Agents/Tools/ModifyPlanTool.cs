@@ -13,12 +13,27 @@ namespace DraCode.KoboldLair.Agents.Tools
     /// </summary>
     public class ModifyPlanTool : Tool
     {
-        private static KoboldImplementationPlan? _currentPlan;
-        private static KoboldPlanService? _planService;
-        private static ILogger? _logger;
-        private static bool _allowModifications = false;
-        private static bool _autoApprove = false;
-        private static readonly object _lockObject = new object();
+        // Per-run state, one tool instance per Kobold run (TASK-120): parallel Kobolds each modify their own plan.
+        private readonly KoboldImplementationPlan _currentPlan;
+        private readonly KoboldPlanService? _planService;
+        private readonly ILogger? _logger;
+        private readonly bool _allowModifications;
+        private readonly bool _autoApprove;
+        private readonly object _lockObject = new();
+
+        public ModifyPlanTool(
+            KoboldImplementationPlan plan,
+            KoboldPlanService? planService,
+            bool allowModifications,
+            bool autoApprove,
+            ILogger? logger = null)
+        {
+            _currentPlan = plan;
+            _planService = planService;
+            _allowModifications = allowModifications;
+            _autoApprove = autoApprove;
+            _logger = logger;
+        }
 
         public override string Name => "modify_plan";
 
@@ -94,61 +109,14 @@ The modification will be logged and may require approval depending on configurat
             required = new[] { "operation", "reason" }
         };
 
-        /// <summary>
-        /// Registers the plan context for this tool
-        /// </summary>
-        public static void RegisterContext(
-            KoboldImplementationPlan plan,
-            KoboldPlanService? planService,
-            bool allowModifications,
-            bool autoApprove,
-            ILogger? logger = null)
-        {
-            lock (_lockObject)
-            {
-                _currentPlan = plan;
-                _planService = planService;
-                _allowModifications = allowModifications;
-                _autoApprove = autoApprove;
-                _logger = logger;
-            }
-        }
-
-        /// <summary>
-        /// Clears the registered context
-        /// </summary>
-        public static void ClearContext()
-        {
-            lock (_lockObject)
-            {
-                _currentPlan = null;
-                _planService = null;
-                _logger = null;
-            }
-        }
-
         public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> parameters, CancellationToken cancellationToken = default)
         {
-            // Gather state under lock, then perform async I/O outside the lock
-            bool allowModifications;
-            KoboldImplementationPlan? plan;
-            KoboldPlanService? planService;
+            var plan = _currentPlan;
+            var planService = _planService;
 
-            lock (_lockObject)
-            {
-                allowModifications = _allowModifications;
-                plan = _currentPlan;
-                planService = _planService;
-            }
-
-            if (!allowModifications)
+            if (!_allowModifications)
             {
                 return "Error: Plan modifications are not enabled. Set AllowPlanModifications=true in configuration.";
-            }
-
-            if (plan == null)
-            {
-                return "Error: No plan context registered. This tool can only be used within plan execution.";
             }
 
             if (!parameters.TryGetValue("operation", out var operationObj) || operationObj is not string operation)
@@ -212,7 +180,7 @@ The modification will be logged and may require approval depending on configurat
                 return "Error: Missing or invalid 'step_number' parameter.";
             }
 
-            var step = _currentPlan!.Steps.FirstOrDefault(s => s.Index == stepNumber);
+            var step = _currentPlan.Steps.FirstOrDefault(s => s.Index == stepNumber);
             if (step == null)
             {
                 return $"Error: Step {stepNumber} not found.";
@@ -239,7 +207,7 @@ The modification will be logged and may require approval depending on configurat
                 return "Error: Missing or invalid 'next_step_number' parameter.";
             }
 
-            var step1 = _currentPlan!.Steps.FirstOrDefault(s => s.Index == stepNumber);
+            var step1 = _currentPlan.Steps.FirstOrDefault(s => s.Index == stepNumber);
             var step2 = _currentPlan.Steps.FirstOrDefault(s => s.Index == nextStepNumber);
 
             if (step1 == null || step2 == null)
@@ -278,7 +246,7 @@ The modification will be logged and may require approval depending on configurat
                 return "Error: Missing or invalid 'new_position' parameter.";
             }
 
-            var step = _currentPlan!.Steps.FirstOrDefault(s => s.Index == stepNumber);
+            var step = _currentPlan.Steps.FirstOrDefault(s => s.Index == stepNumber);
             if (step == null)
             {
                 return $"Error: Step {stepNumber} not found.";
@@ -334,9 +302,9 @@ The modification will be logged and may require approval depending on configurat
             string title = titleObj.ToString()!;
             string description = descObj.ToString()!;
 
-            if (position < 1 || position > _currentPlan!.Steps.Count + 1)
+            if (position < 1 || position > _currentPlan.Steps.Count + 1)
             {
-                return $"Error: position must be between 1 and {_currentPlan!.Steps.Count + 1}.";
+                return $"Error: position must be between 1 and {_currentPlan.Steps.Count + 1}.";
             }
 
             // Create new step
