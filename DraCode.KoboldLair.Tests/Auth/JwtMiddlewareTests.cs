@@ -169,21 +169,25 @@ public class JwtMiddlewareTests
     [Fact]
     public async Task Refresh_reissues_a_working_token_and_rotates_the_refresh_token()
     {
-        // GitHub login stores a refresh token like this one; /auth/refresh and /auth/logout stay (TASK-036)
+        // A GitHub login starts its session on the Birko OAuth server; /auth/refresh renews it there (TASK-108)
         using var factory = CreateFactory();
         var client = factory.CreateClient();
-        var store = factory.Services.GetRequiredService<RefreshTokenStore>();
-        store.Store("refresh-1", "github:42", "octocat", ["user"], DateTime.UtcNow.AddDays(1));
+        var login = await factory.Services.GetRequiredService<FederatedSessions>()
+            .IssueAsync("github:42", "octocat", ["user"], null);
 
-        var refresh = await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = "refresh-1" });
+        var refresh = await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = login.RefreshToken });
         refresh.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await refresh.Content.ReadFromJsonAsync<LoginResponse>();
 
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/whoami");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", body!.Token);
         (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = "refresh-1" })).StatusCode
+        (await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = login.RefreshToken })).StatusCode
             .Should().Be(HttpStatusCode.Unauthorized, "a used refresh token is revoked");
+
+        (await client.PostAsJsonAsync("/auth/logout", new { refreshToken = body.RefreshToken })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = body.RefreshToken })).StatusCode
+            .Should().Be(HttpStatusCode.Unauthorized, "logout ends the session");
     }
 
     [Fact]

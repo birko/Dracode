@@ -228,7 +228,10 @@ is the OAuth 2.1 server. It is **off by default**; with it off, the server is a 
 
 - **People — GitHub:** `GET /auth/github/login` → GitHub → `/auth/github/callback`, which returns an access token and a
   refresh token. Renew with `POST /auth/refresh {refreshToken}`; end the session with `POST /auth/logout {refreshToken}`.
-  Only GitHub ids in `AllowedGitHubIds` may sign in.
+  Only GitHub ids in `AllowedGitHubIds` may sign in. Sessions live on the OAuth server under the client
+  `koboldlair-sign-in`, so they survive a restart (with the SQLite backend). Each refresh rotates the refresh token;
+  presenting a used or logged-out one signs that person out everywhere. Lifetimes come from
+  `Authentication:OAuth:AccessTokenLifetimeSeconds` and `RefreshTokenLifetimeSeconds`.
 - **CLIs and devices — OAuth device code:** `POST /device_authorization`, approve at `/device/approve` while signed in,
   then poll `POST /token`.
 - **Services:** OAuth client credentials through `POST /token` for a registered service account.

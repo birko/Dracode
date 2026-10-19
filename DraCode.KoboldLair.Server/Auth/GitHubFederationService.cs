@@ -1,5 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
-using Birko.Security;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Users;
 using Microsoft.Extensions.Options;
@@ -15,19 +13,16 @@ public sealed class FederationDeniedException(string message) : Exception(messag
 /// <summary>
 /// Turns an authenticated GitHub identity into a DraCode-issued token (TASK-033). Resolves the
 /// GitHub user, enforces the numeric-id allowlist, upserts the DraCode <see cref="User"/> (keyed on
-/// the string <c>sub</c> = <c>github:{id}</c>, FEATURE-019 D9/D11), then mints a JWT + refresh token
-/// with the same claim set <c>/auth/refresh</c> re-issues.
+/// the string <c>sub</c> = <c>github:{id}</c>, FEATURE-019 D9/D11), then starts a session on the Birko OAuth server
+/// (<see cref="FederatedSessions"/>, TASK-108) so its refresh token survives a restart.
 /// </summary>
 public sealed class GitHubFederationService(
     IGitHubUserInfoClient userInfo,
-    ITokenProvider tokenProvider,
-    RefreshTokenStore refreshStore,
+    FederatedSessions sessions,
     IOptions<GitHubFederationConfiguration> gitHubConfig,
-    IOptions<JwtAuthenticationConfiguration> jwtConfig,
     IUserRepository? userRepository = null)
 {
     private readonly GitHubFederationConfiguration _gitHub = gitHubConfig.Value;
-    private readonly JwtAuthenticationConfiguration _jwt = jwtConfig.Value;
 
     /// <summary>
     /// Federates a GitHub access token into a DraCode <see cref="LoginResponse"/>.
@@ -57,34 +52,8 @@ public sealed class GitHubFederationService(
             }).ConfigureAwait(false);
         }
 
-        // The scope claim carries the expanded role permissions (comma-joined),
-        // so ClaimsCurrentUser.Permissions + PermissionEndpointFilter enforce per-endpoint scopes.
-        var roles = _gitHub.DefaultRoles;
-        var permissions = KoboldLairPermissionChecker.ExpandRolesToPermissions(roles);
-        var displayName = gh.Name ?? gh.Login;
-        var claims = new Dictionary<string, string>
-        {
-            [JwtRegisteredClaimNames.Sub] = sub,
-            ["name"] = displayName,
-            ["scope"] = string.Join(",", permissions),
-            ["roles"] = string.Join(",", roles)
-        };
-        if (!string.IsNullOrEmpty(gh.Email))
-            claims["email"] = gh.Email;
-
-        var tokenResult = tokenProvider.GenerateToken(claims);
-        var refreshToken = tokenProvider.GenerateRefreshToken();
-
-        var refreshExpiry = DateTime.UtcNow.AddDays(_jwt.RefreshExpirationDays);
-        refreshStore.Store(refreshToken, sub, displayName, roles, refreshExpiry);
-
-        return new LoginResponse
-        {
-            Token = tokenResult.Token,
-            RefreshToken = refreshToken,
-            ExpiresAt = tokenResult.ExpiresAt,
-            Roles = roles,
-            Username = displayName
-        };
+        // The session's scope carries the expanded role permissions, which ClaimsCurrentUser.Permissions +
+        // PermissionEndpointFilter enforce per endpoint.
+        return await sessions.IssueAsync(sub, gh.Name ?? gh.Login, _gitHub.DefaultRoles, gh.Email, ct).ConfigureAwait(false);
     }
 }

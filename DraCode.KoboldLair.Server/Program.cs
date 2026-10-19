@@ -71,7 +71,8 @@ static string ResolveJwtSecret(JwtAuthenticationConfiguration jwt, IHostEnvironm
 // Register Birko.Security.Jwt authentication
 builder.Services.Configure<JwtAuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication:Jwt"));
-builder.Services.AddSingleton<RefreshTokenStore>();
+// Sign-in sessions on the Birko OAuth server (TASK-108): refresh tokens persist with the OAuth stores below.
+builder.Services.AddSingleton<FederatedSessions>();
 
 // GitHub federation (TASK-033 / FEATURE-019 D1, D11, D13). Bound + registered unconditionally so
 // the services are inert when disabled; the endpoints are only mapped when Enabled (see below).

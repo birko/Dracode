@@ -152,7 +152,7 @@ _None_
 
 - **EPIC-018 Adopt Birko framework upstreams** — planned (0/30)
   - STORY-038 Adopt the Birko security / OAuth upstreams — planned (0/4)
-    - [ ] [TASK-108](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-108-move-github-refresh-onto-birko-oauth-server.md) GitHub sign-in sessions are lost on every server restart — move refresh onto the Birko OAuth server (P2)
+    - [x] [TASK-108](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-108-move-github-refresh-onto-birko-oauth-server.md) GitHub sign-in sessions are lost on every server restart — move refresh onto the Birko OAuth server (P2)
     - [x] [TASK-109](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-109-use-birko-oauth-server-stores.md) Use the framework OAuth server stores; delete SqliteOAuthStores and InMemoryOAuthStores (P2) · FEATURE-019
     - [ ] [TASK-110](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-110-use-birko-oauth-endpoint-mapping.md) Use the framework OAuth endpoint mapping and client-credentials hook (P3) · FEATURE-019
     - [ ] [TASK-111](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-111-use-birko-web-sign-in-and-loopback-helpers.md) Use the framework GitHub web sign-in helpers and loopback bypass (P3) · FEATURE-019

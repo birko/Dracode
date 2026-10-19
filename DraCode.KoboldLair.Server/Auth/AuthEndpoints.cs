@@ -1,7 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
-using Birko.Security;
-using Microsoft.Extensions.Options;
-
 namespace DraCode.KoboldLair.Server.Auth;
 
 /// <summary>
@@ -16,51 +12,16 @@ public static class AuthEndpoints
         app.MapPost("/auth/logout", HandleLogout);
     }
 
-    private static IResult HandleRefresh(
-        RefreshRequest request,
-        ITokenProvider tokenProvider,
-        RefreshTokenStore refreshStore,
-        IOptions<JwtAuthenticationConfiguration> config)
+    private static async Task<IResult> HandleRefresh(RefreshRequest request, FederatedSessions sessions, CancellationToken ct)
     {
-        var entry = refreshStore.Validate(request.RefreshToken);
-        if (entry == null)
-            return Results.Unauthorized();
-
-        // Revoke old refresh token (rotation)
-        refreshStore.Revoke(request.RefreshToken);
-
-        // Generate a new token pair with the same claim set, including the scope/permission claim
-        var permissions = KoboldLairPermissionChecker.ExpandRolesToPermissions(entry.Roles);
-        var claims = new Dictionary<string, string>
-        {
-            [JwtRegisteredClaimNames.Sub] = entry.OwnerSub,
-            ["name"] = entry.Username,
-            ["roles"] = string.Join(",", entry.Roles),
-            ["scope"] = string.Join(",", permissions)
-        };
-
-        var tokenResult = tokenProvider.GenerateToken(claims);
-        var newRefreshToken = tokenProvider.GenerateRefreshToken();
-
-        var jwtConfig = config.Value;
-        var refreshExpiry = DateTime.UtcNow.AddDays(jwtConfig.RefreshExpirationDays);
-        refreshStore.Store(newRefreshToken, entry.OwnerSub, entry.Username, entry.Roles, refreshExpiry);
-
-        return Results.Ok(new LoginResponse
-        {
-            Token = tokenResult.Token,
-            RefreshToken = newRefreshToken,
-            ExpiresAt = tokenResult.ExpiresAt,
-            Roles = entry.Roles,
-            Username = entry.Username
-        });
+        // The Birko OAuth server's refresh_token grant: rotates the token and revokes the family on reuse (TASK-108)
+        var login = await sessions.RefreshAsync(request.RefreshToken, ct);
+        return login == null ? Results.Unauthorized() : Results.Ok(login);
     }
 
-    private static IResult HandleLogout(
-        LogoutRequest request,
-        RefreshTokenStore refreshStore)
+    private static async Task<IResult> HandleLogout(LogoutRequest request, FederatedSessions sessions, CancellationToken ct)
     {
-        refreshStore.Revoke(request.RefreshToken);
+        await sessions.RevokeAsync(request.RefreshToken, ct);
         return Results.Ok(new { message = "Logged out" });
     }
 }

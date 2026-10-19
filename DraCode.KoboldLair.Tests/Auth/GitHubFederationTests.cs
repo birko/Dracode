@@ -27,31 +27,20 @@ namespace DraCode.KoboldLair.Tests.Auth;
 public class GitHubFederationServiceTests
 {
     private const long AllowedId = 42;
-    private const string Secret = "test-secret-key-at-least-32-characters-long-xyz";
-
     private static GitHubFederationService BuildService(
         IGitHubUserInfoClient userInfo,
         IUserRepository? userRepository,
         IEnumerable<long>? allowed = null)
     {
-        var tokenProvider = new JwtTokenProvider(new TokenOptions
-        {
-            Secret = Secret,
-            Issuer = "KoboldLair",
-            Audience = "KoboldLair",
-            ExpirationMinutes = 60,
-            RefreshExpirationDays = 7
-        });
-
         var gitHub = Options.Create(new GitHubFederationConfiguration
         {
             Enabled = true,
             DefaultRoles = ["user"],
             AllowedGitHubIds = (allowed ?? [AllowedId]).ToList()
         });
-        var jwt = Options.Create(new JwtAuthenticationConfiguration { RefreshExpirationDays = 7 });
+        var (sessions, _) = FederatedSessionsHarness.Build();
 
-        return new GitHubFederationService(userInfo, tokenProvider, new RefreshTokenStore(), gitHub, jwt, userRepository);
+        return new GitHubFederationService(userInfo, sessions, gitHub, userRepository);
     }
 
     private static string? SubOf(string jwt) =>
