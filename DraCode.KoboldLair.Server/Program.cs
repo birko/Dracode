@@ -6,6 +6,10 @@ using Birko.Security.Jwt;
 using Birko.Security.OAuth.Server;
 using Birko.Security.OAuth.Server.Stores;
 using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 using Birko.AI;
 using Birko.AI.Agents;
 using Birko.EventBus;
@@ -67,18 +71,6 @@ static string ResolveJwtSecret(JwtAuthenticationConfiguration jwt, IHostEnvironm
 // Register Birko.Security.Jwt authentication
 builder.Services.Configure<JwtAuthenticationConfiguration>(
     builder.Configuration.GetSection("Authentication:Jwt"));
-builder.Services.AddSingleton<ITokenProvider>(sp =>
-{
-    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
-    return new JwtTokenProvider(new TokenOptions
-    {
-        Secret = ResolveJwtSecret(config, sp.GetRequiredService<IHostEnvironment>()),
-        Issuer = config.Issuer,
-        Audience = config.Audience,
-        ExpirationMinutes = config.ExpirationMinutes,
-        RefreshExpirationDays = config.RefreshExpirationDays
-    });
-});
 builder.Services.AddSingleton<RefreshTokenStore>();
 
 // GitHub federation (TASK-033 / FEATURE-019 D1, D11, D13). Bound + registered unconditionally so
@@ -122,6 +114,32 @@ builder.Services.Configure<DaemonAuthOptions>(
         options.Jwt.Claims.PermissionClaim = "scope";
     });
 }
+
+// AddBirkoSecurity builds its token provider and bearer key from the configuration read above, before the host is
+// built — which a WebApplicationFactory's test configuration has not reached yet, so test hosts validated with the
+// public development secret. The token provider and the bearer key resolve the secret from the runtime options instead,
+// the source the OAuth server signs with (TASK-108), so every token is signed and checked with one secret.
+builder.Services.Replace(ServiceDescriptor.Singleton<ITokenProvider>(sp =>
+{
+    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
+    return new JwtTokenProvider(new TokenOptions
+    {
+        Secret = ResolveJwtSecret(config, sp.GetRequiredService<IHostEnvironment>()),
+        Issuer = config.Issuer,
+        Audience = config.Audience,
+        ExpirationMinutes = config.ExpirationMinutes,
+        RefreshExpirationDays = config.RefreshExpirationDays
+    });
+}));
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .PostConfigure<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>, IHostEnvironment>((bearer, jwt, env) =>
+    {
+        var config = jwt.Value;
+        bearer.TokenValidationParameters.IssuerSigningKey =
+            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ResolveJwtSecret(config, env)));
+        bearer.TokenValidationParameters.ValidIssuer = config.Issuer;
+        bearer.TokenValidationParameters.ValidAudience = config.Audience;
+    });
 
 // Register Birko OAuth 2.1 authorization server (TASK-030). Endpoints are mapped only when
 // Authentication:OAuth:Enabled; the server + stores register unconditionally (harmless DI singletons).
