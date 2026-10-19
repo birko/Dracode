@@ -8,7 +8,7 @@ assignee: ai
 created: 2026-10-08
 depends-on: []
 blocks: []
-blocked: 'waiting on Birko TASK-538 (Birko.Framework)'
+blocked: null
 pr: null
 github-issue: null
 jira-key: null
