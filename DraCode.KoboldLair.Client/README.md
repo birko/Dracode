@@ -30,8 +30,7 @@ The client now uses **WebSocket-only communication**. Configure the server conne
 ```json
 {
   "KoboldLair": {
-    "ServerUrl": "ws://localhost:57087",
-    "AuthToken": ""
+    "ServerUrl": "ws://localhost:57087"
   }
 }
 ```
@@ -51,20 +50,14 @@ The URL should use `ws://` for unencrypted or `wss://` for encrypted connections
 
 ### Authentication
 
-If the server has authentication enabled:
+The client host holds no token. `GET /api/config` returns only `serverUrl` and the endpoint paths, so nobody who can
+reach the host can read a credential from it. When the server has JWT auth on, the browser needs its own token: until
+sign-in lands (TASK-114 / TASK-056), set it in the web client's settings. The `/dragon` and `/wyvern` proxies forward
+the caller's own `?token=`, URL-encoded, and never attach one of their own.
 
-1. Get a valid token from your server administrator
-2. Set it in `appsettings.json`:
-```json
-{
-  "KoboldLair": {
-    "ServerUrl": "ws://your-server:5000",
-    "AuthToken": "your-token-here"
-  }
-}
-```
-
-The token will be automatically appended to all WebSocket connections.
+The proxies validate the server's TLS certificate. For a local server with a self-signed certificate, set
+`KoboldLair:AllowInvalidServerCertificate` to `true`; it is honoured only in the Development environment and logs a
+warning at startup.
 
 ## Running the Client
 
@@ -138,8 +131,7 @@ To connect to a KoboldLair.Server running on another machine, edit `appsettings.
 ```json
 {
   "KoboldLair": {
-    "ServerUrl": "ws://192.168.1.100:5000",
-    "AuthToken": "your-server-token"
+    "ServerUrl": "ws://192.168.1.100:5000"
   }
 }
 ```
@@ -149,8 +141,7 @@ For production with TLS/SSL:
 ```json
 {
   "KoboldLair": {
-    "ServerUrl": "wss://your-server.com",
-    "AuthToken": "your-server-token"
+    "ServerUrl": "wss://your-server.com"
   }
 }
 ```
@@ -168,7 +159,7 @@ For production with TLS/SSL:
 - Look for connection errors in browser console
 
 **Problem**: "Unauthorized" error
-- Verify `AuthToken` in appsettings.json matches server configuration
+- Verify the token set in the web client's settings is valid for this server
 - Check if your IP is in allowed list (if IP binding enabled)
 - Ensure token is not expired
 

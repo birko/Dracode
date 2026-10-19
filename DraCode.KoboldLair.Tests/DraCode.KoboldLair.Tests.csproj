@@ -24,6 +24,12 @@
     <ProjectReference Include="..\DraCode.KoboldLair.Server\DraCode.KoboldLair.Server.csproj" />
   </ItemGroup>
 
+  <!-- The client host's WebSocket proxy (TASK-119), compiled in as source. Referencing the client project would
+       bring a second top-level Program and copy its appsettings.json over the server's in the test output. -->
+  <ItemGroup>
+    <Compile Include="..\DraCode.KoboldLair.Client\ServerWebSocketProxy.cs" Link="Client\ServerWebSocketProxy.cs" />
+  </ItemGroup>
+
   <!-- Framework types (OAuth server, models, stores, security) come compiled via DraCode.KoboldLair
        → DraCode.Birko. Do NOT re-import the projitems here — that recompiles them into the test
        assembly, a distinct CLR identity the production stores wouldn't match (CS0436/CS0311). -->
