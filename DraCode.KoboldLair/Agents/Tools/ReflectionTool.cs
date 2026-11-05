@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Birko.AI.Orchestration.Models;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
@@ -130,11 +131,11 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
 
                 EscalationType? escalationType = escalationTypeStr?.ToLowerInvariant() switch
                 {
-                    "task_infeasible" => Models.Agents.EscalationType.TaskInfeasible,
-                    "missing_dependency" => Models.Agents.EscalationType.MissingDependency,
-                    "needs_split" => Models.Agents.EscalationType.NeedsSplit,
-                    "wrong_approach" => Models.Agents.EscalationType.WrongApproach,
-                    "wrong_agent_type" => Models.Agents.EscalationType.WrongAgentType,
+                    "task_infeasible" => EscalationType.TaskInfeasible,
+                    "missing_dependency" => EscalationType.MissingDependency,
+                    "needs_split" => EscalationType.NeedsSplit,
+                    "wrong_approach" => EscalationType.WrongApproach,
+                    "wrong_agent_type" => EscalationType.WrongAgentType,
                     _ => null
                 };
 
@@ -160,7 +161,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
 
                     var config = _config ?? new ReflectionConfiguration();
                     var shouldEscalate = false;
-                    EscalationType autoEscalationType = Models.Agents.EscalationType.WrongApproach;
+                    EscalationType autoEscalationType = EscalationType.WrongApproach;
                     string escalationReason = "";
 
                     // Stall detection: check if last N reflections show no progress
@@ -177,7 +178,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                         if (isStalled)
                         {
                             shouldEscalate = true;
-                            autoEscalationType = Models.Agents.EscalationType.WrongApproach;
+                            autoEscalationType = EscalationType.WrongApproach;
                             escalationReason = $"Progress stalled: last {stallCount} reflections show no advancement ({string.Join("→", progressValues)}%)";
                             _logger?.LogWarning(
                                 "Stall detected for Kobold {KoboldId} on step {StepIndex}: progress {Progress}",
@@ -189,7 +190,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                     if (confidencePercent < config.EscalationConfidenceThreshold)
                     {
                         shouldEscalate = true;
-                        autoEscalationType = escalationType ?? Models.Agents.EscalationType.WrongApproach;
+                        autoEscalationType = escalationType ?? EscalationType.WrongApproach;
                         escalationReason = $"Confidence ({confidencePercent}%) below threshold ({config.EscalationConfidenceThreshold}%)";
                     }
 
@@ -197,7 +198,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                     if (decision == ReflectionDecision.Escalate)
                     {
                         shouldEscalate = true;
-                        autoEscalationType = escalationType ?? Models.Agents.EscalationType.WrongApproach;
+                        autoEscalationType = escalationType ?? EscalationType.WrongApproach;
                         escalationReason = $"Kobold requested escalation: {blockers ?? "no details"}";
                     }
 
@@ -209,7 +210,7 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                         {
                             ProjectId = _currentProjectId ?? _currentPlan.ProjectId,
                             TaskId = _currentTaskId ?? _currentPlan.TaskId,
-                            KoboldId = _koboldId,
+                            WorkerId = _koboldId.ToString(),
                             AgentType = _agentType ?? "",
                             Source = EscalationSource.ReflectionTool,
                             Type = autoEscalationType,

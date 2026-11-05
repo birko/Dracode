@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using Birko.AI;
 using Birko.AI.Agents;
 using Birko.AI.Models;
@@ -215,10 +216,10 @@ After analyzing the task, use the create_implementation_plan tool to output your
                 plan.SpecificationContext = specificationContext;
 
                 // Phase 4: Intelligently reorder steps based on dependencies
-                var analyzer = new Services.StepDependencyAnalyzer();
+                var analyzer = new Birko.AI.Orchestration.Services.StepDependencyAnalyzer();
 
                 // First, check for dependency violations
-                var violations = plan.ValidateStepOrdering(analyzer);
+                var violations = analyzer.ValidateOrdering(plan);
                 if (violations.Count > 0)
                 {
                     // Log violations to the plan
@@ -229,7 +230,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
                     }
 
                     // Reorder the steps to fix violations
-                    bool wasReordered = plan.ReorderSteps(analyzer, null);
+                    bool wasReordered = analyzer.Reorder(plan);
                     if (wasReordered)
                     {
                         plan.AddLogEntry("Steps were intelligently reordered based on file dependencies");

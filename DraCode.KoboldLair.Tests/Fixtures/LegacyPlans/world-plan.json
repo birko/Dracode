@@ -1,0 +1,119 @@
+{
+  "taskId": "c3b2a190-8f7e-4d6c-b5a4-938271605f4e",
+  "projectId": "flappy-dragon",
+  "planFilename": "procedural-world-generation",
+  "taskDescription": "Procedural world generation in src/game/World.ts: obstacle columns spawned ahead of the dragon and recycled behind it.",
+  "featureId": null,
+  "featureName": null,
+  "featureDescription": null,
+  "specificationVersion": 1,
+  "specificationContentHash": "",
+  "specificationContext": null,
+  "createdAt": "2026-07-31T11:48:00Z",
+  "updatedAt": "2026-07-31T11:48:00Z",
+  "status": 0,
+  "steps": [
+    {
+      "index": 1,
+      "title": "World with obstacle pool",
+      "description": "",
+      "status": 0,
+      "filesToCreate": [
+        "src/game/World.ts"
+      ],
+      "filesToModify": [],
+      "output": null,
+      "startedAt": null,
+      "completedAt": null,
+      "retryCount": 0,
+      "maxRetries": 3,
+      "lastErrorMessage": null,
+      "errorCategory": null,
+      "expectedContent": [],
+      "metrics": {
+        "startTime": null,
+        "endTime": null,
+        "iterationsUsed": 0,
+        "estimatedTokens": 0,
+        "failed": false,
+        "skipped": false,
+        "autoCompleted": false,
+        "validationAttempts": 0,
+        "durationSeconds": 0
+      },
+      "durationSeconds": 0
+    },
+    {
+      "index": 2,
+      "title": "World tests",
+      "description": "",
+      "status": 0,
+      "filesToCreate": [
+        "tests/world.test.ts"
+      ],
+      "filesToModify": [],
+      "output": null,
+      "startedAt": null,
+      "completedAt": null,
+      "retryCount": 0,
+      "maxRetries": 3,
+      "lastErrorMessage": null,
+      "errorCategory": null,
+      "expectedContent": [],
+      "metrics": {
+        "startTime": null,
+        "endTime": null,
+        "iterationsUsed": 0,
+        "estimatedTokens": 0,
+        "failed": false,
+        "skipped": false,
+        "autoCompleted": false,
+        "validationAttempts": 0,
+        "durationSeconds": 0
+      },
+      "durationSeconds": 0
+    }
+  ],
+  "currentStepIndex": 0,
+  "errorMessage": null,
+  "executionLog": [],
+  "lessonsLearned": [],
+  "successfulPatterns": [],
+  "resolvedIssues": [],
+  "reflections": [],
+  "escalations": [],
+  "currentStep": {
+    "index": 1,
+    "title": "World with obstacle pool",
+    "description": "",
+    "status": 0,
+    "filesToCreate": [
+      "src/game/World.ts"
+    ],
+    "filesToModify": [],
+    "output": null,
+    "startedAt": null,
+    "completedAt": null,
+    "retryCount": 0,
+    "maxRetries": 3,
+    "lastErrorMessage": null,
+    "errorCategory": null,
+    "expectedContent": [],
+    "metrics": {
+      "startTime": null,
+      "endTime": null,
+      "iterationsUsed": 0,
+      "estimatedTokens": 0,
+      "failed": false,
+      "skipped": false,
+      "autoCompleted": false,
+      "validationAttempts": 0,
+      "durationSeconds": 0
+    },
+    "durationSeconds": 0
+  },
+  "hasMoreSteps": true,
+  "completedStepsCount": 0,
+  "progressPercentage": 0,
+  "assignedStepIndices": {}
+}

@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using Birko.Security.AspNetCore;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Data.Repositories;

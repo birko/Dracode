@@ -1,5 +1,6 @@
 using Birko.MessageQueue;
-using DraCode.KoboldLair.Messages;
+using Birko.AI.Orchestration.Dispatch;
+using Birko.AI.Orchestration.Models;
 using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.MessageQueue;
@@ -26,7 +27,7 @@ public class QueueTaskDispatcher : ITaskDispatcher
         _logger = logger;
     }
 
-    public async Task DispatchTaskAsync(TaskAssignmentMessage assignment, CancellationToken cancellationToken = default)
+    public async Task DispatchTaskAsync(TaskAssignment assignment, CancellationToken cancellationToken = default)
     {
         _logger?.LogInformation(
             "Dispatching task {TaskId} ({AgentType}) for project {ProjectId} via message queue",

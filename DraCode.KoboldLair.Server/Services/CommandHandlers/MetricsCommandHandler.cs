@@ -292,7 +292,7 @@ namespace DraCode.KoboldLair.Server.Services.CommandHandlers
             public int FailedSteps { get; set; }
             public int SkippedSteps { get; set; }
             public int TotalIterations { get; set; }
-            public int TotalTokens { get; set; }
+            public long TotalTokens { get; set; }
             public double DurationSeconds { get; set; }
             public double SuccessRate { get; set; }
             public double AvgIterationsPerStep { get; set; }

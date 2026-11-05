@@ -109,6 +109,17 @@ namespace DraCode.KoboldLair.Services
         };
 
         /// <summary>
+        /// The category a plan step stores (Birko's typed one, TASK-126). <see cref="ErrorCategory.Unknown"/> has no
+        /// counterpart there: it is stored as null — not classified.
+        /// </summary>
+        public static Birko.AI.Models.ErrorCategory? ToStepCategory(ErrorCategory category) => category switch
+        {
+            ErrorCategory.Transient => Birko.AI.Models.ErrorCategory.Transient,
+            ErrorCategory.Permanent => Birko.AI.Models.ErrorCategory.Permanent,
+            _ => null
+        };
+
+        /// <summary>
         /// Classifies an error message into a category
         /// </summary>
         /// <param name="errorMessage">Error message to classify</param>

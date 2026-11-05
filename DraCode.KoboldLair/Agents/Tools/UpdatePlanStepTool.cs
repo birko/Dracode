@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Birko.AI.Orchestration.Models;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Services;
@@ -185,17 +186,11 @@ Returns: Confirmation of the update with current plan progress.";
                                 stepIndex, _currentPlan.Steps.Count, step.Title, DateTime.UtcNow);
                             break;
                         case StepStatus.Failed:
-                            // Check if error is transient and retries are available
+                            // A transient error with retries left goes back to Pending; anything else fails the step
                             var errorCategory = ErrorClassifier.Classify(output);
-                            step.LastErrorMessage = output;
-                            step.ErrorCategory = errorCategory.ToString();
-
-                            if (errorCategory == ErrorClassifier.ErrorCategory.Transient && step.RetryCount < step.MaxRetries)
+                            var isTransient = errorCategory == ErrorClassifier.ErrorCategory.Transient;
+                            if (step.RetryOrFail(output, ErrorClassifier.ToStepCategory(errorCategory), isTransient))
                             {
-                                // Transient error with retries remaining - reset to Pending for retry
-                                step.RetryCount++;
-                                step.Status = StepStatus.Pending;
-                                step.StartedAt = null; // Reset start time for fresh attempt
                                 wasResetForRetry = true;
 
                                 _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) failed with transient error, scheduled for retry ({step.RetryCount}/{step.MaxRetries})");
@@ -205,12 +200,8 @@ Returns: Confirmation of the update with current plan progress.";
                             }
                             else
                             {
-                                // Permanent error or retries exhausted - mark as failed
-                                var reason = errorCategory == ErrorClassifier.ErrorCategory.Transient
-                                    ? $"Max retries ({step.MaxRetries}) exhausted. Last error: {output}"
-                                    : output;
-
-                                step.Fail(reason);
+                                // RetryOrFail failed the step: ErrorMessage says why (retries exhausted, or the error)
+                                var reason = step.ErrorMessage;
                                 _currentPlan.AddLogEntry($"Step {stepIndex} ({step.Title}) failed: {reason ?? "No reason provided"}");
                                 _logger?.LogError("Plan step {StepIndex}/{TotalSteps} failed: {StepTitle} - {Reason} (Category: {ErrorCategory}, Retries: {RetryCount}) at {Timestamp:o}",
                                     stepIndex, _currentPlan.Steps.Count, step.Title, reason ?? "No reason provided", errorCategory, step.RetryCount, DateTime.UtcNow);
@@ -356,7 +347,7 @@ Returns: Confirmation of the update with current plan progress.";
                         return $@"🔄 Step {stepIndex} failed with transient error - RETRY SCHEDULED
 
 Retry attempt: {step.RetryCount}/{step.MaxRetries}
-Error: {step.LastErrorMessage ?? "Unknown error"}
+Error: {step.ErrorMessage ?? "Unknown error"}
 
 **ERROR ANALYSIS REQUIRED** before retrying:
 ```
@@ -456,7 +447,7 @@ Progress: {completedCount}/{totalSteps} steps ({progress}%){blockedInfo}{nextSte
         private int SkipDependentSteps(ImplementationStep failedStep, int failedStepIndex, string? failureReason)
         {
             var skippedCount = 0;
-            var analyzer = new StepDependencyAnalyzer();
+            var analyzer = new Birko.AI.Orchestration.Services.StepDependencyAnalyzer();
 
             // Get files that the failed step was supposed to create or modify
             var failedStepOutputFiles = new HashSet<string>(

@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using System.Collections.Concurrent;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Agents;
@@ -67,9 +68,9 @@ public class PlanToolIsolationTests
             run.Plan.Reflections.Should().HaveCount(calls)
                 .And.OnlyContain(r => r.Blockers!.StartsWith($"{name}-"));
             run.Plan.Escalations.Should().HaveCount(calls)
-                .And.OnlyContain(e => e.ProjectId == run.Plan.ProjectId && e.KoboldId == run.KoboldId);
+                .And.OnlyContain(e => e.ProjectId == run.Plan.ProjectId && e.WorkerId == run.KoboldId.ToString());
             run.Escalations.Should().HaveCount(calls)
-                .And.OnlyContain(e => e.KoboldId == run.KoboldId && e.Summary.Contains($"{name}-"));
+                .And.OnlyContain(e => e.WorkerId == run.KoboldId.ToString() && e.Summary.Contains($"{name}-"));
         }
     }
 

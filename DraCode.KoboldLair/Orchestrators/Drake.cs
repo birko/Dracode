@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using System.Threading.Channels;
 using Birko.AI.Models;
 using Birko.EventBus;
@@ -769,7 +770,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     catch (Exception ex)
                     {
                         _logger?.LogError(ex, "Unhandled error in escalation handler for Kobold {KoboldId}",
-                            alert.KoboldId.ToString()[..8]);
+                            ShortWorkerId(alert));
                     }
                 });
             };
@@ -784,6 +785,9 @@ namespace DraCode.KoboldLair.Orchestrators
             return kobold;
         }
 
+        private static string ShortWorkerId(EscalationAlert alert) =>
+            alert.WorkerId is { Length: > 8 } id ? id[..8] : alert.WorkerId ?? "unknown";
+
         /// <summary>
         /// Handles an escalation alert from a Kobold or the ReasoningMonitor.
         /// Routes to the appropriate upstream agent based on escalation type.
@@ -797,15 +801,15 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 _logger?.LogWarning(
                     "Handling escalation {AlertId}: {Type} from Kobold {KoboldId} for task {TaskId}",
-                    alert.Id[..8], alert.Type, alert.KoboldId.ToString()[..8], alert.TaskId?[..8] ?? "unknown");
+                    alert.Id[..8], alert.Type, ShortWorkerId(alert), alert.TaskId?[..8] ?? "unknown");
 
                 switch (alert.Type)
                 {
-                    case Models.Agents.EscalationType.WrongApproach:
+                    case EscalationType.WrongApproach:
                         // Route to Planner for plan revision
                         if (_plannerAgent != null && _planService != null)
                         {
-                            var kobold = _koboldFactory.GetKobold(alert.KoboldId);
+                            var kobold = Guid.TryParse(alert.WorkerId, out var workerId) ? _koboldFactory.GetKobold(workerId) : null;
                             if (kobold?.ImplementationPlan != null)
                             {
                                 var revisedPlan = await _plannerAgent.RevisePlanAsync(
@@ -834,9 +838,9 @@ namespace DraCode.KoboldLair.Orchestrators
                         }
                         break;
 
-                    case Models.Agents.EscalationType.TaskInfeasible:
-                    case Models.Agents.EscalationType.NeedsSplit:
-                    case Models.Agents.EscalationType.MissingDependency:
+                    case EscalationType.TaskInfeasible:
+                    case EscalationType.NeedsSplit:
+                    case EscalationType.MissingDependency:
                         // Route to Wyvern for task refinement
                         if (_wyvern != null && !string.IsNullOrEmpty(alert.TaskId))
                         {
@@ -880,7 +884,7 @@ namespace DraCode.KoboldLair.Orchestrators
                         }
                         break;
 
-                    case Models.Agents.EscalationType.WrongAgentType:
+                    case EscalationType.WrongAgentType:
                         // Mark task for reassignment with different agent type
                         if (!string.IsNullOrEmpty(alert.TaskId))
                         {
@@ -1958,7 +1962,7 @@ namespace DraCode.KoboldLair.Orchestrators
                         koboldRemovedByParallel = true;
 
                         // Use parallel execution
-                        var analyzer = new Services.StepDependencyAnalyzer();
+                        var analyzer = new Birko.AI.Orchestration.Services.StepDependencyAnalyzer();
                         messages = await ExecuteTaskParallelAsync(
                             task, plan, analyzer, agentType, maxIterations, provider,
                             messageCallback, cancellationToken) ?? new List<Message>();
@@ -2084,7 +2088,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private async Task<List<Message>?> ExecuteTaskParallelAsync(
             TaskRecord task,
             KoboldImplementationPlan plan,
-            Services.StepDependencyAnalyzer analyzer,
+            Birko.AI.Orchestration.Services.StepDependencyAnalyzer analyzer,
             string agentType,
             int maxIterations,
             string? provider,
@@ -3253,7 +3257,7 @@ namespace DraCode.KoboldLair.Orchestrators
 
                                     // Show what the challenges were (if error info available)
                                     var errorsEncountered = retriedSteps
-                                        .Select(s => s.LastErrorMessage)
+                                        .Select(s => s.ErrorMessage)
                                         .Where(e => !string.IsNullOrEmpty(e))
                                         .Distinct()
                                         .Take(2)

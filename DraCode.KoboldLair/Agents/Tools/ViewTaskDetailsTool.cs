@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using Birko.AI.Orchestration.Models;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
@@ -353,8 +354,8 @@ namespace DraCode.KoboldLair.Agents.Tools
                     foreach (var step in failedSteps)
                     {
                         sb.AppendLine($"### Step {step.Index}: {step.Title}");
-                        sb.AppendLine($"**Error:** {step.LastErrorMessage ?? "Unknown"}");
-                        sb.AppendLine($"**Category:** {step.ErrorCategory ?? "Unknown"}");
+                        sb.AppendLine($"**Error:** {step.ErrorMessage ?? "Unknown"}");
+                        sb.AppendLine($"**Category:** {step.ErrorCategory?.ToString() ?? "Unknown"}");
                         sb.AppendLine($"**Files to create:** {string.Join(", ", step.FilesToCreate.Select(f => $"`{f}`"))}");
                         sb.AppendLine($"**Files to modify:** {string.Join(", ", step.FilesToModify.Select(f => $"`{f}`"))}");
                     }

@@ -110,7 +110,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
 
             try
             {
-                return JsonSerializer.Deserialize<KoboldImplementationPlan>(entity.PlanDataJson, JsonOptions);
+                return Services.LegacyPlanJson.Deserialize(entity.PlanDataJson, JsonOptions);
             }
             catch (Exception ex)
             {
@@ -147,7 +147,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             {
                 try
                 {
-                    var plan = JsonSerializer.Deserialize<KoboldImplementationPlan>(entity.PlanDataJson, JsonOptions);
+                    var plan = Services.LegacyPlanJson.Deserialize(entity.PlanDataJson, JsonOptions);
                     if (plan != null) plans.Add(plan);
                 }
                 catch { /* skip corrupt entries */ }

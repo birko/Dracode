@@ -165,7 +165,7 @@ _None_
     - [ ] [TASK-117](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-117-archive-stale-birko-web-docs.md) Archive the two stale Birko.Web docs (P3)
   - STORY-040 Adopt the Birko KoboldLair upstreams — planned (0/18)
     - [x] [TASK-125](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-125-rebuild-kobold-loop-on-birko-agent-hooks.md) Rebuild Kobold step detection on Birko Agent hooks; delete the loop fork and the tool-wrapping (P1)
-    - [ ] [TASK-126](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-126-use-birko-orchestration-plan-model.md) Use Birko.AI.Orchestration's plan model, analyzer and dispatcher; migrate stored plan statuses (P1)
+    - [x] [TASK-126](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-126-use-birko-orchestration-plan-model.md) Use Birko.AI.Orchestration's plan model, analyzer and dispatcher; migrate stored plan statuses (P1)
     - [ ] [TASK-127](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-127-use-birko-sql-event-store.md) Use the framework SQL event store; delete SqlEventStoreRepository and DomainEventEntity (P1)
     - [ ] [TASK-128](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-128-persist-circuit-breaker-and-usage-via-birko.md) Persist circuit-breaker state and usage through Birko.AI.Resilience stores (P2)
     - [ ] [TASK-129](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-129-use-classified-llm-failures.md) Use classified LLM failures; retire ErrorClassifier's substring matching (P2)

@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using System.Security.Cryptography;
 using Birko.AI.Models;
 using System.Text;
@@ -367,7 +368,7 @@ namespace DraCode.KoboldLair.Services
             try
             {
                 var json = await File.ReadAllTextAsync(jsonPath);
-                var plan = JsonSerializer.Deserialize<KoboldImplementationPlan>(json, _jsonOptions);
+                var plan = LegacyPlanJson.Deserialize(json, _jsonOptions);
 
                 if (plan != null)
                 {
@@ -442,7 +443,7 @@ namespace DraCode.KoboldLair.Services
                 try
                 {
                     var json = await File.ReadAllTextAsync(jsonFile);
-                    var plan = JsonSerializer.Deserialize<KoboldImplementationPlan>(json, _jsonOptions);
+                    var plan = LegacyPlanJson.Deserialize(json, _jsonOptions);
                     if (plan != null)
                     {
                         plans.Add(plan);
@@ -599,7 +600,7 @@ namespace DraCode.KoboldLair.Services
 
         private static string GetStatusEmoji(PlanStatus status) => status switch
         {
-            PlanStatus.Planning => "🔄",
+            PlanStatus.Created => "🔄",
             PlanStatus.Ready => "✅",
             PlanStatus.InProgress => "⚡",
             PlanStatus.Completed => "🎉",

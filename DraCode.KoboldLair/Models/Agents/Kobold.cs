@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using Birko.AI;
 using Birko.AI.Models;
 using Birko.AI.Agents;
@@ -6,7 +7,7 @@ using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Events.Run;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Services;
-using DraCode.KoboldLair.Models.Validation;
+using Birko.AI.Orchestration.Validation;
 using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Models.Agents
@@ -414,7 +415,7 @@ namespace DraCode.KoboldLair.Models.Agents
             // Update the plan with this assignment
             if (ImplementationPlan != null)
             {
-                ImplementationPlan.AssignStepsToKobold(Id.ToString(), stepIndices);
+                ImplementationPlan.AssignSteps(Id.ToString(), stepIndices);
             }
 
             _logger?.LogDebug(

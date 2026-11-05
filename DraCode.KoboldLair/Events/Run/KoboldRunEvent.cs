@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using DraCode.KoboldLair.Models.Agents;
 
 namespace DraCode.KoboldLair.Events.Run

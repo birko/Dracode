@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using Birko.EventBus;
 using Birko.AI;
 using Birko.AI.Providers;

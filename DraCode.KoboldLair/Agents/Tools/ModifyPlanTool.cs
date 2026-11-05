@@ -1,4 +1,5 @@
 ﻿using Birko.AI.Tools;
+using Birko.AI.Orchestration.Models;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Services;
 using Microsoft.Extensions.Logging;

@@ -1,3 +1,4 @@
+using Birko.AI.Orchestration.Models;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
@@ -191,7 +192,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 ProjectId = kobold.ProjectId ?? plan.ProjectId,
                 TaskId = kobold.TaskId?.ToString() ?? plan.TaskId,
-                KoboldId = kobold.Id,
+                WorkerId = kobold.Id.ToString(),
                 AgentType = kobold.AgentType,
                 Source = EscalationSource.ReasoningMonitor,
                 Type = type,
