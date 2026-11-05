@@ -17,4 +17,8 @@
     <ProjectReference Include="..\DraCode.Birko\DraCode.Birko.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DraCode.KoboldLair.Tests" />
+  </ItemGroup>
+
 </Project>

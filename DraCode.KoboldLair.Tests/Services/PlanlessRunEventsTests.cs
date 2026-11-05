@@ -72,7 +72,6 @@ public class PlanlessRunEventsTests : IDisposable
             kinds.Add(evt.Kind + (evt is ToolCallStartedEvent s ? ":" + s.ToolName : evt is ToolCallResultEvent r ? ":" + r.ToolName : ""));
 
         kinds.Should().Equal("run_started", "tool_call_started:list_files", "tool_call_result:list_files", "run_completed");
-        agent.Tools.Should().NotContain(t => t is DraCode.KoboldLair.Agents.Tools.RunEventPublishingTool,
-            "the agent gets its own tools back after the run");
+        agent.Hooks.Should().BeNull("the run's hooks are detached when it ends");
     }
 }

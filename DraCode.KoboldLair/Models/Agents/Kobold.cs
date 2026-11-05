@@ -16,7 +16,7 @@ namespace DraCode.KoboldLair.Models.Agents
     /// Each Kobold is dedicated to one task and tracks its own status.
     /// Supports implementation plans for resumability and visibility.
     /// </summary>
-    public class Kobold
+    public partial class Kobold
     {
         private readonly ILogger<Kobold>? _logger;
         private readonly StepValidationService _validationService;
@@ -837,34 +837,6 @@ You are working on a task that is part of a larger project. Below is the project
         /// <param name="planService">Service for plan persistence (can be null to skip plan updates)</param>
         /// <param name="maxIterations">Maximum iterations for agent execution</param>
         /// <returns>Messages from agent execution</returns>
-        /// <summary>
-        /// Wraps the agent's tools so <c>Agent.RunAsync</c> publishes tool-call events (TASK-106). Returns the wrappers to
-        /// undo; none when the run has no event source.
-        /// </summary>
-        private List<RunEventPublishingTool> WrapToolsForRunEvents()
-        {
-            var wrappers = new List<RunEventPublishingTool>();
-            if (_runEventSource == null) return wrappers;
-
-            foreach (var tool in Agent.Tools.ToList())
-            {
-                Agent.RemoveTool(tool.Name);
-                var wrapper = new RunEventPublishingTool(tool, PublishRunEvent);
-                Agent.AddTool(wrapper);
-                wrappers.Add(wrapper);
-            }
-            return wrappers;
-        }
-
-        private void UnwrapTools(List<RunEventPublishingTool> wrappers)
-        {
-            foreach (var wrapper in wrappers)
-            {
-                Agent.RemoveTool(wrapper.Name);
-                Agent.AddTool(wrapper.Inner);
-            }
-        }
-
         public async Task<List<Message>> StartWorkingWithPlanAsync(
             KoboldPlanService? planService,
             int maxIterations = 30,
@@ -944,14 +916,21 @@ You are working on a task that is part of a larger project. Below is the project
 
                 // Execute the task through the underlying agent
                 List<Message> messages;
-                var wrapped = WrapToolsForRunEvents();
+                var hooks = new RunHooks(this, planService, detectSteps: false);
+                Agent.Hooks = hooks;
                 try
                 {
-                    messages = await Agent.RunAsync(fullTaskPrompt, effectiveMaxIterations);
+                    messages = await Agent.RunAsync(fullTaskPrompt, effectiveMaxIterations, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Shutdown, not a failure: the Kobold stays Working, as the enhanced path leaves it
+                    await SaveStateOnShutdownAsync(planService, conversation: null);
+                    return hooks.ConsistentConversation();
                 }
                 finally
                 {
-                    UnwrapTools(wrapped);
+                    Agent.Hooks = null;
                 }
 
                 // Check if execution encountered errors
@@ -1108,7 +1087,7 @@ You are working on a task that is part of a larger project. Below is the project
             // If no plan, fall back to standard execution
             if (ImplementationPlan == null)
             {
-                return await StartWorkingWithPlanAsync(planService, maxIterations);
+                return await StartWorkingWithPlanAsync(planService, maxIterations, cancellationToken);
             }
 
             Status = KoboldStatus.Working;
@@ -1162,8 +1141,7 @@ You are working on a task that is part of a larger project. Below is the project
                     "Kobold {KoboldId} using enhanced execution with step-aware budget: {PerStepBudget} per step × {TotalSteps} steps = {TotalBudget} iterations",
                     Id.ToString()[..8], perStepBudget, totalSteps, effectiveMaxIterations);
 
-                // Execute with custom loop for step completion detection
-                var messages = await RunWithStepDetectionAsync(fullTaskPrompt, effectiveMaxIterations, planService, cancellationToken);
+                var messages = await RunPlanStepsAsync(fullTaskPrompt, effectiveMaxIterations, planService, cancellationToken);
 
                 // Check if execution encountered errors
                 var enhancedExecutionError = ExtractErrorFromMessages(messages);
@@ -1287,375 +1265,116 @@ You are working on a task that is part of a larger project. Below is the project
         }
 
         /// <summary>
-        /// Custom execution loop that detects step completion and auto-advances when appropriate.
-        /// This is the core of Phase 2 robustness enhancements.
+        /// Runs the plan through Birko's <see cref="Agent"/> with <see cref="RunHooks"/> doing the step detection
+        /// (TASK-125). Resumes from a saved conversation checkpoint when the plan is past its first step. On cancellation
+        /// the plan and a resumable checkpoint are saved and the conversation so far is returned, leaving the Kobold Working.
         /// </summary>
-        private async Task<List<Message>> RunWithStepDetectionAsync(
+        private async Task<List<Message>> RunPlanStepsAsync(
             string initialPrompt,
             int maxIterations,
             KoboldPlanService? planService,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken)
         {
-            if (ImplementationPlan == null)
+            var plan = ImplementationPlan ?? throw new InvalidOperationException("RunPlanStepsAsync requires a plan");
+
+            var hooks = new RunHooks(this, planService, detectSteps: true);
+            if (hooks.CurrentStepIndex >= plan.Steps.Count && hooks.CurrentStepIndex > 0)
             {
-                throw new InvalidOperationException("RunWithStepDetectionAsync requires a plan");
+                _logger?.LogWarning(
+                    "Kobold {KoboldId}: Resume step index {StepIndex} exceeds plan size {PlanSize}. Resetting to step 0.",
+                    Id.ToString()[..8], hooks.CurrentStepIndex, plan.Steps.Count);
+                hooks.CurrentStepIndex = 0;
             }
 
-            var currentStepIndex = ImplementationPlan.CurrentStepIndex;
-            var resumeStepIndex = currentStepIndex; // Track where we started for stale checkpoint detection
-            var stepIterationCount = 0;
-            var resumedFromCheckpoint = false;
+            var resumeStepIndex = hooks.CurrentStepIndex;
+            var checkpoint = await LoadResumableCheckpointAsync(planService);
+            hooks.StartCurrentStep();
 
-            // Try to restore conversation from checkpoint if resuming
-            List<Message> conversation;
-            if (currentStepIndex > 0 && planService != null && !string.IsNullOrEmpty(ProjectId) && TaskId.HasValue)
+            Agent.Hooks = hooks;
+            AgentRunResult result;
+            try
             {
-                // Validate step index is within plan bounds before resuming
-                if (currentStepIndex >= ImplementationPlan.Steps.Count)
-                {
-                    _logger?.LogWarning(
-                        "Kobold {KoboldId}: Resume step index {StepIndex} exceeds plan size {PlanSize}. Resetting to step 0.",
-                        Id.ToString()[..8], currentStepIndex, ImplementationPlan.Steps.Count);
-                    currentStepIndex = 0;
-                    resumeStepIndex = 0;
-                }
-
-                var checkpoint = await planService.LoadConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
                 if (checkpoint != null)
                 {
-                    // Validate checkpoint step index is compatible with current plan
-                    if (checkpoint.StepIndex >= ImplementationPlan.Steps.Count)
-                    {
-                        _logger?.LogWarning(
-                            "Kobold {KoboldId}: Checkpoint step index {CheckpointStep} exceeds plan size {PlanSize}. Discarding stale checkpoint.",
-                            Id.ToString()[..8], checkpoint.StepIndex, ImplementationPlan.Steps.Count);
-                        await planService.DeleteConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
-                        checkpoint = null;
-                    }
-                }
-
-                if (checkpoint != null)
-                {
-                    conversation = KoboldPlanService.RestoreConversation(checkpoint);
-                    resumedFromCheckpoint = true;
-                    // Append a resumption message so the LLM knows what happened
-                    conversation.Add(new Message
-                    {
-                        Role = "user",
-                        Content = $"You were previously working on this task and completed steps up to step {checkpoint.StepIndex + 1}. " +
-                                  $"The server was restarted. Continue from step {currentStepIndex + 1} of {ImplementationPlan.Steps.Count}. " +
-                                  "Do NOT redo already-completed steps."
-                    });
+                    var resumeMessage =
+                        $"You were previously working on this task and completed steps up to step {checkpoint.StepIndex + 1}. " +
+                        $"The server was restarted. Continue from step {resumeStepIndex + 1} of {plan.Steps.Count}. " +
+                        "Do NOT redo already-completed steps.";
                     _logger?.LogInformation(
                         "Kobold {KoboldId} resumed with conversation checkpoint ({MessageCount} messages, step {StepIndex})",
                         Id.ToString()[..8], checkpoint.Messages.Count, checkpoint.StepIndex);
+                    result = await Agent.ContinueWithOutcomeAsync(
+                        KoboldPlanService.RestoreConversation(checkpoint), resumeMessage, maxIterations, cancellationToken);
                 }
                 else
                 {
-                    conversation = new List<Message> { new() { Role = "user", Content = initialPrompt } };
+                    result = await Agent.RunWithOutcomeAsync(initialPrompt, maxIterations, cancellationToken);
                 }
             }
-            else
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                conversation = new List<Message> { new() { Role = "user", Content = initialPrompt } };
+                var conversation = hooks.ConsistentConversation();
+                await SaveStateOnShutdownAsync(planService, conversation);
+                return conversation;
             }
-
-            // Enhanced logging: Step start
-            if (currentStepIndex < ImplementationPlan.Steps.Count)
+            finally
             {
-                var step = ImplementationPlan.Steps[currentStepIndex];
-                step.Start();
-
-                _logger?.LogInformation(
-                    "🔷 Kobold {KoboldId} starting step {StepIndex}/{TotalSteps}: {StepTitle}\n" +
-                    "  Files to create: {FilesToCreate}\n" +
-                    "  Files to modify: {FilesToModify}",
-                    Id.ToString()[..8], step.Index, ImplementationPlan.Steps.Count, step.Title,
-                    step.FilesToCreate.Count > 0 ? string.Join(", ", step.FilesToCreate) : "none",
-                    step.FilesToModify.Count > 0 ? string.Join(", ", step.FilesToModify) : "none");
+                Agent.Hooks = null;
             }
 
-            for (int iteration = 1; iteration <= maxIterations; iteration++)
+            if (result.Outcome == AgentRunOutcome.MaxIterationsReached)
+                await hooks.CompleteAsync(result.Conversation);
+
+            // A resumed run that failed before finishing a step was most likely failed BY the checkpoint (e.g. a message
+            // format the provider rejects): delete it so the next retry starts the step fresh.
+            if (result.Outcome is AgentRunOutcome.LlmFailed or AgentRunOutcome.NotConfigured
+                && checkpoint != null && hooks.CurrentStepIndex == resumeStepIndex
+                && planService != null && !string.IsNullOrEmpty(ProjectId) && TaskId.HasValue)
             {
-                // Graceful shutdown check: save state and return without throwing
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    _logger?.LogInformation(
-                        "Graceful shutdown requested for Kobold {KoboldId} at iteration {Iteration}, step {StepIndex}/{TotalSteps}",
-                        Id.ToString()[..8], iteration, currentStepIndex + 1, ImplementationPlan.Steps.Count);
-
-                    // Save plan state and conversation checkpoint
-                    if (planService != null && !string.IsNullOrEmpty(ProjectId))
-                    {
-                        ImplementationPlan.AddLogEntry($"Graceful shutdown at iteration {iteration}, step {currentStepIndex + 1}");
-                        await planService.SavePlanDebouncedAsync(ImplementationPlan);
-                        await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
-                        _logger?.LogInformation(
-                            "Plan and conversation saved for Kobold {KoboldId} (step {StepIndex}/{TotalSteps})",
-                            Id.ToString()[..8], currentStepIndex + 1, ImplementationPlan.Steps.Count);
-                    }
-
-                    // Return gracefully - this flows to the "not all steps complete" path
-                    // keeping Kobold in Working state and plan in InProgress for resumption
-                    return conversation;
-                }
-
-                stepIterationCount++;
-
-                if (Agent.Options.Verbose)
-                {
-                    Agent.Provider.MessageCallback?.Invoke("info", $"ITERATION {iteration} (Step {currentStepIndex + 1}, iter {stepIterationCount})");
-                }
-
-                // Inject checkpoint reminder every N iterations (P1 self-reflection)
-                var checkpointInterval = CheckpointInterval;
-                if (checkpointInterval > 0 && stepIterationCount > 1 && stepIterationCount % checkpointInterval == 0
-                    && currentStepIndex < ImplementationPlan.Steps.Count)
-                {
-                    var currentStep = ImplementationPlan.Steps[currentStepIndex];
-                    var checkpointPrompt = $@"
----
-**REFLECTION REQUIRED** (Iteration {iteration}, step iteration {stepIterationCount})
-
-You've spent {stepIterationCount} iterations on step {currentStepIndex + 1}: '{currentStep.Title}'
-
-Call the `reflect` tool now with your assessment:
-- progress_percent: your estimate of step completion (0-100)
-- confidence_percent: confidence this approach will succeed (0-100)
-- decision: ""continue"", ""pivot"" (change approach), or ""escalate"" (need upstream help)
-- blockers: any obstacles (optional)
-- adjustment: what you're changing if pivoting (optional)
-
-If step is complete, call `update_plan_step` with status 'completed' instead.
----";
-
-                    conversation.Add(new Message { Role = "user", Content = checkpointPrompt });
-                    _logger?.LogDebug("Checkpoint reminder injected at iteration {Iteration}", iteration);
-                }
-
-                var systemPrompt = (string?)Agent.GetType().GetProperty("SystemPrompt",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(Agent) ?? "";
-
-                var response = await Agent.Provider.SendMessageAsync(conversation, Agent.Tools.ToList(), systemPrompt);
-
-                if (Agent.Options.Verbose)
-                {
-                    Agent.Provider.MessageCallback?.Invoke("info", $"Stop reason: {response.StopReason}");
-                }
-
-                // Add assistant response to conversation
-                conversation.Add(new Message
-                {
-                    Role = "assistant",
-                    Content = response.Content
-                });
-
-                // Handle different stop reasons
-                switch (response.StopReason)
-                {
-                    case "tool_use":
-                        var toolResults = new List<object>();
-                        var calledUpdatePlanStep = false;
-
-                        foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "tool_use"))
-                        {
-                            var toolCallMsg = $"Tool: {block.Name}\nInput: {System.Text.Json.JsonSerializer.Serialize(block.Input)}";
-                            Agent.Provider.MessageCallback?.Invoke("tool_call", toolCallMsg);
-                            // Per-run telemetry (TASK-037): tool-call start (structured, enhanced path).
-                            PublishRunEvent(new ToolCallStartedEvent
-                            {
-                                ToolName = block.Name ?? "",
-                                InputJson = System.Text.Json.JsonSerializer.Serialize(block.Input)
-                            });
-
-                            var tool = Agent.Tools.FirstOrDefault(t => t.Name == block.Name);
-                            var result = tool != null
-                                ? await tool.ExecuteAsync(Agent.Options.WorkingDirectory, block.Input ?? new Dictionary<string, object>())
-                                : $"Error: Unknown tool '{block.Name}'";
-
-                            var preview = result.Length > 500 ? string.Concat(result.AsSpan(0, 500), "...") : result;
-                            Agent.Provider.MessageCallback?.Invoke("tool_result", $"Result from {block.Name}:\n{preview}");
-                            PublishRunEvent(new ToolCallResultEvent { ToolName = block.Name ?? "", ResultPreview = preview });
-
-                            // Check if agent called update_plan_step
-                            if (block.Name == "update_plan_step")
-                            {
-                                calledUpdatePlanStep = true;
-                                
-                                // Enhanced logging: Step completion
-                                var newStepIndex = ImplementationPlan.CurrentStepIndex;
-                                if (newStepIndex != currentStepIndex && currentStepIndex < ImplementationPlan.Steps.Count)
-                                {
-                                    var completedStep = ImplementationPlan.Steps[currentStepIndex];
-                                    
-                                    // Phase 3: Update telemetry
-                                    completedStep.Metrics.IterationsUsed = stepIterationCount;
-                                    
-                                    _logger?.LogInformation(
-                                        "✅ Step {StepIndex} completed: {StepTitle} ({IterationCount} iterations, status: {Status})",
-                                        completedStep.Index, completedStep.Title, stepIterationCount, completedStep.Status);
-                                    
-                                    // Reset counter and start next step
-                                    stepIterationCount = 0;
-                                    currentStepIndex = newStepIndex;
-
-                                    // Save conversation checkpoint after step completion
-                                    if (planService != null && !string.IsNullOrEmpty(ProjectId))
-                                    {
-                                        await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
-                                    }
-
-                                    if (currentStepIndex >= ImplementationPlan.Steps.Count)
-                                    {
-                                        // All steps complete - exit the loop
-                                        _logger?.LogInformation(
-                                            "✅ All {TotalSteps} steps completed for Kobold {KoboldId}",
-                                            ImplementationPlan.Steps.Count, Id.ToString()[..8]);
-                                        return conversation;
-                                    }
-
-                                    var nextStep = ImplementationPlan.Steps[currentStepIndex];
-                                    nextStep.Start();
-
-                                    _logger?.LogInformation(
-                                        "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}\n" +
-                                        "  Files to create: {FilesToCreate}\n" +
-                                        "  Files to modify: {FilesToModify}",
-                                        nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title,
-                                        nextStep.FilesToCreate.Count > 0 ? string.Join(", ", nextStep.FilesToCreate) : "none",
-                                        nextStep.FilesToModify.Count > 0 ? string.Join(", ", nextStep.FilesToModify) : "none");
-                                }
-                            }
-
-                            toolResults.Add(new
-                            {
-                                type = "tool_result",
-                                tool_use_id = block.Id,
-                                content = result
-                            });
-                        }
-
-                        conversation.Add(new Message
-                        {
-                            Role = "user",
-                            Content = toolResults
-                        });
-
-                        // Phase 2: Automatic step completion detection
-                        if (!calledUpdatePlanStep && currentStepIndex < ImplementationPlan.Steps.Count)
-                        {
-                            var currentStep = ImplementationPlan.Steps[currentStepIndex];
-                            
-                            // Only check if step is still pending/in-progress
-                            if (currentStep.Status == StepStatus.Pending || currentStep.Status == StepStatus.InProgress)
-                            {
-                                var (isComplete, issues) = await ValidateStepCompletionAsync(currentStep);
-                                
-                                if (isComplete)
-                                {
-                                    // Phase 2: Fallback auto-advancement
-                                    _logger?.LogWarning(
-                                        "⚠️ AUTO-ADVANCE: Step {StepIndex} validated as complete but agent didn't mark it. Auto-advancing.\n" +
-                                        "  Step: {StepTitle}\n" +
-                                        "  Iterations on this step: {IterationCount}",
-                                        currentStep.Index, currentStep.Title, stepIterationCount);
-                                    
-                                    currentStep.Complete($"Auto-completed by validation (agent didn't mark explicitly)");
-                                    
-                                    // Phase 3: Update telemetry
-                                    currentStep.Metrics.IterationsUsed = stepIterationCount;
-                                    currentStep.Metrics.AutoCompleted = true;
-                                    
-                                    ImplementationPlan.CurrentStepIndex++;
-                                    ImplementationPlan.AddLogEntry($"Auto-advanced from step {currentStep.Index} after validation passed");
-
-                                    if (planService != null && !string.IsNullOrEmpty(ProjectId))
-                                    {
-                                        await planService.SavePlanDebouncedAsync(ImplementationPlan);
-                                        await planService.SaveConversationCheckpointAsync(ImplementationPlan, conversation);
-                                    }
-
-                                    // Enhanced logging: Step auto-completion
-                                    _logger?.LogInformation(
-                                        "✅ Step {StepIndex} auto-completed: {StepTitle} ({IterationCount} iterations)",
-                                        currentStep.Index, currentStep.Title, stepIterationCount);
-
-                                    // Reset and start next step
-                                    stepIterationCount = 0;
-                                    currentStepIndex = ImplementationPlan.CurrentStepIndex;
-
-                                    if (currentStepIndex >= ImplementationPlan.Steps.Count)
-                                    {
-                                        // All steps complete - exit the loop
-                                        _logger?.LogInformation(
-                                            "✅ All {TotalSteps} steps completed for Kobold {KoboldId}",
-                                            ImplementationPlan.Steps.Count, Id.ToString()[..8]);
-                                        return conversation;
-                                    }
-
-                                    var nextStep = ImplementationPlan.Steps[currentStepIndex];
-                                    nextStep.Start();
-
-                                    _logger?.LogInformation(
-                                        "🔷 Starting step {StepIndex}/{TotalSteps}: {StepTitle}",
-                                        nextStep.Index, ImplementationPlan.Steps.Count, nextStep.Title);
-                                }
-                            }
-                        }
-
-                        // If we hit max iterations, stop
-                        if (iteration >= maxIterations)
-                        {
-                            Agent.Provider.MessageCallback?.Invoke("warning", $"Maximum iterations ({maxIterations}) reached. Task may be incomplete.");
-                            return conversation;
-                        }
-                        break;
-
-                    case "end_turn":
-                        // Agent finished - send response
-                        foreach (var block in (response.Content ?? Enumerable.Empty<ContentBlock>()).Where(b => b.Type == "text"))
-                        {
-                            Agent.Provider.MessageCallback?.Invoke("assistant_final", block.Text ?? "");
-                        }
-                        return conversation;
-
-                    case "error":
-                    case "NotConfigured":
-                        // Error occurred - stop immediately
-                        Agent.Provider.MessageCallback?.Invoke("error", "Error occurred during LLM request. Stopping.");
-
-                        // If we resumed from a checkpoint and made no progress, the checkpoint
-                        // content is likely causing the error (e.g., message format incompatible
-                        // with the provider). Delete the stale checkpoint so the next retry
-                        // starts fresh on this step instead of replaying the same bad conversation.
-                        if (resumedFromCheckpoint && currentStepIndex == resumeStepIndex
-                            && planService != null && !string.IsNullOrEmpty(ProjectId) && TaskId.HasValue)
-                        {
-                            _logger?.LogWarning(
-                                "Deleting stale conversation checkpoint for Kobold {KoboldId} - LLM error on resume with no progress (step {StepIndex})",
-                                Id.ToString()[..8], currentStepIndex + 1);
-                            await planService.DeleteConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
-                        }
-
-                        return conversation;
-
-                    default:
-                        // Unexpected stop reason - stop to be safe
-                        if (Agent.Options.Verbose)
-                        {
-                            Agent.Provider.MessageCallback?.Invoke("warning", $"Unexpected stop reason: {response.StopReason ?? "unknown"}. Stopping.");
-                        }
-                        return conversation;
-                }
+                _logger?.LogWarning(
+                    "Deleting stale conversation checkpoint for Kobold {KoboldId} - LLM error on resume with no progress (step {StepIndex})",
+                    Id.ToString()[..8], resumeStepIndex + 1);
+                await planService.DeleteConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
             }
 
-            // If we exit the loop naturally, we hit max iterations
-            if (Agent.Options.Verbose)
-            {
-                Agent.Provider.MessageCallback?.Invoke("warning", $"Maximum iterations ({maxIterations}) reached.");
-            }
+            return result.Conversation;
+        }
 
-            return conversation;
+        /// <summary>The saved conversation to resume from, when the plan is past its first step and one fits the plan.</summary>
+        private async Task<ConversationCheckpoint?> LoadResumableCheckpointAsync(KoboldPlanService? planService)
+        {
+            var plan = ImplementationPlan!;
+            if (plan.CurrentStepIndex == 0 || planService == null || string.IsNullOrEmpty(ProjectId) || !TaskId.HasValue)
+                return null;
+
+            var checkpoint = await planService.LoadConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
+            if (checkpoint == null || checkpoint.StepIndex < plan.Steps.Count)
+                return checkpoint;
+
+            _logger?.LogWarning(
+                "Kobold {KoboldId}: Checkpoint step index {CheckpointStep} exceeds plan size {PlanSize}. Discarding stale checkpoint.",
+                Id.ToString()[..8], checkpoint.StepIndex, plan.Steps.Count);
+            await planService.DeleteConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
+            return null;
+        }
+
+        /// <summary>
+        /// Saves what a shutdown-cancelled run needs to resume: the plan, and the conversation checkpoint when one is given.
+        /// </summary>
+        private async Task SaveStateOnShutdownAsync(KoboldPlanService? planService, List<Message>? conversation)
+        {
+            var plan = ImplementationPlan;
+            _logger?.LogInformation(
+                "Graceful shutdown requested for Kobold {KoboldId} at step {StepIndex}/{TotalSteps}",
+                Id.ToString()[..8], (plan?.CurrentStepIndex ?? 0) + 1, plan?.Steps.Count ?? 0);
+
+            if (plan == null || planService == null || string.IsNullOrEmpty(ProjectId))
+                return;
+
+            plan.AddLogEntry($"Graceful shutdown at step {plan.CurrentStepIndex + 1}");
+            await planService.SavePlanDebouncedAsync(plan);
+            if (conversation != null)
+                await planService.SaveConversationCheckpointAsync(plan, conversation);
         }
 
         /// <summary>
