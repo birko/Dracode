@@ -3,7 +3,7 @@ id: TASK-080
 parent: STORY-044
 feature: null
 # status: todo | in-progress | review (code done, sign-off pending) | blocked | done | cancelled
-status: todo
+status: cancelled
 priority: P2
 assignee: ai
 created: 2026-09-28
@@ -100,3 +100,9 @@ _Draft — refine with `/tasks plan TASK-080` before starting._
 4. Tests as in the acceptance criteria. Prove the upgrade test goes red with step 3 removed.
 5. Land after, or together with, `birko/TASK-506-guid-naming` / Birko `symbio/TASK-819`. This
    task only makes sense once `IEvent.AggregateGuid` exists.
+
+## Close notes
+
+- Closed 2026-11-05 as **superseded** by TASK-127: `DomainEventEntity` and `SqlEventStoreRepository` are deleted;
+  events live in Birko's `__Events` (`DomainEventModel.AggregateGuid`, owned by the framework). The old table's rows are
+  moved by `LegacyDomainEventMigration` and the table is kept as `domain_events_migrated`, columns unchanged.

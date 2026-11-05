@@ -17,6 +17,7 @@ using Birko.EventBus.Extensions;
 using Birko.AI.Orchestration.Dispatch;
 using Birko.MessageQueue;
 using Birko.MessageQueue.InMemory;
+using Birko.Data.EventSourcing.Events;
 using DraCode.KoboldLair.Data;
 using DraCode.KoboldLair.Data.Migrations;
 using DraCode.KoboldLair.Data.Repositories;
@@ -390,25 +391,21 @@ builder.Services.AddSingleton<SqlPlanRepository>(sp =>
     return null!;
 });
 
-// Register Birko.Data.EventSourcing event store (SQLite-backed specification audit trail)
-builder.Services.AddSingleton<SqlEventStoreRepository>(sp =>
+// Specification event store: Birko.Data.EventSourcing.SQL on the KoboldLair SQLite database (TASK-127). The
+// events DraCode's own repository wrote to domain_events are moved over at startup (below, after Build).
+builder.Services.AddSingleton<IAsyncEventStore>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
-    {
-        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
-        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlEventStoreRepository>();
-        var repo = new SqlEventStoreRepository(dbPath, logger);
-        repo.InitializeAsync().GetAwaiter().GetResult();
-        return repo;
-    }
-    return null!;
+    dataConfig.ProjectsPath = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value.ProjectsPath ?? "./projects";
+    return dataConfig.DefaultBackend == StorageBackend.SqLite
+        ? LegacyDomainEventMigration.CreateStore(RepositoryFactory.ResolveSqLitePath(dataConfig))
+        : null!;
 });
 
 // Register SpecificationEventService for recording specification change events
 builder.Services.AddSingleton<SpecificationEventService>(sp =>
 {
-    var eventStore = sp.GetService<SqlEventStoreRepository>();
+    var eventStore = sp.GetService<IAsyncEventStore>();
     if (eventStore == null) return null!;
     var logger = sp.GetRequiredService<ILogger<SpecificationEventService>>();
     return new SpecificationEventService(eventStore, logger);
@@ -923,6 +920,18 @@ using (var scope = app.Services.CreateScope())
         }
     }
     logger?.LogInformation("Stale worktree cleanup complete");
+}
+
+// Move specification events written before TASK-127 (table domain_events) into the Birko event store
+{
+    var dataConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    dataConfig.ProjectsPath = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value.ProjectsPath ?? "./projects";
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite && app.Services.GetService<IAsyncEventStore>() is { } eventStore)
+    {
+        await LegacyDomainEventMigration.MigrateAsync(
+            RepositoryFactory.ResolveSqLitePath(dataConfig), eventStore,
+            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("EventStoreMigration"));
+    }
 }
 
 // Register shutdown hook for graceful shutdown

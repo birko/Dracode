@@ -54,6 +54,7 @@
   <Import Project="$(BirkoSrc)\Birko.Data.SQL.ViewModel\Birko.Data.SQL.ViewModel.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Data.SQL.SqLite\Birko.Data.SQL.SqLite.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Data.EventSourcing\Birko.Data.EventSourcing.projitems" Label="Shared" />
+  <Import Project="$(BirkoSrc)\Birko.Data.EventSourcing.SQL\Birko.Data.EventSourcing.SQL.projitems" Label="Shared" />
 
   <!-- Cross-cutting framework modules -->
   <Import Project="$(BirkoSrc)\Birko.Caching\Birko.Caching.projitems" Label="Shared" />

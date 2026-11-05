@@ -1,0 +1,9 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE IF NOT EXISTS "domain_events" (AggregateId TEXT NOT NULL, Version INTEGER NOT NULL, EventType TEXT NOT NULL, EventData TEXT, Metadata TEXT, UserId TEXT, OccurredAt INTEGER NOT NULL, Guid TEXT PRIMARY KEY UNIQUE, CreatedAt INTEGER NOT NULL, UpdatedAt INTEGER NOT NULL, PrevUpdatedAt INTEGER);
+INSERT INTO domain_events VALUES('5d0b7c1e-3a2f-4e8d-9b6a-1c4f7e2d8a90',1,'SpecificationCreated','{"projectName":"flappy-dragon","version":1,"contentHash":"9c1d5e0b"}',NULL,'0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b','2026-10-04 08:57:34.0553807','00000000-0000-4000-8000-5d0b00000001','2026-11-05 12:54:05.2554328','2026-11-05 12:54:05.255553',NULL);
+INSERT INTO domain_events VALUES('5d0b7c1e-3a2f-4e8d-9b6a-1c4f7e2d8a90',2,'FeatureAdded','{"featureId":"FEATURE-001","name":"Flight and camera"}','{"source":"dragon"}','0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b','2026-10-04 09:00:34.0553807','00000000-0000-4000-8000-5d0b00000002','2026-11-05 12:54:05.3108531','2026-11-05 12:54:05.3108534',NULL);
+INSERT INTO domain_events VALUES('5d0b7c1e-3a2f-4e8d-9b6a-1c4f7e2d8a90',3,'FeatureAdded','{"featureId":"FEATURE-002","name":"Dragon model and spine"}',NULL,'0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b','2026-10-04 09:01:34.0553807','00000000-0000-4000-8000-5d0b00000003','2026-11-05 12:54:05.3226813','2026-11-05 12:54:05.3226815',NULL);
+INSERT INTO domain_events VALUES('5d0b7c1e-3a2f-4e8d-9b6a-1c4f7e2d8a90',4,'SpecificationUpdated','{"version":2,"contentHash":"4be2a913"}',NULL,NULL,'2026-10-04 09:58:34.0553807','00000000-0000-4000-8000-5d0b00000004','2026-11-05 12:54:05.3316232','2026-11-05 12:54:05.3316234',NULL);
+INSERT INTO domain_events VALUES('a7e3f1c9-4b2d-4c6e-8f0a-2d9b5e7c1f34',1,'SpecificationCreated','{"projectName":"presenter","version":1}',NULL,NULL,'2026-10-06 18:50:34.0553807','00000000-0000-4000-8000-a7e300000001','2026-11-05 12:54:05.3407158','2026-11-05 12:54:05.340716',NULL);
+COMMIT;

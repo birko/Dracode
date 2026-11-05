@@ -33,8 +33,6 @@ namespace DraCode.KoboldLair.Services.EventSourcing
         public async Task RecordSpecificationCreatedAsync(string specId, string name, string content, string projectId)
         {
             var aggregateId = ToGuid(specId);
-            var version = await _eventStore.GetVersionAsync(aggregateId) + 1;
-
             var data = new SpecificationCreatedData
             {
                 Name = name,
@@ -43,13 +41,7 @@ namespace DraCode.KoboldLair.Services.EventSourcing
                 ContentHash = Models.Projects.Specification.ComputeHash(content)
             };
 
-            var @event = new DomainEvent(
-                aggregateId: aggregateId,
-                version: version,
-                eventType: SpecificationEventTypes.Created,
-                eventData: JsonSerializer.Serialize(data, JsonOptions));
-
-            await _eventStore.AppendAsync(@event);
+            var version = await AppendNextAsync(aggregateId, SpecificationEventTypes.Created, JsonSerializer.Serialize(data, JsonOptions));
             _logger?.LogDebug("Recorded SpecificationCreated event for {SpecId} v{Version}", specId, version);
         }
 
@@ -59,8 +51,6 @@ namespace DraCode.KoboldLair.Services.EventSourcing
         public async Task RecordSpecificationUpdatedAsync(string specId, string content, string previousHash, int version, string? changeDescription = null)
         {
             var aggregateId = ToGuid(specId);
-            var eventVersion = await _eventStore.GetVersionAsync(aggregateId) + 1;
-
             var data = new SpecificationUpdatedData
             {
                 Content = content,
@@ -70,13 +60,7 @@ namespace DraCode.KoboldLair.Services.EventSourcing
                 ChangeDescription = changeDescription
             };
 
-            var @event = new DomainEvent(
-                aggregateId: aggregateId,
-                version: eventVersion,
-                eventType: SpecificationEventTypes.Updated,
-                eventData: JsonSerializer.Serialize(data, JsonOptions));
-
-            await _eventStore.AppendAsync(@event);
+            var eventVersion = await AppendNextAsync(aggregateId, SpecificationEventTypes.Updated, JsonSerializer.Serialize(data, JsonOptions));
             _logger?.LogDebug("Recorded SpecificationUpdated event for {SpecId} v{Version}", specId, eventVersion);
         }
 
@@ -86,17 +70,9 @@ namespace DraCode.KoboldLair.Services.EventSourcing
         public async Task RecordSpecificationApprovedAsync(string specId, string approvedBy = "Dragon")
         {
             var aggregateId = ToGuid(specId);
-            var version = await _eventStore.GetVersionAsync(aggregateId) + 1;
-
             var data = new SpecificationApprovedData { ApprovedBy = approvedBy };
 
-            var @event = new DomainEvent(
-                aggregateId: aggregateId,
-                version: version,
-                eventType: SpecificationEventTypes.Approved,
-                eventData: JsonSerializer.Serialize(data, JsonOptions));
-
-            await _eventStore.AppendAsync(@event);
+            var version = await AppendNextAsync(aggregateId, SpecificationEventTypes.Approved, JsonSerializer.Serialize(data, JsonOptions));
             _logger?.LogDebug("Recorded SpecificationApproved event for {SpecId}", specId);
         }
 
@@ -106,8 +82,6 @@ namespace DraCode.KoboldLair.Services.EventSourcing
         public async Task RecordFeatureAddedAsync(string specId, Feature feature)
         {
             var aggregateId = ToGuid(specId);
-            var version = await _eventStore.GetVersionAsync(aggregateId) + 1;
-
             var data = new FeatureAddedData
             {
                 FeatureId = feature.Id,
@@ -116,13 +90,7 @@ namespace DraCode.KoboldLair.Services.EventSourcing
                 Priority = feature.Priority
             };
 
-            var @event = new DomainEvent(
-                aggregateId: aggregateId,
-                version: version,
-                eventType: SpecificationEventTypes.FeatureAdded,
-                eventData: JsonSerializer.Serialize(data, JsonOptions));
-
-            await _eventStore.AppendAsync(@event);
+            var version = await AppendNextAsync(aggregateId, SpecificationEventTypes.FeatureAdded, JsonSerializer.Serialize(data, JsonOptions));
             _logger?.LogDebug("Recorded FeatureAdded event for {FeatureName} in {SpecId}", feature.Name, specId);
         }
 
@@ -133,8 +101,6 @@ namespace DraCode.KoboldLair.Services.EventSourcing
             string? description, string? priority, string? previousDescription, string? previousPriority)
         {
             var aggregateId = ToGuid(specId);
-            var version = await _eventStore.GetVersionAsync(aggregateId) + 1;
-
             var data = new FeatureModifiedData
             {
                 FeatureId = featureId,
@@ -145,13 +111,7 @@ namespace DraCode.KoboldLair.Services.EventSourcing
                 PreviousPriority = previousPriority
             };
 
-            var @event = new DomainEvent(
-                aggregateId: aggregateId,
-                version: version,
-                eventType: SpecificationEventTypes.FeatureModified,
-                eventData: JsonSerializer.Serialize(data, JsonOptions));
-
-            await _eventStore.AppendAsync(@event);
+            var version = await AppendNextAsync(aggregateId, SpecificationEventTypes.FeatureModified, JsonSerializer.Serialize(data, JsonOptions));
             _logger?.LogDebug("Recorded FeatureModified event for {FeatureId} in {SpecId}", featureId, specId);
         }
 
@@ -161,8 +121,6 @@ namespace DraCode.KoboldLair.Services.EventSourcing
         public async Task RecordFeatureRemovedAsync(string specId, string featureId, string name, string? reason = null)
         {
             var aggregateId = ToGuid(specId);
-            var version = await _eventStore.GetVersionAsync(aggregateId) + 1;
-
             var data = new FeatureRemovedData
             {
                 FeatureId = featureId,
@@ -170,13 +128,7 @@ namespace DraCode.KoboldLair.Services.EventSourcing
                 Reason = reason
             };
 
-            var @event = new DomainEvent(
-                aggregateId: aggregateId,
-                version: version,
-                eventType: SpecificationEventTypes.FeatureRemoved,
-                eventData: JsonSerializer.Serialize(data, JsonOptions));
-
-            await _eventStore.AppendAsync(@event);
+            var version = await AppendNextAsync(aggregateId, SpecificationEventTypes.FeatureRemoved, JsonSerializer.Serialize(data, JsonOptions));
             _logger?.LogDebug("Recorded FeatureRemoved event for {FeatureId} in {SpecId}", featureId, specId);
         }
 
@@ -214,6 +166,29 @@ namespace DraCode.KoboldLair.Services.EventSourcing
                 OccurredAt = e.OccurredAt,
                 EventData = e.EventData
             });
+        }
+
+        /// <summary>
+        /// Appends an event at the aggregate's next version. The store rejects a version another writer took between
+        /// the read and the append (TASK-127: <see cref="EventStoreConcurrencyException"/>, from its unique index); the
+        /// version is then read again and the append retried, so two changes to one specification both land.
+        /// </summary>
+        private async Task<long> AppendNextAsync(Guid aggregateId, string eventType, string eventData)
+        {
+            const int attempts = 5;
+            for (var attempt = 1; ; attempt++)
+            {
+                var version = await _eventStore.GetVersionAsync(aggregateId) + 1;
+                try
+                {
+                    await _eventStore.AppendAsync(new DomainEvent(aggregateId, version, eventType, eventData));
+                    return version;
+                }
+                catch (EventStoreConcurrencyException) when (attempt < attempts)
+                {
+                    _logger?.LogDebug("Version {Version} of {AggregateId} was taken by another writer; retrying", version, aggregateId);
+                }
+            }
         }
 
         /// <summary>

@@ -166,7 +166,7 @@ _None_
   - STORY-040 Adopt the Birko KoboldLair upstreams — planned (0/18)
     - [x] [TASK-125](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-125-rebuild-kobold-loop-on-birko-agent-hooks.md) Rebuild Kobold step detection on Birko Agent hooks; delete the loop fork and the tool-wrapping (P1)
     - [x] [TASK-126](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-126-use-birko-orchestration-plan-model.md) Use Birko.AI.Orchestration's plan model, analyzer and dispatcher; migrate stored plan statuses (P1)
-    - [ ] [TASK-127](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-127-use-birko-sql-event-store.md) Use the framework SQL event store; delete SqlEventStoreRepository and DomainEventEntity (P1)
+    - [x] [TASK-127](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-127-use-birko-sql-event-store.md) Use the framework SQL event store; delete SqlEventStoreRepository and DomainEventEntity (P1)
     - [ ] [TASK-128](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-128-persist-circuit-breaker-and-usage-via-birko.md) Persist circuit-breaker state and usage through Birko.AI.Resilience stores (P2)
     - [ ] [TASK-129](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-129-use-classified-llm-failures.md) Use classified LLM failures; retire ErrorClassifier's substring matching (P2)
     - [ ] [TASK-130](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-130-use-birko-secret-provider-and-cipher.md) Use the Birko config secret provider and field cipher; re-encrypt stored provider keys (P2)
@@ -184,7 +184,7 @@ _None_
     - [ ] [TASK-124](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-124-export-birko-telemetry.md) ServiceDefaults does not export Birko's traces and metrics (P3)
   - STORY-044 Follow Birko framework contract changes — planned (0/2)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies (P2)
-    - [ ] [TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule (P2)
+    - [x] [TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule (P2)
 - **EPIC-019 KoboldLair review 2026-10** (review-intake) — planned (0/5)
   - STORY-041 Security & tenancy — planned (0/2)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment (P1) · SEC-1
