@@ -241,7 +241,7 @@ src/
   ├── module-store.ts         # Module manifests (ribbon tabs)
   ├── routes.ts               # Birko Router: module-manifest routes → views, auth guard
   ├── components/             # KoboldComponent base, server selector
-  ├── services/               # Config, WebSocket API client, toasts
+  ├── services/               # Config, WebSocket API client (toasts: the framework `toast`)
   └── views/                  # One Shadow DOM view per route
 wwwroot/
   ├── index.html              # Mounts the shell

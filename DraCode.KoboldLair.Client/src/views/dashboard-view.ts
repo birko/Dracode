@@ -5,7 +5,6 @@
 
 import { define } from 'birko-web-core';
 import { KoboldComponent } from '../components/kobold-component.js';
-import toastService from '../services/toast-service.js';
 
 interface DashboardStats {
   totalProjects: number;

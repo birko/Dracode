@@ -5,7 +5,7 @@
 
 import { define } from 'birko-web-core';
 import { KoboldComponent } from '../components/kobold-component.js';
-import toastService from '../services/toast-service.js';
+import { toast } from 'birko-web-components';
 
 interface AgentConfig {
   enabled?: boolean;
@@ -355,7 +355,7 @@ export class ProjectConfigView extends KoboldComponent {
 
   private showMessage(message: string, type: 'success' | 'error' | 'info') {
     // Use toast notification service
-    toastService.show({ message, variant: type as any });
+    toast.show(message, type);
   }
 
   private escapeHtml(text: string): string {

@@ -158,7 +158,7 @@ _None_
     - [ ] [TASK-110](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-110-use-birko-oauth-endpoint-mapping.md) Use the framework OAuth endpoint mapping and client-credentials hook (P3) · FEATURE-019
     - [ ] [TASK-111](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-111-use-birko-web-sign-in-and-loopback-helpers.md) Use the framework GitHub web sign-in helpers and loopback bypass (P3) · FEATURE-019
   - STORY-039 Adopt Birko.Web upstreams in the web client — planned (0/6)
-    - [ ] [TASK-112](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-112-fix-toasts-and-settings-tabs.md) Toasts show nothing and the settings tabs never render — both use Birko.Web components wrongly (P2) · FEATURE-026
+    - [x] [TASK-112](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-112-fix-toasts-and-settings-tabs.md) Toasts show nothing and the settings tabs never render — both use Birko.Web components wrongly (P2) · FEATURE-026
     - [x] [TASK-113](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-113-use-birko-router-and-module-routes.md) Use the Birko.Web router with module routes and an auth guard (P2) · FEATURE-026
     - [ ] [TASK-114](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-114-one-token-store.md) One token store: the Shell auth store feeds WebSocket, REST and SSE (P2) · FEATURE-026
     - [ ] [TASK-115](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-115-replace-hand-rolled-widgets-with-birko-web.md) Replace hand-rolled widgets and helpers with Birko.Web ones (P3) · FEATURE-026

@@ -52,7 +52,8 @@ export type { ModuleManifest, ModuleOption, ModuleStatus } from 'birko-web-shell
 export type { AuthState } from 'birko-web-shell/auth';
 
 // Services
-export { ApiClient, configService, toastService } from './services/index.js';
+export { ApiClient, configService } from './services/index.js';
+export { toast } from 'birko-web-components';
 
 // Stores
 export { notificationStore } from './stores/index.js';

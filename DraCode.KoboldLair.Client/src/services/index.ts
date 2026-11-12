@@ -5,7 +5,6 @@
 
 export { ApiClient } from './api-client.js';
 export { configService as default, configService } from './config.js';
-export { toastService, default as defaultToastService } from './toast-service.js';
 
 // Re-export Birko.Web.Core services
 export { WsClient } from 'birko-web-core/http';

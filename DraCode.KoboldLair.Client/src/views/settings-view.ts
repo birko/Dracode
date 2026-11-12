@@ -5,14 +5,7 @@
 
 import { define } from 'birko-web-core';
 import { KoboldComponent } from '../components/kobold-component.js';
-import toastService from '../services/toast-service.ts';
-
-interface FormResult {
-  valid: boolean;
-  data: Record<string, unknown>;
-  errors: Record<string, unknown>;
-  groupErrors: Record<string, unknown>;
-}
+import { toast, type BTabs, type BForm } from 'birko-web-components';
 
 interface ProviderSetting {
   id: string;
@@ -32,12 +25,19 @@ interface UserSettings {
   debugMode: boolean;
 }
 
+type SettingsTab = 'providers' | 'general';
+
+const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'providers', label: 'Providers' },
+  { id: 'general', label: 'General' },
+];
+
 /**
  * Settings View Component
  * Application settings and provider configuration
  */
 export class SettingsView extends KoboldComponent {
-  private _activeTab: 'providers' | 'general' = 'providers';
+  private _activeTab: SettingsTab = 'providers';
   private _providers: ProviderSetting[] = [];
   private _settings: UserSettings = {
     theme: 'auto',
@@ -208,13 +208,13 @@ export class SettingsView extends KoboldComponent {
         <p>Configure providers and manage application preferences</p>
       </div>
 
-      <b-tabs id="settingsTabs" active-tab="${this._activeTab}">
-        <b-tab id="providers" label="Providers">
+      <b-tabs id="settingsTabs" active="${this._activeTab}">
+        <div slot="providers">
           ${this.renderProvidersSettings()}
-        </b-tab>
-        <b-tab id="general" label="General">
+        </div>
+        <div slot="general">
           ${this.renderGeneralSettings()}
-        </b-tab>
+        </div>
       </b-tabs>
     `;
   }
@@ -267,11 +267,7 @@ export class SettingsView extends KoboldComponent {
 
   private renderGeneralSettings(): string {
     return `
-      <b-form
-        id="generalSettingsForm"
-        schema='${JSON.stringify(this.getGeneralSettingsSchema())}'
-        data='${JSON.stringify(this._settings)}'>
-      </b-form>
+      <b-form id="generalSettingsForm"></b-form>
 
       <div class="actions-bar">
         <b-button variant="secondary" id="resetSettings">Reset to Defaults</b-button>
@@ -282,7 +278,9 @@ export class SettingsView extends KoboldComponent {
 
   private getGeneralSettingsSchema() {
     return {
-      name: 'generalSettings',
+      // b-form treats only a top-level group named 'root' as the root; any other name puts every field path one
+      // level too deep, and the selects never receive their options.
+      name: 'root',
       validateOn: 'submit' as const,
       children: [
         {
@@ -364,20 +362,44 @@ export class SettingsView extends KoboldComponent {
     // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     // Set up event listeners
     this.setupTabs();
+    this.setupGeneralForm();
     this.setupProvidersEvents();
     this.setupSettingsEvents();
   }
 
+  /** b-form forms that already have their schema; setSchema() re-renders a form, so it runs once per element. */
+  private _formsWithSchema = new WeakSet<Element>();
+
+  private setupGeneralForm() {
+    // b-form takes its schema and values through setSchema()/setValues(), not attributes (TASK-112).
+    const form = this.$<BForm>('#generalSettingsForm');
+    if (!form || this._formsWithSchema.has(form)) return;
+    form.setSchema(this.getGeneralSettingsSchema());
+    form.setValues(this.toFormValues(this._settings));
+    this._formsWithSchema.add(form);
+  }
+
+  /** Settings in the form's shape: values nest under their group names. */
+  private toFormValues(settings: UserSettings): Record<string, unknown> {
+    return {
+      appearance: { theme: settings.theme, language: settings.language },
+      notifications: {
+        notifications_enabled: settings.notifications,
+        autoSave: settings.autoSave,
+        debugMode: settings.debugMode,
+      },
+    };
+  }
+
   private setupTabs() {
-    // Listen for b-tabs change event
-    const tabs = this.$('#settingsTabs') as any;
-    if (tabs) {
-      this.listen(tabs, 'change', (e: any) => {
-        this._activeTab = e.detail.activeTab;
-        // Re-render only the tab content, not the whole view
-        this.update();
-      });
-    }
+    // b-tabs takes its tab labels from setTabs() and its panels from children slotted by tab id (TASK-112).
+    const tabs = this.$<BTabs>('#settingsTabs');
+    if (!tabs) return;
+    tabs.setTabs(SETTINGS_TABS, this._activeTab);
+    this.listen<CustomEvent<{ tab: SettingsTab }>>(tabs, 'tab-change', (e) => {
+      // b-tabs switches the panel itself; remember the tab so the next render keeps it.
+      this._activeTab = e.detail.tab;
+    });
   }
 
   private setupProvidersEvents() {
@@ -462,15 +484,14 @@ export class SettingsView extends KoboldComponent {
   }
 
   private saveSettingsFromForm() {
-    const form = this.$('#generalSettingsForm') as any;
+    const form = this.$<BForm>('#generalSettingsForm');
 
     if (!form) {
       this.showMessage('Form not found', 'error');
       return;
     }
 
-    // Get form result with validation
-    const result: FormResult = form.getFormData();
+    const result = form.validate();
 
     if (!result.valid) {
       // Show validation errors
@@ -483,13 +504,15 @@ export class SettingsView extends KoboldComponent {
       return;
     }
 
-    // Map form data back to settings structure
+    // Map form data (nested by group) back to settings structure
+    const appearance = (result.data.appearance ?? {}) as Record<string, unknown>;
+    const notifications = (result.data.notifications ?? {}) as Record<string, unknown>;
     this._settings = {
-      theme: (result.data.theme as any) || 'auto',
-      language: result.data.language as string || 'en',
-      notifications: result.data.notifications_enabled as boolean || false,
-      autoSave: result.data.autoSave as boolean || false,
-      debugMode: result.data.debugMode as boolean || false
+      theme: (appearance.theme as UserSettings['theme']) || 'auto',
+      language: appearance.language as string || 'en',
+      notifications: notifications.notifications_enabled as boolean || false,
+      autoSave: notifications.autoSave as boolean || false,
+      debugMode: notifications.debugMode as boolean || false
     };
 
     // TODO: Save to localStorage or API
@@ -513,13 +536,13 @@ export class SettingsView extends KoboldComponent {
       autoSave: true,
       debugMode: false
     };
-    this.update();
+    this.$<BForm>('#generalSettingsForm')?.setValues(this.toFormValues(this._settings));
     this.showMessage('Settings reset to defaults', 'info');
   }
 
   private showMessage(message: string, type: 'success' | 'info' | 'warning' | 'error') {
     // Use toast notification service
-    toastService.show({ message, variant: type as any });
+    toast.show(message, type);
   }
 
   private escapeHtml(text: string): string {

@@ -33,6 +33,9 @@ errors (it catches render loops the smoke settles too early to see).
 auth guard sends a signed-out user to `#/login` only when `/api/config` says `authRequired` (stubbed with
 `page.route`; the host default is `false`).
 
+`settings.spec.ts` (TASK-112): both settings tabs render and switch; saving shows a success toast with its text, and
+a required field left empty shows an error toast with its text.
+
 `smoke.spec.ts` sweeps the public hash routes (`#/login`, `#/`, `#/settings` — from `src/app-shell.ts`)
 and asserts each loads with **zero console errors / pageerrors / 4xx-5xx**. No `expectSelector` yet —
 add stable selectors once confirmed in the login/dashboard views.
