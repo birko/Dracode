@@ -9,6 +9,8 @@ interface Config {
   serverUrl: string;
   authToken: string;
   refreshInterval: number;
+  /** Whether the server requires sign-in (KoboldLair:AuthRequired on the client host); gates the route guard. */
+  authRequired: boolean;
 }
 
 class ConfigService {
@@ -17,7 +19,8 @@ class ConfigService {
     wsUrl: '',
     serverUrl: 'ws://localhost:57087',
     authToken: '',
-    refreshInterval: 5000
+    refreshInterval: 5000,
+    authRequired: false
   };
 
   private configChangeHandlers: Array<(config: Config) => void> = [];
@@ -62,13 +65,15 @@ class ConfigService {
     try {
       const res = await fetch('/api/config', { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const server = await res.json() as Partial<Pick<Config, 'serverUrl' | 'authToken'>>;
+      const server = await res.json() as Partial<Pick<Config, 'serverUrl' | 'authToken' | 'authRequired'>>;
       const serverDefaults: Partial<Config> = {};
       if (server.serverUrl) serverDefaults.serverUrl = server.serverUrl;
       if (server.authToken) serverDefaults.authToken = server.authToken;
 
       // server config = default; re-apply the user's stored overrides on top so they keep precedence.
       this.config = { ...this.config, ...serverDefaults, ...this.storedOverrides };
+      // Not a user preference: the host decides whether sign-in is required, whatever is stored.
+      this.config.authRequired = server.authRequired === true;
       this.config.wsUrl = this.config.serverUrl;
       this.initialized = true; // mark done only on success, so a transient fetch failure can retry
       this.notifyConfigChange();

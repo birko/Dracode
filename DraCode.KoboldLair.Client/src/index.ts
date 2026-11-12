@@ -5,7 +5,7 @@
  * Applications can import from this file:
  *
  * ```typescript
- * import { KoboldLairAppShell, authStore, moduleStore, initRouter } from 'koboldlair-client';
+ * import { KoboldLairAppShell, authStore, moduleStore, startRouter } from 'koboldlair-client';
  * ```
  */
 
@@ -34,8 +34,7 @@ export {
 } from './module-store.js';
 
 // Router
-export { initRouter, getRouter } from './router.js';
-export type { KoboldRouter } from './router.js';
+export { startRouter, getRouter, buildRoutes } from './routes.js';
 
 // Views
 export { DashboardView } from './views/dashboard-view.js';

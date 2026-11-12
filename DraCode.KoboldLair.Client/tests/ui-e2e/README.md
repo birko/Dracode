@@ -28,6 +28,11 @@ Override the origin with `KOBOLDLAIR_BASE_URL`.
 and status bar show English labels, hash navigation swaps views, and every view renders and settles with no console
 errors (it catches render loops the smoke settles too early to see).
 
+`routes.spec.ts` (TASK-113): module sub-routes open their screens (`#/settings/providers` on its tab,
+`#/metrics/costs`, `#/dragon/specifications`), an unknown route shows the not-found view, `#/login` exists, and the
+auth guard sends a signed-out user to `#/login` only when `/api/config` says `authRequired` (stubbed with
+`page.route`; the host default is `false`).
+
 `smoke.spec.ts` sweeps the public hash routes (`#/login`, `#/`, `#/settings` — from `src/app-shell.ts`)
 and asserts each loads with **zero console errors / pageerrors / 4xx-5xx**. No `expectSelector` yet —
 add stable selectors once confirmed in the login/dashboard views.

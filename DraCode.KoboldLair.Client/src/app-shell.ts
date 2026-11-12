@@ -12,7 +12,7 @@ import { authStore, clearAuth } from './auth-store.js';
 // this shell or load the Birko tokens, so this stays a no-op until the shell is
 // wired into the served page (+ tokens.css / css/themes/*.css are linked).
 registerThemes([BUILTIN_THEMES.light, BUILTIN_THEMES.dark, BUILTIN_THEMES.neon, BUILTIN_THEMES.finstat]);
-import { moduleStore, buildKoboldLairRibbon, resolveModuleFromHash, loadModules } from './module-store.js';
+import { moduleStore, buildKoboldLairRibbon, resolveModuleFromHash } from './module-store.js';
 
 /** The strings Birko.Web.Shell's BAppShell asks t() for. */
 const SHELL_TEXT: Record<string, string> = {
@@ -137,16 +137,14 @@ class KoboldLairAppShell extends BAppShell {
   protected async onMount() {
     super.onMount();
 
-    // Load modules
-    try {
-      this._modules = await loadModules();
-      moduleStore.set('modules', this._modules);
-      console.log('✅ Modules loaded:', this._modules.length);
+    // app-shell-init loads the modules into the store (the router needs them too); render the ribbon from it.
+    const applyModules = () => {
+      this._modules = moduleStore.get('modules') ?? [];
       this.refreshRibbon();
-    } catch (error) {
-      console.error('❌ Failed to load modules:', error);
-      this._modules = [];
-    }
+      this.handleHashChange();
+    };
+    applyModules();
+    this._unsubs.push(moduleStore.onChange('modules', applyModules));
 
     // Subscribe to auth changes
     this._unsubs.push(

@@ -239,7 +239,7 @@ src/
   ├── app-shell-init.ts       # Entry point: registers Birko components, boots the shell and router
   ├── app-shell.ts            # <kobold-lair-shell>, extends Birko.Web.Shell's BAppShell
   ├── module-store.ts         # Module manifests (ribbon tabs)
-  ├── router.ts               # Hash routes → views
+  ├── routes.ts               # Birko Router: module-manifest routes → views, auth guard
   ├── components/             # KoboldComponent base, server selector
   ├── services/               # Config, WebSocket API client, toasts
   └── views/                  # One Shadow DOM view per route

@@ -11,6 +11,9 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 // Bind configuration
 var koboldLairConfig = builder.Configuration.GetSection("KoboldLair");
 var serverUrl = koboldLairConfig.GetValue<string>("ServerUrl") ?? "ws://localhost:57087";
+// Whether the server requires sign-in (its Authentication:Jwt:Enabled). The browser's route guard sends a signed-out
+// user to #/login only when this is true; with auth off, the server's default, every screen is open (TASK-113).
+var authRequired = koboldLairConfig.GetValue<bool>("AuthRequired");
 
 logger.LogInformation("KoboldLair Client starting with server URL: {ServerUrl}", serverUrl);
 
@@ -25,6 +28,7 @@ app.UseWebSockets();
 app.MapGet("/api/config", () => Results.Json(new
 {
     serverUrl,
+    authRequired,
     endpoints = new
     {
         wyvern = "/wyvern",

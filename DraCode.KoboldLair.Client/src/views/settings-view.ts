@@ -352,6 +352,9 @@ export class SettingsView extends KoboldComponent {
   }
 
   protected onMount() {
+    // #/settings/providers and #/settings/general open their tab (TASK-113).
+    const tab = this.getAttribute('tab');
+    if (tab === 'providers' || tab === 'general') this._activeTab = tab;
     // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadProviders();
     this.loadSettings();
