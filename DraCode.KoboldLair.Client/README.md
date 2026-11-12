@@ -238,10 +238,11 @@ into its `#route-outlet`. The old vanilla-JS pages are kept under `wwwroot/archi
 src/
   ├── app-shell-init.ts       # Entry point: registers Birko components, boots the shell and router
   ├── app-shell.ts            # <kobold-lair-shell>, extends Birko.Web.Shell's BAppShell
+  ├── auth-store.ts           # The token store (Birko Shell auth store); every server client reads it
   ├── module-store.ts         # Module manifests (ribbon tabs)
   ├── routes.ts               # Birko Router: module-manifest routes → views, auth guard
   ├── components/             # KoboldComponent base, server selector
-  ├── services/               # Config, WebSocket API client (toasts: the framework `toast`)
+  ├── services/               # Config, /wyvern WebSocket client, REST + SSE clients (toasts: the framework `toast`)
   └── views/                  # One Shadow DOM view per route
 wwwroot/
   ├── index.html              # Mounts the shell

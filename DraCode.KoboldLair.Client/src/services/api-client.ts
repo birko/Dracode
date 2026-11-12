@@ -6,6 +6,7 @@
 
 import { WsClient } from 'birko-web-core/http';
 import configService from './config.js';
+import { getToken } from '../auth-store.js';
 
 interface PendingRequest {
   resolve: (value: any) => void;
@@ -25,7 +26,8 @@ export class ApiClient {
 
     this.ws = new WsClient({
       url: wsUrl,
-      getToken: () => config.authToken || null,
+      // Read on every (re)connect, so a sign-in or sign-out reaches the next connection (TASK-114).
+      getToken,
       reconnectMs: 5000,
       heartbeatMs: 30000,
       maxReconnectAttempts: 5,

@@ -5,12 +5,20 @@
 
 // Register the Birko components (b-ribbon, b-dropdown-menu, b-tabs, …) before the shell that renders them.
 import 'birko-web-components';
-import './auth-store.js';
+import { authStore, setAuth, clearAuth, getToken } from './auth-store.js';
 import './module-store.js';
 import './app-shell.js';
 import { startRouter } from './routes.js';
 import { moduleStore, loadModules } from './module-store.js';
 import configService from './services/config.js';
+import { ApiClient } from './services/api-client.js';
+import { createRestClient, createSseClient } from './services/http.js';
+
+// Debugging and e2e handle: the token store and the three server clients that read it (TASK-114).
+(window as any).koboldLair = {
+  auth: { store: authStore, setAuth, clearAuth, getToken },
+  clients: { createWyvernClient: () => new ApiClient(), createRestClient, createSseClient },
+};
 
 /**
  * Initialize KoboldLair application when DOM is ready
@@ -18,7 +26,7 @@ import configService from './services/config.js';
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🏰 Initializing KoboldLair Dashboard...');
 
-  // Pull host-provided config (serverUrl/authToken) from GET /api/config BEFORE anything connects, so
+  // Pull host-provided config (serverUrl/authRequired) from GET /api/config BEFORE anything connects, so
   // the .NET host config is the single source of truth for the default backend address. Non-fatal.
   await configService.init();
 
@@ -40,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('💡 Available commands:');
   console.log('   koboldLairShell - Access application shell');
   console.log('   koboldLairRouter - Access router');
+  console.log('   koboldLair - Token store and server clients');
 });
 
 /**

@@ -160,7 +160,7 @@ _None_
   - STORY-039 Adopt Birko.Web upstreams in the web client — planned (0/6)
     - [x] [TASK-112](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-112-fix-toasts-and-settings-tabs.md) Toasts show nothing and the settings tabs never render — both use Birko.Web components wrongly (P2) · FEATURE-026
     - [x] [TASK-113](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-113-use-birko-router-and-module-routes.md) Use the Birko.Web router with module routes and an auth guard (P2) · FEATURE-026
-    - [ ] [TASK-114](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-114-one-token-store.md) One token store: the Shell auth store feeds WebSocket, REST and SSE (P2) · FEATURE-026
+    - [x] [TASK-114](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-114-one-token-store.md) One token store: the Shell auth store feeds WebSocket, REST and SSE (P2) · FEATURE-026
     - [ ] [TASK-115](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-115-replace-hand-rolled-widgets-with-birko-web.md) Replace hand-rolled widgets and helpers with Birko.Web ones (P3) · FEATURE-026
     - [ ] [TASK-116](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-116-adopt-birko-web-core-upstreams.md) Adopt WsClient.request and the runtime-config loader from Birko.Web.Core (P3) ⚠ blocked · FEATURE-026
     - [ ] [TASK-117](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-117-archive-stale-birko-web-docs.md) Archive the two stale Birko.Web docs (P3)

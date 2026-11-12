@@ -12,7 +12,6 @@ interface Server {
   id: string;
   name: string;
   url: string;
-  token?: string;
 }
 
 interface ServerSelectorState {
@@ -21,7 +20,7 @@ interface ServerSelectorState {
   showDropdown: boolean;
   showAddModal: boolean;
   showManageModal: boolean;
-  newServer: { name: string; url: string; token: string };
+  newServer: { name: string; url: string };
 }
 
 /**
@@ -35,7 +34,7 @@ export class ServerSelector extends KoboldComponent {
     showDropdown: false,
     showAddModal: false,
     showManageModal: false,
-    newServer: { name: '', url: '', token: '' }
+    newServer: { name: '', url: '' }
   };
 
   private onServerChangeCallback: ((server: Server) => void) | null = null;
@@ -301,11 +300,6 @@ export class ServerSelector extends KoboldComponent {
                    placeholder="ws://localhost:57087" value="${this.escapeHtml(this.state.newServer.url)}">
             <div class="form-help">Use ws:// for unencrypted or wss:// for encrypted connections</div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Auth Token (Optional)</label>
-            <input type="password" class="form-input" id="serverToken"
-                   placeholder="Leave empty if not required" value="${this.escapeHtml(this.state.newServer.token)}">
-          </div>
         </div>
         <div slot="footer">
           <b-button variant="secondary" id="cancelAddServer">Cancel</b-button>
@@ -328,11 +322,6 @@ export class ServerSelector extends KoboldComponent {
                 <label class="form-label">WebSocket URL</label>
                 <input type="text" class="form-input" data-field="url" data-server-id="${server.id}"
                        value="${this.escapeHtml(server.url)}">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Auth Token</label>
-                <input type="password" class="form-input" data-field="token" data-server-id="${server.id}"
-                       value="${this.escapeHtml(server.token || '')}">
               </div>
               <div class="server-card-actions">
                 <b-button variant="primary" size="sm" data-action="save" data-server-id="${server.id}">Save Changes</b-button>
@@ -421,7 +410,7 @@ export class ServerSelector extends KoboldComponent {
     });
 
     // Input changes
-    this.$$('#serverName, #serverUrl, #serverToken').forEach(input => {
+    this.$$('#serverName, #serverUrl').forEach(input => {
       this.listen(input, 'input', (e) => {
         const target = e.target as HTMLInputElement;
         const field = target.id.replace('server', '').toLowerCase();
@@ -450,8 +439,7 @@ export class ServerSelector extends KoboldComponent {
       this.state.servers = [{
         id: 'default',
         name: 'Default Server',
-        url: 'ws://localhost:57087',
-        token: ''
+        url: 'ws://localhost:57087'
       }];
     }
   }
@@ -482,9 +470,8 @@ export class ServerSelector extends KoboldComponent {
     this.state.activeServerId = serverId;
     this.saveServers();
 
-    // Update config service
+    // Update config service. The token is not per server: it lives in the auth store (TASK-114).
     configService.setServerUrl(server.url);
-    configService.setAuthToken(server.token || '');
 
     this.closeDropdown();
 
@@ -497,7 +484,7 @@ export class ServerSelector extends KoboldComponent {
   }
 
   private showAddServerModal() {
-    this.state.newServer = { name: '', url: '', token: '' };
+    this.state.newServer = { name: '', url: '' };
     this.update();
     (this.$('#addServerModal') as any)?.show();
   }
@@ -518,7 +505,6 @@ export class ServerSelector extends KoboldComponent {
   private saveNewServer() {
     const name = this.state.newServer.name.trim();
     const url = this.state.newServer.url.trim();
-    const token = this.state.newServer.token.trim();
 
     if (!name || !url) {
       this.showNotification('Please enter server name and URL', 'error');
@@ -533,8 +519,7 @@ export class ServerSelector extends KoboldComponent {
     const newServer: Server = {
       id: `server_${Date.now()}`,
       name,
-      url,
-      token: token || undefined
+      url
     };
 
     this.state.servers.push(newServer);
@@ -564,13 +549,11 @@ export class ServerSelector extends KoboldComponent {
 
   private saveServerChanges(serverId: string) {
     const urlInput = this.$(`input[data-field="url"][data-server-id="${serverId}"]`) as HTMLInputElement;
-    const tokenInput = this.$(`input[data-field="token"][data-server-id="${serverId}"]`) as HTMLInputElement;
 
     const server = this.state.servers.find(s => s.id === serverId);
     if (!server) return;
 
     server.url = urlInput.value.trim();
-    server.token = tokenInput.value.trim() || undefined;
 
     this.saveServers();
     this.showNotification(`Server "${server.name}" updated successfully`);
@@ -609,7 +592,6 @@ export class ServerSelector extends KoboldComponent {
       this.state.activeServerId = this.state.servers[0].id;
       const newActive = this.state.servers[0];
       configService.setServerUrl(newActive.url);
-      configService.setAuthToken(newActive.token || '');
     }
 
     this.saveServers();

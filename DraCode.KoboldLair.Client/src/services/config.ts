@@ -1,13 +1,13 @@
 /**
  * Configuration Service
- * Manages application configuration including server URL and auth token
+ * Manages application configuration: server URL and settings. The token lives in the auth store (auth-store.ts,
+ * TASK-114), never here.
  */
 
 interface Config {
   apiUrl: string;
   wsUrl: string;
   serverUrl: string;
-  authToken: string;
   refreshInterval: number;
   /** Whether the server requires sign-in (KoboldLair:AuthRequired on the client host); gates the route guard. */
   authRequired: boolean;
@@ -18,7 +18,6 @@ class ConfigService {
     apiUrl: window.location.origin,
     wsUrl: '',
     serverUrl: 'ws://localhost:57087',
-    authToken: '',
     refreshInterval: 5000,
     authRequired: false
   };
@@ -42,7 +41,10 @@ class ConfigService {
     try {
       const stored = localStorage.getItem('koboldlair-config');
       if (stored) {
-        this.storedOverrides = JSON.parse(stored) as Partial<Config>;
+        // A token stored here by an earlier client is not config: auth-store.ts migrates it (TASK-114), and dropping
+        // it here keeps a later save from writing it back.
+        const { authToken: _legacyToken, ...overrides } = JSON.parse(stored) as Partial<Config> & { authToken?: unknown };
+        this.storedOverrides = overrides;
         this.config = { ...this.config, ...this.storedOverrides };
       }
     } catch (error) {
@@ -55,7 +57,7 @@ class ConfigService {
 
   /**
    * Fetch host-provided configuration from GET /api/config (served by the Client host from its .NET
-   * config — the single source of truth for the default serverUrl/authToken). Await this once at
+   * config — the single source of truth for the default serverUrl and authRequired). Await this once at
    * bootstrap BEFORE anything connects. Precedence: hardcoded fallback < server config < explicit user
    * override (localStorage), so the host config sets the default while a user's chosen server still wins.
    * Network/parse failures are non-fatal — the app falls back to the local defaults.
@@ -65,10 +67,9 @@ class ConfigService {
     try {
       const res = await fetch('/api/config', { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const server = await res.json() as Partial<Pick<Config, 'serverUrl' | 'authToken' | 'authRequired'>>;
+      const server = await res.json() as Partial<Pick<Config, 'serverUrl' | 'authRequired'>>;
       const serverDefaults: Partial<Config> = {};
       if (server.serverUrl) serverDefaults.serverUrl = server.serverUrl;
-      if (server.authToken) serverDefaults.authToken = server.authToken;
 
       // server config = default; re-apply the user's stored overrides on top so they keep precedence.
       this.config = { ...this.config, ...serverDefaults, ...this.storedOverrides };
@@ -110,16 +111,6 @@ class ConfigService {
     this.storedOverrides.serverUrl = url;
     this.config.serverUrl = url;
     this.config.wsUrl = url;
-    this.saveConfig();
-    this.notifyConfigChange();
-  }
-
-  /**
-   * Update auth token
-   */
-  setAuthToken(token: string): void {
-    this.storedOverrides.authToken = token;
-    this.config.authToken = token;
     this.saveConfig();
     this.notifyConfigChange();
   }

@@ -36,6 +36,12 @@ auth guard sends a signed-out user to `#/login` only when `/api/config` says `au
 `settings.spec.ts` (TASK-112): both settings tabs render and switch; saving shows a success toast with its text, and
 a required field left empty shows an error toast with its text.
 
+`tokens.spec.ts` (TASK-114): a token set in the auth store reaches the `/wyvern` WebSocket (`?token=`), the REST
+client (`Authorization: Bearer`) and the SSE client (`?token=`); signing out clears it for all three; a token an
+earlier client left in `koboldlair-config` is moved into the auth store once. It drives the clients through the
+`window.koboldLair` debug handle, stubs the server's HTTP with `page.route`, and records WebSocket URLs from the
+constructor (no server listens, and Playwright reports no event for a refused WebSocket).
+
 `smoke.spec.ts` sweeps the public hash routes (`#/login`, `#/`, `#/settings` — from `src/app-shell.ts`)
 and asserts each loads with **zero console errors / pageerrors / 4xx-5xx**. No `expectSelector` yet —
 add stable selectors once confirmed in the login/dashboard views.
