@@ -112,10 +112,10 @@ export async function loadModules(): Promise<ModuleManifest[]> {
 }
 
 /**
- * Simple passthrough resolver (no i18n for now)
+ * No i18n yet: show the manifest's English label (`label`), falling back to the key only when a label is missing.
  */
 export const simpleResolver: LabelResolver = (key, fallback) => {
-  return key || fallback;
+  return fallback || key;
 };
 
 /**

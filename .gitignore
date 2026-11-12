@@ -137,6 +137,7 @@ $RECYCLE.BIN/
 # TypeScript/Node.js build artifacts
 node_modules/
 **/wwwroot/dist/
+**/wwwroot/css/birko/
 
 # E2E / Testing environment (appsettings.Testing.json) — isolated test DB + agent working dirs
 projects-test/

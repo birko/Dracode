@@ -1,6 +1,6 @@
 import { build } from 'esbuild';
 import { createHash } from 'crypto';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, copyFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -53,6 +53,16 @@ const aliases = {
   'birko-web-shell/commands':       `${BIRKO_SRC}/Birko.Web.Shell/src/commands/index.ts`,
   'birko-web-shell/feedback':       `${BIRKO_SRC}/Birko.Web.Shell/src/feedback/index.ts`,
 };
+
+// Framework stylesheets linked by wwwroot/index.html (tokens, reset, themes), copied rather than bundled so the
+// shell's theme switcher can rely on them as plain <link>s. Generated output: wwwroot/css/birko/ is gitignored.
+mkdirSync('wwwroot/css/birko/themes', { recursive: true });
+for (const file of ['tokens.css', 'reset.css']) {
+  copyFileSync(`${BIRKO_SRC}/Birko.Web.Components/css/${file}`, `wwwroot/css/birko/${file}`);
+}
+for (const theme of ['dark', 'neon', 'finstat']) {
+  copyFileSync(`${BIRKO_SRC}/Birko.Web.Components/css/themes/${theme}.css`, `wwwroot/css/birko/themes/${theme}.css`);
+}
 
 // Main app bundle
 await build({

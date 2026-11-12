@@ -4,7 +4,7 @@
 
 ## Features
 
-- **Modern SPA Architecture** - Built with vanilla JavaScript ES6+ modules
+- **Modern SPA Architecture** - TypeScript Shadow DOM views on Birko.Web.Shell, bundled with esbuild
 - **Minimalistic Design** - Clean, dark-themed dashboard with intuitive navigation
 - **Real-time Updates** - WebSocket integration for live data
 - **Responsive Layout** - Flexbox-based design that works on all screen sizes
@@ -229,33 +229,33 @@ All API operations are now WebSocket commands:
 
 ## Development
 
-The client is a pure HTML/CSS/JavaScript application with no build step required.
+The UI is TypeScript in `src/`, bundled by `build.js` (esbuild) into `wwwroot/dist/app.js`. `wwwroot/index.html` loads
+the bundle and the Birko.Web stylesheets and mounts the shell (`<kobold-lair-shell>`, `src/app-shell.ts`); views render
+into its `#route-outlet`. The old vanilla-JS pages are kept under `wwwroot/archive/`.
 
 ### File Structure
 ```
+src/
+  ├── app-shell-init.ts       # Entry point: registers Birko components, boots the shell and router
+  ├── app-shell.ts            # <kobold-lair-shell>, extends Birko.Web.Shell's BAppShell
+  ├── module-store.ts         # Module manifests (ribbon tabs)
+  ├── router.ts               # Hash routes → views
+  ├── components/             # KoboldComponent base, server selector
+  ├── services/               # Config, WebSocket API client, toasts
+  └── views/                  # One Shadow DOM view per route
 wwwroot/
-  ├── index.html              # Main status page
-  ├── dragon.html             # Requirements gathering
-  ├── hierarchy.html          # Agent hierarchy
-  ├── providers.html          # Provider config
-  ├── project-config.html     # Project settings
-  ├── css/
-  │   ├── styles.css
-  │   └── dragon.css
-  └── js/
-      ├── config.js           # Configuration (EDIT THIS)
-      ├── main.js             # Main application
-      ├── dragon.js           # Dragon client
-      ├── hierarchy.js        # Hierarchy visualization
-      ├── websocket.js        # WebSocket manager
-      ├── taskManager.js      # Task management
-      └── ui.js               # UI controller
+  ├── index.html              # Mounts the shell
+  ├── dist/app.js             # Built bundle (generated, gitignored)
+  ├── css/birko/              # Birko.Web tokens, reset, themes (copied by build.js, gitignored)
+  └── archive/                # Legacy vanilla-JS pages, not served by default
+tests/ui-e2e/                 # Playwright smoke + shell specs (see its README)
 ```
 
 ### Making Changes
 
-1. Edit files in `wwwroot/`
-2. Refresh browser (no rebuild needed)
+1. Edit files in `src/`
+2. `npm run build` (or `npm run watch`), then refresh the browser; `dotnet build` also runs the TypeScript build
+   unless `-p:SkipTypeScriptCompile=true`
 3. For production, run `dotnet publish`
 
 **Note**: Configuration changes in `appsettings.json` require restarting the client application.

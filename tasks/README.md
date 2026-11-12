@@ -114,7 +114,7 @@ _None_
     - [ ] [TASK-065](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-065-sse-streaming.md) Python SDK run streaming (SSE + polling fallback) (P2) ⚠ blocked · FEATURE-025
     - [ ] [TASK-066](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-066-pypi-publish-drift-guard.md) Python SDK PyPI publish + schema-drift guard (P2) ⚠ blocked · FEATURE-025
   - STORY-023 DraCode.KoboldLair.Client — UI polish reclaimed from EPIC-003 — planned (0/6)
-    - [ ] [TASK-072](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-072-mount-ts-shell-in-served-page.md) Mount the TypeScript shell in the served page (P1) · FEATURE-026
+    - [x] [TASK-072](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-072-mount-ts-shell-in-served-page.md) Mount the TypeScript shell in the served page (P1) · FEATURE-026
     - [ ] [TASK-055](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-055-daemon-status-project-switcher.md) Web header: daemon status indicator + project switcher (P2) · FEATURE-026
     - [ ] [TASK-056](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-056-oauth-login-key-management.md) Web OAuth login button + service-account key management UI (P2) ⚠ blocked · FEATURE-026
     - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-057-run-viewer.md) Web run viewer for external /kobold runs (P2) · FEATURE-026

@@ -24,6 +24,10 @@ npm run report
 Override the origin with `KOBOLDLAIR_BASE_URL`.
 
 ## Scope
+`shell.spec.ts` (TASK-072): the served page mounts the TypeScript shell (not the archived legacy page), the ribbon
+and status bar show English labels, hash navigation swaps views, and every view renders and settles with no console
+errors (it catches render loops the smoke settles too early to see).
+
 `smoke.spec.ts` sweeps the public hash routes (`#/login`, `#/`, `#/settings` — from `src/app-shell.ts`)
 and asserts each loads with **zero console errors / pageerrors / 4xx-5xx**. No `expectSelector` yet —
 add stable selectors once confirmed in the login/dashboard views.

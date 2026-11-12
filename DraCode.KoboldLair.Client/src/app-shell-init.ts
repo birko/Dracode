@@ -3,6 +3,8 @@
  * Bootstraps the Birko.Web.Shell application shell
  */
 
+// Register the Birko components (b-ribbon, b-dropdown-menu, b-tabs, …) before the shell that renders them.
+import 'birko-web-components';
 import './auth-store.js';
 import './module-store.js';
 import './app-shell.js';

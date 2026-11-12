@@ -14,6 +14,20 @@ import { authStore, clearAuth } from './auth-store.js';
 registerThemes([BUILTIN_THEMES.light, BUILTIN_THEMES.dark, BUILTIN_THEMES.neon, BUILTIN_THEMES.finstat]);
 import { moduleStore, buildKoboldLairRibbon, resolveModuleFromHash, loadModules } from './module-store.js';
 
+/** The strings Birko.Web.Shell's BAppShell asks t() for. */
+const SHELL_TEXT: Record<string, string> = {
+  'auth.signOut': 'Sign out',
+  'bws.ribbon.selectModule': 'Select a module',
+  'nav.notifications': 'Notifications',
+  'nav.profile': 'Profile',
+  'nav.settings': 'Settings',
+  'status.conflicts': 'Conflicts',
+  'status.offline': 'Offline',
+  'status.online': 'Online',
+  'status.pending': 'Pending',
+  'status.reconnecting': 'Reconnecting',
+};
+
 class KoboldLairAppShell extends BAppShell {
   private _modules: any[] = [];
 
@@ -36,9 +50,8 @@ class KoboldLairAppShell extends BAppShell {
   }
 
   protected t(key: string, _params?: Record<string, string>) {
-    // TODO: Implement i18n
-    // For now, return key as-is or fallback
-    return key || '';
+    // No i18n yet: English for the keys the Birko shell renders; anything else shows as its key.
+    return SHELL_TEXT[key] ?? key;
   }
 
   protected onTabChange(tabId: string) {
