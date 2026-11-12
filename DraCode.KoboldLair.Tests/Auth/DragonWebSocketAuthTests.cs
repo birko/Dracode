@@ -2,7 +2,10 @@ using System.Net.WebSockets;
 using Birko.Security;
 using DraCode.KoboldLair.Server.Auth;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -134,6 +137,80 @@ public class DragonWebSocketAuthTests
 
         (await WasGateRejectedAsync(factory, "/wyvern"))
             .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Kobold_without_token_is_rejected()
+    {
+        using var factory = CreateFactory();
+
+        (await WasGateRejectedAsync(factory, "/kobold"))
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Kobold_with_valid_jwt_passes_the_gate()
+    {
+        var factory = CreateFactory();
+        try
+        {
+            var token = MintToken(factory, KoboldLairPermissionChecker.ViewOwn, UserId);
+
+            (await WasGateRejectedAsync(factory, $"/kobold?token={Uri.EscapeDataString(token)}"))
+                .Should().BeFalse();
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    private static Microsoft.AspNetCore.Http.Endpoint WebSocketEndpoint(WebApplicationFactory<Program> factory, string path) =>
+        factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Single(e => e.RoutePattern.RawText == path);
+
+    /// <summary>TASK-134: the endpoints are guarded by the authorization pipeline, not by a check inside the handler.</summary>
+    [Theory]
+    [InlineData("/dragon")]
+    [InlineData("/wyvern")]
+    [InlineData("/kobold")]
+    public void With_jwt_every_websocket_endpoint_requires_authorization(string path)
+    {
+        using var factory = CreateFactory();
+
+        WebSocketEndpoint(factory, path).Metadata.GetOrderedMetadata<IAuthorizeData>()
+            .Should().NotBeEmpty();
+    }
+
+    /// <summary>
+    /// Without JWT there is no UseAuthorization, and an endpoint that carries authorization metadata would fail every
+    /// request. The endpoints carry none, and an anonymous upgrade completes.
+    /// </summary>
+    [Theory]
+    [InlineData("/dragon")]
+    [InlineData("/wyvern")]
+    [InlineData("/kobold")]
+    public async Task Without_jwt_every_websocket_endpoint_accepts_an_anonymous_upgrade(string path)
+    {
+        var factory = CreateFactory(jwtEnabled: false);
+        try
+        {
+            WebSocketEndpoint(factory, path).Metadata.GetOrderedMetadata<IAuthorizeData>()
+                .Should().BeEmpty();
+
+            var uri = new UriBuilder(factory.Server.BaseAddress) { Scheme = "ws", Path = path }.Uri;
+            var socket = await factory.Server.CreateWebSocketClient().ConnectAsync(uri, CancellationToken.None);
+            socket.Abort();
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Fact]
+    public async Task A_plain_request_without_token_is_refused_with_401()
+    {
+        using var factory = CreateFactory();
+
+        var response = await factory.CreateClient().GetAsync("/dragon");
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.Unauthorized);
     }
 
     [Fact]

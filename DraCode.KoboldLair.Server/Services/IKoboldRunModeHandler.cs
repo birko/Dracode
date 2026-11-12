@@ -2,7 +2,7 @@ using DraCode.KoboldLair.Server.Models.WebSocket;
 
 namespace DraCode.KoboldLair.Server.Services
 {
-    /// <summary>The caller's resolved identity for a <c>/kobold</c> run (mirrors <c>ResolveCaller</c> in Program.cs).</summary>
+    /// <summary>The caller's resolved identity for a <c>/kobold</c> run (see <c>WebSocketCaller.From</c>).</summary>
     public sealed record KoboldCaller(string? Sub, bool IsAdmin, string? Name, string? Email);
 
     /// <summary>What a mode handler reports back after starting a run — surfaced in <c>kobold_run_started</c>.</summary>

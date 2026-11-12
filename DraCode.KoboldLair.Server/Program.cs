@@ -1,4 +1,5 @@
 using Birko.AI.Resilience.Services;
+using Birko.Communication.WebSocket.Middleware;
 using Birko.Security;
 using Birko.Security.AspNetCore;
 using Birko.Security.Authorization;
@@ -1104,87 +1105,37 @@ var webSocketOptions = new WebSocketOptions
 };
 app.UseWebSockets(webSocketOptions);
 
-// WebSocket endpoints for Wyvern + Dragon. Authenticated via the JWT bearer pipeline
-// (UseAuthentication populates context.User from the `?token=` query for WS upgrades) instead
-// of the legacy shared-token validator (TASK-034 / FEATURE-019 D8; removed in TASK-036).
-//
-// jwtCaptured snapshots whether JWT is enabled; when disabled (auth-off local dev) the connection
-// is treated as the loopback single-user owner. When enabled, an unauthenticated upgrade is
-// rejected with 401 *before* the socket is accepted.
-var jwtCaptured = jwtRuntimeEnabled;
+// WebSocket endpoints (TASK-134). With JWT on they require an authenticated caller: UseAuthentication fills
+// context.User from the `?token=` query on the upgrade, and an anonymous upgrade is refused with 401 before the
+// socket is accepted. RequireAuthorization is only added then, since UseAuthorization is only in the pipeline then.
+// requireAuthentication: false turns off Birko's static-token check, which is not per-user auth.
+// A request that is not a WebSocket request falls through to 404.
+IEndpointConventionBuilder[] webSocketEndpoints =
+[
+    app.MapWebSocketEndpoint("/wyvern", (webSocket, context) =>
+        context.RequestServices.GetRequiredService<WyrmService>().HandleWebSocketAsync(webSocket),
+        requireAuthentication: false),
 
-// Resolves caller identity from the JWT-populated principal. Returns the raw `sub`
-// (NameIdentifier), admin flag (view_all/* scope), and best-effort name/email.
-static (string? sub, bool isAdmin, string? name, string? email) ResolveCaller(HttpContext context)
+    app.MapWebSocketEndpoint("/dragon", (webSocket, context) =>
+    {
+        var caller = WebSocketCaller.From(context.RequestServices.GetRequiredService<ICurrentUser>());
+        return context.RequestServices.GetRequiredService<DragonService>().HandleWebSocketAsync(
+            webSocket, context.Request.Query["sessionId"].FirstOrDefault(),
+            caller.Sub, caller.IsAdmin, caller.Name, caller.Email);
+    }, requireAuthentication: false),
+
+    app.MapWebSocketEndpoint("/kobold", (webSocket, context) =>
+        context.RequestServices.GetRequiredService<KoboldEndpointService>().HandleWebSocketAsync(
+            webSocket,
+            WebSocketCaller.From(context.RequestServices.GetRequiredService<ICurrentUser>()),
+            context.RequestAborted),
+        requireAuthentication: false),
+];
+if (jwtRuntimeEnabled)
 {
-    var user = context.User;
-    if (user?.Identity?.IsAuthenticated != true)
-        return (null, true, null, null); // auth disabled → local single-user owner + admin
-    var sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    var isAdmin = user.FindAll("scope")
-        .SelectMany(c => c.Value.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
-        .Any(s => s == "*" || s == KoboldLairPermissionChecker.ViewAll);
-    var name = user.FindFirst("name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value;
-    var email = user.FindFirst("email")?.Value ?? user.FindFirst(ClaimTypes.Email)?.Value;
-    return (sub, isAdmin, name, email);
+    foreach (var endpoint in webSocketEndpoints)
+        endpoint.RequireAuthorization();
 }
-
-app.Map("/wyvern", async (HttpContext context) =>
-{
-    if (jwtCaptured && context.User?.Identity?.IsAuthenticated != true)
-    {
-        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        return;
-    }
-    if (!context.WebSockets.IsWebSocketRequest)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        return;
-    }
-    var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-    var wyrmService = context.RequestServices.GetRequiredService<WyrmService>();
-    await wyrmService.HandleWebSocketAsync(webSocket);
-});
-
-app.Map("/dragon", async (HttpContext context) =>
-{
-    if (jwtCaptured && context.User?.Identity?.IsAuthenticated != true)
-    {
-        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        return;
-    }
-    if (!context.WebSockets.IsWebSocketRequest)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        return;
-    }
-    var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-    var sessionId = context.Request.Query["sessionId"].FirstOrDefault();
-    var caller = ResolveCaller(context);
-    var dragonService = context.RequestServices.GetRequiredService<DragonService>();
-    await dragonService.HandleWebSocketAsync(webSocket, sessionId, caller.sub, caller.isAdmin, caller.name, caller.email);
-});
-
-app.Map("/kobold", async (HttpContext context) =>
-{
-    if (jwtCaptured && context.User?.Identity?.IsAuthenticated != true)
-    {
-        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        return;
-    }
-    if (!context.WebSockets.IsWebSocketRequest)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        return;
-    }
-    var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-    var caller = ResolveCaller(context);
-    var endpointService = context.RequestServices.GetRequiredService<KoboldEndpointService>();
-    await endpointService.HandleWebSocketAsync(
-        webSocket,
-        new KoboldCaller(caller.sub, caller.isAdmin, caller.name, caller.email),
-        context.RequestAborted);
-});
 
 // Health check endpoint
 app.MapGet("/", () => new { status = "running", endpoints = new[] { "/wyvern", "/dragon", "/kobold" } });

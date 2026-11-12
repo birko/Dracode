@@ -529,20 +529,14 @@ builder.Services.AddSingleton<DragonService>(sp =>
     );
 });
 
-// WebSocket endpoint
-app.Map("/dragon", async context =>
+// WebSocket endpoint (Birko mapping; with JWT on, Program.cs chains .RequireAuthorization())
+app.MapWebSocketEndpoint("/dragon", (webSocket, context) =>
 {
-    if (context.WebSockets.IsWebSocketRequest)
-    {
-        var dragonService = context.RequestServices.GetRequiredService<DragonService>();
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-        await dragonService.HandleWebSocketAsync(webSocket);
-    }
-    else
-    {
-        context.Response.StatusCode = 400;
-    }
-});
+    var caller = WebSocketCaller.From(context.RequestServices.GetRequiredService<ICurrentUser>());
+    return context.RequestServices.GetRequiredService<DragonService>().HandleWebSocketAsync(
+        webSocket, context.Request.Query["sessionId"].FirstOrDefault(),
+        caller.Sub, caller.IsAdmin, caller.Name, caller.Email);
+}, requireAuthentication: false);
 ```
 
 ### Environment Variables
