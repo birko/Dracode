@@ -2,7 +2,7 @@
 id: TASK-142
 parent: STORY-023
 feature: FEATURE-026
-status: todo
+status: cancelled
 priority: P1
 assignee: ai
 created: 2026-11-12
@@ -48,3 +48,9 @@ mounting the shell traded that for a complete but mock UI (owner's call, 2026-11
 - [ ] With a local server on a throwaway projects path, chat with Dragon in the browser and see the project list update
 
 ## Implementation plan
+
+## Close notes
+
+Cancelled 2026-11-12, superseded. The layout grill (FEATURE-026 D8–D24) decided to rebuild the web UI rather than
+evolve the current views (D9), so wiring these mock views would be thrown away. Connecting the screens to the server
+is part of building each new screen; those tasks come from `/feature decompose` on FEATURE-026.

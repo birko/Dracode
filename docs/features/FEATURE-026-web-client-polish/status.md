@@ -1,6 +1,6 @@
 ---
 id: FEATURE-026
-generated: 2026-05-31
+generated: 2026-11-12
 ---
 
 # DraCode.KoboldLair.Client — UI polish reclaimed from EPIC-003 — Status
@@ -13,11 +13,11 @@ generated: 2026-05-31
 
 | State | Count |
 |-------|-------|
-| ✅ approved | 0 |
-| ✏️ changed | 0 |
-| ⏸️ deferred | 0 |
+| ✅ approved | 18 |
+| ✏️ changed | 1 |
+| ⏸️ deferred | 2 |
 | ❌ removed | 0 |
-| 💭 proposed (undecided) | 7 |
+| 💭 proposed (undecided) | 3 |
 
 ## Build progress
 
@@ -26,10 +26,11 @@ generated: 2026-05-31
 No tasks decomposed yet.
 
 ## What can be tested now
-Nothing yet — decisions still proposed.
+Nothing yet — the layout is decided, the screens are not built. The mockups can be looked at (see Prototype).
 
 ## Prototype
-Pending — backlog item; prototype decision deferred to /feature decide.
+Layout mockups, 2026-11-12: https://claude.ai/artifact/Mb6tZiqZBbWkda3qYUikhs (private until shared).
 
 ## Next step
-Run /feature decide to approve or adjust the proposed decisions, then decompose into tasks.
+Run /feature decompose to turn the approved layout decisions into build tasks. The two deferred items (public preview
+deployments, phone push notifications) are filed as their own tasks.
