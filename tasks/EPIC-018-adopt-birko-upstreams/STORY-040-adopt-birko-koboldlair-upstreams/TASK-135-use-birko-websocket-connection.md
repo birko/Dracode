@@ -91,3 +91,14 @@ N/A — covered by the existing tests unless a criterion says otherwise.
   relay stopping on a failed send (all need a socket that fails mid-send inside a full Dragon/Kobold run).
 - Full suite 319/319.
 - Human test plan: N/A; not run against a live server (local-settings gotcha).
+
+## Follow-up (2026-11-12): configurable cap
+
+At the owner's request the cap is configurable: `KoboldLair:WebSocket:MaxMessageBytes` (`WebSocketLimits`, bound
+with `ValidateOnStart`), default 4 MiB, accepted 16 KiB – 16 MiB; a value outside that range stops the server at
+startup with a message naming the key and range (fail fast, not clamped). Program.cs reads it once and passes it to the
+three handlers. Documented in `appsettings.json` and CLAUDE.md. Tests: the configured cap applies on all three
+endpoints (64 KiB cap, 100 KB message closes with MessageTooBig), out-of-range values (16 MiB + 1, 16 KiB − 1, 0) stop
+startup, both bounds are accepted. Mutation (Program.cs ignores the setting and drops the validation): 6 of the 8 fail.
+Full suite 327/327.
+

@@ -341,6 +341,7 @@ namespace DraCode.KoboldLair.Server.Services
 
         public async Task HandleWebSocketAsync(
             WebSocket webSocket,
+            int maxMessageBytes,
             string? existingSessionId = null,
             string? ownerSub = null,
             bool isAdmin = false,
@@ -527,7 +528,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    var received = await webSocket.ReceiveMessageAsync(WebSocketLimits.MaxMessageBytes);
+                    var received = await webSocket.ReceiveMessageAsync(maxMessageBytes);
                     if (!received.IsMessage)
                     {
                         if (received.Outcome == WebSocketReceiveOutcome.TooBig)

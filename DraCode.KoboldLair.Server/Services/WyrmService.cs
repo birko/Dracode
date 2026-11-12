@@ -52,13 +52,13 @@ namespace DraCode.KoboldLair.Server.Services
 
         public TaskTracker TaskTracker => _taskTracker;
 
-        public async Task HandleWebSocketAsync(WebSocket webSocket)
+        public async Task HandleWebSocketAsync(WebSocket webSocket, int maxMessageBytes)
         {
             try
             {
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    var received = await webSocket.ReceiveMessageAsync(WebSocketLimits.MaxMessageBytes);
+                    var received = await webSocket.ReceiveMessageAsync(maxMessageBytes);
                     if (!received.IsMessage)
                     {
                         if (received.Outcome == WebSocketReceiveOutcome.TooBig)

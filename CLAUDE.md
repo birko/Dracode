@@ -527,6 +527,18 @@ Controls Kobold self-reflection and escalation behavior:
 - **NoProgressTimeoutMinutes**: Minutes without step completion before monitor flags stall (default: 10)
 - **MaxFileWriteRepetitions**: Repeated file writes before monitor flags stuck loop (default: 3)
 
+### WebSocket Message Cap
+
+`/dragon`, `/wyvern` and `/kobold` read whole messages up to a cap:
+
+```json
+{ "KoboldLair": { "WebSocket": { "MaxMessageBytes": 4194304 } } }
+```
+
+- Default 4 MiB; allowed 16 KiB – 16 MiB. A value outside that range stops the server at startup.
+- A larger message closes the socket with `MessageTooBig` and is never parsed. The cap bounds the memory one connection
+  can make the server hold for an incoming message.
+
 ### Rate Limiting Configuration (NEW - 2026-03-19)
 
 Per-provider rate limiting to prevent API quota exhaustion:

@@ -534,7 +534,7 @@ app.MapWebSocketEndpoint("/dragon", (webSocket, context) =>
 {
     var caller = WebSocketCaller.From(context.RequestServices.GetRequiredService<ICurrentUser>());
     return context.RequestServices.GetRequiredService<DragonService>().HandleWebSocketAsync(
-        webSocket, context.Request.Query["sessionId"].FirstOrDefault(),
+        webSocket, maxMessageBytes, context.Request.Query["sessionId"].FirstOrDefault(),
         caller.Sub, caller.IsAdmin, caller.Name, caller.Email);
 }, requireAuthentication: false);
 ```

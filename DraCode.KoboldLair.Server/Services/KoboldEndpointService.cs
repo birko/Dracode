@@ -44,9 +44,9 @@ namespace DraCode.KoboldLair.Server.Services
         /// Drives one accepted <c>/kobold</c> connection end-to-end. Receives the initial payload, dispatches
         /// by mode, then relays the run-event stream until the run terminates or the client disconnects.
         /// </summary>
-        public async Task HandleWebSocketAsync(WebSocket webSocket, KoboldCaller caller, CancellationToken ct = default)
+        public async Task HandleWebSocketAsync(WebSocket webSocket, KoboldCaller caller, int maxMessageBytes, CancellationToken ct = default)
         {
-            var initial = await webSocket.ReceiveMessageAsync(WebSocketLimits.MaxMessageBytes, ct);
+            var initial = await webSocket.ReceiveMessageAsync(maxMessageBytes, ct);
             if (!initial.IsMessage)
             {
                 if (initial.Outcome == WebSocketReceiveOutcome.TooBig)
@@ -101,7 +101,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             // A client disconnect cancels relaying only — the Kobold keeps running (criterion 4).
             using var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            var watchTask = WatchForCloseAsync(webSocket, pumpCts, ct);
+            var watchTask = WatchForCloseAsync(webSocket, maxMessageBytes, pumpCts, ct);
             try
             {
                 // A send that fails means the client is gone: stop relaying, as a close does.
@@ -149,14 +149,14 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private static async Task WatchForCloseAsync(WebSocket ws, CancellationTokenSource pumpCts, CancellationToken ct)
+        private static async Task WatchForCloseAsync(WebSocket ws, int maxMessageBytes, CancellationTokenSource pumpCts, CancellationToken ct)
         {
             try
             {
                 // Messages after the initial payload carry nothing; read them (capped) until the connection ends.
                 while (ws.State == WebSocketState.Open && !ct.IsCancellationRequested)
                 {
-                    if (!(await ws.ReceiveMessageAsync(WebSocketLimits.MaxMessageBytes, ct)).IsMessage)
+                    if (!(await ws.ReceiveMessageAsync(maxMessageBytes, ct)).IsMessage)
                         break;
                 }
             }

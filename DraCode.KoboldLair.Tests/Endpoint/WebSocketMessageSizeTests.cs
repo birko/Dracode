@@ -15,14 +15,14 @@ namespace DraCode.KoboldLair.Tests.Endpoint;
 
 /// <summary>
 /// TASK-135: every WebSocket endpoint reads whole messages. A message over the old 64 KB buffer arrives whole (it used to
-/// be parsed as a fragment), and one over <see cref="WebSocketLimits.MaxMessageBytes"/> closes the socket with
-/// MessageTooBig instead of being parsed.
+/// be parsed as a fragment), and one over the configured cap (<c>KoboldLair:WebSocket:MaxMessageBytes</c>, default
+/// <see cref="WebSocketLimits.DefaultMaxMessageBytes"/>) closes the socket with MessageTooBig instead of being parsed.
 /// </summary>
 public class WebSocketMessageSizeTests
 {
     private const int OverOldBuffer = 100 * 1024;
 
-    private static WebApplicationFactory<Program> CreateFactory()
+    private static WebApplicationFactory<Program> CreateFactory(int? maxMessageBytes = null)
     {
         var config = new Dictionary<string, string?>
         {
@@ -38,6 +38,8 @@ public class WebSocketMessageSizeTests
             ["KoboldLair:Providers:0:CompatibleAgents:0"] = "all",
             ["KoboldLair:Providers:0:Configuration:baseUrl"] = "http://127.0.0.1:9",
         };
+        if (maxMessageBytes is not null)
+            config["KoboldLair:WebSocket:MaxMessageBytes"] = maxMessageBytes.Value.ToString();
 
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -148,13 +150,68 @@ public class WebSocketMessageSizeTests
 
             try
             {
-                await SendFramedAsync(socket, Padded(new() { [typeField] = "ping" }, WebSocketLimits.MaxMessageBytes + 1));
+                await SendFramedAsync(socket, Padded(new() { [typeField] = "ping" }, WebSocketLimits.DefaultMaxMessageBytes + 1));
             }
             catch (WebSocketException) { } // the server may close before the last frame is written
 
             var (text, close) = await ReceiveAsync(socket);
             text.Should().BeNull("an over-cap message must not be parsed and answered");
             close.Should().Be(WebSocketCloseStatus.MessageTooBig);
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Theory]
+    [InlineData("/wyvern", "action")]
+    [InlineData("/dragon", "type")]
+    [InlineData("/kobold", "mode")]
+    public async Task The_configured_cap_applies(string path, string typeField)
+    {
+        var factory = CreateFactory(maxMessageBytes: 64 * 1024);
+        try
+        {
+            using var socket = await ConnectAsync(factory, path);
+
+            try
+            {
+                await SendFramedAsync(socket, Padded(new() { [typeField] = "ping" }, OverOldBuffer));
+            }
+            catch (WebSocketException) { }
+
+            var (text, close) = await ReceiveAsync(socket);
+            text.Should().BeNull();
+            close.Should().Be(WebSocketCloseStatus.MessageTooBig);
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Theory]
+    [InlineData(WebSocketLimits.MaxMaxMessageBytes + 1)]
+    [InlineData(WebSocketLimits.MinMaxMessageBytes - 1)]
+    [InlineData(0)]
+    public void A_cap_out_of_range_stops_the_server_at_startup(int maxMessageBytes)
+    {
+        var factory = CreateFactory(maxMessageBytes);
+        try
+        {
+            var start = () => factory.Services;
+
+            start.Should().Throw<Exception>()
+                .Which.ToString().Should().Contain("KoboldLair:WebSocket:MaxMessageBytes must be between");
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Theory]
+    [InlineData(WebSocketLimits.MinMaxMessageBytes)]
+    [InlineData(WebSocketLimits.MaxMaxMessageBytes)]
+    public void A_cap_at_either_bound_is_accepted(int maxMessageBytes)
+    {
+        var factory = CreateFactory(maxMessageBytes);
+        try
+        {
+            factory.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebSocketLimits>>()
+                .Value.MaxMessageBytes.Should().Be(maxMessageBytes);
         }
         finally { SafeDispose(factory); }
     }

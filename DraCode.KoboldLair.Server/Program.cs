@@ -512,6 +512,11 @@ builder.Services.AddSingleton<RunRegistry>();
 builder.Services.AddSingleton<IKoboldRunModeHandler, AdHocRunModeHandler>();
 builder.Services.AddSingleton<IKoboldRunModeHandler, ProjectRunModeHandler>();
 builder.Services.AddSingleton<KoboldEndpointService>();
+// The cap on a WebSocket message (TASK-135); a value out of range stops the server at startup.
+builder.Services.AddOptions<WebSocketLimits>()
+    .BindConfiguration(WebSocketLimits.SectionName)
+    .Validate(limits => limits.IsValid, WebSocketLimits.InvalidMessage)
+    .ValidateOnStart();
 
 builder.Services.AddSingleton<KoboldFactory>(sp =>
 {
@@ -1110,17 +1115,19 @@ app.UseWebSockets(webSocketOptions);
 // socket is accepted. RequireAuthorization is only added then, since UseAuthorization is only in the pipeline then.
 // requireAuthentication: false turns off Birko's static-token check, which is not per-user auth.
 // A request that is not a WebSocket request falls through to 404.
+// Every endpoint reads whole messages up to KoboldLair:WebSocket:MaxMessageBytes (TASK-135).
+var maxMessageBytes = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebSocketLimits>>().Value.MaxMessageBytes;
 IEndpointConventionBuilder[] webSocketEndpoints =
 [
     app.MapWebSocketEndpoint("/wyvern", (webSocket, context) =>
-        context.RequestServices.GetRequiredService<WyrmService>().HandleWebSocketAsync(webSocket),
+        context.RequestServices.GetRequiredService<WyrmService>().HandleWebSocketAsync(webSocket, maxMessageBytes),
         requireAuthentication: false),
 
     app.MapWebSocketEndpoint("/dragon", (webSocket, context) =>
     {
         var caller = WebSocketCaller.From(context.RequestServices.GetRequiredService<ICurrentUser>());
         return context.RequestServices.GetRequiredService<DragonService>().HandleWebSocketAsync(
-            webSocket, context.Request.Query["sessionId"].FirstOrDefault(),
+            webSocket, maxMessageBytes, context.Request.Query["sessionId"].FirstOrDefault(),
             caller.Sub, caller.IsAdmin, caller.Name, caller.Email);
     }, requireAuthentication: false),
 
@@ -1128,6 +1135,7 @@ IEndpointConventionBuilder[] webSocketEndpoints =
         context.RequestServices.GetRequiredService<KoboldEndpointService>().HandleWebSocketAsync(
             webSocket,
             WebSocketCaller.From(context.RequestServices.GetRequiredService<ICurrentUser>()),
+            maxMessageBytes,
             context.RequestAborted),
         requireAuthentication: false),
 ];
