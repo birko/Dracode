@@ -13,7 +13,6 @@ namespace DraCode.KoboldLair.Server.Models.Dragon
         public required string SessionId { get; init; }
         public required string Message { get; init; }
         public required System.Net.WebSockets.WebSocket WebSocket { get; init; }
-        public required WebSocketSender Sender { get; init; }
         public required CancellationTokenSource CancellationTokenSource { get; init; }
         public required DateTime QueuedAt { get; init; }
         public required DragonAgent Dragon { get; init; }

@@ -1,4 +1,5 @@
 using System.Net.WebSockets;
+using Birko.Communication.WebSocket.Messaging;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -45,29 +46,35 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         public async Task HandleWebSocketAsync(WebSocket webSocket, KoboldCaller caller, CancellationToken ct = default)
         {
-            using var sender = new WebSocketSender(webSocket, _logger);
+            var initial = await webSocket.ReceiveMessageAsync(WebSocketLimits.MaxMessageBytes, ct);
+            if (!initial.IsMessage)
+            {
+                if (initial.Outcome == WebSocketReceiveOutcome.TooBig)
+                    _logger.LogWarning("/kobold initial payload refused: {Reason}", initial.CloseDescription);
+                return; // closed by the client, or by ReceiveMessageAsync with MessageTooBig
+            }
 
             KoboldRunRequest? request;
             try
             {
-                request = await ReceiveInitialRequestAsync(webSocket, ct);
+                request = JsonSerializer.Deserialize<KoboldRunRequest>(initial.Data, s_read);
             }
             catch (Exception ex)
             {
-                await SendAsync(sender, KoboldWireMessage.Error(Guid.Empty, $"invalid initial payload: {ex.Message}"), ct);
+                await SendAsync(webSocket, KoboldWireMessage.Error(Guid.Empty, $"invalid initial payload: {ex.Message}"), ct);
                 return;
             }
 
             if (request is null || string.IsNullOrWhiteSpace(request.Mode))
             {
-                await SendAsync(sender, KoboldWireMessage.Error(Guid.Empty, "missing 'mode' in initial payload"), ct);
+                await SendAsync(webSocket, KoboldWireMessage.Error(Guid.Empty, "missing 'mode' in initial payload"), ct);
                 return;
             }
 
             var handler = _handlers.FirstOrDefault(h => string.Equals(h.Mode, request.Mode, StringComparison.OrdinalIgnoreCase));
             if (handler is null)
             {
-                await SendAsync(sender, KoboldWireMessage.Error(Guid.Empty, $"unknown mode '{request.Mode}'"), ct);
+                await SendAsync(webSocket, KoboldWireMessage.Error(Guid.Empty, $"unknown mode '{request.Mode}'"), ct);
                 return;
             }
 
@@ -88,7 +95,7 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _logger.LogWarning(ex, "/kobold {Mode} run {RunId} failed to start", request.Mode, runId);
                 _runRegistry.Fail(runId, ex.Message);
-                await SendAsync(sender, KoboldWireMessage.Error(runId, ex.Message), ct);
+                await SendAsync(webSocket, KoboldWireMessage.Error(runId, ex.Message), ct);
                 return;
             }
 
@@ -97,7 +104,12 @@ namespace DraCode.KoboldLair.Server.Services
             var watchTask = WatchForCloseAsync(webSocket, pumpCts, ct);
             try
             {
-                await PumpAsync(runId, startInfo, reader, (msg, c) => SendAsync(sender, msg, c), pumpCts.Token);
+                // A send that fails means the client is gone: stop relaying, as a close does.
+                await PumpAsync(runId, startInfo, reader, async (msg, c) =>
+                {
+                    if (!await SendAsync(webSocket, msg, c))
+                        pumpCts.Cancel();
+                }, pumpCts.Token);
             }
             finally
             {
@@ -137,32 +149,14 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private static async Task<KoboldRunRequest?> ReceiveInitialRequestAsync(WebSocket ws, CancellationToken ct)
-        {
-            var buffer = new byte[8192];
-            using var ms = new MemoryStream();
-            WebSocketReceiveResult result;
-            do
-            {
-                result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
-                if (result.MessageType == WebSocketMessageType.Close)
-                    return null;
-                ms.Write(buffer, 0, result.Count);
-            } while (!result.EndOfMessage);
-
-            var text = Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
-            return JsonSerializer.Deserialize<KoboldRunRequest>(text, s_read);
-        }
-
         private static async Task WatchForCloseAsync(WebSocket ws, CancellationTokenSource pumpCts, CancellationToken ct)
         {
-            var buffer = new byte[1024];
             try
             {
+                // Messages after the initial payload carry nothing; read them (capped) until the connection ends.
                 while (ws.State == WebSocketState.Open && !ct.IsCancellationRequested)
                 {
-                    var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    if (!(await ws.ReceiveMessageAsync(WebSocketLimits.MaxMessageBytes, ct)).IsMessage)
                         break;
                 }
             }
@@ -176,10 +170,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private static Task SendAsync(WebSocketSender sender, KoboldWireMessage msg, CancellationToken ct)
-        {
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(msg, s_wire);
-            return sender.SendAsync(bytes, ct);
-        }
+        private Task<bool> SendAsync(WebSocket webSocket, KoboldWireMessage msg, CancellationToken ct) =>
+            webSocket.TrySendTextAsync(JsonSerializer.SerializeToUtf8Bytes(msg, s_wire), _logger, ct);
     }
 }

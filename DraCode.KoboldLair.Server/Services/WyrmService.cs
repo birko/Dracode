@@ -8,6 +8,7 @@ using DraCode.KoboldLair.Server.Models.WebSocket;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Services;
 using System.Net.WebSockets;
+using Birko.Communication.WebSocket.Messaging;
 using System.Text;
 using System.Text.Json;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
@@ -53,23 +54,22 @@ namespace DraCode.KoboldLair.Server.Services
 
         public async Task HandleWebSocketAsync(WebSocket webSocket)
         {
-            var buffer = new byte[1024 * 64]; // 64KB buffer for large messages
-
             try
             {
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    var received = await webSocket.ReceiveMessageAsync(WebSocketLimits.MaxMessageBytes);
+                    if (!received.IsMessage)
                     {
-                        _logger.LogInformation("Wyrm WebSocket close received");
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                        if (received.Outcome == WebSocketReceiveOutcome.TooBig)
+                            _logger.LogWarning("Wyrm WebSocket: {Reason}; connection closed", received.CloseDescription);
+                        else
+                            _logger.LogInformation("Wyrm WebSocket close received");
                         break;
                     }
 
-                    var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    _logger.LogDebug("Wyrm received message ({Count} bytes): {Message}", result.Count, message);
+                    var message = received.GetText();
+                    _logger.LogDebug("Wyrm received message ({Count} bytes): {Message}", received.Data.Length, message);
 
                     await ProcessMessageAsync(webSocket, message);
                 }

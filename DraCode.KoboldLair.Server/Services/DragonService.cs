@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Birko.AI.Resilience.Services;
 using System.Net.WebSockets;
+using Birko.Communication.WebSocket.Messaging;
 using System.Text;
 using System.Text.Json;
 using Birko.AI;
@@ -53,7 +54,6 @@ namespace DraCode.KoboldLair.Server.Services
         public List<SessionMessage> MessageHistory { get; } = new();
         public string? LastMessageId { get; set; }
         public string? CurrentProjectFolder { get; set; }
-        public WebSocketSender? Sender { get; set; }
 
         /// <summary>
         /// Tracks whether the Dragon's conversation context should be reset after the current response.
@@ -392,17 +392,11 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     SessionId = sessionId,
                     OwnerSub = resolvedOwner,
-                    IsAdmin = isAdmin,
-                    Sender = new WebSocketSender(webSocket, _logger)
+                    IsAdmin = isAdmin
                 };
                 _sessions[sessionId] = session;
                 _sessionWebSockets[sessionId] = webSocket;
                 _logger.LogInformation("Dragon session started: {SessionId}", sessionId);
-            }
-            else if (session.Sender == null || isResuming)
-            {
-                // Create new sender for resumed session
-                session.Sender = new WebSocketSender(webSocket, _logger);
             }
 
             var currentSessionId = session.SessionId;
@@ -416,7 +410,7 @@ namespace DraCode.KoboldLair.Server.Services
                     newSessionId = currentSessionId,
                     reason = sessionNotFoundReason,
                     timestamp = DateTime.UtcNow
-                }, session.Sender);
+                });
             }
 
             try
@@ -452,7 +446,7 @@ namespace DraCode.KoboldLair.Server.Services
                             ["timestamp"] = msg.Timestamp
                         };
 
-                        await SendMessageAsync(webSocket, replayData, session.Sender);
+                        await SendMessageAsync(webSocket, replayData);
                     }
                 }
                 else
@@ -531,21 +525,18 @@ namespace DraCode.KoboldLair.Server.Services
                     _logger.LogInformation("[Dragon] Session initialized, waiting for client_ready...");
                 }
 
-                var buffer = new byte[1024 * 64]; // 64KB buffer for large messages
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    var received = await webSocket.ReceiveMessageAsync(WebSocketLimits.MaxMessageBytes);
+                    if (!received.IsMessage)
                     {
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                        if (received.Outcome == WebSocketReceiveOutcome.TooBig)
+                            _logger.LogWarning("Dragon session {SessionId}: {Reason}; connection closed", currentSessionId, received.CloseDescription);
                         break;
                     }
 
-                    var messageText = Encoding.UTF8.GetString(buffer, 0, result.Count);
                     session.LastActivity = DateTime.UtcNow;
-
-                    await HandleMessageAsync(webSocket, session, messageText);
+                    await HandleMessageAsync(webSocket, session, received.GetText());
                 }
             }
             catch (Exception ex)
@@ -554,9 +545,6 @@ namespace DraCode.KoboldLair.Server.Services
             }
             finally
             {
-                session.Sender?.Dispose();
-                session.Sender = null;
-
                 _sessionWebSockets.TryRemove(currentSessionId, out _);
                 _logger.LogInformation("Dragon WebSocket disconnected (session preserved): {SessionId}", currentSessionId);
             }
@@ -1038,7 +1026,7 @@ namespace DraCode.KoboldLair.Server.Services
                 var messageType = message.Type ?? message.Action;
                 if (messageType?.Equals("ping", StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    await SendMessageAsync(webSocket, new { type = "pong" }, session.Sender);
+                    await SendMessageAsync(webSocket, new { type = "pong" });
                     return;
                 }
 
@@ -1109,21 +1097,20 @@ namespace DraCode.KoboldLair.Server.Services
                 TrackMessage(session, "user_message", new Dictionary<string, object> { ["role"] = "user", ["content"] = message.Message! });
 
                 // Validate session is properly initialized before processing
-                if (session.Sender == null || session.Dragon == null)
+                if (session.Dragon == null)
                 {
-                    _logger.LogWarning("Dragon session not properly initialized (Sender={Sender}, Dragon={Dragon}), cannot process message",
-                        session.Sender != null, session.Dragon != null);
+                    _logger.LogWarning("Dragon session not properly initialized (no Dragon agent), cannot process message");
                     await SendMessageAsync(webSocket, new
                     {
                         type = "error",
                         error = "session_not_ready",
                         message = "Session is not ready. Please try reconnecting.",
                         timestamp = DateTime.UtcNow
-                    }, session.Sender);
+                    });
                     return;
                 }
 
-                await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId }, session.Sender);
+                await SendMessageAsync(webSocket, new { type = "dragon_typing", sessionId });
 
                 // Create a request for non-blocking processing
                 var requestId = Guid.NewGuid().ToString();
@@ -1135,7 +1122,6 @@ namespace DraCode.KoboldLair.Server.Services
                     SessionId = sessionId,
                     Message = message.Message!,
                     WebSocket = webSocket,
-                    Sender = session.Sender,
                     CancellationTokenSource = cts,
                     QueuedAt = DateTime.UtcNow,
                     Dragon = session.Dragon
@@ -1154,7 +1140,7 @@ namespace DraCode.KoboldLair.Server.Services
                             statusType,
                             message = statusMessage,
                             timestamp = DateTime.UtcNow
-                        }, session.Sender);
+                        });
                     }
                 };
 
@@ -1364,7 +1350,7 @@ namespace DraCode.KoboldLair.Server.Services
                     category = category ?? "thinking",
                     agent = agentSource, // Which agent is active (Dragon, Sage, Seeker, etc.)
                     timestamp = DateTime.UtcNow
-                }, session.Sender);
+                });
             }
             catch (WebSocketException)
             {
@@ -1498,7 +1484,7 @@ namespace DraCode.KoboldLair.Server.Services
                     sessionId,
                     chunk,
                     timestamp = DateTime.UtcNow
-                }, session.Sender);
+                });
             }
             catch (WebSocketException)
             {
@@ -1511,30 +1497,8 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private async Task SendMessageAsync(WebSocket webSocket, object data, WebSocketSender? sender = null)
-        {
-            if (webSocket.State != WebSocketState.Open) return;
-
-            var json = JsonSerializer.Serialize(data, s_writeOptions);
-            var bytes = Encoding.UTF8.GetBytes(json);
-
-            // Route through sender's semaphore to prevent concurrent WebSocket writes
-            if (sender != null)
-            {
-                await sender.SendAsync(bytes);
-            }
-            else
-            {
-                try
-                {
-                    await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
-                }
-                catch (WebSocketException)
-                {
-                    // WebSocket closed between state check and send - expected during disconnect
-                }
-            }
-        }
+        private Task<bool> SendMessageAsync(WebSocket webSocket, object data) =>
+            webSocket.TrySendTextAsync(JsonSerializer.SerializeToUtf8Bytes(data, s_writeOptions), _logger);
 
         /// <summary>
         /// Sends any pending project notifications to the client.
@@ -1563,9 +1527,10 @@ namespace DraCode.KoboldLair.Server.Services
                 if (notifications.Count == 0)
                     return;
 
+                var sentIds = new List<string>();
                 foreach (var notification in notifications)
                 {
-                    await SendTrackedMessageAsync(webSocket, session, "project_notification", new
+                    var sent = await SendTrackedMessageAsync(webSocket, session, "project_notification", new
                     {
                         type = "project_notification",
                         notificationType = notification.Type,
@@ -1574,11 +1539,18 @@ namespace DraCode.KoboldLair.Server.Services
                         metadata = notification.Metadata,
                         timestamp = notification.CreatedAt
                     });
+                    if (!sent)
+                        break; // the connection is gone; the rest stay pending for the next one
+                    sentIds.Add(notification.Id);
                 }
 
-                // Mark as read after sending
-                _notificationService.MarkAsRead(projectName);
-                _logger.LogInformation("Sent {Count} pending notifications for project {Project}", notifications.Count, projectName);
+                // Only what was sent is read: a notification that arrived meanwhile, or one not sent, stays pending
+                _notificationService.MarkAsRead(projectName, sentIds);
+                if (sentIds.Count < notifications.Count)
+                    _logger.LogWarning("Sent {Sent} of {Count} pending notifications for project {Project}; the rest stay pending",
+                        sentIds.Count, notifications.Count, projectName);
+                else
+                    _logger.LogInformation("Sent {Count} pending notifications for project {Project}", notifications.Count, projectName);
             }
             catch (Exception ex)
             {
@@ -1586,7 +1558,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
-        private async Task SendTrackedMessageAsync(WebSocket webSocket, DragonSession session, string messageType, object data)
+        private async Task<bool> SendTrackedMessageAsync(WebSocket webSocket, DragonSession session, string messageType, object data)
         {
             var messageId = Guid.NewGuid().ToString();
 
@@ -1599,25 +1571,7 @@ namespace DraCode.KoboldLair.Server.Services
             TrackMessage(session, messageType, dict, messageId);
 
             // Re-serialize with messageId included
-            var finalJson = JsonSerializer.Serialize(dict, s_writeOptions);
-            var bytes = Encoding.UTF8.GetBytes(finalJson);
-
-            // Route through sender's semaphore to prevent concurrent WebSocket writes
-            if (session.Sender != null)
-            {
-                await session.Sender.SendAsync(bytes);
-            }
-            else if (webSocket.State == WebSocketState.Open)
-            {
-                try
-                {
-                    await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
-                }
-                catch (WebSocketException)
-                {
-                    // WebSocket closed between state check and send - expected during disconnect
-                }
-            }
+            return await webSocket.TrySendTextAsync(JsonSerializer.SerializeToUtf8Bytes(dict, s_writeOptions), _logger);
         }
 
         private void TrackMessage(DragonSession session, string messageType, Dictionary<string, object> data, string? messageId = null)

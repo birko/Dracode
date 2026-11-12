@@ -401,7 +401,7 @@ namespace DraCode.KoboldLair.Server.Services
                     message,
                     timestamp = DateTime.UtcNow
                 }, s_writeOptions);
-                await request.Sender.SendAsync(Encoding.UTF8.GetBytes(json));
+                await request.WebSocket.TrySendTextAsync(Encoding.UTF8.GetBytes(json), _logger);
             }
             catch (Exception ex)
             {
@@ -428,7 +428,11 @@ namespace DraCode.KoboldLair.Server.Services
                     isStreamed,
                     timestamp = DateTime.UtcNow
                 }, s_writeOptions);
-                await request.Sender.SendAsync(Encoding.UTF8.GetBytes(json));
+                if (!await request.WebSocket.TrySendTextAsync(Encoding.UTF8.GetBytes(json), _logger))
+                {
+                    _logger.LogWarning("Dragon response for request {RequestId} was not delivered: the connection is gone", request.RequestId);
+                    return;
+                }
 
                 // Call post-response callback (e.g., to check for new specifications)
                 if (request.OnResponseCallback != null)
@@ -468,7 +472,7 @@ namespace DraCode.KoboldLair.Server.Services
                     message = errorMessage,
                     timestamp = DateTime.UtcNow
                 }, s_writeOptions);
-                await request.Sender.SendAsync(Encoding.UTF8.GetBytes(json));
+                await request.WebSocket.TrySendTextAsync(Encoding.UTF8.GetBytes(json), _logger);
             }
             catch (Exception ex)
             {
