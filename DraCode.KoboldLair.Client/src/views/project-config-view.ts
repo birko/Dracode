@@ -3,7 +3,8 @@
  * Manage project-specific agent configurations and limits
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 import toastService from '../services/toast-service.js';
 
 interface AgentConfig {
@@ -38,7 +39,7 @@ interface Provider {
  * Project Config View Component
  * Displays and manages project configurations
  */
-export class ProjectConfigView extends BaseComponent {
+export class ProjectConfigView extends KoboldComponent {
   private configs: ProjectConfig[] = [];
   private defaults: any = {};
   private providers: Provider[] = [];
@@ -267,29 +268,29 @@ export class ProjectConfigView extends BaseComponent {
   }
 
   protected onMount() {
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadConfigs();
+  }
 
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     this.$$('b-button[data-action="edit"]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         const projectId = btn.getAttribute('data-project-id');
         this.openEditModal(projectId!);
       });
     });
 
     this.$$('b-button[data-action="delete"]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         const projectId = btn.getAttribute('data-project-id');
         this.deleteConfig(projectId!);
       });
     });
 
-    this.$('#retryBtn')?.addEventListener('click', () => {
+    this.on('#retryBtn', 'click', () => {
       this.loadConfigs();
     });
-  }
-
-  protected onUpdated() {
-    this.onMount();
   }
 
   private async loadConfigs() {

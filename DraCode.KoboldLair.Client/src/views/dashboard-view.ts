@@ -3,7 +3,8 @@
  * First migrated view component using Birko.Web components
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 import toastService from '../services/toast-service.js';
 
 interface DashboardStats {
@@ -25,7 +26,7 @@ interface RecentProject {
  * Dashboard View Component
  * Displays project statistics, recent activity, and quick actions
  */
-export class DashboardView extends BaseComponent {
+export class DashboardView extends KoboldComponent {
   private _stats: DashboardStats = {
     totalProjects: 0,
     activeAgents: 0,
@@ -282,32 +283,30 @@ export class DashboardView extends BaseComponent {
   }
 
   protected onMount() {
-    // Load dashboard data
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadDashboardData();
+  }
 
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     // Set up event listeners
-    this.$('#newProject')?.addEventListener('click', () => {
+    this.on('#newProject', 'click', () => {
       this.handleNewProject();
     });
 
-    this.$('#viewAll')?.addEventListener('click', () => {
+    this.on('#viewAll', 'click', () => {
       this.handleViewAll();
     });
 
     // Listen for project card clicks
     this.$$('.project-card').forEach(card => {
-      card.addEventListener('click', () => {
+      this.listen(card, 'click', () => {
         const projectId = card.getAttribute('data-project-id');
         if (projectId) {
           this.handleProjectClick(projectId);
         }
       });
     });
-  }
-
-  protected onUpdated() {
-    // Re-attach event listeners after update
-    this.onMount();
   }
 
   private async loadDashboardData() {

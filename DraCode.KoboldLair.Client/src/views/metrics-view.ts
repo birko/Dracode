@@ -3,7 +3,8 @@
  * Displays cost, performance, and usage metrics with b-chart components
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 
 interface MetricData {
   label: string;
@@ -27,7 +28,7 @@ interface ProviderCost {
  * Metrics View Component
  * Shows LLM usage costs, performance metrics, and statistics
  */
-export class MetricsView extends BaseComponent {
+export class MetricsView extends KoboldComponent {
   private _timeRange: '24h' | '7d' | '30d' = '7d';
   private _costData: CostData[] = [];
   private _performanceData: MetricData[] = [];
@@ -338,12 +339,15 @@ export class MetricsView extends BaseComponent {
   }
 
   protected onMount() {
-    // Load metrics data
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadMetrics();
+  }
 
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     // Set up time range selector
     this.$$('b-button[data-range]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         this._timeRange = btn.getAttribute('data-range') as any;
         this.update();
       });
@@ -353,10 +357,6 @@ export class MetricsView extends BaseComponent {
     setTimeout(() => {
       this.initializeCharts();
     }, 100);
-  }
-
-  protected onUpdated() {
-    this.onMount();
   }
 
   private async loadMetrics() {

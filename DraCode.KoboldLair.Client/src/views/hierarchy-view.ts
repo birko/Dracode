@@ -3,7 +3,8 @@
  * Displays agent hierarchy using b-tree-menu with real-time status
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 
 interface AgentNode {
   id: string;
@@ -29,7 +30,7 @@ interface AgentDetails {
  * Hierarchy View Component
  * Shows the agent hierarchy with status indicators
  */
-export class HierarchyView extends BaseComponent {
+export class HierarchyView extends KoboldComponent {
   private _hierarchy: AgentNode[] = [];
   private _selectedAgent: string | null = null;
 
@@ -316,20 +317,19 @@ export class HierarchyView extends BaseComponent {
   }
 
   protected onMount() {
-    // Load hierarchy data
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadHierarchy();
+  }
 
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     // Set up tree menu
     this.setupTreeMenu();
 
     // Set up event listeners
-    this.$('#expandAll')?.addEventListener('click', () => this.expandAll());
-    this.$('#collapseAll')?.addEventListener('click', () => this.collapseAll());
-    this.$('#refresh')?.addEventListener('click', () => this.refresh());
-  }
-
-  protected onUpdated() {
-    this.onMount();
+    this.on('#expandAll', 'click', () => this.expandAll());
+    this.on('#collapseAll', 'click', () => this.collapseAll());
+    this.on('#refresh', 'click', () => this.refresh());
   }
 
   private async loadHierarchy() {
@@ -402,7 +402,7 @@ export class HierarchyView extends BaseComponent {
 
     if (tree && typeof tree.setItems === 'function') {
       tree.setItems(this._hierarchy);
-      tree.addEventListener('select', (e: CustomEvent) => {
+      this.listen(tree, 'select', (e: CustomEvent) => {
         this._selectedAgent = e.detail.id;
         this.update();
       });

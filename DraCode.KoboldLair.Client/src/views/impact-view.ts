@@ -3,7 +3,8 @@
  * Displays feature-to-code impact analysis and implementation tracking
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 
 interface FeatureImplementation {
   featureId: string;
@@ -47,7 +48,7 @@ interface ImpactSummary {
  * Impact View Component
  * Shows feature-to-code impact analysis for projects
  */
-export class ImpactView extends BaseComponent {
+export class ImpactView extends KoboldComponent {
   private projects: any[] = [];
   private selectedProjectId: string | null = null;
   private impactData: ImpactSummary | null = null;
@@ -418,9 +419,13 @@ export class ImpactView extends BaseComponent {
   }
 
   protected onMount() {
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadProjects();
+  }
 
-    this.$('#projectSelect')?.addEventListener('change', (e) => {
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
+    this.on('#projectSelect', 'change', (e) => {
       const select = e.target as HTMLSelectElement;
       this.selectedProjectId = select.value || null;
       if (this.selectedProjectId) {
@@ -431,15 +436,11 @@ export class ImpactView extends BaseComponent {
       }
     });
 
-    this.$('#refreshBtn')?.addEventListener('click', () => {
+    this.on('#refreshBtn', 'click', () => {
       if (this.selectedProjectId) {
         this.loadImpactData(this.selectedProjectId);
       }
     });
-  }
-
-  protected onUpdated() {
-    this.onMount();
   }
 
   private async loadProjects() {

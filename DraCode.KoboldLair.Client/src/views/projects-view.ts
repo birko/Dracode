@@ -3,7 +3,8 @@
  * Lists all projects with filtering, search, and actions using b-data-table
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 
 interface Project {
   id: string;
@@ -21,7 +22,7 @@ interface Project {
  * Projects View Component
  * Displays all projects in a data table with actions
  */
-export class ProjectsView extends BaseComponent {
+export class ProjectsView extends KoboldComponent {
   private _projects: Project[] = [];
   private _filter: 'all' | 'active' | 'completed' | 'failed' = 'all';
   private _searchQuery = '';
@@ -330,20 +331,23 @@ export class ProjectsView extends BaseComponent {
   }
 
   protected onMount() {
-    // Load projects (simulated for now)
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadProjects();
+  }
 
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     // Set up event listeners
-    this.$('#newProject')?.addEventListener('click', () => this.handleNewProject());
+    this.on('#newProject', 'click', () => this.handleNewProject());
 
-    this.$('#search-input')?.addEventListener('search', (e: CustomEvent) => {
+    this.on('#search-input', 'search', (e: CustomEvent) => {
       this._searchQuery = e.detail.value;
       this.update();
     });
 
     // Filter buttons
     this.$$('b-button[data-filter]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         this._filter = btn.getAttribute('data-filter') as any;
         this.update();
       });
@@ -351,7 +355,7 @@ export class ProjectsView extends BaseComponent {
 
     // Project card clicks
     this.$$('.project-card').forEach(card => {
-      card.addEventListener('click', (e) => {
+      this.listen(card, 'click', (e) => {
         if ((e.target as HTMLElement).closest('.project-actions')) {
           return; // Don't trigger if action button clicked
         }
@@ -362,23 +366,19 @@ export class ProjectsView extends BaseComponent {
       });
 
       const viewBtn = card.querySelector('.view-btn');
-      viewBtn?.addEventListener('click', (e) => {
+      viewBtn && this.listen(viewBtn, 'click', (e) => {
         e.stopPropagation();
         const projectId = card.getAttribute('data-project-id');
         this.handleViewProject(projectId!);
       });
 
       const pauseBtn = card.querySelector('.pause-btn');
-      pauseBtn?.addEventListener('click', (e) => {
+      pauseBtn && this.listen(pauseBtn, 'click', (e) => {
         e.stopPropagation();
         const projectId = card.getAttribute('data-project-id');
         this.handlePauseProject(projectId!);
       });
     });
-  }
-
-  protected onUpdated() {
-    this.onMount();
   }
 
   private async loadProjects() {

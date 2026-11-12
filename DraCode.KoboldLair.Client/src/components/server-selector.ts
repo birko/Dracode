@@ -4,7 +4,8 @@
  * Uses Birko.Web components (b-modal, b-button, b-input)
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from './kobold-component.js';
 import configService from '../services/config.js';
 
 interface Server {
@@ -27,7 +28,7 @@ interface ServerSelectorState {
  * Server Selector Component
  * Displays current server and allows switching/adding/managing servers
  */
-export class ServerSelector extends BaseComponent {
+export class ServerSelector extends KoboldComponent {
   private state: ServerSelectorState = {
     activeServerId: 'default',
     servers: [],
@@ -348,23 +349,24 @@ export class ServerSelector extends BaseComponent {
   }
 
   protected onMount() {
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadServers();
-    this.attachEventListeners();
   }
 
   protected onUpdated() {
-    this.onMount();
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
+    this.attachEventListeners();
   }
 
   private attachEventListeners() {
     // Toggle dropdown
-    this.$('#selectorBtn')?.addEventListener('click', (e) => {
+    this.on('#selectorBtn', 'click', (e) => {
       e.stopPropagation();
       this.toggleDropdown();
     });
 
     // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
+    this.listen(document, 'click', (e) => {
       const target = e.target as HTMLElement;
       if (!target?.closest('.server-selector')) {
         this.closeDropdown();
@@ -373,7 +375,7 @@ export class ServerSelector extends BaseComponent {
 
     // Server selection
         this.$$('.server-item').forEach(item => {
-      item.addEventListener('click', (e) => {
+      this.listen(item, 'click', (e) => {
         const serverId = (e.currentTarget as HTMLElement).dataset.serverId;
         if (serverId) {
           this.switchServer(serverId);
@@ -382,34 +384,34 @@ export class ServerSelector extends BaseComponent {
     });
 
     // Add server button
-    this.$('#addServerBtn')?.addEventListener('click', () => {
+    this.on('#addServerBtn', 'click', () => {
       this.closeDropdown();
       this.showAddServerModal();
     });
 
     // Manage servers button
-    this.$('#manageServersBtn')?.addEventListener('click', () => {
+    this.on('#manageServersBtn', 'click', () => {
       this.closeDropdown();
       this.showManageServersModal();
     });
 
     // Add server modal
-    this.$('#cancelAddServer')?.addEventListener('click', () => {
+    this.on('#cancelAddServer', 'click', () => {
       this.hideAddServerModal();
     });
 
-    this.$('#saveAddServer')?.addEventListener('click', () => {
+    this.on('#saveAddServer', 'click', () => {
       this.saveNewServer();
     });
 
     // Manage servers modal
-    this.$('#closeManageModal')?.addEventListener('click', () => {
+    this.on('#closeManageModal', 'click', () => {
       this.hideManageServersModal();
     });
 
     // Server card actions
     this.$$('[data-action]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      this.listen(btn, 'click', (e) => {
         const action = (e.currentTarget as HTMLElement).dataset.action;
         const serverId = (e.currentTarget as HTMLElement).dataset.serverId;
         if (serverId) {
@@ -420,7 +422,7 @@ export class ServerSelector extends BaseComponent {
 
     // Input changes
     this.$$('#serverName, #serverUrl, #serverToken').forEach(input => {
-      input.addEventListener('input', (e) => {
+      this.listen(input, 'input', (e) => {
         const target = e.target as HTMLInputElement;
         const field = target.id.replace('server', '').toLowerCase();
         (this.state.newServer as any)[field] = target.value;

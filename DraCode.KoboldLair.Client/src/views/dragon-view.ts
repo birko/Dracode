@@ -3,7 +3,8 @@
  * Interactive chat interface for requirements gathering with Dragon agent
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 
 interface DragonMessage {
   role: 'user' | 'assistant' | 'system';
@@ -21,7 +22,7 @@ interface DragonState {
  * Dragon View Component
  * Chat interface for gathering project requirements
  */
-export class DragonView extends BaseComponent {
+export class DragonView extends KoboldComponent {
   private _messages: DragonMessage[] = [];
   private _state: DragonState = {
     isConnected: false,
@@ -372,12 +373,15 @@ export class DragonView extends BaseComponent {
   }
 
   protected onMount() {
-    // Connect to Dragon agent (simulated for now)
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.connectToDragon();
+  }
 
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     // Set up event listeners
-    this.$('#send-button')?.addEventListener('click', () => this.handleSend());
-    this.$('#message-input')?.addEventListener('keydown', (e) => {
+    this.on('#send-button', 'click', () => this.handleSend());
+    this.on<KeyboardEvent>('#message-input', 'keydown', (e) => {
       if (e.key === 'Enter' && (e as KeyboardEvent).shiftKey) {
         // Allow line breaks with Shift+Enter
         return;
@@ -388,17 +392,12 @@ export class DragonView extends BaseComponent {
       }
     });
 
-    this.$('#newProject')?.addEventListener('click', () => this.handleNewProject());
-    this.$('#loadSpec')?.addEventListener('click', () => this.handleLoadSpec());
-    this.$('#exportSpec')?.addEventListener('click', () => this.handleExportSpec());
+    this.on('#newProject', 'click', () => this.handleNewProject());
+    this.on('#loadSpec', 'click', () => this.handleLoadSpec());
+    this.on('#exportSpec', 'click', () => this.handleExportSpec());
 
     // Scroll to bottom of messages
     this.scrollToBottom();
-  }
-
-  protected onUpdated() {
-    // Re-attach event listeners and scroll
-    this.onMount();
     this.scrollToBottom();
   }
 

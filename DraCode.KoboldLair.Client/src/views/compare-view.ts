@@ -3,7 +3,8 @@
  * Side-by-side comparison of task plans and execution results
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 
 interface TaskComparison {
   taskId: string;
@@ -36,7 +37,7 @@ interface StepComparison {
  * Compare View Component
  * Compare task executions side by side
  */
-export class CompareView extends BaseComponent {
+export class CompareView extends KoboldComponent {
   private _comparisons: TaskComparison[] = [];
   private _selectedTask: TaskComparison | null = null;
   private _viewMode: 'side-by-side' | 'unified' = 'side-by-side';
@@ -310,12 +311,15 @@ export class CompareView extends BaseComponent {
   }
 
   protected onMount() {
-    // Load comparison data
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadComparisons();
+  }
 
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     // Set up event listeners
     this.$$('b-button[data-view]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         this._viewMode = btn.getAttribute('data-view') as any;
         this.update();
       });
@@ -323,16 +327,12 @@ export class CompareView extends BaseComponent {
 
     // Task selector
     this.$$('b-button[data-task-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         const taskId = btn.getAttribute('data-task-id');
         this._selectedTask = this._comparisons.find(c => c.taskId === taskId) || null;
         this.update();
       });
     });
-  }
-
-  protected onUpdated() {
-    this.onMount();
   }
 
   private async loadComparisons() {

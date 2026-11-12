@@ -3,7 +3,8 @@
  * Configure providers, manage user settings, and system preferences
  */
 
-import { BaseComponent, define } from 'birko-web-core';
+import { define } from 'birko-web-core';
+import { KoboldComponent } from '../components/kobold-component.js';
 import toastService from '../services/toast-service.ts';
 
 interface FormResult {
@@ -35,7 +36,7 @@ interface UserSettings {
  * Settings View Component
  * Application settings and provider configuration
  */
-export class SettingsView extends BaseComponent {
+export class SettingsView extends KoboldComponent {
   private _activeTab: 'providers' | 'general' = 'providers';
   private _providers: ProviderSetting[] = [];
   private _settings: UserSettings = {
@@ -351,25 +352,24 @@ export class SettingsView extends BaseComponent {
   }
 
   protected onMount() {
-    // Load data
+    // Data loads once; the DOM is wired in onUpdated(), which runs after every render.
     this.loadProviders();
     this.loadSettings();
+  }
 
+  protected onUpdated() {
+    // listen() handlers are dropped on the next update(), so wiring after each render does not stack.
     // Set up event listeners
     this.setupTabs();
     this.setupProvidersEvents();
     this.setupSettingsEvents();
   }
 
-  protected onUpdated() {
-    this.onMount();
-  }
-
   private setupTabs() {
     // Listen for b-tabs change event
     const tabs = this.$('#settingsTabs') as any;
     if (tabs) {
-      tabs.addEventListener('change', (e: any) => {
+      this.listen(tabs, 'change', (e: any) => {
         this._activeTab = e.detail.activeTab;
         // Re-render only the tab content, not the whole view
         this.update();
@@ -378,27 +378,27 @@ export class SettingsView extends BaseComponent {
   }
 
   private setupProvidersEvents() {
-    this.$('#addProvider')?.addEventListener('click', () => {
+    this.on('#addProvider', 'click', () => {
       console.log('Add provider clicked');
       this.emit('add-provider');
     });
 
     this.$$('[data-edit]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         const providerId = btn.getAttribute('data-edit');
         this.editProvider(providerId!);
       });
     });
 
     this.$$('[data-test]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         const providerId = btn.getAttribute('data-test');
         this.testProvider(providerId!);
       });
     });
 
     this.$$('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      this.listen(btn, 'click', () => {
         const providerId = btn.getAttribute('data-delete');
         this.deleteProvider(providerId!);
       });
@@ -406,8 +406,8 @@ export class SettingsView extends BaseComponent {
   }
 
   private setupSettingsEvents() {
-    this.$('#saveSettings')?.addEventListener('click', () => this.saveSettingsFromForm());
-    this.$('#resetSettings')?.addEventListener('click', () => this.resetSettings());
+    this.on('#saveSettings', 'click', () => this.saveSettingsFromForm());
+    this.on('#resetSettings', 'click', () => this.resetSettings());
   }
 
   private async loadProviders() {
