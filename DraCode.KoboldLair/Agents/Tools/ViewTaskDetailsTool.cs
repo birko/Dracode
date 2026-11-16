@@ -57,7 +57,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 {
                     type = "string",
                     description = "Optional: filter tasks by status (for 'list' action)",
-                    @enum = new[] { "all", "unassigned", "working", "done", "failed", "blocked" }
+                    @enum = new[] { "all", "unassigned", "working", "done", "failed", "blocked", "awaiting_decision" }
                 },
                 show_areas = new
                 {
@@ -112,6 +112,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                     "done" => tasks.Where(t => t.Status == TaskStatus.Done).ToList(),
                     "failed" => tasks.Where(t => t.Status == TaskStatus.Failed).ToList(),
                     "blocked" => tasks.Where(t => t.Status == TaskStatus.BlockedByFailure).ToList(),
+                    "awaiting_decision" => tasks.Where(t => t.Status == TaskStatus.AwaitingHumanDecision).ToList(),
                     _ => tasks
                 };
 
@@ -124,6 +125,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var working = tasks.Count(t => t.Status == TaskStatus.Working || t.Status == TaskStatus.NotInitialized);
                 var blocked = tasks.Count(t => t.Status == TaskStatus.BlockedByFailure);
                 var unassigned = tasks.Count(t => t.Status == TaskStatus.Unassigned);
+                var awaiting = tasks.Count(t => t.Status == TaskStatus.AwaitingHumanDecision);
                 var percent = total > 0 ? (done * 100.0 / total) : 0;
 
                 // Progress bar
@@ -134,7 +136,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 // Overall progress summary at the top
                 sb.AppendLine($"# Project: {projectIdOrName}\n");
                 sb.AppendLine($"**Overall Progress:** [{bar}] {percent:F1}% ({done}/{total} tasks completed)\n");
-                sb.AppendLine($"**Task Breakdown:** ✅ {done} done | 🔨 {working} working | ⏳ {unassigned} unassigned | ❌ {failed} failed | 🚫 {blocked} blocked\n");
+                sb.AppendLine($"**Task Breakdown:** ✅ {done} done | 🔨 {working} working | ⏳ {unassigned} unassigned | ❌ {failed} failed | 🚫 {blocked} blocked | ⏸️ {awaiting} awaiting decision\n");
                 sb.AppendLine($"**Filter:** Showing {filtered.Count} of {total} tasks\n");
 
                 if (filtered.Count > 0)
@@ -440,6 +442,7 @@ namespace DraCode.KoboldLair.Agents.Tools
             TaskStatus.NotInitialized => "📋",
             TaskStatus.Unassigned => "⏳",
             TaskStatus.BlockedByFailure => "🚫",
+            TaskStatus.AwaitingHumanDecision => "⏸️",
             _ => "❓"
         };
 

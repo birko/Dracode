@@ -27,6 +27,7 @@ When a parked `ask_human` (TASK-021) or human-decision (TASK-020) is answered, t
 - [ ] Works for both Kobold and Wyvern parked tasks.
 - [ ] Choice answers are delivered as the chosen option value; free-text delivered verbatim.
 - [ ] Test: a Kobold that asked a 2-option question resumes and its next action reflects the chosen option.
+- [ ] A decision that timed out with nobody answering resumes the task with that fact in the agent's context ("no answer — timed out"), not as if an answer had arrived (from the TASK-019 grill, 2026-11-16).
 
 ## Out of scope
 

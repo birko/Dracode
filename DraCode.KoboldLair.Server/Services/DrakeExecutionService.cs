@@ -505,6 +505,15 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
+        /// Whether an area needs a live Drake whatever its unassigned tasks' dependencies say: to continue work with
+        /// existing Kobolds, recover orphaned tasks (NotInitialized/Working with no active Kobold), report failed tasks,
+        /// or time out a parked task's decision (only a Drake runs that sweep, FEATURE-027 D4).
+        /// </summary>
+        public static bool HasTasksNeedingADrake(IEnumerable<TaskRecord> tasks) =>
+            tasks.Any(t => t.Status is TaskStatus.NotInitialized or TaskStatus.Working or TaskStatus.Failed
+                or TaskStatus.AwaitingHumanDecision);
+
+        /// <summary>
         /// Checks if all unassigned tasks in an area are blocked by unfulfilled dependencies.
         /// Returns true if there are unassigned tasks but none are ready to execute.
         /// </summary>
@@ -522,12 +531,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                 var tasks = tracker.GetAllTasks();
 
-                // If any tasks are NotInitialized, Working, or Failed, a Drake is needed to either:
-                // - Continue work with existing Kobolds, or
-                // - Recover orphaned tasks (NotInitialized/Working with no active Kobold)
-                // - Detect and report failed tasks (halting execution until resolved)
-                // So don't skip Drake creation
-                if (tasks.Any(t => t.Status == TaskStatus.NotInitialized || t.Status == TaskStatus.Working || t.Status == TaskStatus.Failed))
+                if (HasTasksNeedingADrake(tasks))
                 {
                     return false;
                 }

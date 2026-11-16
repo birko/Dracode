@@ -79,6 +79,10 @@ namespace DraCode.KoboldLair.Server.Services
 
             await drake.MonitorTasksAsync();
 
+            var expired = await drake.ExpirePendingDecisionsAsync(DateTime.UtcNow);
+            if (expired > 0)
+                _logger.LogInformation("Project {ProjectId}: {Count} pending decision(s) timed out", projectInfo, expired);
+
             var stats = drake.GetStatistics();
 
             _logger.LogDebug(
