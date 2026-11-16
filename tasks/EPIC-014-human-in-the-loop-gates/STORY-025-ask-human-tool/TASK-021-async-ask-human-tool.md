@@ -25,7 +25,7 @@ The interactive `AskUserTool` is wired only for the Dragon CLI (`DraCode/Program
 - [ ] New `AskHumanTool` in `DraCode.KoboldLair/Agents/Tools/`, `ExecuteAsync`-only, with self-describing tool docs.
 - [ ] Parameters: `question` (string), `options` (string[]?, optional choices), `allow_free_text` (bool), `context` (string?, why it's asking).
 - [ ] Execution writes a `PendingDecision` (intent = question, not escalation) and parks the calling task (reuses TASK-019 mechanism).
-- [ ] Registered in the Kobold and Wyvern tool catalogues; **not** registered for Wyrm.
+- [ ] Registered in the Kobold tool catalogue; **not** for Wyvern (deferred to TASK-170, FEATURE-028 D4 changed 2026-11-16) or Wyrm.
 - [ ] Gated by policy hooks (`allowAskHuman`, `maxQuestionsPerTask`) — read defensively so it still works before TASK-023 lands (default allow, no cap).
 - [ ] Answer with `options` set is validated against the options; free-text passes through verbatim.
 - [ ] Tool call + pending decision captured in the plan execution log.
