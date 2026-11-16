@@ -392,6 +392,22 @@ builder.Services.AddSingleton<SqlPlanRepository>(sp =>
     return null!;
 });
 
+// Register the pending-decision store parked tasks wait on (TASK-019; null when not using SQLite, which leaves
+// parking unavailable and escalations on the automatic path)
+builder.Services.AddSingleton<SqlPendingDecisionRepository>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    {
+        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlPendingDecisionRepository>();
+        var repo = new SqlPendingDecisionRepository(dbPath, logger);
+        repo.InitializeAsync().GetAwaiter().GetResult();
+        return repo;
+    }
+    return null!;
+});
+
 // Specification event store: Birko.Data.EventSourcing.SQL on the KoboldLair SQLite database (TASK-127). The
 // events DraCode's own repository wrote to domain_events are moved over at startup (below, after Build).
 builder.Services.AddSingleton<IAsyncEventStore>(sp =>
@@ -460,7 +476,8 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var factory = new DrakeFactory(koboldFactory, providerConfigService, config,
         loggerFactory, gitService, projectRepository, circuitBreaker, sharedPlanningContext, taskRepository, eventBus,
-        sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>());
+        sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>(),
+        sp.GetService<SqlPendingDecisionRepository>());
 
     // Wire feature completion notifications so users get notified when branches are ready for merge
     var notificationService = sp.GetRequiredService<ProjectNotificationService>();

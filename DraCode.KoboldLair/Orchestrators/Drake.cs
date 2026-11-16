@@ -11,6 +11,7 @@ using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Data.Repositories.Sql;
 using DraCode.KoboldLair.Services;
 using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 using Microsoft.Extensions.Logging;
@@ -51,6 +52,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly Action<string, string, string>? _onFeatureBranchReady;
         private readonly Action<string, EscalationAlert, string>? _onEscalationNotify;
         private readonly IEventBus? _eventBus;
+        private readonly SqlPendingDecisionRepository? _pendingDecisions;
         private Wyvern? _wyvern;
         private WyrmRecommendation? _wyrmRecommendation;
 
@@ -116,7 +118,8 @@ namespace DraCode.KoboldLair.Orchestrators
             Models.Configuration.PlanningConfiguration? planningConfig = null,
             Action<string, string, string>? onFeatureBranchReady = null,
             Action<string, EscalationAlert, string>? onEscalationNotify = null,
-            IEventBus? eventBus = null)
+            IEventBus? eventBus = null,
+            SqlPendingDecisionRepository? pendingDecisions = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -139,6 +142,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _onFeatureBranchReady = onFeatureBranchReady;
             _onEscalationNotify = onEscalationNotify;
             _eventBus = eventBus;
+            _pendingDecisions = pendingDecisions;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
@@ -810,15 +814,21 @@ namespace DraCode.KoboldLair.Orchestrators
                         if (_plannerAgent != null && _planService != null)
                         {
                             var kobold = Guid.TryParse(alert.WorkerId, out var workerId) ? _koboldFactory.GetKobold(workerId) : null;
-                            if (kobold?.ImplementationPlan != null)
+                            // A parked task whose decision timed out has no live Kobold; its saved plan is revised
+                            var currentPlan = kobold?.ImplementationPlan
+                                ?? (!string.IsNullOrEmpty(alert.TaskId) && IsTaskParked(alert.TaskId)
+                                    ? await _planService.LoadPlanAsync(alert.ProjectId, alert.TaskId)
+                                    : null);
+                            if (currentPlan != null)
                             {
                                 var revisedPlan = await _plannerAgent.RevisePlanAsync(
-                                    kobold.ImplementationPlan,
+                                    currentPlan,
                                     alert.ReflectionHistory,
                                     alert);
                                 if (revisedPlan != null)
                                 {
-                                    kobold.ImplementationPlan = revisedPlan;
+                                    if (kobold != null)
+                                        kobold.ImplementationPlan = revisedPlan;
                                     await _planService.SavePlanDebouncedAsync(revisedPlan);
                                     resolution = $"Plan revised with {revisedPlan.Steps.Count(s => s.Status == StepStatus.Pending)} new/revised steps";
                                 }
@@ -1150,13 +1160,17 @@ namespace DraCode.KoboldLair.Orchestrators
         /// Also commits changes to git when a task completes successfully.
         /// </summary>
         /// <param name="kobold">Kobold to sync from</param>
-        private async Task SyncTaskFromKoboldAsync(Kobold kobold, string? worktreePath = null)
+        internal async Task SyncTaskFromKoboldAsync(Kobold kobold, string? worktreePath = null)
         {
             if (!kobold.TaskId.HasValue)
                 return;
 
             var task = _taskTracker.GetTaskById(kobold.TaskId.Value.ToString());
             if (task == null)
+                return;
+
+            // A parked task leaves its state only through its pending decision, never from a Kobold's status
+            if (task.Status == TaskStatus.AwaitingHumanDecision)
                 return;
 
             // Store previous status to detect transitions
@@ -2394,6 +2408,10 @@ namespace DraCode.KoboldLair.Orchestrators
 
             foreach (var (kobold, workingDuration) in stuckKobolds)
             {
+                // A parked task's lingering Kobold is not timed out and failed: the task waits on its decision
+                if (kobold.TaskId.HasValue && IsTaskParked(kobold.TaskId.Value.ToString()))
+                    continue;
+
                 var taskPreview = kobold.TaskDescription?.Length > 60 
                     ? kobold.TaskDescription.Substring(0, 60) + "..." 
                     : kobold.TaskDescription ?? "unknown";
@@ -2498,6 +2516,145 @@ namespace DraCode.KoboldLair.Orchestrators
                 .ToList();
         }
 
+        #region Parked tasks (TASK-019)
+
+        /// <summary>
+        /// Parks a task on a pending decision: the decision is stored first, as the source of truth, then the task
+        /// moves to <see cref="TaskStatus.AwaitingHumanDecision"/>. Returns false, changing nothing, when no decision
+        /// store is configured (a non-SQL backend), so the caller keeps the automatic path.
+        /// </summary>
+        public async Task<bool> ParkTaskAsync(TaskRecord task, PendingDecision decision)
+        {
+            if (_pendingDecisions == null)
+            {
+                _logger?.LogWarning("Cannot park task {TaskId}: no pending-decision store is configured", task.Id[..Math.Min(8, task.Id.Length)]);
+                return false;
+            }
+
+            if (task.Status == TaskStatus.AwaitingHumanDecision)
+            {
+                _logger?.LogWarning("Task {TaskId} is already parked", task.Id[..Math.Min(8, task.Id.Length)]);
+                return false;
+            }
+
+            // Stored under this Drake's project, never the caller's: another project's Drakes would expire it
+            decision.TaskId = task.Id;
+            decision.ProjectId = _projectId ?? task.ProjectId ?? "";
+            await _pendingDecisions.CreateAsync(decision);
+
+            await UpdateTaskWithWalAsync(task, TaskStatus.AwaitingHumanDecision, task.AssignedAgent);
+            _taskToKoboldMap.TryRemove(task.Id, out _);
+            SaveTasksToFile();
+            _logger?.LogInformation("Task {TaskId} parked on decision {DecisionId} ({Timeout})",
+                task.Id[..Math.Min(8, task.Id.Length)], decision.Id[..8],
+                decision.Timeout is { } t ? $"times out in {t}" : "no timeout");
+            return true;
+        }
+
+        /// <summary>True while the task waits on a pending decision.</summary>
+        public bool IsTaskParked(string taskId) =>
+            _taskTracker.GetTaskById(taskId)?.Status == TaskStatus.AwaitingHumanDecision;
+
+        /// <summary>
+        /// Makes this Drake's task statuses agree with the stored decisions, which win: a task with an unresolved
+        /// decision is parked, and a parked task without one returns to Unassigned. Runs on every reload from the task
+        /// file, whose saves are debounced and so can lag behind a park.
+        /// </summary>
+        public async Task ReconcilePendingDecisionsAsync()
+        {
+            if (_pendingDecisions == null || string.IsNullOrEmpty(_projectId))
+                return;
+
+            HashSet<string> unresolved;
+            try
+            {
+                unresolved = (await _pendingDecisions.GetUnresolvedForProjectAsync(_projectId))
+                    .Select(d => d.TaskId).ToHashSet();
+            }
+            catch (Exception ex)
+            {
+                // The reload and orphan recovery go on without it; the next cycle tries again
+                _logger?.LogWarning(ex, "Could not read pending decisions for {ProjectId}", _projectId);
+                return;
+            }
+
+            var changed = false;
+            foreach (var task in _taskTracker.GetAllTasks())
+            {
+                var shouldBeParked = unresolved.Contains(task.Id);
+                if (shouldBeParked && task.Status is TaskStatus.Done or TaskStatus.Failed)
+                {
+                    _logger?.LogWarning("Task {TaskId} is {Status} but has an unresolved decision; left as it is",
+                        task.Id[..Math.Min(8, task.Id.Length)], task.Status);
+                }
+                else if (shouldBeParked && task.Status != TaskStatus.AwaitingHumanDecision)
+                {
+                    await UpdateTaskWithWalAsync(task, TaskStatus.AwaitingHumanDecision, task.AssignedAgent);
+                    _taskToKoboldMap.TryRemove(task.Id, out _);
+                    changed = true;
+                }
+                else if (!shouldBeParked && task.Status == TaskStatus.AwaitingHumanDecision)
+                {
+                    await UpdateTaskWithWalAsync(task, TaskStatus.Unassigned, task.AssignedAgent);
+                    changed = true;
+                }
+            }
+
+            if (changed)
+                SaveTasksToFile();
+        }
+
+        /// <summary>
+        /// Falls back on every decision of this Drake's tasks whose timeout passed by <paramref name="now"/>
+        /// (FEATURE-027 D4): the decision is recorded as timed out, an escalation behind it goes through the automatic
+        /// path it was parked instead of while the task is still parked (so no Kobold picks it up meanwhile), and the
+        /// task then returns to Unassigned to resume from its saved plan. Returns how many expired.
+        /// </summary>
+        public async Task<int> ExpirePendingDecisionsAsync(DateTime now)
+        {
+            if (_pendingDecisions == null || string.IsNullOrEmpty(_projectId))
+                return 0;
+
+            var expired = 0;
+            foreach (var decision in await _pendingDecisions.GetExpiredAsync(now))
+            {
+                // One Drake per area: a decision belongs to the Drake whose tracker holds its task
+                var task = _taskTracker.GetTaskById(decision.TaskId);
+                if (decision.ProjectId != _projectId || task == null)
+                    continue;
+                if (!await _pendingDecisions.ResolveAsync(decision.Id, PendingDecisionResolution.TimedOut, null, now))
+                    continue;
+
+                expired++;
+                _logger?.LogInformation("Decision {DecisionId} for task {TaskId} timed out; falling back",
+                    decision.Id[..8], decision.TaskId[..Math.Min(8, decision.TaskId.Length)]);
+
+                if (decision.Escalation is { } alert)
+                {
+                    alert.Status = EscalationStatus.Pending;
+                    try
+                    {
+                        await HandleEscalationAsync(alert);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Auto-resolve fallback failed for decision {DecisionId}", decision.Id[..8]);
+                    }
+                }
+
+                // The fallback may already have moved the task on (a refinement resets or fails it)
+                if (task.Status == TaskStatus.AwaitingHumanDecision)
+                {
+                    await UpdateTaskWithWalAsync(task, TaskStatus.Unassigned, task.AssignedAgent);
+                    SaveTasksToFile();
+                }
+            }
+
+            return expired;
+        }
+
+        #endregion
+
         /// <summary>
         /// Gets statistics about the Drake's managed Kobolds
         /// </summary>
@@ -2520,6 +2677,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 DoneTasks = allTasks.Count(t => t.Status == TaskStatus.Done),
                 FailedTasks = allTasks.Count(t => t.Status == TaskStatus.Failed),
                 BlockedTasks = allTasks.Count(t => t.Status == TaskStatus.BlockedByFailure),
+                AwaitingDecisionTasks = allTasks.Count(t => t.Status == TaskStatus.AwaitingHumanDecision),
                 ActiveAssignments = _taskToKoboldMap.Count
             };
         }
@@ -2716,6 +2874,8 @@ namespace DraCode.KoboldLair.Orchestrators
             var tasksLoaded = await _taskTracker.LoadFromFileAsync(_outputMarkdownPath);
 
             _logger?.LogDebug("📂 Reloaded {Count} task(s) from file", tasksLoaded);
+
+            await ReconcilePendingDecisionsAsync();
 
             // Recover orphaned tasks (NotInitialized or Working with no active Kobold)
             // Tasks with completed plans are marked Done; others are reset to Unassigned

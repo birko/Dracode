@@ -9,6 +9,7 @@ using Birko.AI.Resilience.Services;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Data.Repositories.Sql;
 using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Factories
@@ -28,6 +29,7 @@ namespace DraCode.KoboldLair.Factories
         private readonly ProviderCircuitBreaker? _circuitBreaker;
         private readonly SharedPlanningContextService? _sharedPlanningContext;
         private readonly IEventBus? _eventBus;
+        private readonly SqlPendingDecisionRepository? _pendingDecisions;
         private readonly ProviderRateLimiter? _rateLimiter;
         private readonly CostTrackingService? _costTracker;
         private readonly ILoggerFactory? _loggerFactory;
@@ -77,7 +79,8 @@ namespace DraCode.KoboldLair.Factories
             ITaskRepository? taskRepository = null,
             IEventBus? eventBus = null,
             ProviderRateLimiter? rateLimiter = null,
-            CostTrackingService? costTracker = null)
+            CostTrackingService? costTracker = null,
+            SqlPendingDecisionRepository? pendingDecisions = null)
         {
             _rateLimiter = rateLimiter;
             _costTracker = costTracker;
@@ -91,6 +94,7 @@ namespace DraCode.KoboldLair.Factories
             _circuitBreaker = circuitBreaker;
             _sharedPlanningContext = sharedPlanningContext;
             _eventBus = eventBus;
+            _pendingDecisions = pendingDecisions;
 
             // Extract configuration values from koboldLairConfig
             _projectsPath = koboldLairConfig.ProjectsPath ?? "./projects";
@@ -258,7 +262,8 @@ namespace DraCode.KoboldLair.Factories
                 _koboldLairConfig.Planning,
                 OnFeatureBranchReady,
                 OnEscalation,
-                _eventBus
+                _eventBus,
+                _pendingDecisions
             );
 
             // Lock only for dictionary insertion, with race condition check

@@ -220,6 +220,8 @@ Examples:
 
                     if (task.Status == TaskStatus.Done)
                         return $"Task {taskId[..Math.Min(8, taskId.Length)]} is already Done and cannot be reassigned.";
+                    if (task.Status == TaskStatus.AwaitingHumanDecision)
+                        return $"Task {taskId[..Math.Min(8, taskId.Length)]} is waiting on a pending decision and cannot be reassigned until it is answered.";
 
                     var oldAgent = task.AssignedAgent;
                     task.AssignedAgent = normalized;
@@ -253,6 +255,8 @@ Examples:
 
                         if (task.Status == TaskStatus.Done)
                             return $"Task {taskId[..Math.Min(8, taskId.Length)]} is already Done and cannot be reassigned.";
+                        if (task.Status == TaskStatus.AwaitingHumanDecision)
+                            return $"Task {taskId[..Math.Min(8, taskId.Length)]} is waiting on a pending decision and cannot be reassigned until it is answered.";
 
                         var oldAgent = task.AssignedAgent;
                         task.AssignedAgent = normalized;

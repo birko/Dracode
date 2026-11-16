@@ -272,10 +272,13 @@ namespace DraCode.KoboldLair.Models.Tasks
                         TaskStatus.Done => "🟢 done",
                         TaskStatus.Failed => "🔴 failed",
                         TaskStatus.BlockedByFailure => "🟠 blockedbyfailure",
+                        TaskStatus.AwaitingHumanDecision => "⏸️ awaitinghumandecision",
                         _ => statusDisplay
                     };
 
-                    if (!string.IsNullOrEmpty(task.ErrorMessage) && task.Status != TaskStatus.Failed)
+                    // A parked task keeps its status: written as "error" it would read back as Done
+                    if (!string.IsNullOrEmpty(task.ErrorMessage) && task.Status != TaskStatus.Failed
+                        && task.Status != TaskStatus.AwaitingHumanDecision)
                     {
                         statusWithEmoji = "🔴 error";
                     }
@@ -295,6 +298,7 @@ namespace DraCode.KoboldLair.Models.Tasks
                 sb.AppendLine($"- **Done**: {_tasks.Count(t => t.Status == TaskStatus.Done)}");
                 sb.AppendLine($"- **Failed**: {_tasks.Count(t => t.Status == TaskStatus.Failed)}");
                 sb.AppendLine($"- **Blocked by Failure**: {_tasks.Count(t => t.Status == TaskStatus.BlockedByFailure)}");
+                sb.AppendLine($"- **Awaiting Human Decision**: {_tasks.Count(t => t.Status == TaskStatus.AwaitingHumanDecision)}");
                 
                 var errorCount = _tasks.Count(t => !string.IsNullOrEmpty(t.ErrorMessage));
                 if (errorCount > 0)
@@ -652,6 +656,7 @@ namespace DraCode.KoboldLair.Models.Tasks
                 "notinitialized" => TaskStatus.NotInitialized,
                 "working" => TaskStatus.Working,
                 "done" => TaskStatus.Done,
+                "awaitinghumandecision" => TaskStatus.AwaitingHumanDecision,
                 "error" => TaskStatus.Done, // Errors are considered "done" but with error message
                 _ => TaskStatus.Unassigned // Default for unknown status
             };

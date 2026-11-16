@@ -102,6 +102,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 var working = tasks.Count(t => t.Status == TaskStatus.Working || t.Status == TaskStatus.NotInitialized);
                 var blocked = tasks.Count(t => t.Status == TaskStatus.BlockedByFailure);
                 var unassigned = tasks.Count(t => t.Status == TaskStatus.Unassigned);
+                var awaiting = tasks.Count(t => t.Status == TaskStatus.AwaitingHumanDecision);
                 var percent = total > 0 ? (done * 100.0 / total) : 0;
 
                 sb.AppendLine($"**Status:** {project.Status} | **Execution:** {project.ExecutionState}");
@@ -133,6 +134,7 @@ namespace DraCode.KoboldLair.Agents.Tools
                 sb.AppendLine($"- ⏳ Unassigned: {unassigned}");
                 sb.AppendLine($"- ❌ Failed: {failed}");
                 sb.AppendLine($"- 🚫 Blocked: {blocked}");
+                sb.AppendLine($"- ⏸️ Awaiting decision: {awaiting}");
 
                 // Warn about uncommitted tasks
                 var uncommitted = tasks.Where(t => t.CommitFailed).ToList();

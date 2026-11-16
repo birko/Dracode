@@ -74,6 +74,12 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     - `WrongApproach` → KoboldPlannerAgent.RevisePlanAsync (preserves completed steps, revises remaining)
     - `TaskInfeasible` / `NeedsSplit` / `MissingDependency` → Wyvern.RefineTaskAsync (LLM-driven task refinement)
     - `WrongAgentType` → task reset for reassignment with different agent
+  - **Parked tasks** (TASK-019, FEATURE-027): `Drake.ParkTaskAsync` moves a task to `AwaitingHumanDecision` on a
+    `PendingDecision` stored in the `pending_decisions` table (SQLite backend only; elsewhere parking is refused and the
+    caller keeps the automatic path). The stored decision is the source of truth: Drake reconciles its tasks to it on
+    every reload. A parked task is skipped by the work picker, its Kobold cannot overwrite it, and the monitors leave it
+    alone; its area keeps a Drake. A decision's timeout is optional: `DrakeMonitoringService` expires overdue ones
+    through the automatic escalation path, and one with no timeout waits until answered.
   - **Git Worktrees**: Creates isolated worktrees per feature branch for parallel-safe execution
   - **Post-task verification**: After task completion, runs Critical-priority verification steps (e.g., `tsc --noEmit`) from Wyrm recommendations
   - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block
@@ -646,6 +652,11 @@ Realignment audit was applied 2026-05-28 — see commit history for `DraCode.Kob
 ### JSON Serialization
 - Incoming: `PropertyNameCaseInsensitive = true` (accepts camelCase from JS)
 - Outgoing: `PropertyNamingPolicy.CamelCase` (sends camelCase to JS)
+
+### Stored enums keep their numbers
+An enum stored as a number (`TaskStatus` in the tasks table and the tracker JSON, the `PendingDecision` enums, the
+framework's plan and escalation enums) has explicit values. Append new members with the next number; never renumber
+or reorder.
 
 ## Testing
 

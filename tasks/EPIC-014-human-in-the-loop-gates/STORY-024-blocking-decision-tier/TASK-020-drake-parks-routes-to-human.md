@@ -28,6 +28,7 @@ With the `AwaitingHumanDecision` state and `PendingDecision` record in place (TA
 - [ ] Resolution payload is recorded so STORY-029 (loop closure) can feed it back to the Kobold.
 - [ ] Falls through to the existing auto-resolve routes for every disposition that is not `HumanDecisionRequired` (zero behaviour change by default).
 - [ ] Unit/integration test: an escalation tagged `HumanDecisionRequired` parks; a simulated answer resumes the task.
+- [ ] Parking stops the task's Kobold if one is still running, so no run continues on a parked task (from the TASK-019 grill, 2026-11-16).
 
 ## Out of scope
 

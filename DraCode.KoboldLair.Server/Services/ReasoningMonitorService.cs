@@ -2,6 +2,7 @@ using Birko.AI.Orchestration.Models;
 using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
+using DraCode.KoboldLair.Orchestrators;
 
 namespace DraCode.KoboldLair.Server.Services
 {
@@ -67,6 +68,10 @@ namespace DraCode.KoboldLair.Server.Services
             var plan = kobold.ImplementationPlan;
             if (plan == null) return;
 
+            if (!string.IsNullOrEmpty(kobold.ProjectId)
+                && BelongsToParkedTask(kobold, _drakeFactory.GetDrakesByProject(kobold.ProjectId)))
+                return;
+
             // Check 1: Stuck loop - same file written repeatedly across execution log
             CheckStuckLoop(kobold, plan);
 
@@ -81,6 +86,9 @@ namespace DraCode.KoboldLair.Server.Services
 
             await Task.CompletedTask;
         }
+
+        public static bool BelongsToParkedTask(Kobold kobold, IEnumerable<Drake> projectDrakes) =>
+            kobold.TaskId is { } taskId && projectDrakes.Any(d => d.IsTaskParked(taskId.ToString()));
 
         private void CheckStuckLoop(Kobold kobold, KoboldImplementationPlan plan)
         {

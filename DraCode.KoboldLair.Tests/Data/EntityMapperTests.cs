@@ -144,6 +144,17 @@ public class EntityMapperTests
     }
 
     [Fact]
+    public void A_parked_task_status_is_stored_as_six_and_read_back()
+    {
+        var task = new TaskRecord { Id = "t-parked", Task = "x", Status = TaskStatus.AwaitingHumanDecision };
+
+        var entity = EntityMapper.ToEntity(task, "backend");
+
+        entity.Status.Should().Be(6, "stored task statuses are pinned numbers");
+        EntityMapper.ToTaskRecord(entity).Status.Should().Be(TaskStatus.AwaitingHumanDecision);
+    }
+
+    [Fact]
     public void UpdateEntity_ShouldPreserveGuid()
     {
         var project = new Project { Id = "proj-1", Name = "original" };

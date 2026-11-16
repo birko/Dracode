@@ -17,12 +17,13 @@ namespace DraCode.KoboldLair.Models.Agents
         public int DoneTasks { get; init; }
         public int FailedTasks { get; init; }
         public int BlockedTasks { get; init; }
+        public int AwaitingDecisionTasks { get; init; }
         public int ActiveAssignments { get; init; }
 
         public override string ToString()
         {
             return $"Kobolds: {TotalKobolds} (Working: {WorkingKobolds}, Done: {DoneKobolds}, Failed: {FailedKobolds}) | " +
-                   $"Tasks: {TotalTasks} (Working: {WorkingTasks}, Done: {DoneTasks}, Failed: {FailedTasks}, Blocked: {BlockedTasks}) | " +
+                   $"Tasks: {TotalTasks} (Working: {WorkingTasks}, Done: {DoneTasks}, Failed: {FailedTasks}, Blocked: {BlockedTasks}, Awaiting decision: {AwaitingDecisionTasks}) | " +
                    $"Active: {ActiveAssignments}";
         }
     }
