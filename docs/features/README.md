@@ -53,7 +53,7 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 | [FEATURE-025](FEATURE-025-python-sdk/idea.md) | Python SDK | idea | EPIC-013 |
 | [FEATURE-026](FEATURE-026-web-client-polish/idea.md) | Web client UI polish | building | EPIC-013 |
 | [FEATURE-027](FEATURE-027-blocking-decision-tier/idea.md) | Blocking AwaitingHumanDecision tier | building | EPIC-014 |
-| [FEATURE-028](FEATURE-028-ask-human-tool/idea.md) | Async ask-human tool | idea | EPIC-014 |
+| [FEATURE-028](FEATURE-028-ask-human-tool/idea.md) | Async ask-human tool | building | EPIC-014 |
 | [FEATURE-029](FEATURE-029-decision-gate-policy/idea.md) | Policy-driven decision gates | idea | EPIC-014 |
 | [FEATURE-030](FEATURE-030-answerable-notifications/idea.md) | Answerable decisions in Dragon | idea | EPIC-014 |
 | [FEATURE-031](FEATURE-031-end-to-end-task-verification/idea.md) | End-to-end task acceptance verification | idea | EPIC-015 |
