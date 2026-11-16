@@ -8,7 +8,7 @@ priority: P2
 assignee: ai
 created: 2026-05-29
 depends-on: [TASK-020, TASK-022]
-blocks: [TASK-160]
+blocks: [TASK-160, TASK-025]
 pr: null
 github-issue: null
 jira-key: null

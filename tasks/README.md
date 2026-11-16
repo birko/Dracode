@@ -160,8 +160,9 @@ _None_
   - STORY-027 Answerable decisions surfaced in Dragon — planned (0/1)
     - [ ] [TASK-024](EPIC-014-human-in-the-loop-gates/STORY-027-answerable-notifications/TASK-024-answerable-notifications-dragon.md) Answerable notifications + Dragon actionable prompt round-trip (P2) ⚠ blocked · FEATURE-030
 - **EPIC-015 Self-reasoning depth & end-to-end verification** — planned (0/4)
-  - STORY-028 End-to-end task acceptance verification — planned (0/1)
+  - STORY-028 End-to-end task acceptance verification — planned (0/2)
     - [ ] [TASK-025](EPIC-015-self-reasoning-depth/STORY-028-end-to-end-task-verification/TASK-025-task-acceptance-check.md) Post-plan task-acceptance check against acceptance criteria (P1) · FEATURE-031
+    - [ ] [TASK-165](EPIC-015-self-reasoning-depth/STORY-028-end-to-end-task-verification/TASK-165-llm-judge-prose-acceptance-criteria.md) LLM judge for prose acceptance criteria, ahead of the human check (P2) · FEATURE-031
   - STORY-029 Escalation loop closure — feed resolution back to the Kobold — planned (0/1)
     - [ ] [TASK-026](EPIC-015-self-reasoning-depth/STORY-029-escalation-loop-closure/TASK-026-feed-resolution-to-kobold.md) Feed escalation resolution back into Kobold context (P2) · FEATURE-032
   - STORY-030 Budget- and cost-aware reflection — planned (0/1)
