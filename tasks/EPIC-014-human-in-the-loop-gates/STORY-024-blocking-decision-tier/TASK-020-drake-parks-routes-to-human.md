@@ -8,7 +8,7 @@ assignee: agent
 created: 2026-05-29
 depends-on: [TASK-019]
 blocks: []
-pr: null
+pr: 2
 github-issue: null
 jira-key: null
 ---
