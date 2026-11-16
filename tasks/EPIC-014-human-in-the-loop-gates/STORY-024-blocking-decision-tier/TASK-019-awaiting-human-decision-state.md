@@ -27,7 +27,7 @@ Relevant existing types: `ExecutionState` enum (Running/Paused/Suspended/Cancell
 - [ ] New `PendingDecision` record persisted (DB via the SQL repositories, consistent with plan/history persistence): question payload, escalation/source context, task id, created timestamp, optional timeout, resolution (null until answered).
 - [ ] `DrakeExecutionService` skips tasks in `AwaitingHumanDecision` when picking work.
 - [ ] `ReasoningMonitorService` does **not** flag an `AwaitingHumanDecision` task as stalled.
-- [ ] `decisionTimeoutMinutes` honored: a parked task past timeout falls back to the current auto-resolve path (no permanent wedge).
+- [ ] The timeout is per pending decision (FEATURE-027 D4, changed 2026-11-16): a parked task past its timeout falls back to the current auto-resolve path (no permanent wedge); a pending decision with no timeout never auto-resolves.
 - [ ] Migration/round-trip test: a parked task + its `PendingDecision` survive a server restart.
 
 ## Out of scope
@@ -40,7 +40,7 @@ Relevant existing types: `ExecutionState` enum (Running/Paused/Suspended/Cancell
 
 - [ ] Force a task into `AwaitingHumanDecision` (temporary test hook), restart the server, confirm the task is still parked and its pending decision is intact.
 - [ ] Confirm other tasks in the same project keep executing while one is parked.
-- [ ] Let a parked task exceed `decisionTimeoutMinutes` and confirm it falls back to auto-resolve.
+- [ ] Let a parked task exceed its timeout and confirm it falls back to auto-resolve; park one with no timeout and confirm it stays parked.
 
 ## Implementation plan
 
