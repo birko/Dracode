@@ -92,7 +92,7 @@ _None_
     - [ ] [TASK-047](EPIC-012-backend-consolidation/STORY-018-daemon-mode/TASK-047-daemon-lifecycle.md) Daemon lifecycle flags (P2) · FEATURE-020
     - [ ] [TASK-048](EPIC-012-backend-consolidation/STORY-018-daemon-mode/TASK-048-dynamic-port-state-file.md) Dynamic port + daemon.json state + absolute ProjectsPath (P2) ⚠ blocked · FEATURE-020
     - [ ] [TASK-049](EPIC-012-backend-consolidation/STORY-018-daemon-mode/TASK-049-discovery-helper-bypass.md) Client discovery helper + loopback auth-bypass (P2) ⚠ blocked · FEATURE-020
-- **EPIC-013 Multi-platform clients on the unified backend** — planned (0/21)
+- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (1/43)
   - STORY-019 DraCode.KoboldLair.Cli — single-file binary CLI client — planned (0/5)
     - [ ] [TASK-050](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-050-rename-scaffold-publish.md) Rename DraCode → DraCode.KoboldLair.Cli + single-file publish (P1) · FEATURE-022
     - [ ] [TASK-051](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-051-daemon-interaction.md) CLI daemon interaction + discovery (P1) ⚠ blocked · FEATURE-022
@@ -113,15 +113,41 @@ _None_
     - [ ] [TASK-064](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-064-sync-async-client.md) Python SDK sync + async client (P2) ⚠ blocked · FEATURE-025
     - [ ] [TASK-065](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-065-sse-streaming.md) Python SDK run streaming (SSE + polling fallback) (P2) ⚠ blocked · FEATURE-025
     - [ ] [TASK-066](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-066-pypi-publish-drift-guard.md) Python SDK PyPI publish + schema-drift guard (P2) ⚠ blocked · FEATURE-025
-  - STORY-023 DraCode.KoboldLair.Client — UI polish reclaimed from EPIC-003 — planned (0/8)
+  - STORY-023 Web UI: app frame, sign-in and project picker — in-progress (1/7)
     - [x] [TASK-072](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-072-mount-ts-shell-in-served-page.md) Mount the TypeScript shell in the served page (P1) · FEATURE-026
-    - [ ] [TASK-055](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-055-daemon-status-project-switcher.md) Web header: daemon status indicator + project switcher (P2) · FEATURE-026
-    - [ ] [TASK-056](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-056-oauth-login-key-management.md) Web OAuth login button + service-account key management UI (P2) ⚠ blocked · FEATURE-026
-    - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-057-run-viewer.md) Web run viewer for external /kobold runs (P2) · FEATURE-026
-    - [ ] [TASK-058](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-058-tab-reorder-workspace-layouts.md) Drag-and-drop tabs + workspace layout save/load (P2) · FEATURE-026
+    - [ ] [TASK-145](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-145-app-frame-projects-homepage.md) App frame and projects homepage (P1) · FEATURE-026 D9 D10 D22
+    - [ ] [TASK-056](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-056-github-sign-in.md) Sign in with GitHub in the web UI (P1) · FEATURE-026 D5 D8
+    - [ ] [TASK-146](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-146-header-project-picker.md) Header project picker inside a project (P2) · FEATURE-026 D4 D10
+    - [ ] [TASK-058](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-058-tab-reorder-workspace-layouts.md) Drag-and-drop tabs + workspace layout save/load (P2) · FEATURE-026 D1 D2 (proposed — parked)
+    - [x] [TASK-055](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-055-daemon-status-project-switcher.md) Web header: daemon status indicator + project switcher (P2) · FEATURE-026 — cancelled, superseded by TASK-146 (D4 → D10); daemon status waits on D3
     - [x] [TASK-142](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-142-wire-views-to-the-server.md) Wire the web client's views to the server; they show mock data (P1) · FEATURE-026 — cancelled, superseded by the UI rebuild (FEATURE-026 D9)
     - [ ] [TASK-143](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-143-public-preview-deployments.md) Public preview deployments of projects on subdomains (P3) · FEATURE-026 D23
     - [ ] [TASK-144](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-144-phone-push-notifications.md) Phone push notifications when a project needs you (P3) · FEATURE-026 D24
+  - STORY-045 Web UI: projects homepage overview — planned (0/3)
+    - [ ] [TASK-147](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-147-needs-you.md) What needs you: homepage list and header pill (P1) · FEATURE-026 D10
+    - [ ] [TASK-148](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-148-cross-project-charts.md) Cross-project charts and numbers on the homepage (P2) · FEATURE-026 D18
+    - [ ] [TASK-149](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-149-home-dragon.md) Home Dragon on the projects homepage (P2) · FEATURE-026 D12
+  - STORY-046 Web UI: project workspace with Dragon docked — planned (0/3)
+    - [ ] [TASK-150](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-150-workspace-frame-spec.md) Project workspace frame with the read-only spec tab (P1) · FEATURE-026 D11 D19
+    - [ ] [TASK-151](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-151-dragon-dock.md) Dragon docked in the workspace, following the project (P1) · FEATURE-026 D11 D12
+    - [ ] [TASK-152](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-152-dragon-focus-resize.md) Dragon widens with focus (P2) · FEATURE-026 D13
+  - STORY-047 Web UI: workspace tabs — board, runs, git, stats — planned (0/7)
+    - [ ] [TASK-153](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-153-board-kanban.md) Board tab: status kanban with Retry (P1) · FEATURE-026 D16
+    - [ ] [TASK-154](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-154-board-priority-lanes.md) Board: priority lanes in To do, drag to reprioritise (P2) · FEATURE-026 D16
+    - [ ] [TASK-155](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-155-runs-list.md) Runs tab: the project's runs (P2) · FEATURE-026 D7 D20
+    - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-057-live-run-view.md) Runs tab: live run view (P2) · FEATURE-026 D7 D20
+    - [ ] [TASK-156](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-156-git-branches-diff.md) Git tab: feature branches and their diff (P2) · FEATURE-026 D20
+    - [ ] [TASK-157](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-157-git-merge.md) Git tab: merge a feature branch (P2) · FEATURE-026 D20
+    - [ ] [TASK-158](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-158-stats-tab.md) Stats tab: per-project numbers (P2) · FEATURE-026 D18
+  - STORY-048 Web UI: notifications and decision cards — planned (0/2)
+    - [ ] [TASK-159](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-159-notifications.md) Notifications: header bell and project badges (P1) · FEATURE-026 D17
+    - [ ] [TASK-160](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-160-decision-cards.md) Decision cards in Dragon (P1) · FEATURE-026 D14 D15 D17
+  - STORY-049 Web UI: settings — planned (0/3)
+    - [ ] [TASK-161](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-161-settings-providers.md) Settings: providers (P2) · FEATURE-026 D20
+    - [ ] [TASK-162](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-162-settings-api-keys.md) Settings: service-account API keys (P2) · FEATURE-026 D6
+    - [ ] [TASK-163](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-163-settings-budgets.md) Settings: budgets (P3) · FEATURE-026 D20
+  - STORY-050 Web UI: phone check-and-respond layout — planned (0/1)
+    - [ ] [TASK-164](EPIC-013-multi-platform-clients/STORY-050-phone-layout/TASK-164-phone-check-and-respond.md) Phone check-and-respond layout (P2) · FEATURE-026 D21 D22
 - **EPIC-014 Human-in-the-loop decision gates** — planned (0/6)
   - STORY-024 Blocking "AwaitingHumanDecision" escalation tier — planned (0/2)
     - [ ] [TASK-019](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-019-awaiting-human-decision-state.md) AwaitingHumanDecision state + HumanDecisionRequired disposition (P1) · FEATURE-027
@@ -159,12 +185,12 @@ _None_
     - [x] [TASK-109](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-109-use-birko-oauth-server-stores.md) Use the framework OAuth server stores; delete SqliteOAuthStores and InMemoryOAuthStores (P2) · FEATURE-019
     - [ ] [TASK-110](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-110-use-birko-oauth-endpoint-mapping.md) Use the framework OAuth endpoint mapping and client-credentials hook (P3) · FEATURE-019
     - [ ] [TASK-111](EPIC-018-adopt-birko-upstreams/STORY-038-adopt-birko-security-oauth/TASK-111-use-birko-web-sign-in-and-loopback-helpers.md) Use the framework GitHub web sign-in helpers and loopback bypass (P3) · FEATURE-019
-  - STORY-039 Adopt Birko.Web upstreams in the web client — planned (0/6)
+  - STORY-039 Adopt Birko.Web upstreams in the web client — planned (3/4)
     - [x] [TASK-112](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-112-fix-toasts-and-settings-tabs.md) Toasts show nothing and the settings tabs never render — both use Birko.Web components wrongly (P2) · FEATURE-026
     - [x] [TASK-113](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-113-use-birko-router-and-module-routes.md) Use the Birko.Web router with module routes and an auth guard (P2) · FEATURE-026
     - [x] [TASK-114](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-114-one-token-store.md) One token store: the Shell auth store feeds WebSocket, REST and SSE (P2) · FEATURE-026
-    - [ ] [TASK-115](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-115-replace-hand-rolled-widgets-with-birko-web.md) Replace hand-rolled widgets and helpers with Birko.Web ones (P3) · FEATURE-026
-    - [ ] [TASK-116](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-116-adopt-birko-web-core-upstreams.md) Adopt WsClient.request and the runtime-config loader from Birko.Web.Core (P3) ⚠ blocked · FEATURE-026
+    - [x] [TASK-115](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-115-replace-hand-rolled-widgets-with-birko-web.md) Replace hand-rolled widgets and helpers with Birko.Web ones (P3) · FEATURE-026 — cancelled, superseded by the UI rebuild (FEATURE-026 D9)
+    - [x] [TASK-116](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-116-adopt-birko-web-core-upstreams.md) Adopt WsClient.request and the runtime-config loader from Birko.Web.Core (P3) · FEATURE-026 — cancelled, superseded: the rebuilt UI does not use /wyvern (FEATURE-026 D8)
     - [ ] [TASK-117](EPIC-018-adopt-birko-upstreams/STORY-039-adopt-birko-web/TASK-117-archive-stale-birko-web-docs.md) Archive the two stale Birko.Web docs (P3)
   - STORY-040 Adopt the Birko KoboldLair upstreams — planned (0/18)
     - [x] [TASK-125](EPIC-018-adopt-birko-upstreams/STORY-040-adopt-birko-koboldlair-upstreams/TASK-125-rebuild-kobold-loop-on-birko-agent-hooks.md) Rebuild Kobold step detection on Birko Agent hooks; delete the loop fork and the tool-wrapping (P1)
@@ -192,7 +218,7 @@ _None_
   - STORY-041 Security & tenancy — planned (0/3)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment (P1) · SEC-1
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller (P1) · SEC-2
-    - [ ] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing (P2)
+    - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing (P2)
   - STORY-042 Correctness & invariants — planned (0/2)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other (P1) · CR-1
     - [ ] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping (P2) · CR-2

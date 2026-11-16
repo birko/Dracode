@@ -2,7 +2,7 @@
 id: TASK-055
 parent: STORY-023
 feature: FEATURE-026
-status: todo
+status: cancelled
 priority: P2
 assignee: ai
 created: 2026-06-11
@@ -40,3 +40,7 @@ Header affordances in `DraCode.KoboldLair.Client`. The client is **already a mod
 ## Implementation plan
 
 _Populated by `/tasks plan TASK-055` — leave empty until then._
+
+## Cancelled
+
+Cancelled 2026-11-16, superseded by `/feature decompose FEATURE-026`. The project switcher became the header project picker (TASK-146; FEATURE-026 D4 changed into D10). Keeping chat scroll position across switches was not decided. The daemon status indicator is FEATURE-026 D3, still proposed; a task is cut for it if it is approved.

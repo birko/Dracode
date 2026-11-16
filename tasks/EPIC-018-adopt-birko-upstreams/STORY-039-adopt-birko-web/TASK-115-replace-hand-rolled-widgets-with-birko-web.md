@@ -2,7 +2,7 @@
 id: TASK-115
 parent: STORY-039
 feature: FEATURE-026
-status: todo
+status: cancelled
 priority: P3
 assignee: ai
 created: 2026-10-07
@@ -41,3 +41,7 @@ themes).
 - [ ] Walk each switched screen in light and dark theme — layout and wording read right
 
 ## Implementation plan
+
+## Cancelled
+
+Cancelled 2026-11-16, superseded. The views it would convert are being rebuilt (FEATURE-026 D9). Each rebuilt screen's task requires the Birko pieces from the start: `b-chat` for Dragon (TASK-151), `b-stat` tiles (TASK-148, TASK-158), Shell CRUD pages for providers (TASK-161), Core `escapeHtml` / `listen()`, the framework tokens and themes. The legacy `styles.css` goes with the old settings view (TASK-161).

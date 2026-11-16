@@ -42,4 +42,4 @@ Hard depends on EPIC-012. Story B5 (Web client polish) is independent enough tha
 | [FEATURE-023](../../docs/features/FEATURE-023-discord-bot/idea.md) | STORY-020 — Discord bot client | idea |
 | [FEATURE-024](../../docs/features/FEATURE-024-vscode-extension/idea.md) | STORY-021 — VSCode extension client | idea |
 | [FEATURE-025](../../docs/features/FEATURE-025-python-sdk/idea.md) | STORY-022 — Python SDK | idea |
-| [FEATURE-026](../../docs/features/FEATURE-026-web-client-polish/idea.md) | STORY-023 — web client polish | idea |
+| [FEATURE-026](../../docs/features/FEATURE-026-web-client-polish/idea.md) | STORY-023, STORY-045 – STORY-050 — web UI rebuild | building |

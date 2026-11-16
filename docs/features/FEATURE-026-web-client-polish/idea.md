@@ -30,6 +30,8 @@ answering Dragon.
 - Storage schema choices that aren't coordinated with the upcoming users/profile work
 
 ## Prototype
-- Layout mockups, 2026-11-12: https://claude.ai/artifact/Mb6tZiqZBbWkda3qYUikhs (private until shared). Chosen:
-  C1 projects homepage, C2 workspace with Dragon shrunk, C3 Dragon expanded, M1–M3 phone. A and B are the options
-  not taken (left project list; Dragon in the centre).
+
+Built — HTML mockup, layout options, 2026-11-12: https://claude.ai/artifact/Mb6tZiqZBbWkda3qYUikhs (private until shared).
+
+Chosen: C1 projects homepage, C2 workspace with Dragon shrunk, C3 Dragon expanded, M1–M3 phone. A and B are the
+options not taken (left project list; Dragon in the centre).

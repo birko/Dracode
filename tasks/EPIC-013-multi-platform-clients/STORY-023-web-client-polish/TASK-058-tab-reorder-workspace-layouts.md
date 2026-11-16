@@ -15,6 +15,10 @@ jira-key: null
 
 # Drag-and-drop tabs + workspace layout save/load
 
+> Parked 2026-11-16: this task is FEATURE-026 D1 and D2, both still `proposed`. The web UI is being rebuilt around the
+> decided workspace (FEATURE-026 D9, D11), so if D1/D2 are approved, rewrite this task against the new workspace
+> (TASK-150) before picking it.
+
 ## Context
 
 > **Build on the framework (2026-10-07 review):** tab drag-and-drop, split sizes and the layout serialize/restore hook are Birko TASK-525 (`b-tabs` / `b-split-panel`); only the server-side per-user layout storage stays here.

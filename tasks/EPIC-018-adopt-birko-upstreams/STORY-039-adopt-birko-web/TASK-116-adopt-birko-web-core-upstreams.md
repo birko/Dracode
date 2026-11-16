@@ -2,7 +2,7 @@
 id: TASK-116
 parent: STORY-039
 feature: FEATURE-026
-status: todo
+status: cancelled
 priority: P3
 assignee: ai
 created: 2026-10-07
@@ -40,3 +40,7 @@ connection-state manager, not `window.koboldLairWebSocket`.
 N/A — covered by tests.
 
 ## Implementation plan
+
+## Cancelled
+
+Cancelled 2026-11-16, superseded. The rebuilt web UI talks only to `/api/v1` and `/dragon`, which are owner-scoped; `/wyvern` carries no caller identity, so it cannot back screens in a signed-in, per-user UI (FEATURE-026 D8, decided by the owner 2026-11-16). That leaves `api-client.ts` without a screen to serve. The runtime-config half can be taken up when `config.ts` is next touched.
