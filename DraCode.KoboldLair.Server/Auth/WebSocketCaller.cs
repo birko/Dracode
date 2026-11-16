@@ -9,8 +9,7 @@ namespace DraCode.KoboldLair.Server.Auth;
 public static class WebSocketCaller
 {
     /// <summary>
-    /// The subject is the raw <c>NameIdentifier</c> claim, not <see cref="ICurrentUser.UserGuid"/>: GitHub
-    /// (<c>github:{id}</c>) and service-account (<c>service:&lt;name&gt;</c>) subjects are not GUIDs. Without an
+    /// The subject is <see cref="ApiOwnership.CallerId"/>, as on <c>/api/v1</c>. Without an
     /// authenticated user (JWT off) the caller is the local single-user owner, an admin with no subject.
     /// </summary>
     public static KoboldCaller From(ICurrentUser user)
@@ -19,7 +18,7 @@ public static class WebSocketCaller
             return new KoboldCaller(null, true, null, null);
 
         return new KoboldCaller(
-            user.GetClaim(ClaimTypes.NameIdentifier),
+            ApiOwnership.CallerId(user),
             ApiOwnership.IsAdmin(user),
             user.GetClaim("name") ?? user.GetClaim(ClaimTypes.Name),
             user.GetClaim("email") ?? user.Email);

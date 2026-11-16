@@ -29,8 +29,8 @@ namespace DraCode.KoboldLair.Tests.Api;
 public class ResourceEndpointsTests : IDisposable
 {
     private const string Secret = "test-secret-key-at-least-32-characters-long-xyz";
-    private static readonly string UserA = "11111111-1111-1111-1111-111111111111";
-    private static readonly string UserB = "22222222-2222-2222-2222-222222222222";
+    private const string UserA = "11111111-1111-1111-1111-111111111111";
+    private const string UserB = "22222222-2222-2222-2222-222222222222";
     // Owner actions need manage_projects + execute_agents (retry) alongside view_own. The permission claim
     // is comma-split (Program.cs), so a multi-permission token is comma-joined.
     private const string OwnerScopes = "view_own,manage_projects,execute_agents";
@@ -167,12 +167,70 @@ public class ResourceEndpointsTests : IDisposable
     {
         using var factory = CreateFactory();
         var client = factory.CreateClient();
-        // A non-Guid sub (e.g. a service account) → ICurrentUser.UserGuid is null → no valid owner.
-        var token = MintToken(factory, "service:bot", OwnerScopes);
+        // A token without a 'sub' has no caller identity, so it cannot own a project.
+        var token = factory.Services.GetRequiredService<ITokenProvider>().GenerateToken(
+            new Dictionary<string, string> { ["scope"] = OwnerScopes }).Token;
 
         var resp = await client.SendAsync(Authed(HttpMethod.Post, "/api/v1/projects", token, new { name = "NoOwner" }));
 
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest, "a subject-less caller can't own a project — clean 400, no orphaned files");
+    }
+
+    // GitHub sign-in and service accounts carry non-GUID subjects (TASK-141)
+    [Theory]
+    [InlineData("github:4242", "github:4343")]
+    [InlineData("service:bot", "service:other")]
+    public async Task A_caller_with_a_non_guid_subject_owns_the_projects_it_creates(string owner, string stranger)
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var ownerToken = MintToken(factory, owner, OwnerScopes);
+        var strangerToken = MintToken(factory, stranger, OwnerScopes);
+
+        var id = await CreateProject(client, ownerToken, "NonGuidOwned");
+
+        factory.Services.GetRequiredService<IProjectRepository>().GetById(id)!.OwnerId.Should().Be(owner);
+        (await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/projects/{id}", ownerToken)))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        using (var doc = JsonDocument.Parse(await (await client.SendAsync(
+                   Authed(HttpMethod.Get, "/api/v1/projects", ownerToken))).Content.ReadAsStringAsync()))
+            doc.RootElement.EnumerateArray().Select(e => e.GetProperty("id").GetString()).Should().Contain(id);
+
+        (await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/projects/{id}", strangerToken)))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+        using (var doc = JsonDocument.Parse(await (await client.SendAsync(
+                   Authed(HttpMethod.Get, "/api/v1/projects", strangerToken))).Content.ReadAsStringAsync()))
+            doc.RootElement.EnumerateArray().Select(e => e.GetProperty("id").GetString()).Should().NotContain(id);
+    }
+
+    [Fact]
+    public async Task A_github_caller_can_open_a_project_dragon_registered_for_it()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        // Dragon stores the raw subject as the owner
+        var project = factory.Services.GetRequiredService<DraCode.KoboldLair.Services.ProjectService>()
+            .RegisterProject("FromDragon", Path.Combine(_projectsPath, "from-dragon", "specification.md"), "github:4242");
+
+        var resp = await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/projects/{project.Id}",
+            MintToken(factory, "github:4242", OwnerScopes)));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Theory]
+    [InlineData("github:4242")]
+    [InlineData("service:bot")]
+    [InlineData(UserA)]
+    public async Task Whoami_reports_the_raw_subject(string sub)
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var resp = await client.SendAsync(Authed(HttpMethod.Get, "/api/v1/whoami", MintToken(factory, sub, OwnerScopes)));
+
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("userId").GetString().Should().Be(sub);
     }
 
     [Fact]

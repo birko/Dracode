@@ -86,6 +86,12 @@ public class RunsEndpointsTests
             ["scope"] = scope
         }).Token;
 
+    private static string SubjectlessToken(WebApplicationFactory<Program> factory, string scope) =>
+        factory.Services.GetRequiredService<ITokenProvider>().GenerateToken(new Dictionary<string, string>
+        {
+            ["scope"] = scope
+        }).Token;
+
     private static HttpRequestMessage Authed(HttpMethod method, string uri, string token, object? body = null)
     {
         var req = new HttpRequestMessage(method, uri) { Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) } };
@@ -201,10 +207,10 @@ public class RunsEndpointsTests
     {
         using var factory = CreateFactory();
         var client = factory.CreateClient();
-        // Tokens whose 'sub' isn't a Guid → ICurrentUser.UserGuid is null → owner is null. The ownership check
-        // must NOT treat two null-identity callers as the same owner (#5).
-        var tokenX = MintToken(factory, "not-a-guid-x", KoboldLairPermissionChecker.ViewOwn);
-        var tokenY = MintToken(factory, "not-a-guid-y", KoboldLairPermissionChecker.ViewOwn);
+        // Tokens without a 'sub' have no caller identity. The ownership check must NOT treat two
+        // null-identity callers as the same owner (#5).
+        var tokenX = SubjectlessToken(factory, KoboldLairPermissionChecker.ViewOwn);
+        var tokenY = SubjectlessToken(factory, KoboldLairPermissionChecker.ViewOwn);
 
         var start = await client.SendAsync(Authed(HttpMethod.Post, "/api/v1/runs", tokenX, new { mode = "test" }));
         start.StatusCode.Should().Be(HttpStatusCode.Accepted);
@@ -212,5 +218,32 @@ public class RunsEndpointsTests
 
         var get = await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/runs/{runId}", tokenY));
         get.StatusCode.Should().Be(HttpStatusCode.NotFound, "a null-identity run must not be readable by another null-identity caller");
+    }
+
+    // GitHub sign-in and service accounts carry non-GUID subjects (TASK-141)
+    [Theory]
+    [InlineData("github:4242", "github:4343")]
+    [InlineData("service:bot", "service:other")]
+    public async Task A_caller_with_a_non_guid_subject_owns_its_runs(string owner, string stranger)
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var ownerToken = MintToken(factory, owner, KoboldLairPermissionChecker.ViewOwn);
+        var strangerToken = MintToken(factory, stranger, KoboldLairPermissionChecker.ViewOwn);
+
+        var start = await client.SendAsync(Authed(HttpMethod.Post, "/api/v1/runs", ownerToken, new { mode = "test" }));
+        start.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var runId = await RunIdFrom(start);
+
+        (await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/runs/{runId}", ownerToken)))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        using (var events = await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/runs/{runId}/events", ownerToken),
+                   HttpCompletionOption.ResponseHeadersRead))
+            events.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        (await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/runs/{runId}", strangerToken)))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/runs/{runId}/events", strangerToken)))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

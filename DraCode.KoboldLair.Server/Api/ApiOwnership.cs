@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Birko.Security.AspNetCore;
 using DraCode.KoboldLair.Server.Auth;
 
@@ -12,6 +13,17 @@ namespace DraCode.KoboldLair.Server.Api;
 /// </summary>
 public static class ApiOwnership
 {
+    /// <summary>
+    /// The caller's identity: the raw <c>NameIdentifier</c> claim (the token's <c>sub</c>), or null when it has none.
+    /// Not <see cref="ICurrentUser.UserGuid"/>, which is null for GitHub (<c>github:{id}</c>) and service-account
+    /// (<c>service:&lt;name&gt;</c>) subjects; Dragon stores the same raw subject as a project's owner.
+    /// </summary>
+    public static string? CallerId(ICurrentUser user)
+    {
+        var sub = user.GetClaim(ClaimTypes.NameIdentifier);
+        return string.IsNullOrEmpty(sub) ? null : sub;
+    }
+
     /// <summary>True when the caller carries the wildcard or <c>view_all</c> permission.</summary>
     public static bool IsAdmin(ICurrentUser user) =>
         user.Permissions.Contains("*") || user.Permissions.Contains(KoboldLairPermissionChecker.ViewAll);
@@ -24,7 +36,7 @@ public static class ApiOwnership
     {
         if (IsAdmin(user))
             return true;
-        var caller = user.UserGuid?.ToString();
+        var caller = CallerId(user);
         return caller is not null && ownerId is not null && ownerId == caller;
     }
 }

@@ -36,7 +36,7 @@ public static class RunsEndpoints
                 if (handler is null)
                     return Results.BadRequest(new { error = $"unknown mode '{request.Mode}'" });
 
-                var owner = user.UserGuid?.ToString();
+                var owner = ApiOwnership.CallerId(user);
                 var caller = new KoboldCaller(owner, IsAdmin(user), user.GetClaim("name"), user.Email);
 
                 // Subscribe-before-start: register (which subscribes to the event source) before the run begins,
@@ -75,7 +75,7 @@ public static class RunsEndpoints
                 // Ownership: admins see all; otherwise the caller must have a concrete identity that matches the
                 // run's owner. A null caller identity or a null-owner run is never readable by a non-admin (so a
                 // subject-less token can't read another subject-less caller's run). 404 (not 403) avoids leaking existence.
-                var owner = user.UserGuid?.ToString();
+                var owner = ApiOwnership.CallerId(user);
                 if (!IsAdmin(user) && (owner is null || run.Owner is null || run.Owner != owner))
                     return Results.NotFound();
 
@@ -100,7 +100,7 @@ public static class RunsEndpoints
                 KoboldRunEventSource events, HttpContext ctx) =>
             {
                 var run = registry.Get(id);
-                var owner = user.UserGuid?.ToString();
+                var owner = ApiOwnership.CallerId(user);
                 if (run is null || (!IsAdmin(user) && (owner is null || run.Owner is null || run.Owner != owner)))
                     return Task.FromResult<IResult>(Results.NotFound());
 

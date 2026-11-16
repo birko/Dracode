@@ -37,11 +37,12 @@ public static class ResourceEndpoints
         api.MapGet("/projects", (ICurrentUser user, IProjectRepository repo, string? scope) =>
             {
                 var admin = ApiOwnership.IsAdmin(user);
+                var caller = ApiOwnership.CallerId(user);
                 var list = (admin && scope == "all")
                     ? repo.GetAll()
-                    : admin && user.UserGuid is null
+                    : admin && caller is null
                         ? repo.GetAll()                       // auth-off single-user → see all
-                        : repo.GetAllForOwner(user.UserGuid?.ToString() ?? string.Empty);
+                        : repo.GetAllForOwner(caller ?? string.Empty);
                 return Results.Ok(list.Select(ProjectView));
             })
             .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
@@ -55,10 +56,9 @@ public static class ResourceEndpoints
 
                 // Validate everything BEFORE any file write, so a rejected request never orphans a
                 // project folder / specification.md on disk.
-                var owner = user.UserGuid?.ToString();
+                var owner = ApiOwnership.CallerId(user);
                 if (string.IsNullOrWhiteSpace(owner))
-                    // RegisterProject requires a real owner sub (FEATURE-019 D8); a subject-less caller
-                    // (e.g. a service-account token) gets a clean 400, not a 500 + orphaned files.
+                    // RegisterProject requires a real owner sub (FEATURE-019 D8); a subject-less caller gets a clean 400, not a 500 + orphaned files.
                     return Results.BadRequest(new { error = "an authenticated caller identity (sub) is required to create a project" });
                 // The project folder is name-derived, so names are unique. Refuse a collision with 409 —
                 // otherwise SaveContentAsync would overwrite another owner's specification.md and
