@@ -6,6 +6,7 @@ using Birko.AI.Providers;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Events.Run;
 using DraCode.KoboldLair.Models.Agents;
+using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
 using FluentAssertions;
 
@@ -32,6 +33,7 @@ public class KoboldRunHooksTests : IDisposable
     {
         public List<List<Message>> Requests { get; } = new();
         public List<CancellationToken> Tokens { get; } = new();
+        public List<List<string>> OfferedTools { get; } = new();
         public string Name => "scripted";
         public Action<string, string>? MessageCallback { get; set; }
 
@@ -40,6 +42,7 @@ public class KoboldRunHooksTests : IDisposable
         {
             Requests.Add(messages.ToList());
             Tokens.Add(cancellationToken);
+            OfferedTools.Add(tools.Select(t => t.Name).ToList());
             return script(Requests.Count, cancellationToken);
         }
 
@@ -169,8 +172,12 @@ public class KoboldRunHooksTests : IDisposable
 
         await kobold.StartWorkingWithPlanEnhancedAsync(planService: null, maxIterations: 10, cancellationToken: cts.Token);
 
-        provider.Tokens.Should().NotBeEmpty().And.OnlyContain(t => t == cts.Token);
-        touch.Tokens.Should().ContainSingle().Which.Should().Be(cts.Token);
+        // The run passes its own token, linked to the caller's (it can stop itself after a question, TASK-021);
+        // the caller's cancellation reaching it is Cancelling_during_a_model_call_ends_the_run_gracefully_...
+        var runToken = provider.Tokens.Should().NotBeEmpty().And.Subject.First();
+        runToken.CanBeCanceled.Should().BeTrue();
+        provider.Tokens.Should().OnlyContain(t => t == runToken);
+        touch.Tokens.Should().ContainSingle().Which.Should().Be(runToken);
     }
 
     [Fact]
@@ -213,5 +220,92 @@ public class KoboldRunHooksTests : IDisposable
 
         kobold.Status.Should().Be(KoboldStatus.Working);
         agent.Hooks.Should().BeNull();
+    }
+
+    // --- ask_human (TASK-021) ---------------------------------------------------------------------
+
+    private static LlmResponse AskThenTouch() => new()
+    {
+        StopReason = "tool_use",
+        Content = new List<ContentBlock>
+        {
+            new() { Type = "tool_use", Id = "ask-1", Name = "ask_human",
+                Input = new Dictionary<string, object> { ["question"] = "Which database?" } },
+            new() { Type = "tool_use", Id = "touch-1", Name = "touch",
+                Input = new Dictionary<string, object> { ["path"] = "after-ask.txt" } }
+        }
+    };
+
+    [Fact]
+    public async Task Asking_ends_the_run_after_the_turn_with_the_question_and_its_result_saved()
+    {
+        var provider = new ScriptedProvider((call, _) => Task.FromResult(call == 1 ? AskThenTouch() : EndTurn));
+        var (kobold, _, touch) = CreateKobold(provider, Step(1, "never-1.txt"));
+        kobold.OnAskHuman = (_, _) => Task.FromResult(new AskHumanOutcome(true, "dec-1", null));
+
+        // No cancellation is passed in: the run stops itself, so a later run of the task cannot be cancelled by this one
+        var conversation = await kobold.StartWorkingWithPlanEnhancedAsync(planService: null, maxIterations: 10);
+
+        provider.Requests.Should().HaveCount(1, "the run stops before the next model call");
+        touch.Tokens.Should().HaveCount(1, "a later call in the same turn still runs");
+        var last = System.Text.Json.JsonSerializer.Serialize(conversation[^1]);
+        last.Should().Contain("ask-1").And.Contain("dec-1", "the saved conversation ends with the question's result");
+        kobold.Status.Should().Be(KoboldStatus.Working);
+        kobold.ImplementationPlan!.Steps[0].Status.Should().NotBe(StepStatus.Completed);
+    }
+
+    [Fact]
+    public async Task On_the_basic_plan_path_asking_also_ends_the_run_after_the_turn()
+    {
+        var provider = new ScriptedProvider((call, _) => Task.FromResult(call == 1 ? AskThenTouch() : EndTurn));
+        var (kobold, _, touch) = CreateKobold(provider, Step(1, "never-1.txt"));
+        kobold.OnAskHuman = (_, _) => Task.FromResult(new AskHumanOutcome(true, "dec-1", null));
+
+        await kobold.StartWorkingWithPlanAsync(planService: null, maxIterations: 10);
+
+        provider.Requests.Should().HaveCount(1);
+        touch.Tokens.Should().HaveCount(1);
+        kobold.Status.Should().Be(KoboldStatus.Working);
+    }
+
+    [Fact]
+    public async Task A_refused_question_does_not_end_the_run()
+    {
+        var provider = new ScriptedProvider((call, _) => Task.FromResult(call == 1 ? AskThenTouch() : EndTurn));
+        var (kobold, _, _) = CreateKobold(provider, Step(1, "never-1.txt"));
+        kobold.OnAskHuman = (_, _) => Task.FromResult(new AskHumanOutcome(false, null, "limit reached"));
+
+        await kobold.StartWorkingWithPlanEnhancedAsync(planService: null, maxIterations: 10);
+
+        provider.Requests.Should().HaveCount(2, "the model hears 'not asked' and goes on");
+    }
+
+    [Fact]
+    public async Task A_run_without_a_plan_is_not_offered_ask_human()
+    {
+        var provider = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (kobold, _, _) = CreateKobold(provider);
+        kobold.ImplementationPlan = null;
+        kobold.OnAskHuman = (_, _) => Task.FromResult(new AskHumanOutcome(true, "dec-1", null));
+
+        await kobold.StartWorkingWithPlanAsync(planService: null, maxIterations: 2);
+
+        provider.OfferedTools.Should().OnlyContain(names => !names.Contains("ask_human"));
+    }
+
+    [Fact]
+    public async Task A_plan_run_is_offered_ask_human_only_when_Drake_wired_it()
+    {
+        var withAsk = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (asking, _, _) = CreateKobold(withAsk, Step(1, "never-1.txt"));
+        asking.OnAskHuman = (_, _) => Task.FromResult(new AskHumanOutcome(true, "dec-1", null));
+        await asking.StartWorkingWithPlanEnhancedAsync(planService: null, maxIterations: 1);
+
+        var without = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (silent, _, _) = CreateKobold(without, Step(1, "never-1.txt"));
+        await silent.StartWorkingWithPlanEnhancedAsync(planService: null, maxIterations: 1);
+
+        withAsk.OfferedTools[0].Should().Contain("ask_human");
+        without.OfferedTools[0].Should().NotContain("ask_human");
     }
 }

@@ -43,4 +43,16 @@ namespace DraCode.KoboldLair.Models.Tasks
     public enum PendingDecisionSource { Escalation = 0, AskHuman = 1, Approval = 2 }
 
     public enum PendingDecisionResolution { Answered = 0, TimedOut = 1 }
+
+    /// <summary>What became of an answer submitted to a pending decision (not stored).</summary>
+    public enum DecisionAnswerResult
+    {
+        Resolved,
+        /// <summary>No such decision for this project and area.</summary>
+        NotFound,
+        /// <summary>Already answered or timed out.</summary>
+        AlreadyResolved,
+        /// <summary>Not one of the question's options, and free text is not allowed; the decision stays open.</summary>
+        InvalidAnswer
+    }
 }

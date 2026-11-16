@@ -69,13 +69,25 @@ public class EscalationToHumanTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    private (Drake drake, TaskTracker tracker) NewDrake(IEscalationDispositionPolicy? policy = null, bool withDecisions = true)
+    private sealed class FixedAskPolicy(AskHumanLimits limits) : IAskHumanPolicy
+    {
+        public AskHumanLimits For(string projectId) => limits;
+    }
+
+    private sealed class ThrowingAskPolicy : IAskHumanPolicy
+    {
+        public AskHumanLimits For(string projectId) => throw new InvalidOperationException("policy store down");
+    }
+
+    private (Drake drake, TaskTracker tracker) NewDrake(IEscalationDispositionPolicy? policy = null, bool withDecisions = true,
+        IAskHumanPolicy? askPolicy = null)
     {
         var tracker = new TaskTracker();
         var drake = new Drake(_kobolds, tracker, Path.Combine(_dir, "backend-tasks.md"), "ollama",
             projectId: ProjectId,
             pendingDecisions: withDecisions ? _decisions : null,
             dispositionPolicy: policy,
+            askHumanPolicy: askPolicy,
             onDecisionRequired: (_, d) => _raised.Add(d),
             onDecisionResolved: (_, d) => _resolved.Add(d));
         return (drake, tracker);
@@ -190,7 +202,7 @@ public class EscalationToHumanTests : IAsyncLifetime
         await drake.HandleEscalationAsync(Alert(task));
         var decision = (await _decisions.GetUnresolvedForTaskAsync(task.Id))!;
 
-        (await drake.ResolvePendingDecisionAsync(decision.Id, "Use the python agent instead")).Should().BeTrue();
+        (await drake.ResolvePendingDecisionAsync(decision.Id, "Use the python agent instead")).Should().Be(DecisionAnswerResult.Resolved);
 
         task.Status.Should().Be(TaskStatus.Unassigned);
         drake.GetUnassignedTasks().Select(t => t.Task.Id).Should().Contain(task.Id);
@@ -199,7 +211,7 @@ public class EscalationToHumanTests : IAsyncLifetime
         answered.ResolutionKind.Should().Be(PendingDecisionResolution.Answered);
         _resolved.Should().ContainSingle(d => d.Id == decision.Id);
 
-        (await drake.ResolvePendingDecisionAsync(decision.Id, "again")).Should().BeFalse();
+        (await drake.ResolvePendingDecisionAsync(decision.Id, "again")).Should().Be(DecisionAnswerResult.AlreadyResolved);
     }
 
     [Fact]
@@ -211,7 +223,7 @@ public class EscalationToHumanTests : IAsyncLifetime
         var decision = (await _decisions.GetUnresolvedForTaskAsync(task.Id))!;
         await drake.ExpirePendingDecisionsAsync(decision.CreatedAt.AddHours(1));
 
-        (await drake.ResolvePendingDecisionAsync(decision.Id, "too late")).Should().BeFalse();
+        (await drake.ResolvePendingDecisionAsync(decision.Id, "too late")).Should().Be(DecisionAnswerResult.AlreadyResolved);
     }
 
     [Fact]
@@ -223,7 +235,7 @@ public class EscalationToHumanTests : IAsyncLifetime
         await drake.HandleEscalationAsync(Alert(task));
         var decision = (await _decisions.GetUnresolvedForTaskAsync(task.Id))!;
 
-        (await drake.ResolvePendingDecisionAsync(decision.Id, PendingDecisionNotification.HandleAutomatically)).Should().BeTrue();
+        (await drake.ResolvePendingDecisionAsync(decision.Id, PendingDecisionNotification.HandleAutomatically)).Should().Be(DecisionAnswerResult.Resolved);
 
         task.Status.Should().Be(TaskStatus.Unassigned);
         task.ErrorMessage.Should().BeNull("WrongAgentType's route clears the error; a plain answer would keep it");
@@ -250,7 +262,7 @@ public class EscalationToHumanTests : IAsyncLifetime
         var foreign = new PendingDecision { ProjectId = "other-project", TaskId = "t-x", Question = "?" };
         await _decisions.CreateAsync(foreign);
 
-        (await drake.ResolvePendingDecisionAsync(foreign.Id, "yes")).Should().BeFalse();
+        (await drake.ResolvePendingDecisionAsync(foreign.Id, "yes")).Should().Be(DecisionAnswerResult.NotFound);
         (await _decisions.GetByIdAsync(foreign.Id))!.ResolutionKind.Should().BeNull();
     }
 
@@ -263,9 +275,9 @@ public class EscalationToHumanTests : IAsyncLifetime
         var decision = new PendingDecision { ProjectId = ProjectId, TaskId = "t-1", Question = "?" };
         await _decisions.CreateAsync(decision);
 
-        (await factory.ResolvePendingDecisionAsync("other-project", decision.Id, "yes")).Should().BeFalse();
-        (await factory.ResolvePendingDecisionAsync(ProjectId, decision.Id, "yes")).Should().BeTrue();
-        (await factory.ResolvePendingDecisionAsync(ProjectId, decision.Id, "again")).Should().BeFalse();
+        (await factory.ResolvePendingDecisionAsync("other-project", decision.Id, "yes")).Should().Be(DecisionAnswerResult.NotFound);
+        (await factory.ResolvePendingDecisionAsync(ProjectId, decision.Id, "yes")).Should().Be(DecisionAnswerResult.Resolved);
+        (await factory.ResolvePendingDecisionAsync(ProjectId, decision.Id, "again")).Should().Be(DecisionAnswerResult.AlreadyResolved);
         (await _decisions.GetByIdAsync(decision.Id))!.Resolution.Should().Be("yes");
     }
 
@@ -314,7 +326,7 @@ public class EscalationToHumanTests : IAsyncLifetime
             OnDecisionResolved = (_, d) => _resolved.Add(d)
         };
         (await factory.ResolvePendingDecisionAsync(ProjectId, decision.Id, PendingDecisionNotification.HandleAutomatically))
-            .Should().BeTrue();
+            .Should().Be(DecisionAnswerResult.Resolved);
         _resolved.Should().ContainSingle(d => d.Id == decision.Id, "the card is retired even with no Drake running");
 
         // A Drake starts on the same tasks and reconciles
@@ -324,5 +336,150 @@ public class EscalationToHumanTests : IAsyncLifetime
 
         task.Status.Should().Be(TaskStatus.Unassigned);
         task.ErrorMessage.Should().BeNull("the escalation's automatic route ran on reconcile");
+    }
+
+    // --- ask_human (TASK-021) ---------------------------------------------------------------------
+
+    private static AskHumanQuestion Question(params string[] options) =>
+        new("Which database?", options, AllowFreeText: options.Length == 0, Context: "the spec names neither");
+
+    [Fact]
+    public async Task Asking_parks_the_task_on_a_question_without_cancelling_the_run()
+    {
+        var (drake, tracker) = NewDrake();
+        var task = Working(tracker);
+        using var run = new CancellationTokenSource();
+        drake.BeginRun(task.Id, run);
+
+        var outcome = await drake.AskHumanAsync(task, Question("SQLite", "Postgres"));
+
+        outcome.Parked.Should().BeTrue();
+        task.Status.Should().Be(TaskStatus.AwaitingHumanDecision);
+        run.IsCancellationRequested.Should().BeFalse("the run stops at its next turn boundary, not mid-turn");
+        var stored = (await _decisions.GetByIdAsync(outcome.DecisionId!))!;
+        stored.Source.Should().Be(PendingDecisionSource.AskHuman);
+        stored.Timeout.Should().BeNull();
+        var metadata = PendingDecisionNotification.ToMetadata(_raised.Should().ContainSingle().Subject);
+        metadata[PendingDecisionNotification.Question].Should().Be("Which database?");
+        metadata[PendingDecisionNotification.Context].Should().Be("the spec names neither");
+        metadata[PendingDecisionNotification.ResponseSchema].Should().Contain("Postgres").And.Contain("choice");
+        drake.EndRun(task.Id, run);
+    }
+
+    [Fact]
+    public async Task The_question_cap_counts_every_question_the_task_asked()
+    {
+        var (drake, tracker) = NewDrake(askPolicy: new FixedAskPolicy(new AskHumanLimits(MaxQuestionsPerTask: 1)));
+        var task = Working(tracker);
+        var first = await drake.AskHumanAsync(task, Question());
+        await drake.ResolvePendingDecisionAsync(first.DecisionId!, "Postgres");
+
+        var second = await drake.AskHumanAsync(task, Question());
+
+        second.Parked.Should().BeFalse();
+        second.Refusal.Should().Contain("limit");
+        task.Status.Should().Be(TaskStatus.Unassigned);
+    }
+
+    [Fact]
+    public async Task A_policy_that_disallows_asking_stores_nothing()
+    {
+        var (drake, tracker) = NewDrake(askPolicy: new FixedAskPolicy(new AskHumanLimits(Allow: false)));
+        var task = Working(tracker);
+
+        (await drake.AskHumanAsync(task, Question())).Parked.Should().BeFalse();
+
+        (await _decisions.GetUnresolvedForProjectAsync(ProjectId)).Should().BeEmpty();
+        task.Status.Should().Be(TaskStatus.Working);
+    }
+
+    [Fact]
+    public async Task A_failing_policy_is_read_as_allow_with_no_cap()
+    {
+        var (drake, tracker) = NewDrake(askPolicy: new ThrowingAskPolicy());
+        var task = Working(tracker);
+
+        (await drake.AskHumanAsync(task, Question())).Parked.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Without_a_decision_store_asking_is_refused()
+    {
+        var (drake, tracker) = NewDrake(withDecisions: false);
+        var task = Working(tracker);
+
+        var outcome = await drake.AskHumanAsync(task, Question());
+
+        outcome.Parked.Should().BeFalse();
+        task.Status.Should().Be(TaskStatus.Working);
+    }
+
+    [Fact]
+    public async Task An_answer_that_is_not_one_of_the_options_is_refused_and_the_question_stays_open()
+    {
+        var (drake, tracker) = NewDrake();
+        var task = Working(tracker);
+        var asked = await drake.AskHumanAsync(task, Question("SQLite", "Postgres"));
+
+        (await drake.ResolvePendingDecisionAsync(asked.DecisionId!, "MySQL")).Should().Be(DecisionAnswerResult.InvalidAnswer);
+        task.Status.Should().Be(TaskStatus.AwaitingHumanDecision);
+        (await _decisions.GetUnresolvedForTaskAsync(task.Id)).Should().NotBeNull();
+
+        (await drake.ResolvePendingDecisionAsync(asked.DecisionId!, " Postgres ")).Should().Be(DecisionAnswerResult.Resolved);
+        (await _decisions.GetResolvedForTaskAsync(task.Id)).Single().Resolution.Should().Be("Postgres");
+        task.Status.Should().Be(TaskStatus.Unassigned);
+    }
+
+    [Fact]
+    public async Task Handle_it_automatically_as_free_text_to_a_question_is_just_an_answer()
+    {
+        var (drake, tracker) = NewDrake();
+        var task = Working(tracker);
+        var asked = await drake.AskHumanAsync(task, Question());
+
+        (await drake.ResolvePendingDecisionAsync(asked.DecisionId!, PendingDecisionNotification.HandleAutomatically))
+            .Should().Be(DecisionAnswerResult.Resolved);
+
+        (await _decisions.GetResolvedForTaskAsync(task.Id)).Single().Resolution.Should().Be(PendingDecisionNotification.HandleAutomatically);
+        task.Status.Should().Be(TaskStatus.Unassigned);
+    }
+
+    [Fact]
+    public async Task A_free_text_answer_is_stored_verbatim()
+    {
+        var (drake, tracker) = NewDrake();
+        var task = Working(tracker);
+        var asked = await drake.AskHumanAsync(task, Question());
+
+        (await drake.ResolvePendingDecisionAsync(asked.DecisionId!, "  the one in the monorepo  ")).Should().Be(DecisionAnswerResult.Resolved);
+
+        (await _decisions.GetResolvedForTaskAsync(task.Id)).Single().Resolution.Should().Be("  the one in the monorepo  ");
+    }
+
+    [Fact]
+    public async Task With_no_Drake_alive_an_invalid_choice_is_still_refused()
+    {
+        var decision = new PendingDecision
+        {
+            ProjectId = ProjectId, TaskId = "t-1", Source = PendingDecisionSource.AskHuman,
+            Question = Question("SQLite", "Postgres").ToJson()
+        };
+        await _decisions.CreateAsync(decision);
+        var providers = new ProviderConfigurationService(NullLogger<ProviderConfigurationService>.Instance,
+            Options.Create(_config), Path.Combine(_dir, "user-settings.json"));
+        var factory = new DrakeFactory(_kobolds, providers, _config, NullLoggerFactory.Instance, pendingDecisions: _decisions);
+
+        (await factory.ResolvePendingDecisionAsync(ProjectId, decision.Id, "MySQL")).Should().Be(DecisionAnswerResult.InvalidAnswer);
+        (await factory.ResolvePendingDecisionAsync(ProjectId, decision.Id, "SQLite")).Should().Be(DecisionAnswerResult.Resolved);
+    }
+
+    [Fact]
+    public void The_analyzer_and_pre_analysis_agents_have_no_ask_human_tool()
+    {
+        var provider = new Birko.AI.Providers.OllamaProvider("m1", "http://localhost:1");
+        var options = new Birko.AI.AgentOptions { WorkingDirectory = _dir };
+
+        new DraCode.KoboldLair.Agents.WyvernAgent(provider, options).Tools.Select(t => t.Name).Should().NotContain("ask_human");
+        new DraCode.KoboldLair.Agents.WyrmPreAnalysisAgent(provider, options).Tools.Select(t => t.Name).Should().NotContain("ask_human");
     }
 }

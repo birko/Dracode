@@ -95,6 +95,13 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             return entities.Select(ToModel).OrderByDescending(d => d.ResolvedAt).ToList();
         }
 
+        /// <summary>Every decision of <paramref name="source"/> the task ever had, answered and open alike.</summary>
+        public async Task<int> CountForTaskAsync(string taskId, PendingDecisionSource source)
+        {
+            var sourceInt = (int)source;
+            return (int)await _repository.CountAsync(e => e.TaskId == taskId && e.Source == sourceInt);
+        }
+
         public async Task<List<PendingDecision>> GetUnresolvedForProjectAsync(string projectId)
         {
             var entities = await _repository.ReadAsync(

@@ -1,3 +1,4 @@
+using DraCode.KoboldLair.Models.Tasks;
 using Birko.AI.Orchestration.Models;
 using Birko.AI;
 using Birko.AI.Models;
@@ -49,6 +50,18 @@ namespace DraCode.KoboldLair.Models.Agents
         /// no drop-before-subscribe race. Consumed (cleared) when the run begins.
         /// </summary>
         private Guid? _assignedRunId;
+
+        /// <summary>Offers <c>ask_human</c> to a plan run when Drake wired it; the plan paths remove it with the other plan tools.</summary>
+        private void AddAskHumanTool(KoboldPlanService? planService)
+        {
+            StopAfterToolTurn = false;
+            if (OnAskHuman == null || ImplementationPlan == null)
+                return;
+            Agent.AddTool(new AskHumanTool(
+                ImplementationPlan, planService, _logger,
+                ProjectId, TaskId?.ToString(), Id,
+                OnAskHuman, () => StopAfterToolTurn = true));
+        }
 
         /// <summary>Assigns the run id the next StartWorking* call will adopt (see <see cref="_assignedRunId"/>).</summary>
         public void AssignRunId(Guid runId) => _assignedRunId = runId;
@@ -204,6 +217,12 @@ namespace DraCode.KoboldLair.Models.Agents
         /// Drake wires this to route escalations to the appropriate upstream agent.
         /// </summary>
         public Action<EscalationAlert>? OnEscalation { get; set; }
+
+        /// <summary>Set by Drake: parks the task on an <c>ask_human</c> question. Null leaves the tool out (TASK-021).</summary>
+        public Func<AskHumanQuestion, CancellationToken, Task<AskHumanOutcome>>? OnAskHuman { get; set; }
+
+        /// <summary>A question parked the task: stop the run when the next model call would start.</summary>
+        internal bool StopAfterToolTurn { get; set; }
 
         /// <summary>
         /// Inject the reflection prompt every this many iterations of one step (0 = never). It was
@@ -843,6 +862,10 @@ You are working on a task that is part of a larger project. Below is the project
             int maxIterations = 30,
             CancellationToken cancellationToken = default)
         {
+            // This run's own stop: a question parks the task, and the hook stops this run, never a later one (TASK-021)
+            using var runStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cancellationToken = runStop.Token;
+
             if (Status != KoboldStatus.Assigned)
             {
                 throw new InvalidOperationException($"Cannot start working - Kobold {Id} is not assigned (current status: {Status})");
@@ -880,6 +903,8 @@ You are working on a task that is part of a larger project. Below is the project
                     ProjectId, TaskId?.ToString(), Id, AgentType,
                     OnEscalation, null,
                     _runEventSource, RunId));
+
+                AddAskHumanTool(planService);
             }
 
             try
@@ -917,7 +942,7 @@ You are working on a task that is part of a larger project. Below is the project
 
                 // Execute the task through the underlying agent
                 List<Message> messages;
-                var hooks = new RunHooks(this, planService, detectSteps: false);
+                var hooks = new RunHooks(this, planService, detectSteps: false) { StopRun = runStop.Cancel };
                 Agent.Hooks = hooks;
                 try
                 {
@@ -1038,6 +1063,7 @@ You are working on a task that is part of a larger project. Below is the project
                 {
                     Agent.RemoveTool("update_plan_step");
                     Agent.RemoveTool("reflect");
+                    Agent.RemoveTool("ask_human");
                 }
 
                 // Per-run telemetry (TASK-037): emit a terminal event, then complete the stream so
@@ -1112,6 +1138,8 @@ You are working on a task that is part of a larger project. Below is the project
                 ProjectId, TaskId?.ToString(), Id, AgentType,
                 OnEscalation, null,
                 _runEventSource, RunId));
+
+            AddAskHumanTool(planService);
 
             // Phase 4: Add modify_plan tool if enabled
             if (allowPlanModifications)
@@ -1241,6 +1269,7 @@ You are working on a task that is part of a larger project. Below is the project
                 // Clean up: remove the plan tools
                 Agent.RemoveTool("update_plan_step");
                 Agent.RemoveTool("reflect");
+                Agent.RemoveTool("ask_human");
 
                 // Phase 4: Clean up modify_plan tool if it was added
                 if (allowPlanModifications)
@@ -1278,7 +1307,11 @@ You are working on a task that is part of a larger project. Below is the project
         {
             var plan = ImplementationPlan ?? throw new InvalidOperationException("RunPlanStepsAsync requires a plan");
 
-            var hooks = new RunHooks(this, planService, detectSteps: true);
+            // This run's own stop: a question parks the task, and the hook stops this run, never a later one (TASK-021)
+            using var runStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cancellationToken = runStop.Token;
+
+            var hooks = new RunHooks(this, planService, detectSteps: true) { StopRun = runStop.Cancel };
             if (hooks.CurrentStepIndex >= plan.Steps.Count && hooks.CurrentStepIndex > 0)
             {
                 _logger?.LogWarning(
