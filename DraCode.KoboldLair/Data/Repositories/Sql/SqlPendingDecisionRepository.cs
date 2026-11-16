@@ -81,6 +81,20 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             return entities.Select(ToModel).OrderByDescending(d => d.CreatedAt).FirstOrDefault();
         }
 
+        public async Task<PendingDecision?> GetByIdAsync(string decisionId)
+        {
+            var entity = await _repository.ReadAsync(e => e.DecisionId == decisionId, CancellationToken.None);
+            return entity is null ? null : ToModel(entity);
+        }
+
+        /// <summary>The task's answered and timed-out decisions, newest first: where an answer is read back (TASK-022).</summary>
+        public async Task<List<PendingDecision>> GetResolvedForTaskAsync(string taskId)
+        {
+            var entities = await _repository.ReadAsync(
+                filter: e => e.TaskId == taskId && e.ResolutionKind != null, orderBy: null, limit: null, offset: null);
+            return entities.Select(ToModel).OrderByDescending(d => d.ResolvedAt).ToList();
+        }
+
         public async Task<List<PendingDecision>> GetUnresolvedForProjectAsync(string projectId)
         {
             var entities = await _repository.ReadAsync(
