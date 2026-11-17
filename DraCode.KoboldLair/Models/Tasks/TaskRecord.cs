@@ -55,6 +55,12 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// Number of retry attempts made for this task
         /// </summary>
         public int RetryCount { get; set; } = 0;
+
+        /// <summary>
+        /// How often the acceptance check reopened this task (TASK-025, FEATURE-031 D3). Separate from
+        /// <see cref="RetryCount"/>, which failure recovery uses for transient errors.
+        /// </summary>
+        public int AcceptanceAttempts { get; set; } = 0;
         
         /// <summary>
         /// Timestamp of the last retry attempt

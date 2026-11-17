@@ -53,6 +53,7 @@ namespace DraCode.KoboldLair.Data.Entities
         // Retry tracking
         public int RetryCount { get; set; } = 0;
         public DateTime? LastRetryAttempt { get; set; }
+        public int AcceptanceAttempts { get; set; } = 0;
         public DateTime? NextRetryAt { get; set; }
 
         [MaxLengthField(50)]
@@ -84,6 +85,7 @@ namespace DraCode.KoboldLair.Data.Entities
             target.CommitSha = CommitSha;
             target.FeatureId = FeatureId;
             target.RetryCount = RetryCount;
+            target.AcceptanceAttempts = AcceptanceAttempts;
             target.LastRetryAttempt = LastRetryAttempt;
             target.NextRetryAt = NextRetryAt;
             target.Provider = Provider;

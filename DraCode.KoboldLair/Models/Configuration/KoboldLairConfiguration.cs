@@ -39,6 +39,12 @@ namespace DraCode.KoboldLair.Models.Configuration
         public ReflectionConfiguration Reflection { get; set; } = new();
 
         /// <summary>
+        /// The whole-task acceptance check (TASK-025). The same <c>KoboldLair:Verification</c> section also holds the
+        /// toolchain verification settings that <c>WyvernVerificationService</c> reads on its own.
+        /// </summary>
+        public VerificationConfiguration Verification { get; set; } = new();
+
+        /// <summary>
         /// Configuration for agent iteration limits
         /// </summary>
         public IterationLimits Iterations { get; set; } = new();
@@ -244,6 +250,16 @@ namespace DraCode.KoboldLair.Models.Configuration
     /// Configuration for Kobold self-reflection and escalation system.
     /// Controls when Kobolds escalate issues to Drake for upstream routing.
     /// </summary>
+    /// <summary>The acceptance check Drake runs before a task is marked Done (TASK-025, FEATURE-031).</summary>
+    public class VerificationConfiguration
+    {
+        /// <summary>Whether finished tasks are checked against what their description promises (default: false, D5).</summary>
+        public bool TaskAcceptanceEnabled { get; set; } = false;
+
+        /// <summary>How often a task is reopened on a failed check before it fails with a fix task (default: 2, D3).</summary>
+        public int MaxAcceptanceReopens { get; set; } = 2;
+    }
+
     public class ReflectionConfiguration
     {
         /// <summary>

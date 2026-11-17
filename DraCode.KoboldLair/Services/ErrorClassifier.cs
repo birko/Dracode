@@ -124,6 +124,9 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         /// <param name="errorMessage">Error message to classify</param>
         /// <returns>Error category</returns>
+        /// <summary>How a task the acceptance check failed for good is described (TASK-025); always permanent.</summary>
+        public const string AcceptanceFailurePrefix = "acceptance check failed";
+
         public static ErrorCategory Classify(string? errorMessage)
         {
             if (string.IsNullOrWhiteSpace(errorMessage))
@@ -132,6 +135,13 @@ namespace DraCode.KoboldLair.Services
             }
 
             var lowerError = errorMessage.ToLowerInvariant();
+
+            // The acceptance check's own failure (TASK-025): its text quotes criteria and notes, which may name any
+            // transient word, and rerunning the same work cannot meet them
+            if (lowerError.StartsWith(AcceptanceFailurePrefix, StringComparison.Ordinal))
+            {
+                return ErrorCategory.Permanent;
+            }
 
             // Check transient patterns first (more common, prioritize retries)
             foreach (var pattern in TransientErrorPatterns)

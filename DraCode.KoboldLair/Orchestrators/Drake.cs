@@ -50,6 +50,10 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly PlanFileFilterService _fileFilterService;
         private readonly Models.Configuration.PlanningConfiguration? _planningConfig;
         private readonly Action<string, string, string>? _onFeatureBranchReady;
+
+        /// <summary>The acceptance check's settings; null when it is switched off (TASK-025, FEATURE-031 D5).</summary>
+        private readonly Models.Configuration.VerificationConfiguration? _acceptance;
+        private readonly TaskAcceptanceService _acceptanceService = new();
         private readonly Action<string, EscalationAlert, string>? _onEscalationNotify;
         private readonly IEventBus? _eventBus;
         private readonly SqlPendingDecisionRepository? _pendingDecisions;
@@ -133,8 +137,10 @@ namespace DraCode.KoboldLair.Orchestrators
             IEscalationDispositionPolicy? dispositionPolicy = null,
             IAskHumanPolicy? askHumanPolicy = null,
             Action<string, PendingDecision>? onDecisionRequired = null,
-            Action<string, PendingDecision>? onDecisionResolved = null)
+            Action<string, PendingDecision>? onDecisionResolved = null,
+            Models.Configuration.VerificationConfiguration? acceptance = null)
         {
+            _acceptance = acceptance is { TaskAcceptanceEnabled: true } ? acceptance : null;
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
             _outputMarkdownPath = outputMarkdownPath;
@@ -1215,6 +1221,11 @@ namespace DraCode.KoboldLair.Orchestrators
                 KoboldStatus.Failed => TaskStatus.Failed,
                 _ => task.Status // Keep current if unknown
             };
+
+            // The acceptance check decides before Done reaches the WAL, the event bus or the circuit breaker (TASK-025)
+            if (_acceptance != null && previousStatus != TaskStatus.Done && taskStatus == TaskStatus.Done && kobold.IsSuccess
+                && !await PassesAcceptanceAsync(task, kobold, worktreePath))
+                return;
 
             // Update task with WAL logging for crash safety
             await UpdateTaskWithWalAsync(task, taskStatus, task.AssignedAgent, kobold.HasError ? (kobold.ErrorMessage ?? "Unknown error") : null);
@@ -2660,8 +2671,15 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
                 else if (!shouldBeParked && task.Status == TaskStatus.AwaitingHumanDecision)
                 {
-                    // Answered while no Drake held the task: "Handle it automatically" still runs its automatic route
+                    // Answered while no Drake held the task: "Handle it automatically" still runs its automatic route,
+                    // and a review is applied rather than rerun
                     var answered = await LatestResolvedAsync(task.Id);
+                    if (answered is { Source: PendingDecisionSource.Approval, ResolutionKind: PendingDecisionResolution.Answered })
+                    {
+                        await ApplyReviewAsync(task, answered);
+                        changed = true;
+                        continue;
+                    }
                     if (answered is { ResolutionKind: PendingDecisionResolution.Answered }
                         && answered.Resolution == PendingDecisionNotification.HandleAutomatically)
                         await RunAutomaticRouteAsync(answered);
@@ -2738,6 +2756,13 @@ namespace DraCode.KoboldLair.Orchestrators
             decision.Resolution = answer;
             decision.ResolutionKind = PendingDecisionResolution.Answered;
             decision.ResolvedAt = at;
+
+            if (decision.Source == PendingDecisionSource.Approval)
+            {
+                await ApplyReviewAsync(task, decision);
+                RaiseDecisionCallback(_onDecisionResolved, decision);
+                return DecisionAnswerResult.Resolved;
+            }
 
             if (answer == PendingDecisionNotification.HandleAutomatically && decision.Escalation != null)
             {
@@ -2916,6 +2941,200 @@ namespace DraCode.KoboldLair.Orchestrators
                 return;
             await UpdateTaskWithWalAsync(task, TaskStatus.Unassigned, task.AssignedAgent);
             SaveTasksToFile();
+        }
+
+        /// <summary>
+        /// The acceptance check on a finished task (TASK-025): true lets Done through. Otherwise the task has been
+        /// reopened, failed, or parked for a person's review, and the Kobold that finished it is let go so its Done is
+        /// not synced again. <paramref name="kobold"/> is null for a task recovered without one.
+        /// </summary>
+        private async Task<bool> PassesAcceptanceAsync(TaskRecord task, Kobold? kobold, string? worktreePath)
+        {
+            var workspace = kobold?.Agent.Options.WorkingDirectory is { Length: > 0 } w ? w : ResolveWorkspacePath();
+            AcceptanceResult result;
+            try
+            {
+                result = string.IsNullOrEmpty(workspace)
+                    ? new AcceptanceResult([], ["The task's workspace is unknown, so nothing could be checked."], [])
+                    : await _acceptanceService.EvaluateAsync(task, workspace);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Acceptance check could not run for task {TaskId}", task.Id[..Math.Min(8, task.Id.Length)]);
+                result = new AcceptanceResult([], [$"The acceptance check could not run: {ex.Message}"], []);
+            }
+
+            if (result.Passed)
+            {
+                _logger?.LogInformation("Acceptance check passed for task {TaskId} ({Count} checks)",
+                    task.Id[..Math.Min(8, task.Id.Length)], result.Checked.Count);
+                return true;
+            }
+
+            _taskToKoboldMap.TryRemove(task.Id, out _);
+            // The early return skips the sync path's unregister; a Kobold left registered would hold its files "in use"
+            if (kobold != null && !string.IsNullOrEmpty(_projectId) && _sharedPlanningContext != null)
+                _ = _sharedPlanningContext.UnregisterAgentAsync(kobold.Id.ToString(), false, "acceptance check did not pass");
+            if (result.Unmet.Count > 0)
+            {
+                await ReopenOrFailAsync(task, result.Unmet, kobold);
+                return false;
+            }
+
+            await ParkForReviewAsync(task, kobold, worktreePath, result);
+            return false;
+        }
+
+        /// <summary>
+        /// What no machine could judge goes to a person, with no fallback (FEATURE-031 D4): the work is committed, the
+        /// task waits on an Approve / Reject card that never times out, and its feature is not offered for merging,
+        /// since that waits for every task to be Done. Without a decision store the task fails rather than pass unchecked.
+        /// </summary>
+        private async Task ParkForReviewAsync(TaskRecord task, Kobold? kobold, string? worktreePath, AcceptanceResult result)
+        {
+            if (_pendingDecisions == null)
+            {
+                await FailAcceptanceAsync(task, $"{ErrorClassifier.AcceptanceFailurePrefix}: it needs a person's review " +
+                    "and this server keeps no decisions (SQLite backend only)", null);
+                return;
+            }
+
+            if (kobold != null)
+            {
+                await CommitTaskCompletionAsync(kobold, task, worktreePath);
+                if (task.Status == TaskStatus.Failed)
+                    return; // the commit failed and said so; there is nothing reviewed to approve
+            }
+
+            var decision = new PendingDecision
+            {
+                Disposition = EscalationDisposition.HumanDecisionRequired,
+                Source = PendingDecisionSource.Approval,
+                Question = AcceptanceReview.Question(task, result)
+            };
+            if (!await ParkTaskAsync(task, decision, cancelRun: false))
+                await FailAcceptanceAsync(task, $"{ErrorClassifier.AcceptanceFailurePrefix}: its review card could not be raised", null);
+        }
+
+        /// <summary>
+        /// A failed check reopens the task with the unmet criteria (FEATURE-031 D3): its plan is revised through the
+        /// WrongApproach route, keeping finished steps, and it returns to the queue. At <c>MaxAcceptanceReopens</c> it
+        /// fails for good and a fix task names what is unmet.
+        /// </summary>
+        private async Task ReopenOrFailAsync(TaskRecord task, IReadOnlyList<string> unmet, Kobold? kobold)
+        {
+            var summary = string.Join(" ", unmet);
+            var max = _acceptance?.MaxAcceptanceReopens ?? new Models.Configuration.VerificationConfiguration().MaxAcceptanceReopens;
+            if (task.AcceptanceAttempts >= max)
+            {
+                await FailAcceptanceAsync(task, $"{ErrorClassifier.AcceptanceFailurePrefix} after {max} reopen(s): {summary}", unmet);
+                return;
+            }
+
+            var previous = task.Status;
+            task.AcceptanceAttempts++;
+            task.Task += $"\n\n{TaskAcceptanceService.ReopenNotePrefix} {task.AcceptanceAttempts}): {summary}";
+            var alert = new EscalationAlert
+            {
+                ProjectId = _projectId ?? task.ProjectId ?? "",
+                TaskId = task.Id,
+                AgentType = task.AssignedAgent,
+                WorkerId = kobold?.Id.ToString() ?? "",
+                Type = EscalationType.WrongApproach,
+                Summary = $"Acceptance check failed: {summary}"
+            };
+            try
+            {
+                await HandleEscalationAsync(alert, EscalationDisposition.AutoResolve);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Could not revise the plan of task {TaskId} after a failed acceptance check",
+                    task.Id[..Math.Min(8, task.Id.Length)]);
+            }
+
+            await UpdateTaskWithWalAsync(task, TaskStatus.Unassigned, task.AssignedAgent);
+            await SaveTasksToFileAsync();
+            PublishStatusChange(task, previous, $"Acceptance check failed (attempt {task.AcceptanceAttempts}): {summary}");
+            _logger?.LogWarning("Task {TaskId} reopened by the acceptance check (attempt {Attempt}/{Max}): {Summary}",
+                task.Id[..Math.Min(8, task.Id.Length)], task.AcceptanceAttempts, max, summary);
+        }
+
+        /// <summary>Fails the task for good; with <paramref name="unmet"/>, files one fix task naming it.</summary>
+        private async Task FailAcceptanceAsync(TaskRecord task, string error, IReadOnlyList<string>? unmet)
+        {
+            var previous = task.Status;
+            await UpdateTaskWithWalAsync(task, TaskStatus.Failed, task.AssignedAgent, error);
+
+            if (unmet is { Count: > 0 })
+            {
+                var marker = $"accept-{task.Id[..Math.Min(8, task.Id.Length)]}";
+                var summary = string.Join(" ", unmet);
+                var duplicate = _taskTracker.GetAllTasks().Any(t =>
+                    t.Task.Contains(marker, StringComparison.Ordinal) && t.Task.Contains(summary, StringComparison.Ordinal));
+                if (!duplicate)
+                {
+                    var priority = unmet.Any(u => u.StartsWith("Export ", StringComparison.Ordinal))
+                        ? TaskPriority.Critical
+                        : TaskPriority.High;
+                    _taskTracker.AddTask(
+                        $"[{marker}-{Guid.NewGuid().ToString("N")[..8]}] Fix what the acceptance check found unmet in task " +
+                        $"{task.Id[..Math.Min(8, task.Id.Length)]}: {summary}\n\nOriginal task: {task.Task}",
+                        priority);
+                }
+            }
+
+            await SaveTasksToFileAsync();
+            PublishStatusChange(task, previous, error);
+            _logger?.LogWarning("Task {TaskId} failed the acceptance check: {Error}", task.Id[..Math.Min(8, task.Id.Length)], error);
+        }
+
+        /// <summary>
+        /// A person's answer to a finished task's review card (FEATURE-031 D4): "Approve…" marks it Done, keeping any
+        /// remark on the decision; anything else rejects it, the note taking the reopen path as the unmet criterion.
+        /// </summary>
+        private async Task ApplyReviewAsync(TaskRecord task, PendingDecision decision)
+        {
+            if (task.Status != TaskStatus.AwaitingHumanDecision)
+                return;
+
+            var answer = decision.Resolution ?? "";
+            if (!AcceptanceReview.IsApproval(answer))
+            {
+                // Still parked here, so the WrongApproach route revises the task's saved plan
+                await ReopenOrFailAsync(task, [$"A person rejected the finished work: {AcceptanceReview.Note(answer)}"], null);
+                return;
+            }
+
+            await UpdateTaskWithWalAsync(task, TaskStatus.Done, task.AssignedAgent);
+            if (!string.IsNullOrWhiteSpace(task.Provider))
+                _circuitBreaker?.RecordSuccess(task.Provider);
+            if (!string.IsNullOrEmpty(_projectId) && _planService != null)
+                _ = _planService.DeleteConversationCheckpointAsync(_projectId, task.Id);
+            await SaveTasksToFileAsync();
+            PublishStatusChange(task, TaskStatus.AwaitingHumanDecision, null);
+            _logger?.LogInformation("Task {TaskId} approved by a person", task.Id[..Math.Min(8, task.Id.Length)]);
+        }
+
+        private void PublishStatusChange(TaskRecord task, TaskStatus previous, string? reason)
+        {
+            if (_eventBus == null || previous == task.Status)
+                return;
+            try
+            {
+                _ = _eventBus.PublishAsync(new TaskStatusChangedEvent
+                {
+                    ProjectId = _projectId ?? "unknown",
+                    TaskId = task.Id,
+                    OldStatus = previous.ToString(),
+                    NewStatus = task.Status.ToString(),
+                    ErrorMessage = reason
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "Failed to publish TaskStatusChangedEvent for task {TaskId}", task.Id[..Math.Min(8, task.Id.Length)]);
+            }
         }
 
         private async Task<PendingDecision?> LatestResolvedAsync(string taskId)
@@ -3235,6 +3454,7 @@ namespace DraCode.KoboldLair.Orchestrators
 
                     // Check if the task has a completed plan - if so, mark as Done
                     var newStatus = TaskStatus.Unassigned;
+                    var settledByAcceptance = false;
                     _logger?.LogDebug("🔍 Checking plan for orphaned task {TaskId}, planService={HasPlanService}, projectId={ProjectId}",
                         task.Id[..Math.Min(8, task.Id.Length)], _planService != null, _projectId ?? "(null)");
 
@@ -3246,7 +3466,13 @@ namespace DraCode.KoboldLair.Orchestrators
                             _logger?.LogDebug("🔍 Plan lookup result for task {TaskId}: found={Found}, status={Status}",
                                 task.Id[..Math.Min(8, task.Id.Length)], plan != null, plan?.Status.ToString() ?? "(null)");
 
-                            if (plan != null && plan.Status == PlanStatus.Completed)
+                            if (plan != null && plan.Status == PlanStatus.Completed && _acceptance != null
+                                && !await PassesAcceptanceAsync(task, null, null))
+                            {
+                                // Reopened, failed or parked for review by the acceptance check (TASK-025)
+                                settledByAcceptance = true;
+                            }
+                            else if (plan != null && plan.Status == PlanStatus.Completed)
                             {
                                 newStatus = TaskStatus.Done;
                                 _logger?.LogInformation("✅ Orphaned task {TaskId} has completed plan - marking as Done",
@@ -3262,6 +3488,12 @@ namespace DraCode.KoboldLair.Orchestrators
                     {
                         _logger?.LogDebug("🔍 Cannot check plan for task {TaskId}: planService={HasPlanService}, projectId={ProjectId}",
                             task.Id[..Math.Min(8, task.Id.Length)], _planService != null, _projectId ?? "(null)");
+                    }
+
+                    if (settledByAcceptance)
+                    {
+                        recovered++;
+                        continue;
                     }
 
                     if (newStatus == TaskStatus.Unassigned)
