@@ -482,4 +482,83 @@ public class EscalationToHumanTests : IAsyncLifetime
         new DraCode.KoboldLair.Agents.WyvernAgent(provider, options).Tools.Select(t => t.Name).Should().NotContain("ask_human");
         new DraCode.KoboldLair.Agents.WyrmPreAnalysisAgent(provider, options).Tools.Select(t => t.Name).Should().NotContain("ask_human");
     }
+
+    // --- answers on resume (TASK-022) -------------------------------------------------------------
+
+    [Fact]
+    public async Task A_summoned_Kobold_hears_the_tasks_answers_oldest_first_and_not_an_open_question()
+    {
+        var (drake, tracker) = NewDrake();
+        var task = Working(tracker);
+        var choice = await drake.AskHumanAsync(task, Question("SQLite", "Postgres"));
+        (await drake.ResolvePendingDecisionAsync(choice.DecisionId!, " Postgres ")).Should().Be(DecisionAnswerResult.Resolved);
+        var free = await drake.AskHumanAsync(task, Question());
+        (await drake.ResolvePendingDecisionAsync(free.DecisionId!, "  whatever is in the monorepo  ")).Should().Be(DecisionAnswerResult.Resolved);
+        var open = await drake.AskHumanAsync(task, Question());
+
+        var kobold = (await drake.SummonKoboldAsync(task, "csharp"))!;
+
+        kobold.HumanAnswers.Select(a => a.DecisionId).Should().Equal(choice.DecisionId, free.DecisionId);
+        kobold.HumanAnswers[0].Answer.Should().Be("Postgres", "a choice arrives as the option's own text");
+        kobold.HumanAnswers[1].Answer.Should().Be("  whatever is in the monorepo  ", "free text arrives verbatim");
+        kobold.HumanAnswers.Should().NotContain(a => a.DecisionId == open.DecisionId);
+        kobold.HumanAnswers[0].ToMessage().Should().StartWith(HumanAnswer.TagFor(choice.DecisionId!))
+            .And.Contain("A person answered").And.Contain("Their answer: Postgres");
+    }
+
+    [Fact]
+    public async Task A_timed_out_escalation_tells_the_Kobold_nobody_answered_and_what_was_done_instead()
+    {
+        var (drake, tracker) = NewDrake(new FixedPolicy(EscalationDisposition.HumanDecisionRequired, TimeSpan.FromMinutes(5)));
+        var task = Working(tracker);
+        await drake.HandleEscalationAsync(Alert(task));
+        var decision = (await _decisions.GetUnresolvedForTaskAsync(task.Id))!;
+        await drake.ExpirePendingDecisionsAsync(decision.CreatedAt.AddHours(1));
+
+        var answer = (await drake.LoadHumanAnswersAsync(task.Id)).Should().ContainSingle().Subject;
+
+        answer.TimedOut.Should().BeTrue();
+        answer.Answer.Should().BeNull();
+        answer.AutomaticOutcome.Should().Contain("reassignment", "the automatic route's own result is stored for the agent");
+        answer.ToMessage().Should().Contain("no answer, timed out").And.Contain("handled automatically")
+            .And.NotContain("Their");
+    }
+
+    [Fact]
+    public async Task A_persons_instructions_on_an_escalation_reach_the_Kobold()
+    {
+        var (drake, tracker) = NewDrake(new FixedPolicy(EscalationDisposition.HumanDecisionRequired));
+        var task = Working(tracker);
+        await drake.HandleEscalationAsync(Alert(task));
+        var decision = (await _decisions.GetUnresolvedForTaskAsync(task.Id))!;
+        await drake.ResolvePendingDecisionAsync(decision.Id, "Use the python agent instead");
+
+        var answer = (await drake.LoadHumanAnswersAsync(task.Id)).Should().ContainSingle().Subject;
+
+        answer.ToMessage().Should().Contain("A person reviewed your escalation (WrongAgentType: Wrong agent for this)")
+            .And.Contain("Their instructions: Use the python agent instead");
+    }
+
+    [Fact]
+    public async Task An_unreadable_decision_store_holds_the_task_rather_than_running_it_without_its_answers()
+    {
+        var (drake, tracker) = NewDrake();
+        var task = Working(tracker);
+        tracker.UpdateTask(task, TaskStatus.Unassigned, null);
+        // Not a missing table: Birko reads that as empty by design. A file that is no database fails the read.
+        SqliteConnection.ClearAllPools();
+        await File.WriteAllTextAsync(Path.Combine(_dir, "koboldlair.db"), new string('x', 4096));
+
+        (await drake.SummonKoboldAsync(task, "csharp")).Should().BeNull();
+        task.Status.Should().Be(TaskStatus.Unassigned, "the task waits for a cycle that can read its answers");
+    }
+
+    [Fact]
+    public async Task Without_a_decision_store_a_Kobold_hears_no_answers()
+    {
+        var (drake, tracker) = NewDrake(withDecisions: false);
+        var task = Working(tracker);
+
+        (await drake.LoadHumanAnswersAsync(task.Id)).Should().BeEmpty();
+    }
 }

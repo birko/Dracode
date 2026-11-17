@@ -326,6 +326,11 @@ namespace DraCode.KoboldLair.Orchestrators
                 return null;
             }
 
+            // Read before a Kobold exists: an unreadable answer holds the task, like the limit above
+            var humanAnswers = await LoadHumanAnswersAsync(task.Id);
+            if (humanAnswers == null)
+                return null;
+
             // Create options with workspace path and external paths
             var effectiveOptions = _defaultOptions?.Clone() ?? new AgentOptions();
 
@@ -798,6 +803,7 @@ namespace DraCode.KoboldLair.Orchestrators
             };
 
             kobold.OnAskHuman = (question, _) => AskHumanAsync(task, question);
+            kobold.HumanAnswers = humanAnswers;
 
             // Track provider for circuit breaker and retry logic
             task.Provider = effectiveProvider;
@@ -2874,10 +2880,32 @@ namespace DraCode.KoboldLair.Orchestrators
             try
             {
                 await HandleEscalationAsync(alert, EscalationDisposition.AutoResolve);
+                await _pendingDecisions!.RecordEscalationOutcomeAsync(decision.Id, alert);
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Automatic route failed for decision {DecisionId}", decision.Id[..8]);
+            }
+        }
+
+        /// <summary>
+        /// The task's answered and timed-out decisions, oldest first, for the Kobold to hear on resume (TASK-022). Empty
+        /// without a store. Null when the store cannot be read: a run without a person's answer would guess or ask again,
+        /// so the caller holds the task for a later cycle instead.
+        /// </summary>
+        internal async Task<IReadOnlyList<HumanAnswer>?> LoadHumanAnswersAsync(string taskId)
+        {
+            if (_pendingDecisions == null)
+                return Array.Empty<HumanAnswer>();
+            try
+            {
+                var resolved = await _pendingDecisions.GetResolvedForTaskAsync(taskId);
+                return resolved.AsEnumerable().Reverse().Select(HumanAnswer.From).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Could not read the answered decisions of task {TaskId}; not summoning a Kobold for it", taskId);
+                return null;
             }
         }
 

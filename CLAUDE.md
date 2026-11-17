@@ -94,6 +94,14 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     escalation, the run stops itself at its next turn boundary rather than at once, so on the enhanced plan path the
     question and its result end the saved conversation (the basic path saves only the plan). An answer to a question with options must be one of them unless free text is allowed;
     `ResolvePendingDecisionAsync` returns a `DecisionAnswerResult` (`InvalidAnswer` leaves the question open).
+  - **Answers on resume** (TASK-022): Drake hands each summoned Kobold its task's answered and timed-out decisions
+    (`Kobold.HumanAnswers`, oldest first). The Kobold hears each as a user message written as from a person and opening
+    with `[Human answer — decision <id>]`, never as a tool result. A run resumed from its checkpoint gets only answers
+    whose tag its restored conversation lacks (no "delivered" marker is stored), and a run with an answer waiting
+    resumes its checkpoint even on the plan's first step. A fresh prompt, and the basic plan path, list every answer. A
+    timeout is said as "no answer, timed out", with what the automatic route did (stored on the decision's escalation).
+    When the decision store cannot be read, `SummonKoboldAsync` summons nothing and the task waits for a later cycle,
+    rather than run without its answers.
   - **Decision cards:** a park raises a `decision_required` project notification and an answer or timeout a
     `decision_resolved` one; the metadata keys and the response schema are `PendingDecisionNotification`'s, the
     contract the Dragon and web clients render and answer (TASK-024, TASK-160).

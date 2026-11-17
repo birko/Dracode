@@ -140,6 +140,30 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             }
         }
 
+        /// <summary>
+        /// Stores the escalation as its automatic route left it, so the resumed agent hears what was done (TASK-022).
+        /// False when the decision is unknown.
+        /// </summary>
+        public async Task<bool> RecordEscalationOutcomeAsync(string decisionId, EscalationAlert escalation)
+        {
+            await _resolveLock.WaitAsync();
+            try
+            {
+                var entity = await _repository.ReadAsync(e => e.DecisionId == decisionId, CancellationToken.None);
+                if (entity is null)
+                    return false;
+
+                entity.EscalationJson = JsonSerializer.Serialize(escalation, JsonOptions);
+                entity.UpdatedAt = DateTime.UtcNow;
+                await _repository.UpdateAsync(entity);
+                return true;
+            }
+            finally
+            {
+                _resolveLock.Release();
+            }
+        }
+
         /// <summary>A Local time converts; an Unspecified one is taken as UTC, which is how every caller here passes it.</summary>
         private static DateTime AsUtc(DateTime value) => value.Kind switch
         {
