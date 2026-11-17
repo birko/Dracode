@@ -45,8 +45,11 @@ and `decision_answer_result` says in words what became of it, once; another user
 ## Human test plan
 
 - [ ] Trigger a parked decision while Dragon is connected; confirm the decision reaches the session and answering it unparks and resumes the task. (Until TASK-160 renders cards, through the Dragon chat or a WebSocket client.)
+  - **Behaviour passed 2026-11-17, not ticked:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`, Kestrel, Testing environment, scratch DB, JWT on), with the socket opened by a token in a header. A real client sends `?token=`, which Kestrel refuses with 401 → TASK-174; re-run this step through the query path once that lands, then tick it. An `ask_human` park in a live LAN-model run reached the already-open session as a `decision_required` card within seconds; answering resolved it, and the task resumed with the answer and finished Done.
 - [ ] Disconnect Dragon, trigger a decision, reconnect; confirm the prompt is replayed.
+  - **Behaviour passed 2026-11-17, not ticked:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`, Kestrel, Testing environment, scratch DB, JWT on), with the socket opened by a token in a header. A real client sends `?token=`, which Kestrel refuses with 401 → TASK-174; re-run this step through the query path once that lands, then tick it. With no session connected a decision was stored; on reconnect + `client_ready` its card arrived (options in `responseSchema`), and again on the next connect.
 - [ ] Answer the same decision twice; confirm the second attempt is a clean no-op.
+  - **Behaviour passed 2026-11-17, not ticked:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`, Kestrel, Testing environment, scratch DB, JWT on), with the socket opened by a token in a header. A real client sends `?token=`, which Kestrel refuses with 401 → TASK-174; re-run this step through the query path once that lands, then tick it. `MySQL` (not an option) → `InvalidAnswer`, question still open; `Postgres` → `Resolved`; `SQLite` → `AlreadyResolved`, "nothing changed"; stored answer stayed `Postgres`, and the card was not offered again.
 
 ## Implementation plan
 
