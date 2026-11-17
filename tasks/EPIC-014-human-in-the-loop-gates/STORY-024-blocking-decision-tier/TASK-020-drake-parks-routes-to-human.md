@@ -44,10 +44,18 @@ With the `AwaitingHumanDecision` state and `PendingDecision` record in place (TA
 
 - [x] Trigger an escalation flagged for human decision, confirm the task parks and a pending decision appears (via repository/notification inspection).
   - **Passed 2026-11-16:** automated — `EscalationToHumanTests.An_escalation_chosen_for_a_person_parks_the_task_and_raises_a_decision_card` green (the stored decision and the card's metadata are asserted; proved red with the branch disabled)
-- [ ] Submit a resolution through the resolution callback and confirm the task resumes and completes.
+- [x] Submit a resolution through the resolution callback and confirm the task resumes and completes.
   - Runs once TASK-024 gives a person a way to answer (Dragon), against a local server with a provider set up: one
     end-to-end session for the EPIC-014 chain. The resume half is automated
     (`An_answer_resumes_the_task_and_is_recorded_once`); "completes" needs a real Kobold run.
+  - **Passed 2026-11-17:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`,
+    Kestrel, `ASPNETCORE_ENVIRONMENT=Testing`, scratch DB, JWT on, LAN `finstat` model, acceptance check on). A
+    Kobold's `ask_human` parked task `decision-1`; the answer sent as `answer_decision` over `/dragon` returned
+    `Resolved`; the Kobold resumed "with conversation checkpoint (… 1 new answer(s))" and the task finished Done and
+    was committed. Parked through `ask_human`, not an escalation: the default disposition policy keeps every
+    escalation automatic until TASK-023, and both routes resolve through `ResolvePendingDecisionAsync`. The socket
+    was opened with the token in a header, since `?token=` is refused on Kestrel → TASK-174. Found on the way:
+    TASK-175, TASK-176
 
 ## Implementation plan
 
