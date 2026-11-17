@@ -50,7 +50,8 @@ tests; 455/455. Follow-ups: TASK-173.
 ## Human test plan
 
 - [ ] Craft a task with a clear acceptance criterion the Kobold won't satisfy; confirm the acceptance check blocks Done and reopens it naming the unmet criterion, and at the third failure fails it with a fix task naming it (FEATURE-031 D3).
-- [ ] Confirm a genuinely complete task passes and is marked Done with the flag on.
+- [x] Confirm a genuinely complete task passes and is marked Done with the flag on.
+  - **Passed 2026-11-17:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`, Kestrel, Testing environment, scratch DB, `KoboldLair:Verification:TaskAcceptanceEnabled=true`, LAN `finstat` model). A greeter project went from approval to two Done tasks in under 5 minutes: "Acceptance check passed for task 29e67eab (1 checks)" (`backend-1`, which wrote `workspace/greeter.js` exporting `greet`), then committed. The other task logged "(0 checks)": its description named no target file, so nothing was machine-checkable (the gap TASK-165 covers). Found on the way: TASK-174, TASK-175, TASK-176
 
 ## Implementation plan
 
