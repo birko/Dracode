@@ -3,10 +3,11 @@ id: TASK-172
 parent: STORY-025
 feature: FEATURE-028
 status: in-progress
+blocked: 'merge deferred: stacked on task/TASK-025 (PR #6), unmerged; code complete on task/TASK-172'
 priority: P2
 assignee: agent
 created: 2026-11-17
-depends-on: [TASK-022]
+depends-on: [TASK-022, TASK-025]
 blocks: []
 findings: []
 pr: null
@@ -15,6 +16,8 @@ jira-key: null
 ---
 
 # Find why a summoned Kobold sometimes hears no answers in the full test suite
+
+> Blocked 2026-11-17 — merge deferred: stacked on task/TASK-025 (PR #6), unmerged; code complete on task/TASK-172
 
 ## Context
 
@@ -37,14 +40,48 @@ Leads, none confirmed:
 
 ## Acceptance criteria
 
-- [ ] The cause is found and named in this file, or a bounded search (say, 30 full-suite runs with logging of the
-      database path and the table's row count at the read) is recorded as finding nothing
+- [x] The cause is found and named in this file, or a bounded search (say, 30 full-suite runs with logging of the
+      database path and the table's row count at the read) is recorded as finding nothing — recorded in ## Outcome
 - [ ] If production code can read an empty list while answers exist, that is fixed and a test fails without the fix
-- [ ] If only the tests are at fault, they are fixed so the full suite cannot reproduce it
+      — ⚠ NOT MET — split to TASK-177: production can (Birko's measured stale-schema read on the rollback journal, which
+      the real database runs), but no run here reproduced it, so the failing test needs the deterministic setup TASK-177
+      owns; closed on delivered scope by the owner's decision, 2026-11-17
+- [ ] If only the tests are at fault, they are fixed so the full suite cannot reproduce it — not applicable: the tests
+      were not found at fault (2,000 iterations under a `ClearAllPools()` storm stayed clean), so nothing was changed
 
 ## Out of scope
 
 - Answer delivery itself: TASK-022.
+- Switching KoboldLair's SQLite repositories to WAL, the production fix for the mechanism below: TASK-177.
+- Replacing the tests' process-wide `SqliteConnection.ClearAllPools()` calls: decided not to do (owner, 2026-11-17),
+  because a 2,000-iteration storm of those calls caused no failure, so the change would be churn with no evidence.
+
+## Outcome
+
+Bounded search found nothing (AC1); the production exposure it points at is filed as TASK-177.
+
+| Search (2026-11-17, `task/TASK-172` = `task/TASK-025` code) | Result |
+|---|---|
+| 30 full-suite runs, logging DB path + rows at every answers read, raw re-read on a fresh connection when empty | 30/30 clean, 455/455 each; target test `T172-OK` 30/30; 360 answer reads, none empty |
+| Stress (i): the summon scenario 200×, 8 parallel, own DB each | 0/200 |
+| Stress (ii): the same 2,000× with `ClearAllPools()` every 1-5 ms in the background | 0/2000 |
+| TASK-173's flaky test (`TaskAcceptanceGateTests…recovered_with_a_finished_plan…`) in the same 30 runs | 30/30 passed |
+
+**Why it does not reproduce.** The Kobold is always made fresh (`Drake.SummonKoboldAsync`, `CreateKobold`) and gets
+`HumanAnswers` straight from `GetResolvedForTaskAsync`, so the old failure was an empty read. The one known way to
+read empty while rows exist is Birko's measured stale-schema read on the rollback journal
+(`SqLiteConnector.cs`, TASK-296 remarks), turned silent by `missingTableIsEmpty`
+(`AbstractAsyncConnector.ReadOnAsync`). It needs another connection holding the file's write lock at the moment of
+the read. This test is sequential, and nothing in Drake or the SQL repositories writes in the background, so it has no
+such writer. The flaky runs happened on TASK-022's uncommitted work in progress, squashed into one commit, so that
+code cannot be re-run.
+
+**Production is exposed anyway.** Every DraCode `Sql*Repository` passes plain `PasswordSettings`, so Birko's WAL
+fix never applies, and the owner's `koboldlair.db` reads rollback journal (header bytes 18/19 = 1/1). A server writes
+that file from many places at once, which is the condition above. Filed as TASK-177 (P1).
+
+The temporary diagnostics (`Task172Diag`, the stress class, the `ClearAllPools` log lines) were removed; Birko was not
+touched.
 
 ## Human test plan
 

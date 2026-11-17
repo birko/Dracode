@@ -32,6 +32,7 @@ and its test class.
 - **A flaky test.** `TaskAcceptanceGateTests.A_task_recovered_with_a_finished_plan_takes_the_same_check_rather_than_going_straight_to_done`
   ended Done in 2 runs alongside the other service tests, never alone, and passed in 9 since; see TASK-025's notes.
   Possibly related to TASK-172's flake (same suite, same timing).
+  2026-11-17: passed in all 30 of TASK-172's full-suite runs; TASK-172 found no cause it shares (see its Outcome).
 
 ## Acceptance criteria
 
