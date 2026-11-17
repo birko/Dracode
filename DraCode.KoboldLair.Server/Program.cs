@@ -648,7 +648,9 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var userRepository = sp.GetService<IUserRepository>();
     var costTracker = sp.GetService<CostTrackingService>();
     var rateLimiter = sp.GetService<ProviderRateLimiter>();
-    return new DragonService(logger, providerConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService, userRepository, costTracker, rateLimiter);
+    // The person's side of pending decisions: answered over /dragon and by Warden's tool (TASK-024)
+    var decisionDesk = new DecisionDesk(sp.GetService<SqlPendingDecisionRepository>(), drakeFactory.ResolvePendingDecisionAsync);
+    return new DragonService(logger, providerConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService, userRepository, costTracker, rateLimiter, decisionDesk);
 });
 
 // Register graceful shutdown coordinator (signals Kobolds to save state on shutdown)

@@ -27,6 +27,12 @@ the reply back and the card resolves. The same decision appears in the bell and 
 
 Decisions: FEATURE-026 D14, FEATURE-026 D15, FEATURE-026 D17.
 
+TASK-024's render criterion moved here (FEATURE-030 D3, changed 2026-11-17): the card answers through the `/dragon`
+message `answer_decision` that TASK-024 adds, and open decisions arrive as `decision_required` cards on every connect
+until answered or timed out. The socket handles one message at a time, so an answer sent while Dragon's welcome is still
+being written gets its reply after the welcome (seconds with a model that answers); the card should show it as
+pending until `decision_answer_result` arrives (found at TASK-024's close).
+
 ## Acceptance criteria
 
 - [ ] An incoming decision shows as a card in the shrunk dock with a badge; Dragon does not expand by itself

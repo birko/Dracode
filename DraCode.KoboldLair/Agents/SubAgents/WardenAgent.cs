@@ -46,6 +46,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly ViewAnalysisTool? _viewAnalysisTool;
         private readonly BatchTaskTool? _batchTaskTool;
         private readonly ViewCostReportTool? _viewCostReportTool;
+        private readonly PendingDecisionsTool? _pendingDecisionsTool;
         private readonly Func<string, bool, Task<(bool Success, string Message)>>? _resetProject;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
@@ -83,7 +84,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             ViewAnalysisTool? viewAnalysisTool = null,
             BatchTaskTool? batchTaskTool = null,
             Func<string, bool, Task<(bool Success, string Message)>>? resetProject = null,
-            ViewCostReportTool? viewCostReportTool = null)
+            ViewCostReportTool? viewCostReportTool = null,
+            PendingDecisionsTool? pendingDecisionsTool = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -117,6 +119,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _batchTaskTool = batchTaskTool;
             _resetProject = resetProject;
             _viewCostReportTool = viewCostReportTool;
+            _pendingDecisionsTool = pendingDecisionsTool;
             RebuildTools();
         }
 
@@ -162,6 +165,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 tools.Add(new ResetProjectTool(_resetProject));
             if (_viewCostReportTool != null)
                 tools.Add(_viewCostReportTool);
+            if (_pendingDecisionsTool != null)
+                tools.Add(_pendingDecisionsTool);
 
             return tools;
         }
@@ -178,7 +183,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
 3. Manage external path access (security-sensitive)
 4. Retry failed analysis and failed tasks
 5. Control project execution (pause, resume, suspend, cancel, reset)
-6. View notifications and analysis results
+6. View notifications and analysis results, and answer the decisions agents are waiting on
 7. Manage global LLM provider settings per agent type
 8. Report LLM usage, costs, budgets and rate limits
 
@@ -189,6 +194,7 @@ You have ~20 tools spanning agent configuration, project lifecycle, task managem
 - **Failure recovery**: `retry_analysis`, `retry_failed_task`, `view_task_details`, `project_progress`
 - **Execution control**: `pause_project`, `resume_project`, `suspend_project`, `cancel_project`, `reset_project`
 - **Visibility**: `view_workspace`, `view_notifications`
+- **Decisions**: `pending_decisions` (questions and escalations waiting on the user)
 - **Cleanup**: `delete_project` (cancelled projects only)
 - **Verification**: `retry_verification`, `view_verification_report`, `skip_verification`
 - **Costs**: `view_cost_report` (usage, cost, budget and rate-limit status)
@@ -204,7 +210,8 @@ You have ~20 tools spanning agent configuration, project lifecycle, task managem
 2. **External path additions are security decisions**: warn the user that allowed paths give agents read/write access outside the workspace. Confirm before adding.
 3. **Execution states are independent of status**: a project can be `InProgress` but `Paused`. Status describes pipeline position, execution state describes whether Drake processes it.
 4. **Dependencies trump priority**: a `low`-priority task with no deps still runs after a `critical` task that depends on it.
-5. **Failed analysis vs failed task**: `retry_analysis` resets a project to `New` for Wyvern; `retry_failed_task` resets one task to `Unassigned` for Drake. Different scopes.
+5. **A decision is answered, never dismissed**: when the user answers a question an agent asked, or tells you how to handle an escalation, record it with `pending_decisions` `answer`, passing their words or chosen option unchanged. If several decisions are open and it is unclear which one they mean, list them and ask.
+6. **Failed analysis vs failed task**: `retry_analysis` resets a project to `New` for Wyvern; `retry_failed_task` resets one task to `Unassigned` for Drake. Different scopes.
 
 ## Style:
 - Be authoritative but explanatory — say what each setting does, not just that you did it

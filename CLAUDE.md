@@ -104,7 +104,14 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     rather than run without its answers.
   - **Decision cards:** a park raises a `decision_required` project notification and an answer or timeout a
     `decision_resolved` one; the metadata keys and the response schema are `PendingDecisionNotification`'s, the
-    contract the Dragon and web clients render and answer (TASK-024, TASK-160).
+    contract the Dragon and web clients render and answer (TASK-024, TASK-160). `DecisionDesk` is the person's side
+    (TASK-024): on `client_ready` the `/dragon` socket sends one `decision_required` card per open decision of the
+    caller's projects, read from the decision store (not the notification list), so a card returns on every connect
+    until answered or timed out. A new card, or its `decision_resolved`, goes to every session whose user can see the
+    project. The client answers with `{ type: "answer_decision", decisionId, answer }` and gets
+    `decision_answer_result` (`Resolved`, `AlreadyResolved`, `InvalidAnswer` or `NotFound`, with a message); a decision
+    outside the caller's projects reads as `NotFound`. Warden's `pending_decisions` tool lists and answers them from
+    the chat.
   - **Git Worktrees**: Creates isolated worktrees per feature branch for parallel-safe execution
   - **Post-task verification**: After task completion, runs Critical-priority verification steps (e.g., `tsc --noEmit`) from Wyrm recommendations
   - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block
@@ -213,6 +220,7 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `suspend_project` - Long-term hold for projects awaiting external changes
 - `cancel_project` - Permanently cancel project (terminal state, requires confirmation)
 - `view_cost_report` - View LLM usage costs, budgets, and rate limit status (NEW - 2026-03-19)
+- `pending_decisions` - List and answer the decisions agents wait on, for the user's projects (Warden, TASK-024)
 - `batch_task_operations` - Batch task ops: list/reset blocked tasks, reassign agent type (NEW - 2026-03-19)
 
 ### Kobold Planner Tool (1)
@@ -350,7 +358,7 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
 - **No Client localStorage**: Client has no persistent storage for sessions; server is source of truth
 - **Cleanup**: Automatic cleanup timer runs every 60 seconds
 - **Reconnection**: Sessions persist across disconnects; message history replayed on reconnect
-- **Message Types**: `session_resumed`, `dragon_message`, `dragon_thinking`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`
+- **Message Types**: `session_resumed`, `dragon_message`, `dragon_thinking`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`, `project_notification`, `decision_answer_result`; the client sends `answer_decision` to answer a decision card
 
 ### Data Storage Locations (Consolidated Per-Project Folders)
 
