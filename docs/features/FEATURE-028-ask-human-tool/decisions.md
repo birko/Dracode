@@ -18,6 +18,8 @@ created: 2026-05-31
 | D5 | Choice answers are validated against the options; free-text passes through verbatim | approved | Guard against invalid replies while allowing open answers | 2026-11-16 | owner | TASK-021, TASK-022 |
 | D6 | On resume, the answer is delivered back into the agent's context as a synthetic message clearly attributed to the human, before its next step | approved | The round-trip is what makes asking actually useful | 2026-11-16 | owner | TASK-022 |
 | D7 | The analyzer agent (Wyvern) can ask a person too | deferred | Needs a project-level wait that can suspend and resume an analysis. Unblock: such a wait exists; filed as its own task | 2026-11-16 | owner | TASK-170 |
+| D8 | A person's answer also reaches the tasks that depend on the task that asked, so the same question is not asked twice | proposed | End-to-end run 2026-11-17: a dependent task found no record of the answer and asked the person again (D6 delivers to the asking task only) | 2026-11-17 | agent | TASK-175 |
+| D9 | A typed answer that names exactly one option unambiguously (e.g. its leading word, case-insensitive) resolves to that option | proposed | End-to-end run 2026-11-17: "Slovak" was refused against "Slovak (Ahoj, <name>!)"; D5 does not say how close an answer must be, and text clients type answers | 2026-11-17 | agent | TASK-176 |
 
 **States:** proposed · approved · deferred · changed · removed.
 Only `approved` and `changed` generate tasks.
@@ -31,3 +33,5 @@ Only `approved` and `changed` generate tasks.
 - 2026-11-16 — D5 proposed → approved (owner): an invalid choice is refused when submitted and the question stays open
 - 2026-11-16 — D6 proposed → approved (owner)
 - 2026-11-16 — D7 added as deferred (owner), filed as TASK-170
+- 2026-11-17 — D8 added as proposed (agent), from an end-to-end run; filed as TASK-175 — needs `/feature decide`
+- 2026-11-17 — D9 added as proposed (agent), from an end-to-end run; filed as TASK-176 — needs `/feature decide`
