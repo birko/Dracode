@@ -96,4 +96,4 @@ because that test has no concurrent writer on its file; see TASK-172's notes.
   provider_configs 2, provider_models 3, agent_provider_settings 5), `pending_decisions` was created empty, and the log
   had no fail/crit lines. The real database held 0 projects and 0 tasks, so those tables were checked only for being
   readable.
-- Birko follow-up (out of scope here): WAL as the default for plain `PasswordSettings`, still to be raised with the Birko session.
+- Birko follow-up (out of scope here): WAL as the default for plain `PasswordSettings`, sent to the Birko framework session 2026-11-19.
