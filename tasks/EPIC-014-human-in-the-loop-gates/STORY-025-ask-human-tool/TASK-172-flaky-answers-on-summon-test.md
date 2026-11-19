@@ -2,7 +2,7 @@
 id: TASK-172
 parent: STORY-025
 feature: FEATURE-028
-status: in-progress
+status: done
 blocked: 'merge deferred: stacked on task/TASK-025 (PR #6), unmerged; code complete on task/TASK-172'
 priority: P2
 assignee: agent
@@ -181,3 +181,5 @@ flake too.
   control carry the evidence. The diagnostic's own connections can shift timing.
 - Temporary Birko edits must not reach a Framework commit (Birko has unpushed commits and an uncommitted TASK-600
   change of its own to leave alone).
+
+Closed 2026-11-19: merged with `main` (the whole stack); suite 462/462.
