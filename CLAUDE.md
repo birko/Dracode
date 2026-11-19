@@ -579,6 +579,11 @@ re-run that fails again adds a fix only for a check whose earlier fix is Done. E
 `WriteTaskFileAsync`, which never saves an empty list over a file that holds tasks (`TaskTracker.FileHoldsTasks`):
 Drake never removes tasks, so that save could only destroy ones it failed to load.
 
+Verification checks run in the project's code folder (`ProjectWorkspace.For`: an imported project's `SourcePath`, else
+`workspace/`), and a step's `WorkingDirectory` is relative to it (TASK-179). `VerificationShell` runs every step under
+bash — `/bin/bash`, or Git for Windows' bash on Windows — since steps are written in POSIX shell; only a Windows machine
+without Git bash falls back to PowerShell.
+
 ### Reflection Configuration (NEW - 2026-03-15)
 
 Controls Kobold self-reflection and escalation behavior:

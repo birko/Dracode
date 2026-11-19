@@ -100,7 +100,7 @@ namespace DraCode.KoboldLair.Server.Services
 
                 foreach (var step in verificationSteps)
                 {
-                    var check = await ExecuteVerificationCheckAsync(project, step, stoppingToken);
+                    var check = await VerificationCheckRunner.RunAsync(project, step, _defaultTimeout, stoppingToken);
                     checks.Add(check);
 
                     reportLines.Add($"### {step.CheckType} - {(check.Passed ? "✅ PASSED" : "❌ FAILED")}");
@@ -164,138 +164,6 @@ namespace DraCode.KoboldLair.Server.Services
             {
                 _projectThrottle.Release();
             }
-        }
-
-        private async Task<VerificationCheck> ExecuteVerificationCheckAsync(
-            Project project,
-            VerificationStepDefinition step,
-            CancellationToken stoppingToken)
-        {
-            var check = new VerificationCheck
-            {
-                CheckType = step.CheckType,
-                Command = step.Command,
-                Priority = Enum.TryParse<VerificationCheckPriority>(step.Priority, out var priority)
-                    ? priority
-                    : VerificationCheckPriority.Medium,
-                ExecutedAt = DateTime.UtcNow
-            };
-
-            var workingDir = string.IsNullOrEmpty(step.WorkingDirectory)
-                ? project.Paths.Output
-                : Path.Combine(project.Paths.Output, step.WorkingDirectory);
-
-            var stopwatch = Stopwatch.StartNew();
-            try
-            {
-                var timeout = step.TimeoutSeconds > 0 ? step.TimeoutSeconds : _defaultTimeout;
-                var (exitCode, output) = await ExecuteCommandAsync(step.Command, workingDir, timeout, stoppingToken);
-
-                stopwatch.Stop();
-                check.ExitCode = exitCode;
-                check.Output = output;
-                check.DurationSeconds = stopwatch.Elapsed.TotalSeconds;
-
-                // Evaluate success criteria
-                check.Passed = EvaluateSuccessCriteria(step.SuccessCriteria, exitCode, output);
-            }
-            catch (Exception ex)
-            {
-                stopwatch.Stop();
-                check.ExitCode = -1;
-                check.Output = $"Error executing check: {ex.Message}";
-                check.DurationSeconds = stopwatch.Elapsed.TotalSeconds;
-                check.Passed = false;
-            }
-
-            return check;
-        }
-
-        private async Task<(int exitCode, string output)> ExecuteCommandAsync(
-            string command,
-            string workingDir,
-            int timeoutSeconds,
-            CancellationToken stoppingToken)
-        {
-            string fileName;
-            string arguments;
-            if (OperatingSystem.IsWindows())
-            {
-                fileName = "powershell.exe";
-                arguments = $"-NoProfile -Command \"{command}\"";
-            }
-            else
-            {
-                fileName = "/bin/bash";
-                arguments = $"-c \"{command.Replace("\"", "\\\"")}\"";
-            }
-
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = arguments,
-                    WorkingDirectory = workingDir,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            var outputBuilder = new System.Text.StringBuilder();
-            process.OutputDataReceived += (sender, e) =>
-            {
-                if (e.Data != null) outputBuilder.AppendLine(e.Data);
-            };
-            process.ErrorDataReceived += (sender, e) =>
-            {
-                if (e.Data != null) outputBuilder.AppendLine(e.Data);
-            };
-
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
-
-            try
-            {
-                await process.WaitForExitAsync(cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(true);
-                    outputBuilder.AppendLine($"\n[TIMEOUT: Process killed after {timeoutSeconds}s]");
-                }
-            }
-
-            return (process.ExitCode, outputBuilder.ToString());
-        }
-
-        private bool EvaluateSuccessCriteria(string criteria, int exitCode, string output)
-        {
-            if (criteria == "exit_code_0")
-                return exitCode == 0;
-
-            if (criteria.StartsWith("contains:", StringComparison.OrdinalIgnoreCase))
-            {
-                var expectedText = criteria.Substring("contains:".Length);
-                return output.Contains(expectedText, StringComparison.OrdinalIgnoreCase);
-            }
-
-            if (criteria.StartsWith("not_contains:", StringComparison.OrdinalIgnoreCase))
-            {
-                var unexpectedText = criteria.Substring("not_contains:".Length);
-                return !output.Contains(unexpectedText, StringComparison.OrdinalIgnoreCase);
-            }
-
-            // Default: exit code 0
-            return exitCode == 0;
         }
 
         private static readonly TechStackDetector[] TechStackDetectors =
@@ -368,8 +236,9 @@ namespace DraCode.KoboldLair.Server.Services
             WyrmRecommendation? wyrmRec)
         {
             var steps = new List<VerificationStepDefinition>();
-            var workspaceFiles = Directory.Exists(project.Paths.Output)
-                ? Directory.GetFiles(project.Paths.Output, "*", SearchOption.TopDirectoryOnly)
+            var workspace = ProjectWorkspace.For(project);
+            var workspaceFiles = Directory.Exists(workspace)
+                ? Directory.GetFiles(workspace, "*", SearchOption.TopDirectoryOnly)
                 : Array.Empty<string>();
 
             var techStack = wyrmRec?.TechnicalStack ?? new List<string>();

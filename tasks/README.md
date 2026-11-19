@@ -224,7 +224,7 @@ _None_
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other (P1) · CR-1
     - [ ] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping (P2) · CR-2
     - [x] [TASK-178](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-178-verification-fix-tasks-never-run.md) Verification fix tasks are never run, and new ones are written every cycle (P2)
-    - [ ] [TASK-179](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-179-verification-checks-run-outside-the-workspace.md) Verification checks run outside the code they check, so a fixed project fails verification forever (P2)
+    - [x] [TASK-179](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-179-verification-checks-run-outside-the-workspace.md) Verification checks run outside the code they check, so a fixed project fails verification forever (P2)
   - STORY-043 Reuse & dead code — planned (0/1)
     - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation (P3) · CR-3
 
