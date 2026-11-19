@@ -151,17 +151,17 @@ _None_
 - **EPIC-014 Human-in-the-loop decision gates** — planned (0/6)
   - STORY-024 Blocking "AwaitingHumanDecision" escalation tier — planned (0/2)
     - [ ] [TASK-019](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-019-awaiting-human-decision-state.md) AwaitingHumanDecision state + HumanDecisionRequired disposition (P1) · FEATURE-027
-    - [ ] [TASK-020](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-020-drake-parks-routes-to-human.md) Drake parks task & routes decision to human instead of auto-resolving (P1) ⚠ blocked · FEATURE-027
+    - [x] [TASK-020](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-020-drake-parks-routes-to-human.md) Drake parks task & routes decision to human instead of auto-resolving (P1) · FEATURE-027
   - STORY-025 Async `ask_human` tool for automatic agents — planned (0/2)
-    - [ ] [TASK-021](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-021-async-ask-human-tool.md) Implement async `ask_human` tool (P1) ⚠ blocked · FEATURE-028
-    - [ ] [TASK-022](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-022-deliver-answer-into-context.md) Deliver human answer back into agent context on resume (P2) ⚠ blocked · FEATURE-028
+    - [x] [TASK-021](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-021-async-ask-human-tool.md) Implement async `ask_human` tool (P1) · FEATURE-028
+    - [x] [TASK-022](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-022-deliver-answer-into-context.md) Deliver human answer back into agent context on resume (P2) · FEATURE-028
   - STORY-026 Policy-driven decision gates (per-project) — planned (0/1)
     - [ ] [TASK-023](EPIC-014-human-in-the-loop-gates/STORY-026-decision-gate-policy/TASK-023-decision-gate-policy-config.md) DecisionGatePolicy config + enforcement in escalation routing (P2) ⚠ blocked · FEATURE-029
   - STORY-027 Answerable decisions surfaced in Dragon — planned (0/1)
-    - [ ] [TASK-024](EPIC-014-human-in-the-loop-gates/STORY-027-answerable-notifications/TASK-024-answerable-notifications-dragon.md) Answerable notifications + Dragon actionable prompt round-trip (P2) ⚠ blocked · FEATURE-030
+    - [x] [TASK-024](EPIC-014-human-in-the-loop-gates/STORY-027-answerable-notifications/TASK-024-answerable-notifications-dragon.md) Answerable notifications + Dragon actionable prompt round-trip (P2) · FEATURE-030
 - **EPIC-015 Self-reasoning depth & end-to-end verification** — planned (0/4)
   - STORY-028 End-to-end task acceptance verification — planned (0/2)
-    - [ ] [TASK-025](EPIC-015-self-reasoning-depth/STORY-028-end-to-end-task-verification/TASK-025-task-acceptance-check.md) Post-plan task-acceptance check against acceptance criteria (P1) · FEATURE-031
+    - [x] [TASK-025](EPIC-015-self-reasoning-depth/STORY-028-end-to-end-task-verification/TASK-025-task-acceptance-check.md) Post-plan task-acceptance check against acceptance criteria (P1) · FEATURE-031
     - [ ] [TASK-165](EPIC-015-self-reasoning-depth/STORY-028-end-to-end-task-verification/TASK-165-llm-judge-prose-acceptance-criteria.md) LLM judge for prose acceptance criteria, ahead of the human check (P2) · FEATURE-031
   - STORY-029 Escalation loop closure — feed resolution back to the Kobold — planned (0/1)
     - [ ] [TASK-026](EPIC-015-self-reasoning-depth/STORY-029-escalation-loop-closure/TASK-026-feed-resolution-to-kobold.md) Feed escalation resolution back into Kobold context (P2) · FEATURE-032
@@ -223,6 +223,7 @@ _None_
   - STORY-042 Correctness & invariants — planned (0/2)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other (P1) · CR-1
     - [ ] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping (P2) · CR-2
+    - [ ] [TASK-178](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-178-verification-fix-tasks-never-run.md) Verification fix tasks are never run, and new ones are written every cycle (P2)
   - STORY-043 Reuse & dead code — planned (0/1)
     - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation (P3) · CR-3
 
