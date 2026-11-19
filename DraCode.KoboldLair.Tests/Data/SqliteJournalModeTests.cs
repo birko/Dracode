@@ -22,6 +22,11 @@ namespace DraCode.KoboldLair.Tests.Data;
 /// table cannot re-check it while another connection holds the write lock, so its read fails with "no such table" and
 /// Birko answers that as an empty result.
 /// </summary>
+/// <remarks>
+/// Runs alone: other test classes call <c>SqliteConnection.ClearAllPools()</c> when they finish, which would drop the stale
+/// pooled handle mid-test, and a fresh handle on the rollback journal then waits out the busy timeout on the write lock.
+/// </remarks>
+[Collection(SqliteJournalModeCollection.Name)]
 public class SqliteJournalModeTests : IAsyncLifetime
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"dracode_wal_{Guid.NewGuid():N}");
@@ -248,4 +253,10 @@ public class SqliteJournalModeTests : IAsyncLifetime
         command.CommandText = sql;
         command.ExecuteNonQuery();
     }
+}
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public class SqliteJournalModeCollection
+{
+    public const string Name = "SQLite journal mode (runs alone)";
 }

@@ -3244,6 +3244,24 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Writes the task file (JSON and markdown) and clears the WAL. TASK-178: a tracker holding no tasks does not write
+        /// over a file that holds some, since Drake never removes tasks; that tracker loaded nothing from a file it could not
+        /// read, and saving would destroy the tasks. The WAL is kept in that case too.
+        /// </summary>
+        private async Task WriteTaskFileAsync()
+        {
+            if (_taskTracker.GetAllTasks().Count == 0 && TaskTracker.FileHoldsTasks(_outputMarkdownPath))
+            {
+                _logger?.LogWarning("Not saving an empty task list over {Path}: the file holds tasks this Drake could not load",
+                    _outputMarkdownPath);
+                return;
+            }
+
+            await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
+            await _wal.CheckpointAsync();
+        }
+
+        /// <summary>
         /// Queues a debounced save of the current task state.
         /// Writes are coalesced - multiple rapid calls result in a single write after the debounce interval.
         /// </summary>
@@ -3274,10 +3292,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     // Perform the actual save
                     try
                     {
-                        await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
-                        
-                        // Clear WAL after successful checkpoint
-                        await _wal.CheckpointAsync();
+                        await WriteTaskFileAsync();
                     }
                     catch (Exception ex)
                     {
@@ -3321,10 +3336,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         public async Task SaveTasksToFileAsync()
         {
-            await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
-            
-            // Clear WAL after successful checkpoint
-            await _wal.CheckpointAsync();
+            await WriteTaskFileAsync();
         }
 
         /// <summary>
@@ -3358,8 +3370,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 await Task.WhenAny(_saveTask, Task.Delay(5000));
 
                 // One final immediate save to capture any last state changes
-                await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
-                await _wal.CheckpointAsync();
+                await WriteTaskFileAsync();
 
                 _logger?.LogInformation("Drake flushed and closed successfully for {Path}", _outputMarkdownPath);
             }
@@ -3566,10 +3577,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
 
                 // Save recovered state to file
-                await _taskTracker.SaveToFileAsync(_outputMarkdownPath, "Drake Task Report");
-                
-                // Clear WAL after successful recovery
-                await _wal.CheckpointAsync();
+                await WriteTaskFileAsync();
                 
                 _logger?.LogInformation("WAL recovery completed successfully");
             }

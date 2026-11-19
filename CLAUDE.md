@@ -573,6 +573,12 @@ Kobold Planner creates implementation plans before execution:
 The same `Verification` section holds the toolchain settings `WyvernVerificationService` reads (`Enabled`,
 `TimeoutSeconds`, `AutoCreateFixTasks`, …). `SqlTaskRepository` adds a column an older `tasks` table lacks at startup.
 
+A failed project verification adds its fix tasks to the `verification-fixes` area through `VerificationFixTasks`
+(TASK-178), via `TaskTracker` like any area, so Drake loads them from the JSON. One fix per check type stays open: a
+re-run that fails again adds a fix only for a check whose earlier fix is Done. Every task file Drake writes goes through
+`WriteTaskFileAsync`, which never saves an empty list over a file that holds tasks (`TaskTracker.FileHoldsTasks`):
+Drake never removes tasks, so that save could only destroy ones it failed to load.
+
 ### Reflection Configuration (NEW - 2026-03-15)
 
 Controls Kobold self-reflection and escalation behavior:

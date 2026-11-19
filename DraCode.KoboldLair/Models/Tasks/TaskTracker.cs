@@ -381,6 +381,37 @@ namespace DraCode.KoboldLair.Models.Tasks
         }
 
         /// <summary>
+        /// Whether the task file at <paramref name="markdownPath"/> holds tasks on disk, readable or not (TASK-178): its JSON
+        /// is a non-empty list or does not parse, or, with no JSON, its markdown has a table row below a header. A tracker
+        /// that loaded nothing from such a file must not save over it.
+        /// </summary>
+        public static bool FileHoldsTasks(string markdownPath)
+        {
+            var jsonPath = GetJsonPath(markdownPath);
+            if (File.Exists(jsonPath))
+            {
+                try
+                {
+                    var tasks = JsonSerializer.Deserialize<List<TaskRecord>>(File.ReadAllText(jsonPath), JsonOptions);
+                    return tasks is { Count: > 0 };
+                }
+                catch (JsonException)
+                {
+                    return !string.IsNullOrWhiteSpace(File.ReadAllText(jsonPath));
+                }
+            }
+
+            if (!File.Exists(markdownPath))
+                return false;
+
+            var rows = File.ReadLines(markdownPath)
+                .Select(l => l.Trim())
+                .Where(l => l.StartsWith('|') && !l.Contains("---"))
+                .Count();
+            return rows > 1;
+        }
+
+        /// <summary>
         /// Gets the JSON file path from a markdown file path.
         /// e.g., frontend-tasks.md -> frontend-tasks.json
         /// </summary>
