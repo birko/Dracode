@@ -3,6 +3,7 @@ id: TASK-165
 parent: STORY-028
 feature: FEATURE-031
 status: todo
+blocked: 'FEATURE-031 D6 deferred: until the acceptance check (TASK-025) has run and shown how many tasks wait on a person'
 priority: P2
 assignee: agent
 created: 2026-11-16

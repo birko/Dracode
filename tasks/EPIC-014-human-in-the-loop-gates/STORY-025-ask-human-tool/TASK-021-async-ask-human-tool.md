@@ -2,7 +2,7 @@
 id: TASK-021
 parent: STORY-025
 feature: FEATURE-028
-status: in-progress
+status: done
 blocked: 'merge deferred: stacked on task/TASK-020, which waits on its end-to-end check at TASK-024; code complete on task/TASK-021'
 priority: P1
 assignee: agent
@@ -187,3 +187,5 @@ Review gate (2026-11-16) — one verdict per pass:
   Tenancy holds; no answer endpoint yet.
 - **Comments:** a misplaced XML doc in `Kobold.cs`, stale "False when…" docs, the `ParkTaskAsync` summary and a
   duplicated comment fixed; the rest hold content that lives nowhere else.
+
+Closed 2026-11-19: merged with `main` (TASK-020, TASK-174); suite 410/410.

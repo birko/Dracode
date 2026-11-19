@@ -2,7 +2,7 @@
 id: TASK-020
 parent: STORY-024
 feature: FEATURE-027
-status: verify
+status: done
 priority: P1
 assignee: agent
 created: 2026-05-29
@@ -194,3 +194,5 @@ Review gate (2026-11-16) — one verdict per pass:
 - **Comments:** stale and misplaced comments fixed; the rest hold content that lives nowhere else.
 - **Known test gap:** run cancellation is proved through `BeginRun` directly, not through a real `ExecuteTaskAsync`
   run; the end-to-end session at TASK-024 covers it.
+
+Closed 2026-11-19: both human-test steps passed; suite 380/380 on this branch merged with `main` (incl. TASK-174).
