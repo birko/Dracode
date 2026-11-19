@@ -1,4 +1,3 @@
-using Birko.Configuration;
 using Birko.Data.SQL.Repositories;
 using DraCode.KoboldLair.Data.Entities;
 using Microsoft.Extensions.Logging;
@@ -23,12 +22,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         {
             _logger = logger;
 
-            var dbDir = Path.GetDirectoryName(dbPath) ?? ".";
-            var dbFile = Path.GetFileName(dbPath);
-            if (!Directory.Exists(dbDir))
-                Directory.CreateDirectory(dbDir);
-
-            var settings = new PasswordSettings(dbDir, dbFile);
+            var settings = SqliteDatabaseSettings.For(dbPath);
             _providers.SetSettings(settings);
             _models.SetSettings(settings);
             _settings.SetSettings(settings);

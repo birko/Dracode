@@ -23,10 +23,8 @@ namespace DraCode.KoboldLair.Data
 
         public static SqlEventStore<SqLiteConnector> CreateStore(string dbPath)
         {
-            var dir = Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".";
-            Directory.CreateDirectory(dir);
             var inner = new AsyncSQLiteStore<DomainEventModel>();
-            inner.SetSettings(new SqLiteSettings(dir, Path.GetFileName(dbPath)));
+            inner.SetSettings(SqliteDatabaseSettings.For(dbPath));
             return new SqlEventStore<SqLiteConnector>(inner);
         }
 

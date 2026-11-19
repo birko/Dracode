@@ -1,7 +1,6 @@
 using Birko.AI.Resilience.Stores;
 using Birko.Data.SQL.Repositories;
 using Birko.Data.Stores;
-using Birko.Configuration;
 using DraCode.KoboldLair.Data.Entities;
 using Microsoft.Extensions.Logging;
 using BirkoUsageRecord = Birko.AI.Resilience.Stores.UsageRecordEntity;
@@ -22,9 +21,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         {
             _logger = logger;
             _repository = new AsyncSqLiteModelRepository<KoboldLairUsageRecord>();
-            var dbDir = Path.GetDirectoryName(dbPath) ?? ".";
-            var dbFile = Path.GetFileName(dbPath);
-            _repository.SetSettings(new PasswordSettings(dbDir, dbFile));
+            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
         }
 
         public async Task InitializeAsync()

@@ -1,6 +1,5 @@
 using Birko.Data.SQL.Repositories;
 using Birko.Data.Stores;
-using Birko.Configuration;
 using DraCode.KoboldLair.Data.Entities;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
@@ -27,12 +26,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             _logger = logger;
             _repository = new AsyncSqLiteModelRepository<ProjectEntity>();
 
-            var dbDir = Path.GetDirectoryName(dbPath) ?? ".";
-            var dbFile = Path.GetFileName(dbPath);
-            if (!Directory.Exists(dbDir))
-                Directory.CreateDirectory(dbDir);
-
-            _repository.SetSettings(new PasswordSettings(dbDir, dbFile));
+            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
             _logger?.LogInformation("SQLite project repository initialized at: {Path}", dbPath);
         }
 

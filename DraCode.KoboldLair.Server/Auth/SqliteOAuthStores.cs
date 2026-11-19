@@ -1,3 +1,4 @@
+using DraCode.KoboldLair.Data;
 using Birko.Data.SQL.Connectors;
 using Birko.Data.SQL.SqLite.Stores;
 using Birko.Security.OAuth.Server.InMemory.Extensions;
@@ -24,10 +25,7 @@ public static class OAuthStoreServiceCollectionExtensions
         if (!useSqlite || string.IsNullOrEmpty(dbPath))
             return services.AddOAuthServerInMemoryStores();
 
-        var full = Path.GetFullPath(dbPath);
-        var directory = Path.GetDirectoryName(full) ?? ".";
-        Directory.CreateDirectory(directory);
-        var settings = new SqLiteSettings(directory, Path.GetFileName(full));
+        var settings = SqliteDatabaseSettings.For(dbPath);
         services.AddOAuthServerSqLiteStores(settings);
 
         // A database created before the adoption has oauth_refresh_tokens without ClaimsJson; table creation never alters
