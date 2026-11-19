@@ -408,69 +408,12 @@ namespace DraCode.KoboldLair.Server.Services
 
         private async Task CreateFixTasksAsync(Project project, List<VerificationCheck> failedChecks, CancellationToken stoppingToken)
         {
-            // Create or update verification-fixes task file
-            var tasksDir = Path.Combine(project.Paths.Output, "tasks");
-            Directory.CreateDirectory(tasksDir);
-            var taskFilePath = Path.Combine(tasksDir, "verification-fixes-tasks.md");
+            var taskFilePath = Path.Combine(project.Paths.Output, "tasks", VerificationFixTasks.FileName);
+            await VerificationFixTasks.AddAsync(taskFilePath, failedChecks, _logger);
 
-            var taskLines = new List<string>();
-            var existingCheckTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            // Add header if file doesn't exist
-            if (!File.Exists(taskFilePath))
+            if (!project.Paths.TaskFiles.ContainsKey(VerificationFixTasks.AreaName))
             {
-                taskLines.Add("# Verification Fixes");
-                taskLines.Add("");
-                taskLines.Add("Tasks to fix issues found during project verification.");
-                taskLines.Add("");
-                taskLines.Add("| ID | Task | Agent | Status |");
-                taskLines.Add("|----|------|-------|--------|");
-            }
-            else
-            {
-                // Read existing content and track existing check types to prevent duplicates
-                var existingLines = await File.ReadAllLinesAsync(taskFilePath, stoppingToken);
-                taskLines.AddRange(existingLines);
-                foreach (var line in existingLines)
-                {
-                    var match = System.Text.RegularExpressions.Regex.Match(line, @"verify-(\w+)-");
-                    if (match.Success)
-                        existingCheckTypes.Add(match.Groups[1].Value);
-                }
-            }
-
-            // Add new tasks, skipping duplicates by check type
-            foreach (var check in failedChecks)
-            {
-                if (existingCheckTypes.Contains(check.CheckType))
-                {
-                    _logger.LogDebug("Skipping duplicate fix task for {CheckType} in {Project}", check.CheckType, project.Name);
-                    continue;
-                }
-
-                var taskId = $"verify-{check.CheckType}-{Guid.NewGuid().ToString()[..8]}";
-                var priority = check.Priority switch
-                {
-                    VerificationCheckPriority.Critical => "Critical",
-                    VerificationCheckPriority.High => "High",
-                    VerificationCheckPriority.Medium => "Normal",
-                    _ => "Low"
-                };
-
-                var taskDescription = $"[id:{taskId}] [priority:{priority}] Fix {check.CheckType} failure: {check.Command}. Error: {(check.Output.Length > 200 ? check.Output.Substring(0, 200) + "..." : check.Output)}";
-
-                taskLines.Add($"| {taskId} | {taskDescription} | unassigned | unassigned |");
-                existingCheckTypes.Add(check.CheckType);
-                _logger.LogInformation("Created fix task {TaskId} for {CheckType} failure in {Project}", taskId, check.CheckType, project.Name);
-            }
-
-            // Write updated file
-            await File.WriteAllLinesAsync(taskFilePath, taskLines, stoppingToken);
-
-            // Register task file with project if not already registered
-            if (!project.Paths.TaskFiles.ContainsKey("verification-fixes"))
-            {
-                project.Paths.TaskFiles["verification-fixes"] = taskFilePath;
+                project.Paths.TaskFiles[VerificationFixTasks.AreaName] = taskFilePath;
                 _projectService.UpdateProject(project);
             }
         }
