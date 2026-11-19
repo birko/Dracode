@@ -53,6 +53,15 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly Action<string, EscalationAlert, string>? _onEscalationNotify;
         private readonly IEventBus? _eventBus;
         private readonly SqlPendingDecisionRepository? _pendingDecisions;
+        private readonly IEscalationDispositionPolicy _dispositionPolicy;
+        private readonly Action<string, PendingDecision>? _onDecisionRequired;
+        private readonly Action<string, PendingDecision>? _onDecisionResolved;
+
+        // The cancellation of each task's current run: parking the task cancels it (TASK-020)
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource> _runCancellations = new();
+
+        // Parking checks then writes; two escalations for one task (a Kobold's reflect and the monitor) must not both park it
+        private readonly SemaphoreSlim _parkLock = new(1, 1);
         private Wyvern? _wyvern;
         private WyrmRecommendation? _wyrmRecommendation;
 
@@ -119,7 +128,10 @@ namespace DraCode.KoboldLair.Orchestrators
             Action<string, string, string>? onFeatureBranchReady = null,
             Action<string, EscalationAlert, string>? onEscalationNotify = null,
             IEventBus? eventBus = null,
-            SqlPendingDecisionRepository? pendingDecisions = null)
+            SqlPendingDecisionRepository? pendingDecisions = null,
+            IEscalationDispositionPolicy? dispositionPolicy = null,
+            Action<string, PendingDecision>? onDecisionRequired = null,
+            Action<string, PendingDecision>? onDecisionResolved = null)
         {
             _koboldFactory = koboldFactory;
             _taskTracker = taskTracker;
@@ -143,6 +155,9 @@ namespace DraCode.KoboldLair.Orchestrators
             _onEscalationNotify = onEscalationNotify;
             _eventBus = eventBus;
             _pendingDecisions = pendingDecisions;
+            _dispositionPolicy = dispositionPolicy ?? AutoResolveEscalationPolicy.Instance;
+            _onDecisionRequired = onDecisionRequired;
+            _onDecisionResolved = onDecisionResolved;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
             _useEnhancedExecution = useEnhancedExecution && _planningEnabled; // Only use enhanced if planning is enabled
             _allowPlanModifications = allowPlanModifications;
@@ -796,8 +811,11 @@ namespace DraCode.KoboldLair.Orchestrators
         /// Handles an escalation alert from a Kobold or the ReasoningMonitor.
         /// Routes to the appropriate upstream agent based on escalation type.
         /// </summary>
-        public async Task HandleEscalationAsync(EscalationAlert alert)
+        public async Task HandleEscalationAsync(EscalationAlert alert, EscalationDisposition? disposition = null)
         {
+            if (await TryRouteToHumanAsync(alert, disposition))
+                return;
+
             alert.Status = EscalationStatus.InProgress;
             var resolution = "";
 
@@ -1910,6 +1928,10 @@ namespace DraCode.KoboldLair.Orchestrators
             List<Message> messages;
             bool koboldRemovedByParallel = false;
 
+            using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            BeginRun(task.Id, runCancellation);
+            cancellationToken = runCancellation.Token;
+
             try
             {
                 // Set message callback on agent
@@ -2057,6 +2079,8 @@ namespace DraCode.KoboldLair.Orchestrators
                         kobold.Id.ToString()[..8], task.Id.ToString()[..8]);
                 }
 
+                EndRun(task.Id, runCancellation);
+
                 // Note: worktree cleanup happens after SyncTaskFromKoboldAsync below
                 // so commit can still use the worktree path
             }
@@ -2072,6 +2096,12 @@ namespace DraCode.KoboldLair.Orchestrators
                 {
                     _logger?.LogWarning(
                         "Preserving worktree {Path} for task {TaskId} due to commit failure — manual recovery required",
+                        worktreePath, task.Id[..Math.Min(8, task.Id.Length)]);
+                }
+                else if (task.Status == TaskStatus.AwaitingHumanDecision)
+                {
+                    // Its uncommitted work waits with it (TASK-168 covers runs that end otherwise)
+                    _logger?.LogInformation("Keeping worktree {Path} for parked task {TaskId}",
                         worktreePath, task.Id[..Math.Min(8, task.Id.Length)]);
                 }
                 else
@@ -2520,8 +2550,9 @@ namespace DraCode.KoboldLair.Orchestrators
 
         /// <summary>
         /// Parks a task on a pending decision: the decision is stored first, as the source of truth, then the task
-        /// moves to <see cref="TaskStatus.AwaitingHumanDecision"/>. Returns false, changing nothing, when no decision
-        /// store is configured (a non-SQL backend), so the caller keeps the automatic path.
+        /// moves to <see cref="TaskStatus.AwaitingHumanDecision"/>, its running Kobold's run is cancelled, and the
+        /// decision card is raised. Returns false, changing nothing, when no decision store is configured (a non-SQL
+        /// backend) or the task is already parked, so the caller keeps the automatic path.
         /// </summary>
         public async Task<bool> ParkTaskAsync(TaskRecord task, PendingDecision decision)
         {
@@ -2530,6 +2561,20 @@ namespace DraCode.KoboldLair.Orchestrators
                 _logger?.LogWarning("Cannot park task {TaskId}: no pending-decision store is configured", task.Id[..Math.Min(8, task.Id.Length)]);
                 return false;
             }
+
+            await _parkLock.WaitAsync();
+            try
+            {
+                return await ParkTaskLockedAsync(task, decision);
+            }
+            finally
+            {
+                _parkLock.Release();
+            }
+        }
+
+        private async Task<bool> ParkTaskLockedAsync(TaskRecord task, PendingDecision decision)
+        {
 
             if (task.Status == TaskStatus.AwaitingHumanDecision)
             {
@@ -2540,11 +2585,20 @@ namespace DraCode.KoboldLair.Orchestrators
             // Stored under this Drake's project, never the caller's: another project's Drakes would expire it
             decision.TaskId = task.Id;
             decision.ProjectId = _projectId ?? task.ProjectId ?? "";
-            await _pendingDecisions.CreateAsync(decision);
+            await _pendingDecisions!.CreateAsync(decision);
 
             await UpdateTaskWithWalAsync(task, TaskStatus.AwaitingHumanDecision, task.AssignedAgent);
             _taskToKoboldMap.TryRemove(task.Id, out _);
             SaveTasksToFile();
+
+            // Parked first, then cancelled: a run finishing meanwhile finds the task parked and cannot overwrite it
+            if (_runCancellations.TryGetValue(task.Id, out var run))
+            {
+                try { run.Cancel(); }
+                catch (ObjectDisposedException) { } // the run ended between the lookup and the cancel
+            }
+
+            RaiseDecisionCallback(_onDecisionRequired, decision);
             _logger?.LogInformation("Task {TaskId} parked on decision {DecisionId} ({Timeout})",
                 task.Id[..Math.Min(8, task.Id.Length)], decision.Id[..8],
                 decision.Timeout is { } t ? $"times out in {t}" : "no timeout");
@@ -2595,7 +2649,12 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
                 else if (!shouldBeParked && task.Status == TaskStatus.AwaitingHumanDecision)
                 {
-                    await UpdateTaskWithWalAsync(task, TaskStatus.Unassigned, task.AssignedAgent);
+                    // Answered while no Drake held the task: "Handle it automatically" still runs its automatic route
+                    var answered = await LatestResolvedAsync(task.Id);
+                    if (answered is { ResolutionKind: PendingDecisionResolution.Answered }
+                        && answered.Resolution == PendingDecisionNotification.HandleAutomatically)
+                        await RunAutomaticRouteAsync(answered);
+                    await UnparkAsync(task);
                     changed = true;
                 }
             }
@@ -2629,28 +2688,194 @@ namespace DraCode.KoboldLair.Orchestrators
                 _logger?.LogInformation("Decision {DecisionId} for task {TaskId} timed out; falling back",
                     decision.Id[..8], decision.TaskId[..Math.Min(8, decision.TaskId.Length)]);
 
-                if (decision.Escalation is { } alert)
-                {
-                    alert.Status = EscalationStatus.Pending;
-                    try
-                    {
-                        await HandleEscalationAsync(alert);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogError(ex, "Auto-resolve fallback failed for decision {DecisionId}", decision.Id[..8]);
-                    }
-                }
-
-                // The fallback may already have moved the task on (a refinement resets or fails it)
-                if (task.Status == TaskStatus.AwaitingHumanDecision)
-                {
-                    await UpdateTaskWithWalAsync(task, TaskStatus.Unassigned, task.AssignedAgent);
-                    SaveTasksToFile();
-                }
+                await RunAutomaticRouteAsync(decision);
+                await UnparkAsync(task);
+                decision.ResolutionKind = PendingDecisionResolution.TimedOut;
+                decision.ResolvedAt = now;
+                RaiseDecisionCallback(_onDecisionResolved, decision);
             }
 
             return expired;
+        }
+
+        /// <summary>
+        /// A person answers a pending decision (TASK-020). "Handle it automatically" on an escalation runs its automatic
+        /// route, as a timeout would; any other answer is recorded for the agent (TASK-022) and the task resumes from its
+        /// saved plan. False when the decision is unknown, another project's or area's, or already answered or timed out.
+        /// </summary>
+        public async Task<bool> ResolvePendingDecisionAsync(string decisionId, string answer)
+        {
+            if (_pendingDecisions == null)
+                return false;
+
+            var decision = await _pendingDecisions.GetByIdAsync(decisionId);
+            if (decision == null || decision.ProjectId != _projectId)
+                return false;
+            var task = _taskTracker.GetTaskById(decision.TaskId);
+            if (task == null)
+                return false;
+
+            var at = DateTime.UtcNow;
+            if (!await _pendingDecisions.ResolveAsync(decision.Id, PendingDecisionResolution.Answered, answer, at))
+                return false;
+            decision.Resolution = answer;
+            decision.ResolutionKind = PendingDecisionResolution.Answered;
+            decision.ResolvedAt = at;
+
+            if (answer == PendingDecisionNotification.HandleAutomatically)
+            {
+                await RunAutomaticRouteAsync(decision);
+            }
+            else
+            {
+                if (decision.Escalation is { } alert)
+                {
+                    alert.Status = EscalationStatus.Resolved;
+                    alert.Resolution = $"Human: {answer}";
+                    alert.ResolvedAt = at;
+                }
+                await RecordAnswerOnPlanAsync(decision, answer);
+            }
+
+            await UnparkAsync(task);
+            RaiseDecisionCallback(_onDecisionResolved, decision);
+            _logger?.LogInformation("Decision {DecisionId} for task {TaskId} answered",
+                decision.Id[..8], decision.TaskId[..Math.Min(8, decision.TaskId.Length)]);
+            return true;
+        }
+
+        /// <summary>Registers the cancellation of a task's current run, so parking the task can stop it.</summary>
+        internal void BeginRun(string taskId, CancellationTokenSource run) => _runCancellations[taskId] = run;
+
+        /// <summary>Unregisters a run, only if it is still the task's current one.</summary>
+        internal void EndRun(string taskId, CancellationTokenSource run) =>
+            _runCancellations.TryRemove(new KeyValuePair<string, CancellationTokenSource>(taskId, run));
+
+        /// <summary>
+        /// Parks the task when the escalation's disposition (given, or chosen by the policy) is HumanDecisionRequired.
+        /// False sends the escalation down its automatic route: an automatic disposition, a task this Drake does not hold
+        /// or that already finished, or no decision store. An escalation for a task already parked is absorbed (true).
+        /// </summary>
+        private async Task<bool> TryRouteToHumanAsync(EscalationAlert alert, EscalationDisposition? disposition)
+        {
+            var task = string.IsNullOrEmpty(alert.TaskId) ? null : _taskTracker.GetTaskById(alert.TaskId);
+
+            // A parked task waits on its person: a late escalation must not run an automatic route under the open
+            // decision. Only an explicit disposition (a timeout, or "Handle it automatically") goes through.
+            if (disposition == null && task?.Status == TaskStatus.AwaitingHumanDecision)
+            {
+                alert.Status = EscalationStatus.Resolved;
+                alert.Resolution = "Already awaiting a human decision";
+                alert.ResolvedAt = DateTime.UtcNow;
+                _logger?.LogInformation("Escalation {AlertId} for parked task {TaskId} absorbed", alert.Id[..8],
+                    task.Id[..Math.Min(8, task.Id.Length)]);
+                return true;
+            }
+
+            var route = disposition is { } given
+                ? new EscalationRoute(given)
+                : _dispositionPolicy.Choose(alert, task);
+            if (route.Disposition != EscalationDisposition.HumanDecisionRequired)
+                return false;
+
+            if (task == null || task.Status is TaskStatus.Done or TaskStatus.Failed)
+                return false;
+
+            alert.Status = EscalationStatus.InProgress;
+            var decision = new PendingDecision
+            {
+                Disposition = EscalationDisposition.HumanDecisionRequired,
+                Source = PendingDecisionSource.Escalation,
+                Question = $"{alert.Type}: {alert.Summary}",
+                Escalation = alert,
+                Timeout = route.Timeout
+            };
+            if (await ParkTaskAsync(task, decision))
+                return true;
+
+            // Another escalation parked it first: this one is absorbed, as for any task already parked
+            if (task.Status == TaskStatus.AwaitingHumanDecision)
+            {
+                alert.Status = EscalationStatus.Resolved;
+                alert.Resolution = "Already awaiting a human decision";
+                alert.ResolvedAt = DateTime.UtcNow;
+                return true;
+            }
+
+            alert.Status = EscalationStatus.Pending;
+            return false;
+        }
+
+        /// <summary>Runs a parked escalation's automatic route while its task is still parked, so no Kobold takes it meanwhile.</summary>
+        private async Task RunAutomaticRouteAsync(PendingDecision decision)
+        {
+            if (decision.Escalation is not { } alert)
+                return;
+
+            alert.Status = EscalationStatus.Pending;
+            try
+            {
+                await HandleEscalationAsync(alert, EscalationDisposition.AutoResolve);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Automatic route failed for decision {DecisionId}", decision.Id[..8]);
+            }
+        }
+
+        /// <summary>Returns a still-parked task to the queue; the automatic route may already have moved it on.</summary>
+        private async Task UnparkAsync(TaskRecord task)
+        {
+            if (task.Status != TaskStatus.AwaitingHumanDecision)
+                return;
+            await UpdateTaskWithWalAsync(task, TaskStatus.Unassigned, task.AssignedAgent);
+            SaveTasksToFile();
+        }
+
+        private async Task<PendingDecision?> LatestResolvedAsync(string taskId)
+        {
+            try
+            {
+                return (await _pendingDecisions!.GetResolvedForTaskAsync(taskId)).FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Could not read the answered decisions of task {TaskId}", taskId);
+                return null;
+            }
+        }
+
+        private async Task RecordAnswerOnPlanAsync(PendingDecision decision, string answer)
+        {
+            if (_planService == null)
+                return;
+            try
+            {
+                var plan = await _planService.LoadPlanAsync(decision.ProjectId, decision.TaskId);
+                if (plan == null)
+                    return;
+                plan.AddLogEntry($"Human decision: {answer}");
+                await _planService.SavePlanAsync(plan);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Could not record the answer on the plan of task {TaskId}", decision.TaskId);
+            }
+        }
+
+        private void RaiseDecisionCallback(Action<string, PendingDecision>? callback, PendingDecision decision)
+        {
+            if (callback == null)
+                return;
+            try
+            {
+                var projectName = _projectRepository?.GetById(_projectId ?? "")?.Name ?? _projectId ?? "unknown";
+                callback(projectName, decision);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Decision notification failed for {DecisionId}", decision.Id[..8]);
+            }
         }
 
         #endregion

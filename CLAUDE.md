@@ -80,6 +80,16 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     every reload. A parked task is skipped by the work picker, its Kobold cannot overwrite it, and the monitors leave it
     alone; its area keeps a Drake. A decision's timeout is optional: `DrakeMonitoringService` expires overdue ones
     through the automatic escalation path, and one with no timeout waits until answered.
+  - **Escalation to a person** (TASK-020): `HandleEscalationAsync(alert, disposition?)` asks an
+    `IEscalationDispositionPolicy` (`DrakeFactory.DispositionPolicy`; the default keeps every escalation automatic until
+    TASK-023's policy) and parks the task when it answers `HumanDecisionRequired`. A parked task absorbs further
+    escalations unless a disposition is passed explicitly. Parking cancels the task's current run (each run in
+    `ExecuteTaskAsync` registers its own cancellation) and keeps its worktree. An answer goes through
+    `Drake.ResolvePendingDecisionAsync` / `DrakeFactory.ResolvePendingDecisionAsync`: "Handle it automatically" runs the
+    escalation's automatic route, any other answer is recorded for the agent and the task resumes from its plan.
+  - **Decision cards:** a park raises a `decision_required` project notification and an answer or timeout a
+    `decision_resolved` one; the metadata keys and the response schema are `PendingDecisionNotification`'s, the
+    contract the Dragon and web clients render and answer (TASK-024, TASK-160).
   - **Git Worktrees**: Creates isolated worktrees per feature branch for parallel-safe execution
   - **Post-task verification**: After task completion, runs Critical-priority verification steps (e.g., `tsc --noEmit`) from Wyrm recommendations
   - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block

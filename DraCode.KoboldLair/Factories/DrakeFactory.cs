@@ -56,6 +56,15 @@ namespace DraCode.KoboldLair.Factories
         /// </summary>
         public Action<string, EscalationAlert, string>? OnEscalation { get; set; }
 
+        /// <summary>Chooses automatic or human resolution for escalations (TASK-023 provides one); null keeps them automatic.</summary>
+        public IEscalationDispositionPolicy? DispositionPolicy { get; set; }
+
+        /// <summary>Raised when a task parks on a decision a person must answer. Parameters: projectName, decision.</summary>
+        public Action<string, PendingDecision>? OnDecisionRequired { get; set; }
+
+        /// <summary>Raised when a pending decision is answered or times out. Parameters: projectName, decision.</summary>
+        public Action<string, PendingDecision>? OnDecisionResolved { get; set; }
+
         /// <summary>
         /// Creates a new DrakeFactory
         /// </summary>
@@ -263,7 +272,10 @@ namespace DraCode.KoboldLair.Factories
                 OnFeatureBranchReady,
                 OnEscalation,
                 _eventBus,
-                _pendingDecisions
+                _pendingDecisions,
+                DispositionPolicy,
+                OnDecisionRequired,
+                OnDecisionResolved
             );
 
             // Lock only for dictionary insertion, with race condition check
@@ -339,6 +351,46 @@ namespace DraCode.KoboldLair.Factories
                     .Select(kvp => (_drakes[kvp.Key], kvp.Key))
                     .ToList();
             }
+        }
+
+        /// <summary>
+        /// Answers a pending decision through whichever of the project's Drakes holds its task. With none alive, the
+        /// answer is stored and the Drake applies it when it next starts: its reconcile runs the escalation's automatic
+        /// route for "Handle it automatically" and unparks the task. False when the decision is unknown, another
+        /// project's, or already answered or timed out.
+        /// </summary>
+        public async Task<bool> ResolvePendingDecisionAsync(string projectId, string decisionId, string answer)
+        {
+            foreach (var drake in GetDrakesByProject(projectId))
+            {
+                if (await drake.ResolvePendingDecisionAsync(decisionId, answer))
+                    return true;
+            }
+
+            if (_pendingDecisions == null)
+                return false;
+            var decision = await _pendingDecisions.GetByIdAsync(decisionId);
+            if (decision == null || decision.ProjectId != projectId || decision.IsResolved)
+                return false;
+            if (GetDrakesByProject(projectId).Any(d => d.GetAllTasks().Any(t => t.Id == decision.TaskId)))
+                return false; // a live Drake holds the task and refused the answer
+            var at = DateTime.UtcNow;
+            if (!await _pendingDecisions.ResolveAsync(decisionId, PendingDecisionResolution.Answered, answer, at))
+                return false;
+
+            decision.Resolution = answer;
+            decision.ResolutionKind = PendingDecisionResolution.Answered;
+            decision.ResolvedAt = at;
+            try
+            {
+                var projectName = _projectRepository?.GetById(projectId)?.Name ?? projectId;
+                OnDecisionResolved?.Invoke(projectName, decision);
+            }
+            catch (Exception ex)
+            {
+                _loggerFactory?.CreateLogger<DrakeFactory>().LogWarning(ex, "Decision notification failed for {DecisionId}", decisionId);
+            }
+            return true;
         }
 
         /// <summary>
