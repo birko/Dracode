@@ -1,23 +1,23 @@
 ---
 id: FEATURE-030
-generated: 2026-05-31
+generated: 2026-11-17
 ---
 
 # Answerable decisions surfaced in Dragon — Status
 
 > Auto-generated rollup. PM/stocktaker audience, no code jargon.
 
-**Phase:** idea
+**Phase:** building
 
 ## Decisions at a glance
 
 | State | Count |
 |-------|-------|
-| ✅ approved | 0 |
-| ✏️ changed | 0 |
+| ✅ approved | 3 |
+| ✏️ changed | 3 |
 | ⏸️ deferred | 0 |
 | ❌ removed | 0 |
-| 💭 proposed (undecided) | 6 |
+| 💭 proposed (undecided) | 0 |
 
 ## Build progress
 
@@ -27,12 +27,12 @@ generated: 2026-05-31
 
 ## What can be tested now
 
-Nothing yet — decisions still proposed.
+Nothing yet — nothing is built.
 
 ## Prototype
 
-Pending — backlog item; prototype decision deferred to /feature decide.
+None — the server side has no screen to prototype; the decision card's look belongs to the rebuilt Dragon dock.
 
 ## Next step
 
-Run /feature decide to approve or defer the proposed decisions; this feature depends on the parking (FEATURE-027) and answer-delivery (FEATURE-028) round-trip.
+Build TASK-024: answering decisions through Dragon, the tool, and showing open decisions again on reconnect. The clickable card follows with the Dragon dock rebuild.

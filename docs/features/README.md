@@ -55,8 +55,8 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 | [FEATURE-027](FEATURE-027-blocking-decision-tier/idea.md) | Blocking AwaitingHumanDecision tier | building | EPIC-014 |
 | [FEATURE-028](FEATURE-028-ask-human-tool/idea.md) | Async ask-human tool | building | EPIC-014 |
 | [FEATURE-029](FEATURE-029-decision-gate-policy/idea.md) | Policy-driven decision gates | idea | EPIC-014 |
-| [FEATURE-030](FEATURE-030-answerable-notifications/idea.md) | Answerable decisions in Dragon | idea | EPIC-014 |
-| [FEATURE-031](FEATURE-031-end-to-end-task-verification/idea.md) | End-to-end task acceptance verification | idea | EPIC-015 |
+| [FEATURE-030](FEATURE-030-answerable-notifications/idea.md) | Answerable decisions in Dragon | building | EPIC-014 |
+| [FEATURE-031](FEATURE-031-end-to-end-task-verification/idea.md) | End-to-end task acceptance verification | building | EPIC-015 |
 | [FEATURE-032](FEATURE-032-escalation-loop-closure/idea.md) | Escalation loop closure | idea | EPIC-015 |
 | [FEATURE-033](FEATURE-033-budget-aware-reflection/idea.md) | Budget-aware reflection | idea | EPIC-015 |
 | [FEATURE-034](FEATURE-034-cross-step-replan-check/idea.md) | Cross-step coherence re-plan check | idea | EPIC-015 |
