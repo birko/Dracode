@@ -3,7 +3,7 @@ id: TASK-174
 parent: STORY-040
 feature: null
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 # blocked: <reason> — set by /tasks block, never by hand; status stays as it is; /tasks unblock removes it
 priority: P1
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
@@ -15,7 +15,7 @@ blocks: []
 # findings: ids this task remediates — from a review/audit/harvest/drill pass, or from ordinary
 # field use with no pass behind it at all. Prefixes: see /tasks intake
 findings: [FIELD-024]
-pr: null
+pr: 8
 github-issue: null
 jira-key: null
 ---
@@ -53,12 +53,12 @@ Introduced or exposed by TASK-134 (`3c02a37`), which moved the endpoints onto Bi
 
 ## Acceptance criteria
 
-- [ ] A test connects to `/dragon` with `?token=` on a **real Kestrel host** (a server bound to a loopback port, not
+- [x] A test connects to `/dragon` with `?token=` on a **real Kestrel host** (a server bound to a loopback port, not
       `TestServer`) with JWT on, and is accepted; it fails on the current middleware order
-- [ ] The same test shows `/kobold` accepts `?token=` the same way, and an upgrade with no token or a bad one is still
+- [x] The same test shows `/kobold` accepts `?token=` the same way, and an upgrade with no token or a bad one is still
       refused with 401
-- [ ] `/api/v1` keeps refusing a `?token=` query on a plain (non-WebSocket, non-SSE) request, as Birko intends
-- [ ] The full suite passes
+- [x] `/api/v1` keeps refusing a `?token=` query on a plain (non-WebSocket, non-SSE) request, as Birko intends
+- [x] The full suite passes
 
 ## Out of scope
 
@@ -73,4 +73,13 @@ TestServer tests left. TASK-024's human test plan exercises the same connect by 
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-174` — leave empty until then._
+1. Red: `WebSocketQueryTokenKestrelTests` starts one real Kestrel host (free loopback port, JWT on) and connects with
+   `ClientWebSocket`. On the old order both `?token=` connects came back 401; the no-token, bad-token and plain
+   `/api/v1?token=` cases already held.
+2. Green: `Program.cs` calls `UseWebSockets` right after `UseCors`, before `UseAuthentication`, so Birko's
+   `AcceptsQueryToken` sees `IsWebSocketRequest` on Kestrel.
+
+## Outcome (2026-11-19)
+
+- New tests 7/7; with `DragonWebSocketAuthTests` and `JwtMiddlewareTests` 28/28; full suite 365/365 on `main` + this change.
+- The test host binds `127.0.0.1:0`, not Kestrel's default 5000, so it cannot collide with another local server.
