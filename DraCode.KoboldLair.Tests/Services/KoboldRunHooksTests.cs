@@ -6,6 +6,7 @@ using Birko.AI.Providers;
 using Birko.AI.Tools;
 using DraCode.KoboldLair.Events.Run;
 using DraCode.KoboldLair.Models.Agents;
+using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
 using FluentAssertions;
@@ -307,5 +308,165 @@ public class KoboldRunHooksTests : IDisposable
 
         withAsk.OfferedTools[0].Should().Contain("ask_human");
         without.OfferedTools[0].Should().NotContain("ask_human");
+    }
+
+    // --- answers on resume (TASK-022) -------------------------------------------------------------
+
+    private const string AnswerProject = "proj-answers";
+
+    /// <summary>A real plan service on the temp dir, so an asking run leaves a checkpoint the next run resumes.</summary>
+    private KoboldPlanService PlanService()
+    {
+        var projects = new ProjectRepository(_dir);
+        if (projects.GetById(AnswerProject) == null)
+            projects.Add(new Project { Id = AnswerProject, Name = "answers", OwnerId = "o", Paths = { Output = _dir } });
+        return new KoboldPlanService(_dir, projectRepository: projects, debounceIntervalMs: 0);
+    }
+
+    private (Kobold Kobold, TouchTool Touch) PlannedKobold(ILlmProvider provider, KoboldImplementationPlan plan, Guid taskId,
+        params HumanAnswer[] answers)
+    {
+        var agent = new CodingAgent(provider, new AgentOptions { WorkingDirectory = _dir, Verbose = false });
+        var touch = new TouchTool();
+        agent.AddTool(touch);
+        var kobold = new Kobold(agent, "coding");
+        kobold.AssignTask(taskId, "work the plan", AnswerProject);
+        kobold.ImplementationPlan = plan;
+        kobold.HumanAnswers = answers;
+        var asked = 0;
+        kobold.OnAskHuman = (_, _) => Task.FromResult(new AskHumanOutcome(true, $"dec-{++asked}", null));
+        return (kobold, touch);
+    }
+
+    private static async Task<(KoboldImplementationPlan Plan, Guid TaskId)> SavedPlan(KoboldPlanService plans)
+    {
+        var taskId = Guid.NewGuid();
+        var plan = new KoboldImplementationPlan
+        {
+            ProjectId = AnswerProject, TaskId = taskId.ToString(), TaskDescription = "work the plan",
+            Steps = [Step(1, "never-1.txt"), Step(2, "never-2.txt")]
+        };
+        await plans.SavePlanAsync(plan);
+        return (plan, taskId);
+    }
+
+    private static LlmResponse Ask(string id, string question, params string[] options) => new()
+    {
+        StopReason = "tool_use",
+        Content = new List<ContentBlock>
+        {
+            new() { Type = "tool_use", Id = id, Name = "ask_human",
+                Input = new Dictionary<string, object> { ["question"] = question, ["options"] = options } }
+        }
+    };
+
+    private static HumanAnswer Answered(string id, string question, string answer) =>
+        new(id, PendingDecisionSource.AskHuman, question, null, null, answer, false, null);
+
+    private static string Json(IEnumerable<Message> messages) => System.Text.Json.JsonSerializer.Serialize(messages);
+
+    private static int Count(string text, string part) =>
+        (text.Length - text.Replace(part, "").Length) / part.Length;
+
+    /// <summary>Run 1 asks on step 1 and stops, leaving its checkpoint.</summary>
+    private async Task<(KoboldImplementationPlan Plan, Guid TaskId)> AskedOnTheFirstStep(KoboldPlanService plans)
+    {
+        var (plan, taskId) = await SavedPlan(plans);
+        var asking = new ScriptedProvider((call, _) => Task.FromResult(
+            call == 1 ? Ask("ask-1", "Which database?", "sqlite", "postgres") : EndTurn));
+        var (first, _) = PlannedKobold(asking, plan, taskId);
+        await first.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 10);
+        asking.Requests.Should().HaveCount(1);
+        plan.CurrentStepIndex.Should().Be(0, "the question was asked on the first step");
+        return (plan, taskId);
+    }
+
+    [Fact]
+    public async Task A_Kobold_that_asked_resumes_its_conversation_with_the_answer_and_acts_on_the_chosen_option()
+    {
+        var plans = PlanService();
+        var (plan, taskId) = await AskedOnTheFirstStep(plans);
+
+        ScriptedProvider? resumed = null;
+        resumed = new ScriptedProvider((call, _) => Task.FromResult(call switch
+        {
+            1 => Touch(Json(resumed!.Requests[0]).Contains("Their answer: postgres") ? "postgres.txt" : "sqlite.txt"),
+            _ => EndTurn
+        }));
+        var (second, _) = PlannedKobold(resumed, plan, taskId, Answered("dec-1", "Which database?", "postgres"));
+        await second.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 10);
+
+        var request = resumed.Requests[0];
+        Count(Json(request), "ask-1").Should().Be(2, "the restored question and its one result, no second result");
+        var last = request[^1];
+        last.Role.Should().Be("user");
+        var text = last.Content.Should().BeOfType<string>().Subject;
+        text.Should().StartWith(HumanAnswer.TagFor("dec-1")).And.Contain("A person answered").And.Contain("postgres")
+            .And.Contain("Your task was paused for a person's decision").And.NotContain("server was restarted");
+        File.Exists(Path.Combine(_dir, "postgres.txt")).Should().BeTrue("the next action reflects the chosen option");
+        File.Exists(Path.Combine(_dir, "sqlite.txt")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Without_an_answer_a_run_stopped_on_the_first_step_starts_fresh()
+    {
+        var plans = PlanService();
+        var (plan, taskId) = await AskedOnTheFirstStep(plans);
+
+        var rerun = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (again, _) = PlannedKobold(rerun, plan, taskId);
+        await again.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 1);
+
+        rerun.Requests[0].Should().ContainSingle("only the first step resumes a conversation, and only for an answer");
+    }
+
+    [Fact]
+    public async Task A_timed_out_question_resumes_with_no_answer_rather_than_one()
+    {
+        var plans = PlanService();
+        var (plan, taskId) = await AskedOnTheFirstStep(plans);
+
+        var resumed = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (second, _) = PlannedKobold(resumed, plan, taskId,
+            new HumanAnswer("dec-1", PendingDecisionSource.AskHuman, "Which database?", null, null, null, true, null));
+        await second.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 1);
+
+        var text = (string)resumed.Requests[0][^1].Content!;
+        text.Should().Contain(HumanAnswer.TagFor("dec-1")).And.Contain("no answer, timed out").And.NotContain("Their answer");
+    }
+
+    [Fact]
+    public async Task An_answer_already_in_the_restored_conversation_is_not_delivered_again()
+    {
+        var plans = PlanService();
+        var (plan, taskId) = await AskedOnTheFirstStep(plans);
+        var first = Answered("dec-1", "Which database?", "postgres");
+
+        // Run 2 hears dec-1, then asks a second question and stops, saving a checkpoint that holds dec-1's message
+        var asksAgain = new ScriptedProvider((call, _) => Task.FromResult(call == 1 ? Ask("ask-2", "Which port?") : EndTurn));
+        var (second, _) = PlannedKobold(asksAgain, plan, taskId, first);
+        await second.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 10);
+        asksAgain.Requests.Should().HaveCount(1);
+
+        var resumed = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (third, _) = PlannedKobold(resumed, plan, taskId, first, Answered("dec-2", "Which port?", "5432"));
+        await third.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 1);
+
+        var sent = Json(resumed.Requests[0]);
+        Count(sent, "decision dec-1]").Should().Be(1, "dec-1 is in the restored conversation already");
+        Count(sent, "decision dec-2]").Should().Be(1);
+        ((string)resumed.Requests[0][^1].Content!).Should().NotContain("decision dec-1]");
+    }
+
+    [Fact]
+    public async Task On_the_basic_plan_path_the_first_prompt_carries_every_answer()
+    {
+        var provider = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (kobold, _, _) = CreateKobold(provider, Step(1, "never-1.txt"));
+        kobold.HumanAnswers = [Answered("dec-1", "Which database?", "postgres")];
+
+        await kobold.StartWorkingWithPlanAsync(planService: null, maxIterations: 1);
+
+        Json(provider.Requests[0]).Should().Contain("decision dec-1]").And.Contain("Their answer: postgres");
     }
 }

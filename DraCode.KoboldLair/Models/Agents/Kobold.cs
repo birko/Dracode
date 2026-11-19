@@ -221,6 +221,12 @@ namespace DraCode.KoboldLair.Models.Agents
         /// <summary>Set by Drake: parks the task on an <c>ask_human</c> question. Null leaves the tool out (TASK-021).</summary>
         public Func<AskHumanQuestion, CancellationToken, Task<AskHumanOutcome>>? OnAskHuman { get; set; }
 
+        /// <summary>
+        /// Set by Drake: the task's answered and timed-out decisions, oldest first (TASK-022). The run hears each one as
+        /// a tagged user message; a resumed run skips those its restored conversation already holds.
+        /// </summary>
+        public IReadOnlyList<HumanAnswer> HumanAnswers { get; set; } = Array.Empty<HumanAnswer>();
+
         /// <summary>A question parked the task: stop the run when the next model call would start.</summary>
         internal bool StopAfterToolTurn { get; set; }
 
@@ -910,7 +916,8 @@ You are working on a task that is part of a larger project. Below is the project
             try
             {
                 // Build the full task prompt with plan context if available
-                var fullTaskPrompt = await BuildFullPromptWithPlanAsync(sharedPlanningContext: _sharedPlanningContext);
+                var fullTaskPrompt = WithHumanAnswers(
+                    await BuildFullPromptWithPlanAsync(sharedPlanningContext: _sharedPlanningContext));
 
                 // Update plan status
                 if (ImplementationPlan != null)
@@ -1330,19 +1337,23 @@ You are working on a task that is part of a larger project. Below is the project
             {
                 if (checkpoint != null)
                 {
-                    var resumeMessage =
-                        $"You were previously working on this task and completed steps up to step {checkpoint.StepIndex + 1}. " +
-                        $"The server was restarted. Continue from step {resumeStepIndex + 1} of {plan.Steps.Count}. " +
-                        "Do NOT redo already-completed steps.";
+                    var restored = KoboldPlanService.RestoreConversation(checkpoint);
+                    var undelivered = HumanAnswers.Where(a => !HoldsAnswer(restored, a)).ToList();
+                    var resumeMessage = undelivered.Count > 0
+                        ? HumanAnswer.Compose(undelivered) + "\n\n" +
+                          "Your task was paused for a person's decision. " +
+                          $"Continue from step {resumeStepIndex + 1} of {plan.Steps.Count}. Do NOT redo already-completed steps."
+                        : $"You were previously working on this task and completed steps up to step {checkpoint.StepIndex + 1}. " +
+                          $"The server was restarted. Continue from step {resumeStepIndex + 1} of {plan.Steps.Count}. " +
+                          "Do NOT redo already-completed steps.";
                     _logger?.LogInformation(
-                        "Kobold {KoboldId} resumed with conversation checkpoint ({MessageCount} messages, step {StepIndex})",
-                        Id.ToString()[..8], checkpoint.Messages.Count, checkpoint.StepIndex);
-                    result = await Agent.ContinueWithOutcomeAsync(
-                        KoboldPlanService.RestoreConversation(checkpoint), resumeMessage, maxIterations, cancellationToken);
+                        "Kobold {KoboldId} resumed with conversation checkpoint ({MessageCount} messages, step {StepIndex}, {Answers} new answer(s))",
+                        Id.ToString()[..8], checkpoint.Messages.Count, checkpoint.StepIndex, undelivered.Count);
+                    result = await Agent.ContinueWithOutcomeAsync(restored, resumeMessage, maxIterations, cancellationToken);
                 }
                 else
                 {
-                    result = await Agent.RunWithOutcomeAsync(initialPrompt, maxIterations, cancellationToken);
+                    result = await Agent.RunWithOutcomeAsync(WithHumanAnswers(initialPrompt), maxIterations, cancellationToken);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1374,11 +1385,32 @@ You are working on a task that is part of a larger project. Below is the project
             return result.Conversation;
         }
 
-        /// <summary>The saved conversation to resume from, when the plan is past its first step and one fits the plan.</summary>
+        /// <summary>
+        /// A fresh prompt has no memory: every answer the task has had goes in ahead of it (TASK-022).
+        /// </summary>
+        private string WithHumanAnswers(string prompt) => HumanAnswers.Count == 0
+            ? prompt
+            : $"# Decisions made by a person for this task\n\n{HumanAnswer.Compose(HumanAnswers)}\n\n{prompt}";
+
+        /// <summary>Whether a user text message of <paramref name="conversation"/> already carries the answer's tag.</summary>
+        private static bool HoldsAnswer(List<Message> conversation, HumanAnswer answer) =>
+            conversation.Any(m => m.Role == "user" && UserText(m.Content)?.Contains(answer.Tag, StringComparison.Ordinal) == true);
+
+        private static string? UserText(object? content) => content switch
+        {
+            string text => text,
+            System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.String } json => json.GetString(),
+            _ => null
+        };
+
+        /// <summary>
+        /// The saved conversation to resume from, when one fits the plan and the plan is past its first step — or a
+        /// person's answer is waiting, since a question asked on the first step must resume the turn that asked it.
+        /// </summary>
         private async Task<ConversationCheckpoint?> LoadResumableCheckpointAsync(KoboldPlanService? planService)
         {
             var plan = ImplementationPlan!;
-            if (plan.CurrentStepIndex == 0 || planService == null || string.IsNullOrEmpty(ProjectId) || !TaskId.HasValue)
+            if ((plan.CurrentStepIndex == 0 && HumanAnswers.Count == 0) || planService == null || string.IsNullOrEmpty(ProjectId) || !TaskId.HasValue)
                 return null;
 
             var checkpoint = await planService.LoadConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
