@@ -14,6 +14,7 @@ using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
 
 namespace DraCode.KoboldLair.Server.Services
@@ -186,6 +187,7 @@ namespace DraCode.KoboldLair.Server.Services
         // Request queue for non-blocking Dragon execution
         private readonly DragonRequestQueue _requestQueue;
         private readonly ProjectNotificationService? _notificationService;
+        private readonly DecisionDesk? _decisionDesk;
         private readonly DraCode.KoboldLair.Data.Repositories.Sql.SqlHistoryRepository? _historyRepository;
         private readonly DraCode.KoboldLair.Services.EventSourcing.SpecificationEventService? _specEventService;
         private bool _disposed;
@@ -206,8 +208,10 @@ namespace DraCode.KoboldLair.Server.Services
             DraCode.KoboldLair.Services.EventSourcing.SpecificationEventService? specEventService = null,
             DraCode.KoboldLair.Data.Repositories.IUserRepository? userRepository = null,
             CostTrackingService? costTracker = null,
-            ProviderRateLimiter? rateLimiter = null)
+            ProviderRateLimiter? rateLimiter = null,
+            DecisionDesk? decisionDesk = null)
         {
+            _decisionDesk = decisionDesk;
             _costTracker = costTracker;
             _rateLimiter = rateLimiter;
             _logger = logger;
@@ -282,19 +286,29 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private void OnProjectNotificationReceived(string projectName, ProjectNotification notification)
         {
-            // Find sessions that are viewing this project and push the notification
+            // A decision reaches every session whose user can see the project (FEATURE-030 D2); anything else only the
+            // sessions viewing it
+            var isDecision = notification.Type is PendingDecisionNotification.RequiredType or PendingDecisionNotification.ResolvedType;
             foreach (var kvp in _sessions)
             {
                 var session = kvp.Value;
-                if (string.IsNullOrEmpty(session.CurrentProjectFolder))
-                    continue;
+                if (isDecision)
+                {
+                    if (!GetVisibleProjects(session).Any(p => p.Name == projectName))
+                        continue;
+                }
+                else
+                {
+                    if (string.IsNullOrEmpty(session.CurrentProjectFolder))
+                        continue;
 
-                // Match by project folder name
-                var folderName = Path.GetFileName(session.CurrentProjectFolder);
-                var sanitizedProjectName = projectName.ToLowerInvariant().Replace(" ", "-");
-                if (!string.Equals(folderName, sanitizedProjectName, StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
-                    continue;
+                    // Match by project folder name
+                    var folderName = Path.GetFileName(session.CurrentProjectFolder);
+                    var sanitizedProjectName = projectName.ToLowerInvariant().Replace(" ", "-");
+                    if (!string.Equals(folderName, sanitizedProjectName, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                }
 
                 // Get the WebSocket for this session
                 if (!_sessionWebSockets.TryGetValue(kvp.Key, out var webSocket))
@@ -312,6 +326,7 @@ namespace DraCode.KoboldLair.Server.Services
                             type = "project_notification",
                             notificationType = notification.Type,
                             sessionId = session.SessionId,
+                            projectName,
                             message = notification.Message,
                             metadata = notification.Metadata,
                             timestamp = notification.CreatedAt
@@ -721,7 +736,8 @@ namespace DraCode.KoboldLair.Server.Services
                 ),
                 batchTaskTool: _drakeFactory != null ? new BatchTaskTool(_drakeFactory, _projectService) : null,
                 resetProject: async (name, keepHistory) => await _projectService.ResetProjectAsync(name, keepHistory),
-                viewCostReportTool: _costTracker != null ? new ViewCostReportTool(_costTracker, _rateLimiter) : null);
+                viewCostReportTool: _costTracker != null ? new ViewCostReportTool(_costTracker, _rateLimiter) : null,
+                pendingDecisionsTool: _decisionDesk != null ? new PendingDecisionsTool(_decisionDesk, () => VisibleProjectRefs(session)) : null);
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(
@@ -1030,6 +1046,16 @@ namespace DraCode.KoboldLair.Server.Services
                     await SendMessageAsync(webSocket, new { type = "pong" });
                     return;
                 }
+
+                if (messageType == "answer_decision")
+                {
+                    await AnswerDecisionAsync(webSocket, session, message.DecisionId, message.Answer);
+                    return;
+                }
+
+                // Open decisions come from the store on every ready client, so an unanswered one is never lost (FEATURE-030 D6)
+                if (message.Type == "client_ready")
+                    await SendOpenDecisionsAsync(webSocket, session);
 
                 // Handle client_ready signal - send welcome message only after client is prepared
                 if (message.Type == "client_ready" && !session.WelcomeSent && session.Dragon != null)
@@ -1524,7 +1550,10 @@ namespace DraCode.KoboldLair.Server.Services
                 if (string.IsNullOrEmpty(projectName))
                     return;
 
-                var notifications = _notificationService.GetPendingNotifications(projectName);
+                // Decision cards are sent from the decision store on client_ready instead, and retired when answered
+                var notifications = _notificationService.GetPendingNotifications(projectName)
+                    .Where(n => n.Type != PendingDecisionNotification.RequiredType)
+                    .ToList();
                 if (notifications.Count == 0)
                     return;
 
@@ -1728,6 +1757,61 @@ namespace DraCode.KoboldLair.Server.Services
             return session.IsAdmin
                 ? _projectService.GetAllProjects()
                 : _projectRepository.GetAllForOwner(session.OwnerSub);
+        }
+
+        private List<DecisionDesk.ProjectRef> VisibleProjectRefs(DragonSession session) =>
+            GetVisibleProjects(session).Select(p => new DecisionDesk.ProjectRef(p.Id, p.Name)).ToList();
+
+        /// <summary>
+        /// Every open decision of the session's projects as a <c>decision_required</c> card, the shape a live one has
+        /// (TASK-024). Not kept in the session history: the store, read on the next connect, is what is current.
+        /// </summary>
+        private async Task SendOpenDecisionsAsync(WebSocket webSocket, DragonSession session)
+        {
+            if (_decisionDesk == null)
+                return;
+            try
+            {
+                foreach (var (project, decision) in await _decisionDesk.OpenAsync(VisibleProjectRefs(session)))
+                {
+                    await SendMessageAsync(webSocket, new
+                    {
+                        type = "project_notification",
+                        notificationType = PendingDecisionNotification.RequiredType,
+                        sessionId = session.SessionId,
+                        projectName = project.Name,
+                        message = PendingDecisionNotification.QuestionText(decision),
+                        metadata = PendingDecisionNotification.ToMetadata(decision),
+                        timestamp = decision.CreatedAt
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not send the open decisions of session {SessionId}", session.SessionId);
+            }
+        }
+
+        /// <summary>A person's answer to a decision card (TASK-024); the reply says what became of it.</summary>
+        private async Task AnswerDecisionAsync(WebSocket webSocket, DragonSession session, string? decisionId, string? answer)
+        {
+            DecisionDesk.Reply reply;
+            if (_decisionDesk == null)
+                reply = new DecisionDesk.Reply(decisionId ?? "", DecisionAnswerResult.NotFound, "Decisions are not kept on this server.");
+            else if (string.IsNullOrWhiteSpace(decisionId) || string.IsNullOrWhiteSpace(answer))
+                reply = new DecisionDesk.Reply(decisionId ?? "", DecisionAnswerResult.InvalidAnswer, "Give both decisionId and answer.");
+            else
+                reply = await _decisionDesk.AnswerAsync(VisibleProjectRefs(session), decisionId, answer);
+
+            await SendMessageAsync(webSocket, new
+            {
+                type = "decision_answer_result",
+                sessionId = session.SessionId,
+                decisionId = reply.DecisionId,
+                result = reply.Result.ToString(),
+                message = reply.Message,
+                timestamp = DateTime.UtcNow
+            });
         }
 
         /// <summary>
