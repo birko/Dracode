@@ -279,7 +279,8 @@ namespace DraCode.KoboldLair.Factories
                 DispositionPolicy,
                 AskHumanPolicy,
                 OnDecisionRequired,
-                OnDecisionResolved
+                OnDecisionResolved,
+                _koboldLairConfig.Verification
             );
 
             // Lock only for dictionary insertion, with race condition check

@@ -57,14 +57,17 @@ namespace DraCode.KoboldLair.Models.Tasks
 
         /// <summary>
         /// What the person may answer, as JSON: an escalation offers its automatic route or written instructions; an
-        /// asked question offers its own options and free text as it allows; any other decision is answered in free
-        /// text until its own parker (TASK-025) defines choices.
+        /// asked question offers its own options and free text as it allows; a finished task's review offers Approve or
+        /// Reject, free text being a reject with that note (TASK-025); anything else is answered in free text.
         /// </summary>
         public static string ResponseSchemaFor(PendingDecision decision)
         {
             if (decision.Source == PendingDecisionSource.Escalation)
                 return JsonSerializer.Serialize(
                     new ResponseSchemaShape("choice", new[] { HandleAutomatically, ResumeWithInstructions }, true), JsonOptions);
+            if (decision.Source == PendingDecisionSource.Approval)
+                return JsonSerializer.Serialize(
+                    new ResponseSchemaShape("choice", new[] { AcceptanceReview.Approve, AcceptanceReview.Reject }, true), JsonOptions);
             if (AskHumanQuestion.TryParse(decision) is { Options.Length: > 0 } asked)
                 return JsonSerializer.Serialize(new ResponseSchemaShape("choice", asked.Options, asked.AllowFreeText), JsonOptions);
             return JsonSerializer.Serialize(new ResponseSchemaShape("text", Array.Empty<string>(), true), JsonOptions);

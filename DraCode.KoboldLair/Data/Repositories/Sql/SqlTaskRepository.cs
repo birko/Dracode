@@ -33,7 +33,28 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         public async Task InitializeAsync()
         {
             await _repository.CreateSchemaAsync();
+            EnsureColumns();
             _logger?.LogInformation("SQLite task repository initialized");
+        }
+
+        /// <summary>
+        /// Adds columns the entity declares but an older <c>tasks</c> table lacks, such as
+        /// <see cref="TaskEntity.AcceptanceAttempts"/> (TASK-025): <c>CreateSchemaAsync</c> never alters an existing table.
+        /// A failure is logged and startup goes on; task writes would then fail, which the log names.
+        /// </summary>
+        private void EnsureColumns()
+        {
+            try
+            {
+                var connector = _repository.Connector
+                    ?? throw new InvalidOperationException("SqlTaskRepository has no SQLite connector after CreateSchemaAsync");
+                foreach (var drift in connector.EnsureColumns(typeof(TaskEntity)))
+                    _logger?.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, drift.Declared);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Could not add missing tasks columns — task writes may fail");
+            }
         }
 
         #region CRUD Operations

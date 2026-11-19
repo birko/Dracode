@@ -60,6 +60,12 @@ namespace DraCode.KoboldLair.Models.Tasks
                                ? "Resume; no further instructions given."
                                : Answer);
 
+                case PendingDecisionSource.Approval when !TimedOut && Answer != null:
+                    if (AcceptanceReview.IsApproval(Answer))
+                        return "A person reviewed your finished work and approved it." +
+                               (AcceptanceReview.Note(Answer) is { Length: > 0 } remark ? $" Remark: {remark}" : "");
+                    return $"A person reviewed your finished work and rejected it: {AcceptanceReview.Note(Answer)}";
+
                 default:
                     return TimedOut
                         ? $"Nobody answered \"{Question}\" — no answer, timed out."

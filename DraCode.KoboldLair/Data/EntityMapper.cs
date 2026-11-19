@@ -191,6 +191,7 @@ namespace DraCode.KoboldLair.Data
                 CommitSha = task.CommitSha,
                 FeatureId = task.FeatureId,
                 RetryCount = task.RetryCount,
+                AcceptanceAttempts = task.AcceptanceAttempts,
                 LastRetryAttempt = task.LastRetryAttempt,
                 NextRetryAt = task.NextRetryAt,
                 Provider = task.Provider,
@@ -221,6 +222,7 @@ namespace DraCode.KoboldLair.Data
                 CommitSha = entity.CommitSha,
                 FeatureId = entity.FeatureId,
                 RetryCount = entity.RetryCount,
+                AcceptanceAttempts = entity.AcceptanceAttempts,
                 LastRetryAttempt = entity.LastRetryAttempt,
                 NextRetryAt = entity.NextRetryAt,
                 Provider = entity.Provider,
@@ -252,6 +254,7 @@ namespace DraCode.KoboldLair.Data
             entity.CommitSha = task.CommitSha;
             entity.FeatureId = task.FeatureId;
             entity.RetryCount = task.RetryCount;
+            entity.AcceptanceAttempts = task.AcceptanceAttempts;
             entity.LastRetryAttempt = task.LastRetryAttempt;
             entity.NextRetryAt = task.NextRetryAt;
             entity.Provider = task.Provider;
