@@ -2,7 +2,7 @@
 id: TASK-024
 parent: STORY-027
 feature: FEATURE-030
-status: verify
+status: done
 priority: P2
 assignee: agent
 created: 2026-05-29
@@ -44,12 +44,17 @@ and `decision_answer_result` says in words what became of it, once; another user
 
 ## Human test plan
 
-- [ ] Trigger a parked decision while Dragon is connected; confirm the decision reaches the session and answering it unparks and resumes the task. (Until TASK-160 renders cards, through the Dragon chat or a WebSocket client.)
+- [x] Trigger a parked decision while Dragon is connected; confirm the decision reaches the session and answering it unparks and resumes the task. (Until TASK-160 renders cards, through the Dragon chat or a WebSocket client.)
   - **Behaviour passed 2026-11-17, not ticked:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`, Kestrel, Testing environment, scratch DB, JWT on), with the socket opened by a token in a header. A real client sends `?token=`, which Kestrel refuses with 401 → TASK-174; re-run this step through the query path once that lands, then tick it. An `ask_human` park in a live LAN-model run reached the already-open session as a `decision_required` card within seconds; answering resolved it, and the task resumed with the answer and finished Done.
-- [ ] Disconnect Dragon, trigger a decision, reconnect; confirm the prompt is replayed.
+  - **Passed 2026-11-19 through `?token=`:** scripted run against a real, throwaway server (`task/TASK-024` merged with `main` incl. TASK-174, Kestrel, Testing environment, scratch DB, JWT on, LAN `finstat` model), every socket opened with the token in the query. A Kobold's `ask_human` card reached the open session live; answered over a second `?token=` socket → `Resolved`; the Kobold "resumed with conversation checkpoint (… 1 new answer(s))" and all three tasks finished Done. The scripted answer "Slovak" was first refused as `InvalidAnswer` because the options were whole phrases (TASK-176, filed).
+
+- [x] Disconnect Dragon, trigger a decision, reconnect; confirm the prompt is replayed.
   - **Behaviour passed 2026-11-17, not ticked:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`, Kestrel, Testing environment, scratch DB, JWT on), with the socket opened by a token in a header. A real client sends `?token=`, which Kestrel refuses with 401 → TASK-174; re-run this step through the query path once that lands, then tick it. With no session connected a decision was stored; on reconnect + `client_ready` its card arrived (options in `responseSchema`), and again on the next connect.
-- [ ] Answer the same decision twice; confirm the second attempt is a clean no-op.
+  - **Passed 2026-11-19 through `?token=`:** same server, `?token=` sockets only: no card before a decision exists; a decision stored while disconnected arrived on reconnect + `client_ready` with its options, and again on the next connect.
+
+- [x] Answer the same decision twice; confirm the second attempt is a clean no-op.
   - **Behaviour passed 2026-11-17, not ticked:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`, Kestrel, Testing environment, scratch DB, JWT on), with the socket opened by a token in a header. A real client sends `?token=`, which Kestrel refuses with 401 → TASK-174; re-run this step through the query path once that lands, then tick it. `MySQL` (not an option) → `InvalidAnswer`, question still open; `Postgres` → `Resolved`; `SQLite` → `AlreadyResolved`, "nothing changed"; stored answer stayed `Postgres`, and the card was not offered again.
+  - **Passed 2026-11-19 through `?token=`:** same server: `MySQL` → `InvalidAnswer` (question still open); `Postgres` → `Resolved`; `SQLite` → `AlreadyResolved`, "nothing changed"; stored answer stayed `Postgres`; the card was not offered again.
 
 ## Implementation plan
 
@@ -132,3 +137,5 @@ and `decision_answer_result` says in words what became of it, once; another user
   It runs only after a welcome that reached a model, which the tests have none of.
 - Dragon routes an answer to Warden through one added phrase in its council description; whether a real model routes
   it is the human test plan's to see.
+
+Closed 2026-11-19: all three human-test steps passed through `?token=` after TASK-174; suite 440/440 merged with `main`.

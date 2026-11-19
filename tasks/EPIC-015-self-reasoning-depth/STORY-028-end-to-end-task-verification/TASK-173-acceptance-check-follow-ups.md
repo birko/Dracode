@@ -26,6 +26,10 @@ and its test class.
   WrongApproach route revises a plan only from a live Kobold or a parked task's saved plan. So the reopened task reruns
   a finished plan unchanged, finishes at once, fails again, and reaches the cap and a fix task without anyone trying
   the fix. Load the saved plan for the reopen too.
+  Seen 2026-11-19 on a live run too (TASK-025's fail-side test): the WrongApproach route looks the Kobold up through
+  the factory after its run has ended, finds none, and logs "No active plan to revise"; the next Kobold discarded the
+  stale checkpoint and reran the old plan from step 0. So the saved plan is needed whenever no live Kobold holds one,
+  not only after orphan recovery.
 - **The feature's "ready to merge" notice waiting for a reviewed task has no test.** It follows from
   `Wyvern.UpdateFeatureStatus` counting only Done tasks; a test should pin it so a change there cannot quietly offer a
   branch for merging while a review card is open (FEATURE-031 D4).
@@ -36,7 +40,8 @@ and its test class.
 
 ## Acceptance criteria
 
-- [ ] A task reopened by orphan recovery gets its saved plan revised with the unmet criteria, shown by a test
+- [ ] A task reopened by orphan recovery, or after its Kobold's run has ended, gets its saved plan revised with the
+      unmet criteria, shown by a test
 - [ ] A test shows the feature's ready-to-merge notice is not raised while one of its tasks waits on a review card
 - [ ] The flaky test's cause is found and fixed, or a bounded search is recorded as finding nothing
 

@@ -1030,6 +1030,10 @@ app.MapDefaultEndpoints();
 // Enable CORS
 app.UseCors();
 
+// WebSockets before authentication (TASK-174): Birko reads a `?token=` query only on a request it knows is a WebSocket
+// upgrade, and on Kestrel only this middleware tells it so. A browser cannot put a header on a WebSocket.
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
+
 // JWT validation middleware (TASK-032). Enabled only when Authentication:Jwt:Enabled; otherwise the
 // server stays auth-free (backward compatible). UseAuthentication is always safe to run (it only
 // populates HttpContext.User from a valid bearer/?token= when present); UseAuthorization is what
@@ -1139,13 +1143,6 @@ app.MapScalarApiReference("/api/v1/docs", o => o.WithOpenApiRoutePattern("/api/v
         app.MapGitHubAuthEndpoints();
     }
 }
-
-// Enable WebSocket with keep-alive
-var webSocketOptions = new WebSocketOptions
-{
-    KeepAliveInterval = TimeSpan.FromSeconds(30)
-};
-app.UseWebSockets(webSocketOptions);
 
 // WebSocket endpoints (TASK-134). With JWT on they require an authenticated caller: UseAuthentication fills
 // context.User from the `?token=` query on the upgrade, and an anonymous upgrade is refused with 401 before the

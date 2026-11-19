@@ -2,7 +2,7 @@
 id: TASK-025
 parent: STORY-028
 feature: FEATURE-031
-status: verify
+status: done
 priority: P1
 assignee: agent
 created: 2026-05-29
@@ -49,7 +49,19 @@ tests; 455/455. Follow-ups: TASK-173.
 
 ## Human test plan
 
-- [ ] Craft a task with a clear acceptance criterion the Kobold won't satisfy; confirm the acceptance check blocks Done and reopens it naming the unmet criterion, and at the third failure fails it with a fix task naming it (FEATURE-031 D3).
+- [x] Craft a task with a clear acceptance criterion the Kobold won't satisfy; confirm the acceptance check blocks Done and reopens it naming the unmet criterion, and at the third failure fails it with a fix task naming it (FEATURE-031 D3).
+  - **Passed 2026-11-19:** scripted run against a real, throwaway server (`task/TASK-025` merged with `main`, Kestrel,
+    Testing environment, scratch DB, JWT on, `TaskAcceptanceEnabled=true`, LAN `finstat` model). Project `waver2`: the
+    spec asks for `greet` only and forbids any identifier `wave`; after Wyvern's analysis the task `impl-1` was crafted
+    by hand to promise `Target files: waver.js` / `Exports: greet, wave`. (A first attempt put the contradiction in the
+    spec itself; Sage caught it at approval and removed `wave`, so the check had nothing to fail.) The Kobold wrote
+    `waver.js` with `greet` only. "Task f434d5e1 reopened by the acceptance check (attempt 1/2): Export wave is not
+    declared in waver.js."; the resumed Kobold saw the conflict and asked a person through `ask_human` (answered "Follow
+    the spec"); attempt 2 was recorded on the task; the third miss failed it with "acceptance check failed after 2
+    reopen(s): Export wave is not declared in waver.js." and created the fix task "[accept-f434d5e1-…] Fix what the
+    acceptance check found unmet in task f434d5e1: Export wave is not declared in waver.js." Found on the way: the
+    reopen from a live run logged "No active plan to revise" (added to TASK-173); TASK-178 (verification fix tasks
+    never run and are rewritten every cycle).
 - [x] Confirm a genuinely complete task passes and is marked Done with the flag on.
   - **Passed 2026-11-17:** scripted run by the agent against a real, throwaway server (`task/TASK-025` `c3d2c8f`, Kestrel, Testing environment, scratch DB, `KoboldLair:Verification:TaskAcceptanceEnabled=true`, LAN `finstat` model). A greeter project went from approval to two Done tasks in under 5 minutes: "Acceptance check passed for task 29e67eab (1 checks)" (`backend-1`, which wrote `workspace/greeter.js` exporting `greet`), then committed. The other task logged "(0 checks)": its description named no target file, so nothing was machine-checkable (the gap TASK-165 covers). Found on the way: TASK-174, TASK-175, TASK-176
 
@@ -231,3 +243,5 @@ What changed under the plan, and what it changes in it:
   Not explained: no Drake runs recovery in the background, and the note fix does not obviously bear on it.
 - Close review (2026-11-17): a gated task skipped the sync path's unregister from the shared planning context, which
   would leave the finished Kobold holding its files "in use"; the gate now unregisters it. Loose ends → TASK-173.
+
+Closed 2026-11-19: both human-test steps passed; suite 462/462 on this branch merged with `main`.
