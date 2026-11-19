@@ -5,6 +5,7 @@ using Birko.Configuration;
 using Birko.Data.SQL;
 using Birko.Data.SQL.Connectors;
 using Birko.Data.SQL.Repositories;
+using Birko.Data.SQL.SqLite.Stores;
 using DraCode.KoboldLair.Data;
 using DraCode.KoboldLair.Data.Entities;
 using DraCode.KoboldLair.Data.Repositories.Sql;
@@ -114,9 +115,10 @@ public class SqliteJournalModeTests : IAsyncLifetime
     [Fact]
     public async Task On_the_rollback_journal_a_stale_pooled_handle_reads_an_existing_table_as_empty()
     {
-        // What every repository did before TASK-177: plain settings, so Birko never sets a journal mode
+        // Asked for explicitly: since Birko TASK-941 plain PasswordSettings get WAL too. Off WAL (an explicit DELETE, or a
+        // file where WAL cannot take) the read still answers empty; Birko TASK-942 tracks that.
         var dbPath = NewDbPath("rollback");
-        var settings = new PasswordSettings(_dir, Path.GetFileName(dbPath));
+        var settings = new SqLiteSettings(_dir, Path.GetFileName(dbPath)) { JournalMode = "DELETE" };
         var repository = new AsyncSqLiteModelRepository<PendingDecisionEntity>();
         repository.SetSettings(settings);
         var connector = (SqLiteConnector)DataBase.GetConnector<SqLiteConnector>(settings);
