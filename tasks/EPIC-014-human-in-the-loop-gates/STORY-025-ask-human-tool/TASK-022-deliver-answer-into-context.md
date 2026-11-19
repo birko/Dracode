@@ -2,7 +2,7 @@
 id: TASK-022
 parent: STORY-025
 feature: FEATURE-028
-status: in-progress
+status: done
 blocked: 'merge deferred: stacked on task/TASK-021 (PR #3), itself stacked on task/TASK-020, which waits on its end-to-end check at TASK-024; code complete on task/TASK-022'
 priority: P2
 assignee: agent
@@ -163,3 +163,5 @@ unreadable decision store holds the task instead of running it without its answe
 - A Kobold summoned in the instant between a timed-out escalation's automatic route and its stored outcome hears the
   timeout without the outcome. Left as it is: the gap is one database write, far inside a Drake cycle (close review,
   2026-11-17).
+
+Closed 2026-11-19: merged with `main` (TASK-020, TASK-021, TASK-174); suite 424/424.
