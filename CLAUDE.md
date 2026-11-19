@@ -399,6 +399,19 @@ provider-config.json                  # Provider configuration
 user-settings.json                    # User runtime settings (agent providers)
 ```
 
+### SQLite Database Runs in WAL (TASK-177)
+
+Every store on `koboldlair.db` (the `Sql*Repository` classes, the event store, the OAuth stores) builds its settings
+through `SqliteDatabaseSettings.For(dbPath)`, which returns `SqLiteSettings`, so Birko switches the file to WAL on first
+use. Never pass plain `PasswordSettings`: Birko caches one connector per file and the first store decides the journal
+mode for all, and on the rollback journal a pooled handle can read a table another connection created as empty, with no
+error. `SqliteJournalModeTests` guards each repository.
+
+- The mode is stored in the file and stays after the server stops.
+- Recent commits live in `koboldlair.db-wal` beside the database, with `koboldlair.db-shm`. **A backup or copy must take
+  all three files** (or run `PRAGMA wal_checkpoint(TRUNCATE)` first); copying only the `.db` can lose recent writes.
+- WAL needs shared memory, so keep the database on a local disk, not a network share.
+
 ### Git Workflow (Automatic Feature Branch Management)
 
 KoboldLair manages git automatically throughout the project lifecycle:

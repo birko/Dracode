@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Birko.AI.Orchestration.Models;
-using Birko.Configuration;
 using Birko.Data.SQL.Repositories;
 using DraCode.KoboldLair.Data.Entities;
 using DraCode.KoboldLair.Models.Tasks;
@@ -35,12 +34,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             _logger = logger;
             _repository = new AsyncSqLiteModelRepository<PendingDecisionEntity>();
 
-            var dbDir = Path.GetDirectoryName(dbPath) ?? ".";
-            var dbFile = Path.GetFileName(dbPath);
-            if (!Directory.Exists(dbDir))
-                Directory.CreateDirectory(dbDir);
-
-            _repository.SetSettings(new PasswordSettings(dbDir, dbFile));
+            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
             _resolveLock = ResolveLocks.GetOrAdd(Path.GetFullPath(dbPath), _ => new SemaphoreSlim(1, 1));
         }
 
