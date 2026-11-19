@@ -7,7 +7,7 @@ priority: P1
 assignee: agent
 created: 2026-05-29
 depends-on: [TASK-019]
-blocks: []
+blocks: [TASK-021]
 pr: 2
 github-issue: null
 jira-key: null

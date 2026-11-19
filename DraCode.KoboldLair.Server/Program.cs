@@ -488,8 +488,8 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
 
     // A task parked on a decision raises an answerable card; its answer or timeout retires it (TASK-020)
     factory.OnDecisionRequired = (projectName, decision) =>
-        notificationService.Notify(projectName, PendingDecisionNotification.RequiredType, decision.Question,
-            PendingDecisionNotification.ToMetadata(decision));
+        notificationService.Notify(projectName, PendingDecisionNotification.RequiredType,
+            PendingDecisionNotification.QuestionText(decision), PendingDecisionNotification.ToMetadata(decision));
     factory.OnDecisionResolved = (projectName, decision) =>
     {
         var cards = notificationService.GetPendingNotifications(projectName)
@@ -500,7 +500,7 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
         if (cards.Count > 0)
             notificationService.MarkAsRead(projectName, cards);
         notificationService.Notify(projectName, PendingDecisionNotification.ResolvedType,
-            $"Decision {decision.ResolutionKind?.ToString().ToLowerInvariant()}: {decision.Question}",
+            $"Decision {decision.ResolutionKind?.ToString().ToLowerInvariant()}: {PendingDecisionNotification.QuestionText(decision)}",
             PendingDecisionNotification.ToResolvedMetadata(decision));
     };
 

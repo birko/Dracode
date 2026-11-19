@@ -54,6 +54,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private readonly IEventBus? _eventBus;
         private readonly SqlPendingDecisionRepository? _pendingDecisions;
         private readonly IEscalationDispositionPolicy _dispositionPolicy;
+        private readonly IAskHumanPolicy _askHumanPolicy;
         private readonly Action<string, PendingDecision>? _onDecisionRequired;
         private readonly Action<string, PendingDecision>? _onDecisionResolved;
 
@@ -130,6 +131,7 @@ namespace DraCode.KoboldLair.Orchestrators
             IEventBus? eventBus = null,
             SqlPendingDecisionRepository? pendingDecisions = null,
             IEscalationDispositionPolicy? dispositionPolicy = null,
+            IAskHumanPolicy? askHumanPolicy = null,
             Action<string, PendingDecision>? onDecisionRequired = null,
             Action<string, PendingDecision>? onDecisionResolved = null)
         {
@@ -156,6 +158,7 @@ namespace DraCode.KoboldLair.Orchestrators
             _eventBus = eventBus;
             _pendingDecisions = pendingDecisions;
             _dispositionPolicy = dispositionPolicy ?? AutoResolveEscalationPolicy.Instance;
+            _askHumanPolicy = askHumanPolicy ?? UnrestrictedAskHumanPolicy.Instance;
             _onDecisionRequired = onDecisionRequired;
             _onDecisionResolved = onDecisionResolved;
             _planningEnabled = planningEnabled ?? (planService != null && plannerAgent != null);
@@ -793,6 +796,8 @@ namespace DraCode.KoboldLair.Orchestrators
                     }
                 });
             };
+
+            kobold.OnAskHuman = (question, _) => AskHumanAsync(task, question);
 
             // Track provider for circuit breaker and retry logic
             task.Provider = effectiveProvider;
@@ -2550,11 +2555,12 @@ namespace DraCode.KoboldLair.Orchestrators
 
         /// <summary>
         /// Parks a task on a pending decision: the decision is stored first, as the source of truth, then the task
-        /// moves to <see cref="TaskStatus.AwaitingHumanDecision"/>, its running Kobold's run is cancelled, and the
+        /// moves to <see cref="TaskStatus.AwaitingHumanDecision"/>, its running Kobold's run is cancelled (unless
+        /// <paramref name="cancelRun"/> is false: a question's run stops itself at its next turn boundary), and the
         /// decision card is raised. Returns false, changing nothing, when no decision store is configured (a non-SQL
         /// backend) or the task is already parked, so the caller keeps the automatic path.
         /// </summary>
-        public async Task<bool> ParkTaskAsync(TaskRecord task, PendingDecision decision)
+        public async Task<bool> ParkTaskAsync(TaskRecord task, PendingDecision decision, bool cancelRun = true)
         {
             if (_pendingDecisions == null)
             {
@@ -2565,7 +2571,7 @@ namespace DraCode.KoboldLair.Orchestrators
             await _parkLock.WaitAsync();
             try
             {
-                return await ParkTaskLockedAsync(task, decision);
+                return await ParkTaskLockedAsync(task, decision, cancelRun);
             }
             finally
             {
@@ -2573,7 +2579,7 @@ namespace DraCode.KoboldLair.Orchestrators
             }
         }
 
-        private async Task<bool> ParkTaskLockedAsync(TaskRecord task, PendingDecision decision)
+        private async Task<bool> ParkTaskLockedAsync(TaskRecord task, PendingDecision decision, bool cancelRun)
         {
 
             if (task.Status == TaskStatus.AwaitingHumanDecision)
@@ -2591,12 +2597,11 @@ namespace DraCode.KoboldLair.Orchestrators
             _taskToKoboldMap.TryRemove(task.Id, out _);
             SaveTasksToFile();
 
-            // Parked first, then cancelled: a run finishing meanwhile finds the task parked and cannot overwrite it
-            if (_runCancellations.TryGetValue(task.Id, out var run))
-            {
-                try { run.Cancel(); }
-                catch (ObjectDisposedException) { } // the run ended between the lookup and the cancel
-            }
+            // Parked first, then cancelled: a run finishing meanwhile finds the task parked and cannot overwrite it.
+            // A question defers the cancel to the run's next turn boundary (cancelRun: false), so the turn that asked
+            // reaches the saved conversation.
+            if (cancelRun)
+                CancelRun(task.Id);
 
             RaiseDecisionCallback(_onDecisionRequired, decision);
             _logger?.LogInformation("Task {TaskId} parked on decision {DecisionId} ({Timeout})",
@@ -2701,28 +2706,34 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <summary>
         /// A person answers a pending decision (TASK-020). "Handle it automatically" on an escalation runs its automatic
         /// route, as a timeout would; any other answer is recorded for the agent (TASK-022) and the task resumes from its
-        /// saved plan. False when the decision is unknown, another project's or area's, or already answered or timed out.
+        /// saved plan. Otherwise: <see cref="DecisionAnswerResult.NotFound"/> for an unknown decision or one of another
+        /// project or area, <see cref="DecisionAnswerResult.AlreadyResolved"/> when answered or timed out, and
+        /// <see cref="DecisionAnswerResult.InvalidAnswer"/> for an answer its question does not accept (left open).
         /// </summary>
-        public async Task<bool> ResolvePendingDecisionAsync(string decisionId, string answer)
+        public async Task<DecisionAnswerResult> ResolvePendingDecisionAsync(string decisionId, string answer)
         {
             if (_pendingDecisions == null)
-                return false;
+                return DecisionAnswerResult.NotFound;
 
             var decision = await _pendingDecisions.GetByIdAsync(decisionId);
             if (decision == null || decision.ProjectId != _projectId)
-                return false;
+                return DecisionAnswerResult.NotFound;
             var task = _taskTracker.GetTaskById(decision.TaskId);
             if (task == null)
-                return false;
+                return DecisionAnswerResult.NotFound;
+            if (decision.IsResolved)
+                return DecisionAnswerResult.AlreadyResolved;
+            if (!PendingDecisionNotification.AcceptsAnswer(decision, answer, out answer))
+                return DecisionAnswerResult.InvalidAnswer;
 
             var at = DateTime.UtcNow;
             if (!await _pendingDecisions.ResolveAsync(decision.Id, PendingDecisionResolution.Answered, answer, at))
-                return false;
+                return DecisionAnswerResult.AlreadyResolved;
             decision.Resolution = answer;
             decision.ResolutionKind = PendingDecisionResolution.Answered;
             decision.ResolvedAt = at;
 
-            if (answer == PendingDecisionNotification.HandleAutomatically)
+            if (answer == PendingDecisionNotification.HandleAutomatically && decision.Escalation != null)
             {
                 await RunAutomaticRouteAsync(decision);
             }
@@ -2741,7 +2752,54 @@ namespace DraCode.KoboldLair.Orchestrators
             RaiseDecisionCallback(_onDecisionResolved, decision);
             _logger?.LogInformation("Decision {DecisionId} for task {TaskId} answered",
                 decision.Id[..8], decision.TaskId[..Math.Min(8, decision.TaskId.Length)]);
-            return true;
+            return DecisionAnswerResult.Resolved;
+        }
+
+        /// <summary>
+        /// A Kobold asks a person (TASK-021, FEATURE-028): parks the task on the question, leaving the run to stop at its
+        /// next turn boundary. Refused when the project's policy disallows asking, the task has reached its question
+        /// cap (every question it ever asked counts), there is no decision store, or the task is already parked. A
+        /// failing policy is read as allow, no cap. A question has no timeout until TASK-023 supplies one.
+        /// </summary>
+        public async Task<AskHumanOutcome> AskHumanAsync(TaskRecord task, AskHumanQuestion question)
+        {
+            if (_pendingDecisions == null)
+                return new AskHumanOutcome(false, null, "asking a person is not available on this server");
+
+            AskHumanLimits limits;
+            try
+            {
+                limits = _askHumanPolicy.For(_projectId ?? task.ProjectId ?? "");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Ask-human policy failed for {ProjectId}; allowing", _projectId);
+                limits = new AskHumanLimits();
+            }
+
+            if (!limits.Allow)
+                return new AskHumanOutcome(false, null, "this project does not let agents ask");
+            if (limits.MaxQuestionsPerTask is { } cap
+                && await _pendingDecisions.CountForTaskAsync(task.Id, PendingDecisionSource.AskHuman) >= cap)
+                return new AskHumanOutcome(false, null, $"the question limit for this task ({cap}) is reached");
+
+            var decision = new PendingDecision
+            {
+                Disposition = EscalationDisposition.HumanDecisionRequired,
+                Source = PendingDecisionSource.AskHuman,
+                Question = question.ToJson()
+            };
+            return await ParkTaskAsync(task, decision, cancelRun: false)
+                ? new AskHumanOutcome(true, decision.Id, null)
+                : new AskHumanOutcome(false, null, "the task is already waiting on a person");
+        }
+
+        internal void CancelRun(string taskId)
+        {
+            if (!_runCancellations.TryGetValue(taskId, out var run))
+                return;
+            try { run.Cancel(); }
+            catch (ObjectDisposedException) { } // the run ended between the lookup and the cancel
         }
 
         /// <summary>Registers the cancellation of a task's current run, so parking the task can stop it.</summary>

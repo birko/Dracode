@@ -87,6 +87,13 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     `ExecuteTaskAsync` registers its own cancellation) and keeps its worktree. An answer goes through
     `Drake.ResolvePendingDecisionAsync` / `DrakeFactory.ResolvePendingDecisionAsync`: "Handle it automatically" runs the
     escalation's automatic route, any other answer is recorded for the agent and the task resumes from its plan.
+  - **ask_human** (TASK-021, FEATURE-028): Kobolds on a plan run get an `ask_human` tool (never Wyvern or Wyrm). The
+    question (`AskHumanQuestion`: text, options, free-text flag, context) is stored as JSON on a `PendingDecision` with
+    `Source = AskHuman`, and `Drake.AskHumanAsync` parks the task, refused when `IAskHumanPolicy`
+    (`DrakeFactory.AskHumanPolicy`, default unrestricted) disallows it or the task's question cap is reached. Unlike an
+    escalation, the run stops itself at its next turn boundary rather than at once, so on the enhanced plan path the
+    question and its result end the saved conversation (the basic path saves only the plan). An answer to a question with options must be one of them unless free text is allowed;
+    `ResolvePendingDecisionAsync` returns a `DecisionAnswerResult` (`InvalidAnswer` leaves the question open).
   - **Decision cards:** a park raises a `decision_required` project notification and an answer or timeout a
     `decision_resolved` one; the metadata keys and the response schema are `PendingDecisionNotification`'s, the
     contract the Dragon and web clients render and answer (TASK-024, TASK-160).
@@ -205,12 +212,13 @@ Located in `DraCode.KoboldLair/Agents/Tools/`:
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `create_implementation_plan` - Creates structured plans with atomic steps
 
-### Kobold Execution Tools (3)
+### Kobold Execution Tools (4)
 
 Located in `DraCode.KoboldLair/Agents/Tools/`:
 - `update_plan_step` - Mark plan steps as completed/failed/skipped (injected during execution)
 - `reflect` - Self-assessment tool called every 3 iterations: reports progress, confidence, blockers, and decision (continue/pivot/escalate). Triggers escalation alerts on low confidence or stalled progress (NEW - 2026-03-15)
 - `modify_plan` - Suggest plan modifications during execution (if enabled)
+- `ask_human` - Ask a person a question on a plan run; parks the task until answered (TASK-021). Kobold only
 
 ### Shared Planning Context Service (NEW - 2026-02-09)
 

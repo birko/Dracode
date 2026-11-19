@@ -37,6 +37,9 @@ namespace DraCode.KoboldLair.Models.Agents
                 CurrentStepIndex = kobold.ImplementationPlan?.CurrentStepIndex ?? 0;
             }
 
+            /// <summary>Stops this run (its own linked cancellation); set by the plan path that runs it.</summary>
+            public Action? StopRun { get; init; }
+
             /// <summary>The plan step the run is on, as the hooks last saw it.</summary>
             public int CurrentStepIndex { get; set; }
 
@@ -64,6 +67,14 @@ namespace DraCode.KoboldLair.Models.Agents
 
                 // Recorded before this iteration adds anything; Agent throws on cancellation right after this hook.
                 _consistentLength = context.Conversation.Count;
+
+                // A question parked the task: stop before the next model call, so the turn that asked ends the
+                // conversation the enhanced path saves (TASK-021)
+                if (_kobold.StopAfterToolTurn)
+                {
+                    StopRun?.Invoke();
+                    return;
+                }
 
                 if (!_detectSteps) return;
 
