@@ -53,7 +53,7 @@ async function ready(page: Page) {
       }
     };
   });
-  await page.goto('/#/dashboard');
+  await page.goto('/#/login');
   await expect.poll(() => page.evaluate(() => !!(window as any).koboldLair)).toBe(true);
 }
 

@@ -28,24 +28,16 @@ export {
   hasModulePermission,
   getVisibleOptions,
   resolveModuleFromHash,
-  loadModules,
-  buildKoboldLairRibbon,
-  simpleResolver
+  loadModules
 } from './module-store.js';
 
 // Router
 export { startRouter, getRouter, buildRoutes } from './routes.js';
 
 // Views
-export { DashboardView } from './views/dashboard-view.js';
+export { HomeView } from './views/home-view.js';
 export { DragonView } from './views/dragon-view.js';
-export { ProjectsView } from './views/projects-view.js';
-export { HierarchyView } from './views/hierarchy-view.js';
-export { MetricsView } from './views/metrics-view.js';
-export { CompareView } from './views/compare-view.js';
 export { SettingsView } from './views/settings-view.js';
-export { ProjectConfigView } from './views/project-config-view.js';
-export { ImpactView } from './views/impact-view.js';
 
 // Types
 export type { ModuleManifest, ModuleOption, ModuleStatus } from 'birko-web-shell/modules';

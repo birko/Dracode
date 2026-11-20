@@ -142,6 +142,42 @@ public class ResourceEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task Project_listing_carries_each_projects_task_counts()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var tokenA = MintToken(factory, UserA, OwnerScopes);
+        var tokenB = MintToken(factory, UserB, OwnerScopes);
+        var admin = MintToken(factory, "33333333-3333-3333-3333-333333333333", "*");
+
+        var idA = await CreateProject(client, tokenA, "Counted");
+        var idB = await CreateProject(client, tokenB, "Untouched");
+        var taskRepo = factory.Services.GetRequiredService<ITaskRepository>();
+        foreach (var status in new[] { TaskStatus.Done, TaskStatus.Done, TaskStatus.Working, TaskStatus.NotInitialized,
+                     TaskStatus.Failed, TaskStatus.Unassigned, TaskStatus.AwaitingHumanDecision })
+            await taskRepo.AddTaskAsync(idA, "backend", new TaskRecord { Task = $"t-{status}", ProjectId = idA, Status = status });
+
+        static Dictionary<string, JsonElement> Listing(string json) =>
+            JsonDocument.Parse(json).RootElement.EnumerateArray().ToDictionary(e => e.GetProperty("id").GetString()!, e => e.Clone());
+
+        var aList = Listing(await (await client.SendAsync(Authed(HttpMethod.Get, "/api/v1/projects", tokenA))).Content.ReadAsStringAsync());
+        aList.Keys.Should().Equal(idA);
+        var counts = aList[idA].GetProperty("tasks");
+        counts.GetProperty("total").GetInt32().Should().Be(7);
+        counts.GetProperty("done").GetInt32().Should().Be(2);
+        counts.GetProperty("inProgress").GetInt32().Should().Be(2, "a task a Kobold has taken (NotInitialized) or is working on");
+        counts.GetProperty("failed").GetInt32().Should().Be(1);
+
+        var bList = Listing(await (await client.SendAsync(Authed(HttpMethod.Get, "/api/v1/projects", tokenB))).Content.ReadAsStringAsync());
+        bList.Keys.Should().Equal(idB);
+        bList[idB].GetProperty("tasks").GetProperty("total").GetInt32().Should().Be(0);
+
+        var all = Listing(await (await client.SendAsync(Authed(HttpMethod.Get, "/api/v1/projects?scope=all", admin))).Content.ReadAsStringAsync());
+        all.Keys.Should().Contain(new[] { idA, idB });
+        all[idA].GetProperty("tasks").GetProperty("done").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
     public async Task Post_project_with_existing_name_returns_409_and_does_not_overwrite_another_owner()
     {
         using var factory = CreateFactory();
