@@ -33,8 +33,9 @@ public static class ResourceEndpoints
 
     private static void MapProjectEndpoints(RouteGroupBuilder api)
     {
-        // GET /projects — owner-scoped; admins may pass ?scope=all to see every project.
-        api.MapGet("/projects", (ICurrentUser user, IProjectRepository repo, string? scope) =>
+        // GET /projects — owner-scoped; admins may pass ?scope=all to see every project. Each project carries its
+        // task counts for the homepage's progress (TASK-145); `tasks` is null when there is no task store.
+        api.MapGet("/projects", async (ICurrentUser user, IProjectRepository repo, ITaskRepository? tasks, string? scope) =>
             {
                 var admin = ApiOwnership.IsAdmin(user);
                 var caller = ApiOwnership.CallerId(user);
@@ -43,7 +44,10 @@ public static class ResourceEndpoints
                     : admin && caller is null
                         ? repo.GetAll()                       // auth-off single-user → see all
                         : repo.GetAllForOwner(caller ?? string.Empty);
-                return Results.Ok(list.Select(ProjectView));
+                var views = new List<object>();
+                foreach (var project in list)
+                    views.Add(ProjectListView(project, tasks is null ? null : await tasks.GetByProjectAsync(project.Id)));
+                return Results.Ok(views);
             })
             .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
 
@@ -322,6 +326,27 @@ public static class ResourceEndpoints
         status = p.Status.ToString(),
         executionState = p.ExecutionState.ToString(),
         createdAt = p.Timestamps.CreatedAt
+    };
+
+    /// <summary>
+    /// A listed project with its task counts. In progress is a task a Kobold has taken (<c>NotInitialized</c>) or is
+    /// working on; failed counts <c>Failed</c> only, not the tasks blocked behind one.
+    /// </summary>
+    private static object ProjectListView(Project p, List<TaskRecord>? tasks) => new
+    {
+        p.Id,
+        p.Name,
+        ownerId = p.OwnerId,
+        status = p.Status.ToString(),
+        executionState = p.ExecutionState.ToString(),
+        createdAt = p.Timestamps.CreatedAt,
+        tasks = tasks is null ? null : new
+        {
+            total = tasks.Count,
+            done = tasks.Count(t => t.Status == TaskStatus.Done),
+            inProgress = tasks.Count(t => t.Status is TaskStatus.NotInitialized or TaskStatus.Working),
+            failed = tasks.Count(t => t.Status == TaskStatus.Failed)
+        }
     };
 
     private static object FeatureView(Feature f) => new

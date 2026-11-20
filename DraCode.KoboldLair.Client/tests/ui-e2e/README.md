@@ -24,12 +24,18 @@ npm run report
 Override the origin with `KOBOLDLAIR_BASE_URL`.
 
 ## Scope
-`shell.spec.ts` (TASK-072): the served page mounts the TypeScript shell (not the archived legacy page), the ribbon
-and status bar show English labels, hash navigation swaps views, and every view renders and settles with no console
-errors (it catches render loops the smoke settles too early to see).
+`shell.spec.ts` (TASK-072): the served page mounts the TypeScript shell (not the archived legacy page), its header
+shows English labels, hash navigation swaps views, and every view renders and settles with no console errors (it
+catches render loops the smoke settles too early to see).
+
+`home.spec.ts` (TASK-145): the header (product name, then slots for the project picker, the bell and the user menu)
+replaces the ribbon, and `#/` is the projects homepage. With `GET /api/v1/projects` stubbed by `page.route`: a card per
+project with its status, execution state and progress; the request asks for `scope=all` with the token; an empty list
+says to start a project with Dragon; signed out it asks to sign in and requests nothing; a failed load says so; at
+375px wide the cards stack in one column with no horizontal scroll. The deleted ribbon views show the not-found view.
 
 `routes.spec.ts` (TASK-113): module sub-routes open their screens (`#/settings/providers` on its tab,
-`#/metrics/costs`, `#/dragon/specifications`), an unknown route shows the not-found view, `#/login` exists, and the
+`#/dragon/specifications`), an unknown route shows the not-found view, `#/login` exists, and the
 auth guard sends a signed-out user to `#/login` only when `/api/config` says `authRequired` (stubbed with
 `page.route`; the host default is `false`).
 
@@ -44,7 +50,7 @@ constructor (no server listens, and Playwright reports no event for a refused We
 
 `smoke.spec.ts` sweeps the public hash routes (`#/login`, `#/`, `#/settings` — from `src/app-shell.ts`)
 and asserts each loads with **zero console errors / pageerrors / 4xx-5xx**. No `expectSelector` yet —
-add stable selectors once confirmed in the login/dashboard views.
+add stable selectors once confirmed in the login/home views.
 
 ## Test data isolation
 Run the **agent backend (`DraCode.KoboldLair.Server`) in the `Testing` environment** so it uses an
@@ -101,4 +107,4 @@ REST login endpoint + dev credentials are known:
      await page.context().storageState({ path: '.auth/koboldlair.json' });
    });
    ```
-3. Add authenticated routes (dashboard `#/`, `#/profile`, `#/settings`) to `smoke.spec.ts`.
+3. Add authenticated routes (the projects homepage `#/`, `#/profile`, `#/settings`) to `smoke.spec.ts`.

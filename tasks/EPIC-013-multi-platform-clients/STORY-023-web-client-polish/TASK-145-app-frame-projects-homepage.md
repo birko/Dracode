@@ -2,7 +2,7 @@
 id: TASK-145
 parent: STORY-023
 feature: FEATURE-026
-status: todo
+status: done
 priority: P1
 assignee: agent
 created: 2026-11-16
@@ -38,13 +38,13 @@ Decisions: FEATURE-026 D9, FEATURE-026 D10, FEATURE-026 D22.
 
 ## Acceptance criteria
 
-- [ ] The header replaces the ribbon; `#/` is the projects homepage
-- [ ] The homepage shows the caller's projects as cards: name, status, execution state, a progress bar from the task counts; an admin sees every project
-- [ ] `GET /api/v1/projects` returns task counts per project; server tests cover the counts and keep the owner scoping
-- [ ] An empty homepage says how to start a project (Dragon)
-- [ ] The ribbon views are deleted with their manifests, routes and e2e expectations: dashboard, projects, project-config, hierarchy, metrics, compare, impact; settings and Dragon still open at their routes
-- [ ] Lays out below the ~900px breakpoint without horizontal scroll (D22)
-- [ ] An e2e spec in `DraCode.KoboldLair.Client/tests/ui-e2e` covers it, red before the change; the suite stays green
+- [x] The header replaces the ribbon; `#/` is the projects homepage
+- [x] The homepage shows the caller's projects as cards: name, status, execution state, a progress bar from the task counts; an admin sees every project
+- [x] `GET /api/v1/projects` returns task counts per project; server tests cover the counts and keep the owner scoping
+- [x] An empty homepage says how to start a project (Dragon)
+- [x] The ribbon views are deleted with their manifests, routes and e2e expectations: dashboard, projects, project-config, hierarchy, metrics, compare, impact; settings and Dragon still open at their routes
+- [x] Lays out below the ~900px breakpoint without horizontal scroll (D22)
+- [x] An e2e spec in `DraCode.KoboldLair.Client/tests/ui-e2e` covers it, red before the change; the suite stays green
 
 ## Out of scope
 
@@ -54,10 +54,33 @@ Decisions: FEATURE-026 D9, FEATURE-026 D10, FEATURE-026 D22.
 
 ## Human test plan
 
-- [ ] With a few projects in the local test DB, the homepage shows a card per project whose progress matches its tasks
-- [ ] Narrow the window below ~900px: cards stack in one column, the header still fits, no horizontal scroll
-- [ ] Light and dark theme both read right
+- [x] With a few projects in the local test DB, the homepage shows a card per project whose progress matches its tasks
+- [x] Narrow the window below ~900px: cards stack in one column, the header still fits, no horizontal scroll
+- [x] Light and dark theme both read right
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-145` — leave empty until then._
+_Not drafted; the work followed the acceptance criteria directly._
+
+## Notes
+
+- **Frame:** `KoboldLairAppShell` now extends Birko.Web.Shell's `BCoreAppShell` (header over a content slot) instead of
+  `BAppShell` (ribbon + status bar). The header is the product name, then `data-header-slot` elements for the project
+  picker, the bell and the user menu. The picker and the bell are empty until TASK-146 and TASK-159; the user menu slot
+  holds the shell's own user dropdown (sign out) until TASK-056.
+- **Server:** `GET /api/v1/projects` gives each project `tasks: { total, done, inProgress, failed }` from
+  `ITaskRepository` (null with no task store). In progress counts `NotInitialized` and `Working`; failed counts
+  `Failed` only, not `BlockedByFailure`. Test: `ResourceEndpointsTests.Project_listing_carries_each_projects_task_counts`
+  (red before the change); the existing owner-scoping test is unchanged.
+- **Homepage** (`kobold-home-view`): asks for `?scope=all`, which the server honours only for an admin. Signed out
+  (no token) it asks to sign in and sends nothing, since `/api/v1` needs a signed-in caller; a failed load says so.
+- **Deleted:** the dashboard, projects, project-config, hierarchy, metrics, compare and impact views, their module
+  manifests, routes and e2e expectations. Dragon (`#/dragon`, `#/dragon/specifications`) and settings (`#/settings`,
+  its two tabs) keep their routes. The not-found view links back to `#/`.
+- **e2e:** new `home.spec.ts` (14 tests) failed 14/14 on the old build; the suite is 35/35 after.
+- **Human test (2026-11-20):** a throwaway server (Testing environment, a copy of TASK-179's scratch projects folder,
+  JWT on) served the real client. With an owner's token the homepage showed `waver` (Completed, 8 of 8 tasks done) and
+  `waver2` (InProgress, 0 of 3 done, 1 failed), matching the task rows in its database; another user's token got an
+  empty list. Checked by screenshots in light and dark at 1280px and 375px: cards stack in one column at 375px, the
+  header fits, no horizontal scroll, no console errors.
+- The user menu still reads "Guest": the shell takes the name from the auth store, which only sign-in (TASK-056) fills.
