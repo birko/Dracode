@@ -1,9 +1,8 @@
 /**
- * Markdown to safe HTML for read-only screens (TASK-150). Birko's renderer (BMarkdownEditor.renderMarkdown) escapes
- * raw HTML but copies a link or image target into the attribute as written, so `javascript:` URLs and a `"` that
- * closes the attribute get through. Its output therefore goes through an allowlist: only the elements and attributes
- * the renderer emits survive, and a link or image keeps its target only when it is http(s), mailto, a fragment or
- * relative. Birko.Web has no sanitiser yet; this is the candidate to move there.
+ * Markdown to safe HTML for read-only screens (TASK-150) and the Dragon dock. Birko's renderer
+ * (BMarkdownEditor.renderMarkdown) escapes raw HTML and, since Birko.Web v0.4.20, quotes and every link and image target
+ * (TASK-943). Its output still goes through an allowlist here, as defence in depth: only the elements and attributes the
+ * renderer emits survive, and a link or image keeps its target only when it is http(s), mailto, a fragment or relative.
  */
 
 import { BMarkdownEditor } from 'birko-web-components/inputs';
@@ -62,23 +61,7 @@ export function sanitizeHtml(html: string): string {
   return doc.body.innerHTML;
 }
 
-/**
- * Undo two quirks of Birko's renderer: a list that follows a paragraph line with no blank line between gets a `<br>`
- * between its items, and a fenced block keeps the newline after its opening fence.
- */
-function tidy(html: string): string {
-  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
-  doc.body.querySelectorAll('ul > br, ol > br').forEach((br) => br.remove());
-  doc.body.querySelectorAll('pre > code').forEach((code) => {
-    const first = code.firstChild;
-    if (first?.nodeType === Node.TEXT_NODE && first.textContent?.startsWith('\n')) {
-      first.textContent = first.textContent.slice(1);
-    }
-  });
-  return doc.body.innerHTML;
-}
-
 /** Render Markdown for display. */
 export function renderMarkdown(source: string): string {
-  return tidy(sanitizeHtml(BMarkdownEditor.renderMarkdown(source)));
+  return sanitizeHtml(BMarkdownEditor.renderMarkdown(source));
 }

@@ -146,6 +146,17 @@ test('markup in the specification cannot run script or carry handlers', async ({
   expect(errors.filter((e) => !/Failed to load resource/.test(e))).toEqual([]);
 });
 
+test('a list item wrapped onto an indented line stays one item', async ({ page }) => {
+  await serveProject(page, {
+    spec: ['# Wrapped', '', '1. waver.js exports greet(name). greet returns', '   `Hello, <name>!`.', '2. Nothing else.'].join('\n'),
+  });
+  await page.goto('/#/projects/p-1/spec');
+
+  await expect(specBody(page).locator('ol > li')).toHaveCount(2);
+  await expect(specBody(page).locator('ol > li').first()).toContainText('greet returns');
+  await expect(specBody(page).locator('ol > li').first()).toContainText('Hello, <name>!');
+});
+
 test('a list right after a paragraph line stays one tight list, and a code block starts on its first line', async ({ page }) => {
   await serveProject(page, { spec: '# Tight\n\nComponents:\n- one\n- two\n- three\n\n```\nfirst line\nsecond line\n```\n' });
   await page.goto('/#/projects/p-1/spec');
