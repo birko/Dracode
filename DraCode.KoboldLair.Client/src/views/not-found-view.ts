@@ -2,7 +2,7 @@
  * Not Found View — shown for a hash route no screen claims (TASK-113).
  */
 
-import { define } from 'birko-web-core';
+import { define, escapeHtml } from 'birko-web-core';
 import { KoboldComponent } from '../components/kobold-component.js';
 
 export class NotFoundView extends KoboldComponent {
@@ -19,13 +19,9 @@ export class NotFoundView extends KoboldComponent {
     return `
       <h1>Page not found</h1>
       <p>Nothing lives at <code>${escapeHtml(path)}</code>.</p>
-      <p><a href="#/dashboard">Back to the dashboard</a></p>
+      <p><a href="#/">Back to your projects</a></p>
     `;
   }
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
 define('kobold-not-found-view', NotFoundView);

@@ -1,9 +1,12 @@
 /**
  * Module Store for KoboldLair
  * Built on Birko.Web.Shell module store factory
+ *
+ * The manifests feed the router (routes.ts): each option is a route. The header frame (TASK-145) has no ribbon, so
+ * they no longer render as tabs; they list the screens that stay reachable until their rebuilt replacements land.
  */
 
-import { createModuleStore, buildRibbon, type ModuleManifest, type LabelResolver } from 'birko-web-shell/modules';
+import { createModuleStore, type ModuleManifest } from 'birko-web-shell/modules';
 
 const mod = createModuleStore();
 
@@ -13,84 +16,18 @@ export const hasModulePermission = mod.hasModulePermission;
 export const getVisibleOptions = mod.getVisibleOptions;
 export const resolveModuleFromHash = mod.resolveModuleFromHash;
 
-/**
- * Load modules from KoboldLair API
- */
+/** The module manifests: Dragon and settings. */
 export async function loadModules(): Promise<ModuleManifest[]> {
-  // TODO: Replace with actual API call
-  // For now, return static module definitions
   return [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      labelKey: 'modules.dashboard',
-      icon: '📊',
-      order: 1,
-      options: [
-        { id: 'overview', label: 'Overview', route: '#/dashboard' }
-      ],
-      permissions: [],
-      status: { text: 'active', variant: 'success' }
-    },
     {
       id: 'dragon',
       label: 'Dragon',
       labelKey: 'modules.dragon',
       icon: '🐉',
-      order: 2,
+      order: 1,
       options: [
         { id: 'chat', label: 'Chat', route: '#/dragon' },
         { id: 'specifications', label: 'Specifications', route: '#/dragon/specifications' }
-      ],
-      permissions: [],
-      status: { text: 'active', variant: 'success' }
-    },
-    {
-      id: 'projects',
-      label: 'Projects',
-      labelKey: 'modules.projects',
-      icon: '📁',
-      order: 3,
-      options: [
-        { id: 'list', label: 'All Projects', route: '#/projects' },
-        { id: 'create', label: 'Create Project', route: '#/projects/create' }
-      ],
-      permissions: [],
-      status: { text: 'active', variant: 'success' }
-    },
-    {
-      id: 'hierarchy',
-      label: 'Hierarchy',
-      labelKey: 'modules.hierarchy',
-      icon: '🌳',
-      order: 4,
-      options: [
-        { id: 'tree', label: 'Agent Tree', route: '#/hierarchy' }
-      ],
-      permissions: [],
-      status: { text: 'active', variant: 'success' }
-    },
-    {
-      id: 'metrics',
-      label: 'Metrics',
-      labelKey: 'modules.metrics',
-      icon: '$',
-      order: 5,
-      options: [
-        { id: 'costs', label: 'Costs', route: '#/metrics/costs' },
-        { id: 'performance', label: 'Performance', route: '#/metrics/performance' }
-      ],
-      permissions: [],
-      status: { text: 'active', variant: 'success' }
-    },
-    {
-      id: 'compare',
-      label: 'Compare',
-      labelKey: 'modules.compare',
-      icon: '||',
-      order: 6,
-      options: [
-        { id: 'tasks', label: 'Task Comparison', route: '#/compare' }
       ],
       permissions: [],
       status: { text: 'active', variant: 'success' }
@@ -100,7 +37,7 @@ export async function loadModules(): Promise<ModuleManifest[]> {
       label: 'Settings',
       labelKey: 'modules.settings',
       icon: '⚙️',
-      order: 7,
+      order: 2,
       options: [
         { id: 'providers', label: 'Providers', route: '#/settings/providers' },
         { id: 'general', label: 'General', route: '#/settings/general' }
@@ -109,18 +46,4 @@ export async function loadModules(): Promise<ModuleManifest[]> {
       status: { text: 'active', variant: 'success' }
     }
   ];
-}
-
-/**
- * No i18n yet: show the manifest's English label (`label`), falling back to the key only when a label is missing.
- */
-export const simpleResolver: LabelResolver = (key, fallback) => {
-  return fallback || key;
-};
-
-/**
- * Build KoboldLair ribbon from modules
- */
-export function buildKoboldLairRibbon(modules: ModuleManifest[]) {
-  return buildRibbon(modules, simpleResolver);
 }
