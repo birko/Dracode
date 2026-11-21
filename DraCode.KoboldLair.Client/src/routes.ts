@@ -11,7 +11,6 @@ import { authStore } from './auth-store.js';
 import configService from './services/config.js';
 
 import './views/home-view.js';
-import './views/dragon-view.js';
 import './views/settings-view.js';
 import './views/login-view.js';
 import './views/not-found-view.js';
@@ -19,9 +18,6 @@ import { DEFAULT_TAB } from './views/project-workspace.js';
 
 /** The element (and attributes) each module option opens, keyed `moduleId/optionId`. */
 const OPTION_VIEWS: Record<string, { tag: string; attrs?: Record<string, string> }> = {
-  'dragon/chat': { tag: 'kobold-dragon-view' },
-  // The specification panel is part of the Dragon screen.
-  'dragon/specifications': { tag: 'kobold-dragon-view' },
   'settings/providers': { tag: 'kobold-settings-view', attrs: { tab: 'providers' } },
   'settings/general': { tag: 'kobold-settings-view', attrs: { tab: 'general' } },
 };

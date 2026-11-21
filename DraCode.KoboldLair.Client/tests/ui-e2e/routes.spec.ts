@@ -20,11 +20,6 @@ test.describe('module sub-routes open their screens', () => {
     await page.evaluate(() => { window.location.hash = '#/settings/general'; });
     await expect(outlet(page, 'kobold-settings-view[tab="general"]')).toHaveCount(1);
   });
-
-  test('#/dragon/specifications opens the Dragon view', async ({ page }) => {
-    await page.goto('/#/dragon/specifications');
-    await expect(outlet(page, 'kobold-dragon-view')).toHaveCount(1);
-  });
 });
 
 test('an unknown route shows the not-found view, not the homepage', async ({ page }) => {

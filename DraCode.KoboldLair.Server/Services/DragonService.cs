@@ -153,6 +153,9 @@ namespace DraCode.KoboldLair.Server.Services
             PropertyNameCaseInsensitive = true
         };
 
+        /// <summary>How long a project switch waits for the session's running Dragon request.</summary>
+        private static readonly TimeSpan s_switchWait = TimeSpan.FromMinutes(5);
+
         private static readonly JsonSerializerOptions s_writeOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -451,19 +454,7 @@ namespace DraCode.KoboldLair.Server.Services
                         timestamp = DateTime.UtcNow
                     });
 
-                    foreach (var msg in messagesToReplay)
-                    {
-                        var replayData = new Dictionary<string, object>(msg.Data)
-                        {
-                            ["type"] = msg.Type,
-                            ["messageId"] = msg.MessageId,
-                            ["isReplay"] = true,
-                            ["sessionId"] = currentSessionId,
-                            ["timestamp"] = msg.Timestamp
-                        };
-
-                        await SendMessageAsync(webSocket, replayData);
-                    }
+                    await ReplayAsync(webSocket, currentSessionId, messagesToReplay);
                 }
                 else
                 {
@@ -862,7 +853,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             try
             {
-                var history = await DragonSession.LoadHistoryFromFileAsync(projectFolder, _logger);
+                var history = await LoadProjectHistoryAsync(projectFolder);
                 if (history == null || history.Count == 0)
                     return null;
 
@@ -914,6 +905,133 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Extracts the text content from a SessionMessage's Data object.
         /// </summary>
+        /// <summary>
+        /// A project's saved conversation, from the store <see cref="TrackMessage"/> writes to: the SQL history table
+        /// when there is one, else <c>dragon-history.json</c>. Null when nothing is saved or it cannot be read.
+        /// </summary>
+        private async Task<List<SessionMessage>?> LoadProjectHistoryAsync(string projectFolder)
+        {
+            if (_historyRepository == null)
+                return await DragonSession.LoadHistoryFromFileAsync(projectFolder, _logger);
+            try
+            {
+                var json = await _historyRepository.LoadHistoryJsonAsync(projectFolder);
+                return json == null ? null : JsonSerializer.Deserialize<List<SessionMessage>>(json, s_readOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load Dragon history for {Folder}", projectFolder);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The user and Dragon turns of a saved conversation as an LLM conversation: it starts with the user and
+        /// alternates (consecutive turns of one side are joined, as a history saved before Dragon's replies were kept
+        /// holds only the user's), and it ends with Dragon, so the next user message continues it.
+        /// </summary>
+        public static List<(string Role, string Content)> ConversationFromHistory(IEnumerable<SessionMessage> history)
+        {
+            var turns = new List<(string Role, string Content)>();
+            foreach (var message in history)
+            {
+                var role = message.Type switch { "user_message" => "user", "dragon_message" => "assistant", _ => null };
+                var content = role == null ? null : ExtractMessageContent(message.Data);
+                if (role == null || string.IsNullOrWhiteSpace(content))
+                    continue;
+                if (turns.Count == 0 && role == "assistant")
+                    continue;
+                if (turns.Count > 0 && turns[^1].Role == role)
+                    turns[^1] = (role, turns[^1].Content + "\n\n" + content);
+                else
+                    turns.Add((role, content));
+            }
+            if (turns.Count > 0 && turns[^1].Role == "user")
+                turns.RemoveAt(turns.Count - 1);
+            return turns;
+        }
+
+        /// <summary>Sends saved messages again, each marked <c>isReplay</c>, in the order they happened.</summary>
+        private async Task ReplayAsync(WebSocket webSocket, string sessionId, IEnumerable<SessionMessage> messages)
+        {
+            foreach (var msg in messages)
+            {
+                var replayData = new Dictionary<string, object>(msg.Data)
+                {
+                    ["type"] = msg.Type,
+                    ["messageId"] = msg.MessageId,
+                    ["isReplay"] = true,
+                    ["sessionId"] = sessionId,
+                    ["timestamp"] = msg.Timestamp
+                };
+                await SendMessageAsync(webSocket, replayData);
+            }
+        }
+
+        /// <summary>
+        /// <c>select_project</c> (TASK-151, FEATURE-026 D12): the client opened a project, and the session follows it.
+        /// The project's saved conversation becomes the session history and Dragon's context, Dragon works in the
+        /// project's folder, and the client gets <c>project_selected</c> and then that conversation replayed. A request
+        /// still running is waited for first, so its reply stays with the project it answers. Only a project the caller
+        /// can see; any other id is answered with a <c>project_not_found</c> error. A selected project's conversation
+        /// takes the place of the welcome.
+        /// </summary>
+        private async Task SelectProjectAsync(WebSocket webSocket, DragonSession session, string? projectId)
+        {
+            var sessionId = session.SessionId;
+            var project = string.IsNullOrEmpty(projectId)
+                ? null
+                : GetVisibleProjects(session).FirstOrDefault(p => p.Id == projectId);
+            if (project == null || string.IsNullOrEmpty(project.Paths.Output))
+            {
+                await SendMessageAsync(webSocket, new
+                {
+                    type = "error",
+                    errorType = "project_not_found",
+                    sessionId,
+                    projectId,
+                    message = "No such project.",
+                    timestamp = DateTime.UtcNow
+                });
+                return;
+            }
+
+            if (!await _requestQueue.WaitForSessionIdleAsync(sessionId, s_switchWait))
+                _logger.LogWarning("Session {SessionId} switched project while a Dragon request was still running", sessionId);
+
+            var folder = project.Paths.Output;
+            var history = await LoadProjectHistoryAsync(folder) ?? new List<SessionMessage>();
+            if (history.Count > _maxMessageHistory)
+                history = history.Skip(history.Count - _maxMessageHistory).ToList();
+
+            session.CurrentProjectFolder = folder;
+            session.WelcomeSent = true;
+            lock (session._historyLock)
+            {
+                session.MessageHistory.Clear();
+                session.MessageHistory.AddRange(history);
+            }
+            if (session.Dragon != null)
+            {
+                session.Dragon.ClearContext();
+                session.Dragon.RestoreContext(ConversationFromHistory(history));
+                session.Dragon.UpdateProjectContext(folder, project.Security.AllowedExternalPaths.ToList());
+            }
+            _logger.LogInformation("Session {SessionId} selected project {Project} ({Count} saved messages)",
+                sessionId, project.Name, history.Count);
+
+            await SendMessageAsync(webSocket, new
+            {
+                type = "project_selected",
+                sessionId,
+                projectId = project.Id,
+                projectName = project.Name,
+                messageCount = history.Count,
+                timestamp = DateTime.UtcNow
+            });
+            await ReplayAsync(webSocket, sessionId, history);
+        }
+
         private static string? ExtractMessageContent(Dictionary<string, object>? data)
         {
             if (data == null) return null;
@@ -1047,6 +1165,12 @@ namespace DraCode.KoboldLair.Server.Services
                     return;
                 }
 
+                if (messageType == "select_project")
+                {
+                    await SelectProjectAsync(webSocket, session, message.ProjectId);
+                    return;
+                }
+
                 if (messageType == "answer_decision")
                 {
                     await AnswerDecisionAsync(webSocket, session, message.DecisionId, message.Answer);
@@ -1171,6 +1295,22 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                 };
 
+                // Dragon's reply joins the session history (and so the project's saved conversation) like the user's
+                // message did. A project switch waits for this request (SelectProjectAsync), so the reply stays with
+                // the project it answers.
+                dragonRequest.OnResponse = (reply, isStreamed) =>
+                {
+                    TrackMessage(session, "dragon_message", new Dictionary<string, object>
+                    {
+                        ["type"] = "dragon_message",
+                        ["sessionId"] = sessionId,
+                        ["message"] = reply,
+                        ["isStreamed"] = isStreamed,
+                        ["timestamp"] = DateTime.UtcNow
+                    });
+                    return Task.CompletedTask;
+                };
+
                 // Set up post-response callback to check for new specifications
                 dragonRequest.OnResponseCallback = async () =>
                 {
@@ -1240,7 +1380,7 @@ namespace DraCode.KoboldLair.Server.Services
                     if (session.CurrentProjectFolder != projectFolder)
                     {
                         session.CurrentProjectFolder = projectFolder;
-                        var loadedHistory = await DragonSession.LoadHistoryFromFileAsync(projectFolder, _logger);
+                        var loadedHistory = await LoadProjectHistoryAsync(projectFolder);
                         if (loadedHistory != null && loadedHistory.Count > 0)
                         {
                             // Only load if session history is empty or very different

@@ -9,19 +9,23 @@ namespace DraCode.KoboldLair.Client;
 
 /// <summary>
 /// Relays a browser WebSocket on the client host to the same path on the KoboldLair server (TASK-119).
-/// The caller's own <c>?token=</c> is forwarded URL-encoded; the host never attaches a token of its own.
+/// The caller's own <c>?token=</c> is forwarded URL-encoded; the host never attaches a token of its own. So is a
+/// <c>/dragon</c> <c>?sessionId=</c>, without which a reconnect could never resume its session (TASK-151).
 /// The server certificate is validated unless <c>KoboldLair:AllowInvalidServerCertificate</c> is set in Development.
 /// </summary>
 public static class ServerWebSocketProxy
 {
     public const string AllowInvalidCertificateKey = "KoboldLair:AllowInvalidServerCertificate";
 
-    public static Uri BuildUpstreamUri(string serverUrl, string path, string? callerToken)
+    public static Uri BuildUpstreamUri(string serverUrl, string path, string? callerToken, string? sessionId = null)
     {
         var url = serverUrl.Replace("https://", "wss://").Replace("http://", "ws://").TrimEnd('/') + path;
+        var query = new List<string>();
         if (!string.IsNullOrEmpty(callerToken))
-            url += "?token=" + Uri.EscapeDataString(callerToken);
-        return new Uri(url);
+            query.Add("token=" + Uri.EscapeDataString(callerToken));
+        if (!string.IsNullOrEmpty(sessionId))
+            query.Add("sessionId=" + Uri.EscapeDataString(sessionId));
+        return new Uri(query.Count == 0 ? url : url + "?" + string.Join("&", query));
     }
 
     /// <summary>True only when the opt-out is set and the host runs in Development; anywhere else it is ignored.</summary>
@@ -51,7 +55,8 @@ public static class ServerWebSocketProxy
             try
             {
                 await serverWs.ConnectAsync(
-                    BuildUpstreamUri(serverUrl, path, context.Request.Query["token"].ToString()),
+                    BuildUpstreamUri(serverUrl, path, context.Request.Query["token"].ToString(),
+                        context.Request.Query["sessionId"].ToString()),
                     context.RequestAborted);
             }
             catch (Exception ex)

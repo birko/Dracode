@@ -2,7 +2,7 @@
 id: TASK-151
 parent: STORY-046
 feature: FEATURE-026
-status: todo
+status: done
 priority: P1
 assignee: agent
 created: 2026-11-16
@@ -30,11 +30,11 @@ Decisions: FEATURE-026 D11, FEATURE-026 D12.
 
 ## Acceptance criteria
 
-- [ ] The workspace shows Dragon docked on the right; messages use `b-chat`, with streaming text, typing and thinking states
-- [ ] Switching project (URL or header picker) switches Dragon to that project's conversation
-- [ ] After a dropped connection, the session resumes and the conversation is replayed (`session_resumed`)
-- [ ] The old Dragon view, its route and its manifest are removed
-- [ ] An e2e spec with the Dragon socket stubbed covers sending, streaming and the project switch; the suite stays green
+- [x] The workspace shows Dragon docked on the right; messages use `b-chat`, with streaming text, typing and thinking states
+- [x] Switching project (URL or header picker) switches Dragon to that project's conversation
+- [x] After a dropped connection, the session resumes and the conversation is replayed (`session_resumed`)
+- [x] The old Dragon view, its route and its manifest are removed
+- [x] An e2e spec with the Dragon socket stubbed covers sending, streaming and the project switch; the suite stays green
 
 ## Out of scope
 
@@ -44,9 +44,54 @@ Decisions: FEATURE-026 D11, FEATURE-026 D12.
 
 ## Human test plan
 
-- [ ] Against a local server with a provider set up: talk to Dragon in project A, switch to B and back — each keeps its own conversation
-- [ ] Stop and restart the server mid-conversation: the dock reconnects and shows the history
+- [x] Against a local server with a provider set up: talk to Dragon in project A, switch to B and back — each keeps its own conversation
+- [x] Stop and restart the server mid-conversation: the dock reconnects and shows the history
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-151` — leave empty until then._
+_Not drafted; the work followed the acceptance criteria directly._
+
+## Notes
+
+- **The old view was a mock.** `dragon-view.ts` never connected to `/dragon` (canned replies), so the dock is the first
+  real web client of the socket. With it gone, a project cannot be started from the web UI until the home Dragon
+  (TASK-149); the homepage's empty state no longer links to `#/dragon`.
+- **Server: the project switch did not exist.** A session changed project only when Dragon's spec tool loaded one from
+  something said in chat. New `select_project { projectId }` (`DragonService.SelectProjectAsync`): only a project the
+  caller can see (else an `error` with `errorType: project_not_found`); waits for the session's running Dragon request
+  (`DragonRequestQueue.WaitForSessionIdleAsync`: Dragon's call takes no cancellation and rewrites its conversation
+  when it ends); loads the project's saved conversation; makes it the session history and Dragon's LLM context
+  (`ConversationFromHistory`: starts with the user, alternates, ends with Dragon); points Dragon at the project folder
+  (`Paths.Output`); answers `project_selected` and replays the conversation (`isReplay`, the same replay as a resume).
+  A selected project's conversation replaces the welcome (`WelcomeSent`).
+- **Server: Dragon's replies were never saved.** Only the user's messages and the welcome reached the history; every
+  saved conversation in the scratch databases had exactly one `dragon_message`. `DragonRequest.OnResponse` now records
+  each reply before it is sent, so it is kept even when the client is gone.
+- **Server: history was saved to SQL but read from the file.** `TrackMessage` writes to the `dragon_history` table;
+  the project-load paths read only `dragon-history.json`. `LoadProjectHistoryAsync` reads the table when there is one
+  (both existing load sites use it too).
+- **Client host: the proxy dropped `sessionId`.** `ServerWebSocketProxy` forwarded only `token`, so a reconnect through
+  the host always started a new session and `session_resumed` could never happen. Found by the human test; it now
+  forwards `sessionId` too (`BuildUpstreamUri`).
+- **Client:** `services/dragon-connection.ts` is the page's one `/dragon` connection (same origin, through the proxy; on
+  Birko's `WsClient`, whose options object it updates with the `sessionId`), so opening another project keeps the
+  session and only sends `select_project`. Until `project_selected` arrives, live traffic is the project being left's
+  and is dropped. On reconnect it waits for `session_resumed` (replay) or `session_not_found` (selects again), falling
+  back to selecting again after 1.5 s; meanwhile the old chat stays visible but closed. `views/dragon-dock.ts` renders
+  it on `b-chat` (assistant Markdown through the sanitiser, streamed text growing in place, typing, a status line with
+  what Dragon or a council member is doing). The workspace lays it out on the right at 360px (sticky), under the tabs
+  below 56rem; the Spec tab's columns now follow its own width (container query).
+- **Tests:** .NET `DragonProjectSocketTests` (select + replay + switch, another user's project, reconnect resumes; all 3
+  red on the old server) and `DragonConversationTests` (reply recorded with the client gone, session idle only after
+  its request, conversation rebuilt from history), plus a proxy test for `sessionId` (red first). Full suite 495/495
+  after the proxy test. e2e `dragon-dock.spec.ts`, 10 tests against a fake `/dragon` (`page.routeWebSocket`), all red
+  on the old client; `workspace.spec.ts` holds the socket open silently; suite 53/53.
+- **Human test** (throwaway Testing server on a scratch copy, JWT on, LAN `finstat` model): in `waver` Dragon took a
+  codeword, in `waver2` another; back in `waver` its whole conversation was there, Dragon's replies included, and Dragon
+  answered the codeword `ALPHA-7`. Server restarted mid-conversation: the dock showed "reconnecting…", got
+  `session_not_found`, opened the project again, showed the history and still knew `BRAVO-3`. Client host restarted
+  with the server up: `session_resumed` and the conversation replayed. Light and dark at 1400px and 375px: no
+  horizontal scroll, no console errors.
+- **Left for later:** the chat-driven switch (`OnProjectLoadedAsync`) sets a `PendingContextReset` nothing reads, so
+  its LLM context carries over; `DragonRequestQueue.Dispose` throws `TaskCanceledException` when it stops its workers
+  (the new tests swallow it); Birko's `b-chat` puts its `placeholder` into markup unescaped.

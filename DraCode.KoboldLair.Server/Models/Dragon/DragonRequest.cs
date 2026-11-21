@@ -29,6 +29,12 @@ namespace DraCode.KoboldLair.Server.Models.Dragon
         public Func<Task>? OnResponseCallback { get; set; }
 
         /// <summary>
+        /// Called with Dragon's final reply (and whether it was streamed) before the reply is sent, so the session's
+        /// history holds it even when the client has gone (TASK-151).
+        /// </summary>
+        public Func<string, bool, Task>? OnResponse { get; set; }
+
+        /// <summary>
         /// Whether this request has been processed
         /// </summary>
         public bool IsProcessed { get; set; }

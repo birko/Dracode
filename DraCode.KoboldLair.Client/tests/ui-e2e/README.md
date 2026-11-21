@@ -41,8 +41,16 @@ points to Dragon; hostile markup leaves no script, handler or `javascript:` URL;
 and an unknown tab show the not-found view; `#/projects/{id}` opens the Spec tab; at 375px a long code line and a wide
 table scroll inside themselves.
 
-`routes.spec.ts` (TASK-113): module sub-routes open their screens (`#/settings/providers` on its tab,
-`#/dragon/specifications`), an unknown route shows the not-found view, `#/login` exists, and the
+`dragon-dock.spec.ts` (TASK-151): Dragon docked on the right of the workspace (360px; under the tabs below the
+breakpoint, no horizontal scroll), against a fake `/dragon` server (`page.routeWebSocket`): the project's conversation is
+replayed after `project_selected`; sending shows the user's message, typing, what Dragon is doing and the reply as it
+streams, then the final reply; opening another project sends `select_project` on the same connection and drops the old
+project's late reply; a dropped connection reconnects with its `sessionId` and replays (`session_resumed`), or opens the
+project again when the session is gone; `project_not_found` closes the chat; hostile Markdown in a reply is sanitised;
+`#/dragon` and `#/dragon/specifications` show the not-found view. `workspace.spec.ts` holds the socket open silently.
+
+`routes.spec.ts` (TASK-113): module sub-routes open their screens (`#/settings/providers` and `#/settings/general` on
+their tabs), an unknown route shows the not-found view, `#/login` exists, and the
 auth guard sends a signed-out user to `#/login` only when `/api/config` says `authRequired` (stubbed with
 `page.route`; the host default is `false`).
 

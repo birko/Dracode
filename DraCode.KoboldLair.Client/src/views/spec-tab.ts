@@ -42,13 +42,13 @@ export class SpecTab extends KoboldComponent {
 
   static get styles() {
     return `
-      :host { display: block; min-width: 0; color: var(--b-text); }
+      :host { display: block; min-width: 0; color: var(--b-text); container-type: inline-size; }
       .note {
         margin: 0 0 var(--b-space-lg, 1rem);
         font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text-secondary);
       }
       .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 18rem); gap: var(--b-space-xl, 1.5rem); }
-      @media (max-width: 56rem) { .layout { grid-template-columns: minmax(0, 1fr); } }
+      @container (max-width: 40rem) { .layout { grid-template-columns: minmax(0, 1fr); } }
       h2.section { margin: 0 0 var(--b-space-sm, 0.5rem); font-size: var(--b-text-lg, 1rem); }
       .meta { font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text-muted); margin-bottom: var(--b-space-sm, 0.5rem); }
       .spec-body {
@@ -119,7 +119,7 @@ export class SpecTab extends KoboldComponent {
       ? `<p class="empty">No features yet.</p>`
       : `<ul class="features">${features.map((f) => this.renderFeature(f)).join('')}</ul>`;
     return `
-      <p class="note">Read only. To change the specification or its features, ask <a href="#/dragon">Dragon</a>.</p>
+      <p class="note">Read only. To change the specification or its features, ask Dragon, docked beside this tab.</p>
       <div class="layout">
         <section><h2 class="section">Specification</h2>${content}</section>
         <section><h2 class="section">Features</h2>${featureList}</section>

@@ -26,6 +26,16 @@ public class ServerWebSocketProxyTests
     }
 
     [Fact]
+    public void A_Dragon_session_id_is_forwarded_so_a_reconnect_resumes_its_session()
+    {
+        var uri = ServerWebSocketProxy.BuildUpstreamUri("http://localhost:57087", "/dragon", "tok", "s 1&x=y");
+
+        uri.AbsoluteUri.Should().Be("ws://localhost:57087/dragon?token=tok&sessionId=s%201%26x%3Dy");
+        ServerWebSocketProxy.BuildUpstreamUri("http://localhost:57087", "/dragon", "", "s-1").AbsoluteUri
+            .Should().Be("ws://localhost:57087/dragon?sessionId=s-1");
+    }
+
+    [Fact]
     public void Without_a_caller_token_the_upstream_has_no_token()
     {
         var uri = ServerWebSocketProxy.BuildUpstreamUri("http://localhost:57087", "/wyvern", "");

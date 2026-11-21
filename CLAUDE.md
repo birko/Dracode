@@ -361,13 +361,24 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
 - **Session Management**: `ConcurrentDictionary<string, DragonSession>` tracks sessions
 - **Session Timeout**: 10 minutes of inactivity before cleanup
 - **Message History**: Up to 100 messages stored per session for replay
-- **Conversation Persistence**: History saved to `dragon-history.json` per project (server-side)
-- **Project Switch**: Loading a project loads its conversation history and resets Dragon context
-- **Context Isolation**: Switching projects clears LLM conversation history, keeping only the switch exchange
+- **Conversation Persistence**: History saved per project folder (`Paths.Output`) in the `dragon_history` table
+  (`SqlHistoryRepository`), or `dragon-history.json` without it; the user's messages and, since TASK-151, Dragon's
+  replies (`DragonRequest.OnResponse`, recorded before the reply is sent)
+- **Project Switch** (`select_project { projectId }`, TASK-151): the web dock sends it for the project the person opened.
+  The server waits for the session's running request, then makes that project's saved conversation the session history
+  and Dragon's LLM context (`ConversationFromHistory`: starts with the user, alternates, ends with Dragon), works in the
+  project folder, and answers `project_selected` followed by the conversation replayed (`isReplay`). Only the caller's
+  own projects; any other id gets an `error` with `errorType: project_not_found`. A selected project's conversation
+  replaces the welcome
+- **Context Isolation**: the `select_project` route above. The chat-driven route (Dragon's spec tool loading another
+  project, `OnProjectLoadedAsync`) loads the new history but sets a `PendingContextReset` that nothing reads, so its LLM
+  context carries over
 - **No Client localStorage**: Client has no persistent storage for sessions; server is source of truth
 - **Cleanup**: Automatic cleanup timer runs every 60 seconds
-- **Reconnection**: Sessions persist across disconnects; message history replayed on reconnect
-- **Message Types**: `session_resumed`, `dragon_message`, `dragon_thinking`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`, `project_notification`, `decision_answer_result`; the client sends `answer_decision` to answer a decision card
+- **Reconnection**: Sessions persist across disconnects; message history replayed on reconnect (`?sessionId=`, which the
+  client host's proxy forwards since TASK-151; a session the server no longer has gets `session_not_found`)
+- **Message Types**: `session_resumed`, `dragon_message`, `dragon_thinking`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`, `project_notification`, `decision_answer_result`, `project_selected`; the client sends `select_project` to follow a project and `answer_decision`
+  to answer a decision card
 
 ### Data Storage Locations (Consolidated Per-Project Folders)
 

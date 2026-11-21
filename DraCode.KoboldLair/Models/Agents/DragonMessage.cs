@@ -17,5 +17,7 @@ namespace DraCode.KoboldLair.Models.Agents
         public string? DecisionId { get; set; }
         /// <summary>For <c>answer_decision</c>: the person's answer, an option's text or free text.</summary>
         public string? Answer { get; set; }
+        /// <summary>For <c>select_project</c>: the project the client opened (TASK-151).</summary>
+        public string? ProjectId { get; set; }
     }
 }

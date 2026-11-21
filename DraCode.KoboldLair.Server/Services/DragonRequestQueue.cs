@@ -23,6 +23,8 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ILogger _logger;
         private readonly Channel<DragonRequest> _requestChannel;
         private readonly ConcurrentDictionary<string, DragonRequest> _activeRequests;
+        /// <summary>Requests enqueued and not yet finished or skipped, waiting or running (TASK-151).</summary>
+        private readonly ConcurrentDictionary<string, DragonRequest> _pending = new();
         private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationTokens;
         private readonly SemaphoreSlim _concurrencyLimiter;
         private readonly Task _processingTask;
@@ -72,6 +74,7 @@ namespace DraCode.KoboldLair.Server.Services
         {
             // Cancel any existing request for this session
             await CancelSessionRequestAsync(request.SessionId);
+            _pending[request.RequestId] = request;
 
             // Store the cancellation token
             _cancellationTokens[request.SessionId] = request.CancellationTokenSource;
@@ -105,6 +108,23 @@ namespace DraCode.KoboldLair.Server.Services
         /// Gets the current number of queued requests
         /// </summary>
         public int QueuedCount => _activeRequests.Count;
+
+        /// <summary>
+        /// Completes once the session has no request waiting or running, or after <paramref name="timeout"/>; false
+        /// on timeout (TASK-151). A running request cannot be stopped (Dragon's call takes no cancellation), and when
+        /// it ends it rewrites Dragon's conversation, so a project switch waits for it.
+        /// </summary>
+        public async Task<bool> WaitForSessionIdleAsync(string sessionId, TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+            while (_pending.Values.Any(r => r.SessionId == sessionId))
+            {
+                if (DateTime.UtcNow >= deadline)
+                    return false;
+                await Task.Delay(50);
+            }
+            return true;
+        }
 
         /// <summary>
         /// Gets statistics about the request queue
@@ -153,6 +173,7 @@ namespace DraCode.KoboldLair.Server.Services
                 if (request.IsCancelled)
                 {
                     _logger.LogDebug("Skipping cancelled request: {RequestId}", request.RequestId);
+                    _pending.TryRemove(request.RequestId, out _);
                     continue;
                 }
 
@@ -219,6 +240,7 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     // Remove from active requests
                     _activeRequests.TryRemove(request.RequestId, out _);
+                    _pending.TryRemove(request.RequestId, out _);
                     _cancellationTokens.TryRemove(request.SessionId, out var cts);
                     cts?.Dispose();
                     _concurrencyLimiter.Release();
@@ -359,6 +381,17 @@ namespace DraCode.KoboldLair.Server.Services
 
                 if (success)
                 {
+                    if (request.OnResponse != null)
+                    {
+                        try
+                        {
+                            await request.OnResponse(response!, isStreamed);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error in OnResponse for request: {RequestId}", request.RequestId);
+                        }
+                    }
                     await SendResponseAsync(request, response!, isStreamed);
                     await SendStatusAsync(request, DragonStatusUpdate.STATUS_COMPLETE, "Response complete");
                     Interlocked.Increment(ref _totalRequestsProcessed);
