@@ -37,6 +37,9 @@ export { startRouter, getRouter, buildRoutes } from './routes.js';
 // Views
 export { HomeView } from './views/home-view.js';
 export { DragonView } from './views/dragon-view.js';
+export { ProjectWorkspace, WORKSPACE_TABS } from './views/project-workspace.js';
+export { SpecTab } from './views/spec-tab.js';
+export { renderMarkdown, sanitizeHtml } from './services/markdown.js';
 export { SettingsView } from './views/settings-view.js';
 
 // Types
