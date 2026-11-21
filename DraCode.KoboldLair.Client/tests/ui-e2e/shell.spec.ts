@@ -34,12 +34,9 @@ test('hash navigation swaps the view in the route outlet', async ({ page }) => {
   await page.goto('/#/');
   await expect(page.locator('#route-outlet kobold-home-view')).toHaveCount(1);
 
-  await page.evaluate(() => { window.location.hash = '#/dragon'; });
-  await expect(page.locator('#route-outlet kobold-dragon-view')).toHaveCount(1);
-  await expect(page.locator('#route-outlet kobold-home-view')).toHaveCount(0);
-
   await page.evaluate(() => { window.location.hash = '#/settings'; });
   await expect(page.locator('#route-outlet kobold-settings-view')).toHaveCount(1);
+  await expect(page.locator('#route-outlet kobold-home-view')).toHaveCount(0);
 
   expect(errors).toEqual([]);
 });
@@ -48,7 +45,6 @@ test('hash navigation swaps the view in the route outlet', async ({ page }) => {
 // first render recursed until "Maximum call stack size exceeded" — a loop the generic smoke settled too early to see.
 const VIEWS: Array<[route: string, element: string]> = [
   ['#/', 'kobold-home-view'],
-  ['#/dragon', 'kobold-dragon-view'],
   ['#/settings', 'kobold-settings-view'],
 ];
 

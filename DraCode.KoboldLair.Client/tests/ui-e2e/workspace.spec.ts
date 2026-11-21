@@ -42,6 +42,8 @@ interface Stub { project?: unknown; projectStatus?: number; spec?: string; featu
 /** Sign in and serve one project's endpoints. */
 async function serveProject(page: Page, stub: Stub = {}): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('koboldlair_auth', JSON.stringify({ token: 'test-token' })));
+  // The workspace docks Dragon (TASK-151): its socket is held open here and says nothing; dragon-dock.spec.ts covers it.
+  await page.routeWebSocket(/\/dragon(\?|$)/, () => {});
   // A regex, not a glob: `**/projects**` does not match `/projects/{id}/…`.
   await page.route(/\/api\/v1\/projects(\/|\?|$)/, (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -98,7 +100,7 @@ test('the Spec tab is read only and says edits go through Dragon', async ({ page
 
   await expect(specBody(page).locator('h1')).toHaveText('Waver');
   await expect(specTab(page).locator('textarea, input:not([type="checkbox"]), button, b-markdown-editor, [contenteditable]')).toHaveCount(0);
-  await expect(specTab(page).locator('a[href="#/dragon"]')).toBeVisible();
+  await expect(specTab(page).locator('.note')).toContainText('ask Dragon');
 });
 
 test('markup in the specification cannot run script or carry handlers', async ({ page }) => {

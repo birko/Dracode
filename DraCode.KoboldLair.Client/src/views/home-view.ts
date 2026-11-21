@@ -126,8 +126,8 @@ export class HomeView extends KoboldComponent {
         return `<div class="message"><strong>Could not load your projects.</strong>${escapeHtml(state.message)}</div>`;
       case 'loaded':
         return state.projects.length === 0
-          ? `<div class="message"><strong>No projects yet.</strong>Start one by describing it to
-              <a href="#/dragon">Dragon</a>: it writes the specification, and the agents take it from there.</div>`
+          ? `<div class="message"><strong>No projects yet.</strong>A project starts as a conversation with Dragon, which
+              writes its specification; the agents take it from there.</div>`
           : `<div class="grid">${state.projects.map((p) => this.renderCard(p)).join('')}</div>`;
     }
   }

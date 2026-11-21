@@ -1,7 +1,8 @@
 /**
  * Project workspace frame (TASK-150, FEATURE-026 D11): a project opens at `#/projects/{id}/{tab}` with its tabs in the
  * centre. A tab is listed once its screen exists, so for now that is Spec. An unknown or not-owned project (the API
- * answers 404 for both) and an unknown tab show the not-found view. Dragon docks beside the tabs in TASK-151.
+ * answers 404 for both) and an unknown tab show the not-found view. Dragon is docked on the right and follows the
+ * project (TASK-151); below the breakpoint it sits under the tabs.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -10,6 +11,7 @@ import { createRestClient } from '../services/http.js';
 import { getToken } from '../auth-store.js';
 import type { ProjectSummary } from './home-view.js';
 import './spec-tab.js';
+import './dragon-dock.js';
 
 /** The workspace tabs whose screens exist, in display order: id, label and the element that renders it. */
 export const WORKSPACE_TABS: readonly { id: string; label: string; tag: string }[] = [
@@ -31,6 +33,16 @@ export class ProjectWorkspace extends KoboldComponent {
   static get styles() {
     return `
       :host { display: block; min-width: 0; }
+      .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--b-space-lg, 1rem); align-items: start; }
+      .main { min-width: 0; }
+      .dock {
+        position: sticky; top: 0; min-width: 0;
+        height: calc(100vh - 7rem); min-height: 24rem;
+      }
+      @media (max-width: 56rem) {
+        .workspace { grid-template-columns: minmax(0, 1fr); }
+        .dock { position: static; height: 28rem; min-height: 0; }
+      }
       .project-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--b-space-sm, 0.5rem); margin-bottom: var(--b-space-md, 0.75rem); min-width: 0; }
       .back { color: var(--b-color-primary); font-size: var(--b-text-sm, 0.8125rem); }
       .project-title {
@@ -90,6 +102,8 @@ export class ProjectWorkspace extends KoboldComponent {
         const { project } = state;
         const active = this.tab!;
         return `
+          <div class="workspace">
+          <div class="main">
           <div class="project-head">
             <a class="back" href="#/">← Projects</a>
             <h1 class="project-title" title="${escapeHtml(project.name)}">${escapeHtml(project.name)}</h1>
@@ -101,6 +115,9 @@ export class ProjectWorkspace extends KoboldComponent {
           <b-tabs active="${active.id}">
             <div slot="${active.id}"><${active.tag} project-id="${escapeHtml(project.id)}"></${active.tag}></div>
           </b-tabs>
+          </div>
+          <aside class="dock" aria-label="Dragon"><kobold-dragon-dock project-id="${escapeHtml(project.id)}"></kobold-dragon-dock></aside>
+          </div>
         `;
       }
     }

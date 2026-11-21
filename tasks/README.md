@@ -129,7 +129,7 @@ _None_
     - [ ] [TASK-149](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-149-home-dragon.md) Home Dragon on the projects homepage (P2) · FEATURE-026 D12
   - STORY-046 Web UI: project workspace with Dragon docked — planned (0/3)
     - [x] [TASK-150](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-150-workspace-frame-spec.md) Project workspace frame with the read-only spec tab (P1) · FEATURE-026 D11 D19
-    - [ ] [TASK-151](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-151-dragon-dock.md) Dragon docked in the workspace, following the project (P1) · FEATURE-026 D11 D12
+    - [x] [TASK-151](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-151-dragon-dock.md) Dragon docked in the workspace, following the project (P1) · FEATURE-026 D11 D12
     - [ ] [TASK-152](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-152-dragon-focus-resize.md) Dragon widens with focus (P2) · FEATURE-026 D13
   - STORY-047 Web UI: workspace tabs — board, runs, git, stats — planned (0/7)
     - [ ] [TASK-153](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-153-board-kanban.md) Board tab: status kanban with Retry (P1) · FEATURE-026 D16
@@ -225,6 +225,8 @@ _None_
     - [ ] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping (P2) · CR-2
     - [x] [TASK-178](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-178-verification-fix-tasks-never-run.md) Verification fix tasks are never run, and new ones are written every cycle (P2)
     - [x] [TASK-179](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-179-verification-checks-run-outside-the-workspace.md) Verification checks run outside the code they check, so a fixed project fails verification forever (P2)
+    - [ ] [TASK-180](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-180-chat-project-switch-keeps-old-context.md) A project switch made from the chat keeps the old project's conversation in Dragon's context (P2)
+    - [ ] [TASK-181](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-181-dragon-request-queue-dispose-throws.md) DragonRequestQueue.Dispose throws when it stops its workers (P3)
   - STORY-043 Reuse & dead code — planned (0/1)
     - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation (P3) · CR-3
 

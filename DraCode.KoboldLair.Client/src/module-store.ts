@@ -16,22 +16,9 @@ export const hasModulePermission = mod.hasModulePermission;
 export const getVisibleOptions = mod.getVisibleOptions;
 export const resolveModuleFromHash = mod.resolveModuleFromHash;
 
-/** The module manifests: Dragon and settings. */
+/** The module manifests: settings. Dragon has no screen of its own; it is docked in each project (TASK-151). */
 export async function loadModules(): Promise<ModuleManifest[]> {
   return [
-    {
-      id: 'dragon',
-      label: 'Dragon',
-      labelKey: 'modules.dragon',
-      icon: '🐉',
-      order: 1,
-      options: [
-        { id: 'chat', label: 'Chat', route: '#/dragon' },
-        { id: 'specifications', label: 'Specifications', route: '#/dragon/specifications' }
-      ],
-      permissions: [],
-      status: { text: 'active', variant: 'success' }
-    },
     {
       id: 'settings',
       label: 'Settings',

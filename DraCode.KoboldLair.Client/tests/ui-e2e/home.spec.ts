@@ -95,7 +95,7 @@ test('with no projects the homepage says how to start one with Dragon', async ({
 
   await expect(cards(page)).toHaveCount(0);
   await expect(home(page)).toContainText('No projects yet');
-  await expect(home(page).locator('a[href="#/dragon"]')).toBeVisible();
+  await expect(home(page)).toContainText('conversation with Dragon');
 });
 
 test('signed out, the homepage asks to sign in and requests nothing', async ({ page }) => {
