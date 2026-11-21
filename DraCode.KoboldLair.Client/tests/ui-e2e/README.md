@@ -34,6 +34,13 @@ project with its status, execution state and progress; the request asks for `sco
 says to start a project with Dragon; signed out it asks to sign in and requests nothing; a failed load says so; at
 375px wide the cards stack in one column with no horizontal scroll. The deleted ribbon views show the not-found view.
 
+`workspace.spec.ts` (TASK-150): a project card opens `#/projects/{id}/spec`, the workspace frame with its Spec tab. With
+the project, specification and features stubbed (a regex route: the glob `**/projects**` misses `/projects/{id}/…`):
+the Markdown renders (headings, lists, code) beside the features and their status; the tab has no edit controls and
+points to Dragon; hostile markup leaves no script, handler or `javascript:` URL; an unknown or not-owned project (404)
+and an unknown tab show the not-found view; `#/projects/{id}` opens the Spec tab; at 375px a long code line and a wide
+table scroll inside themselves.
+
 `routes.spec.ts` (TASK-113): module sub-routes open their screens (`#/settings/providers` on its tab,
 `#/dragon/specifications`), an unknown route shows the not-found view, `#/login` exists, and the
 auth guard sends a signed-out user to `#/login` only when `/api/config` says `authRequired` (stubbed with

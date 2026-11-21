@@ -15,6 +15,7 @@ import './views/dragon-view.js';
 import './views/settings-view.js';
 import './views/login-view.js';
 import './views/not-found-view.js';
+import { DEFAULT_TAB } from './views/project-workspace.js';
 
 /** The element (and attributes) each module option opens, keyed `moduleId/optionId`. */
 const OPTION_VIEWS: Record<string, { tag: string; attrs?: Record<string, string> }> = {
@@ -78,6 +79,26 @@ export function buildRoutes(modules: ModuleManifest[]): Route[] {
     if (routes.some((r) => r.path === path)) continue; // a module option already claims it
     routes.push({ path, component: view(target.tag, target.attrs), guard: protectedGuard });
   }
+
+  // A project's workspace (TASK-150): #/projects/{id}/{tab}; #/projects/{id} opens its first tab.
+  routes.push({
+    path: '/projects/:id/:tab',
+    component: () => {
+      const params = router?.current?.params ?? {};
+      return view('kobold-project-workspace', { 'project-id': params.id ?? '', tab: params.tab ?? '' }, 'Project')();
+    },
+    guard: protectedGuard,
+  });
+  routes.push({
+    path: '/projects/:id',
+    component: view('kobold-not-found-view', {}, 'Not found'),
+    guard: () => {
+      const allowed = protectedGuard();
+      if (allowed !== true) return allowed;
+      const id = window.location.hash.slice(1).split('?')[0].split('/').filter(Boolean)[1] ?? '';
+      return `/projects/${id}/${DEFAULT_TAB}`;
+    },
+  });
 
   routes.push({ path: '*', component: view('kobold-not-found-view', {}, 'Not found') });
   return routes;

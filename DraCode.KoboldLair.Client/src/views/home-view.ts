@@ -1,8 +1,7 @@
 /**
  * Projects homepage (TASK-145, FEATURE-026 D10): the caller's projects as cards, each with its status, execution
  * state and a progress bar from its task counts. Data comes from `GET /api/v1/projects` (owner-scoped; `scope=all`
- * lets an admin see every project and is ignored for anyone else). Cards are not links yet: the workspace they open
- * is TASK-150.
+ * lets an admin see every project and is ignored for anyone else). A card opens the project's workspace (TASK-150).
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -70,7 +69,11 @@ export class HomeView extends KoboldComponent {
         border: 1px solid var(--b-border);
         border-radius: var(--b-radius-lg, 0.5rem);
         color: var(--b-text);
+        text-decoration: none;
+        transition: border-color var(--b-transition, 150ms ease);
       }
+      .project-card:hover { border-color: var(--b-color-primary); }
+      .project-card:focus-visible { outline: none; box-shadow: var(--b-focus-ring); }
       .project-name {
         margin: 0; font-size: var(--b-text-lg, 1rem); font-weight: var(--b-font-weight-bold, 700);
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -141,14 +144,15 @@ export class HomeView extends KoboldComponent {
              tasks.inProgress > 0 ? ` · ${tasks.inProgress} in progress` : ''}${
              tasks.failed > 0 ? ` · <span class="failed">${tasks.failed} failed</span>` : ''}</div>`;
     return `
-      <article class="project-card" data-project-id="${escapeHtml(project.id)}">
+      <a class="project-card" data-project-id="${escapeHtml(project.id)}"
+         href="#/projects/${encodeURIComponent(project.id)}/spec">
         <h2 class="project-name" title="${escapeHtml(project.name)}">${escapeHtml(project.name)}</h2>
         <div class="badges">
           <b-badge variant="${STATUS_VARIANT[project.status] ?? 'neutral'}">${escapeHtml(project.status)}</b-badge>
           <b-badge variant="${EXECUTION_VARIANT[project.executionState] ?? 'neutral'}">${escapeHtml(project.executionState)}</b-badge>
         </div>
         ${progress}
-      </article>
+      </a>
     `;
   }
 }
