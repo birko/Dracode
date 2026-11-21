@@ -52,6 +52,7 @@ async function serveProject(page: Page, stub: Stub = {}): Promise<void> {
       return route.fulfill({ json: { name: 'waver', content: stub.spec ?? SPEC, version: 3, contentHash: 'abc' } });
     }
     if (path.endsWith('/features')) return route.fulfill({ json: stub.features ?? FEATURES });
+    if (path.endsWith('/tasks')) return route.fulfill({ json: [] });
     if (stub.projectStatus) return route.fulfill({ status: stub.projectStatus, body: '' });
     return route.fulfill({ json: stub.project ?? PROJECT });
   });
@@ -64,12 +65,12 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
-test('a project card opens the workspace on its Spec tab, and the URL carries project and tab', async ({ page }) => {
+test('a project card opens the workspace on its first tab (Board), and the URL carries project and tab', async ({ page }) => {
   await serveProject(page);
   await page.goto('/#/');
 
   await page.locator('#route-outlet kobold-home-view .project-card').first().click();
-  await expect(page).toHaveURL(/#\/projects\/p-1\/spec$/);
+  await expect(page).toHaveURL(/#\/projects\/p-1\/board$/);
   await expect(workspace(page)).toHaveCount(1);
   await expect(workspace(page).locator('.project-title')).toHaveText('waver');
 });
@@ -177,10 +178,13 @@ test('a tab the workspace does not have shows the not-found view', async ({ page
   await expect(page.locator('#route-outlet kobold-not-found-view')).toHaveCount(1);
 });
 
-test('#/projects/{id} opens the Spec tab', async ({ page }) => {
+test('#/projects/{id} opens the first tab, the Board; the Spec tab is one click away', async ({ page }) => {
   await serveProject(page);
   await page.goto('/#/projects/p-1');
 
+  await expect(page).toHaveURL(/#\/projects\/p-1\/board$/);
+  await expect(workspace(page).locator('kobold-board-tab')).toHaveCount(1);
+  await workspace(page).locator('b-tabs .tab', { hasText: 'Spec' }).click();
   await expect(page).toHaveURL(/#\/projects\/p-1\/spec$/);
   await expect(specBody(page).locator('h1')).toHaveText('Waver');
 });

@@ -8,6 +8,7 @@ import { define, escapeHtml } from 'birko-web-core';
 import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 import { getToken } from '../auth-store.js';
+import { DEFAULT_TAB } from './project-workspace.js';
 
 export interface ProjectTaskCounts {
   total: number;
@@ -145,7 +146,7 @@ export class HomeView extends KoboldComponent {
              tasks.failed > 0 ? ` · <span class="failed">${tasks.failed} failed</span>` : ''}</div>`;
     return `
       <a class="project-card" data-project-id="${escapeHtml(project.id)}"
-         href="#/projects/${encodeURIComponent(project.id)}/spec">
+         href="#/projects/${encodeURIComponent(project.id)}/${DEFAULT_TAB}">
         <h2 class="project-name" title="${escapeHtml(project.name)}">${escapeHtml(project.name)}</h2>
         <div class="badges">
           <b-badge variant="${STATUS_VARIANT[project.status] ?? 'neutral'}">${escapeHtml(project.status)}</b-badge>

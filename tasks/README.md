@@ -132,7 +132,7 @@ _None_
     - [x] [TASK-151](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-151-dragon-dock.md) Dragon docked in the workspace, following the project (P1) · FEATURE-026 D11 D12
     - [ ] [TASK-152](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-152-dragon-focus-resize.md) Dragon widens with focus (P2) · FEATURE-026 D13
   - STORY-047 Web UI: workspace tabs — board, runs, git, stats — planned (0/7)
-    - [ ] [TASK-153](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-153-board-kanban.md) Board tab: status kanban with Retry (P1) · FEATURE-026 D16
+    - [x] [TASK-153](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-153-board-kanban.md) Board tab: status kanban with Retry (P1) · FEATURE-026 D16
     - [ ] [TASK-154](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-154-board-priority-lanes.md) Board: priority lanes in To do, drag to reprioritise (P2) · FEATURE-026 D16
     - [ ] [TASK-155](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-155-runs-list.md) Runs tab: the project's runs (P2) · FEATURE-026 D7 D20
     - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-057-live-run-view.md) Runs tab: live run view (P2) · FEATURE-026 D7 D20
@@ -227,6 +227,7 @@ _None_
     - [x] [TASK-179](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-179-verification-checks-run-outside-the-workspace.md) Verification checks run outside the code they check, so a fixed project fails verification forever (P2)
     - [ ] [TASK-180](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-180-chat-project-switch-keeps-old-context.md) A project switch made from the chat keeps the old project's conversation in Dragon's context (P2)
     - [ ] [TASK-181](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-181-dragon-request-queue-dispose-throws.md) DragonRequestQueue.Dispose throws when it stops its workers (P3)
+    - [ ] [TASK-182](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-182-finished-task-escalated-as-stalled.md) A finished task is escalated as "progress stalled" and its plan revised after it is Done (P3)
   - STORY-043 Reuse & dead code — planned (0/1)
     - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation (P3) · CR-3
 

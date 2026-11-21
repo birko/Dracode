@@ -11,6 +11,7 @@ using DraCode.KoboldLair.Orchestrators;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Data.Repositories.Sql;
 using DraCode.KoboldLair.Services;
+using TaskStatus = DraCode.KoboldLair.Models.Tasks.TaskStatus;
 
 namespace DraCode.KoboldLair.Factories
 {
@@ -509,6 +510,63 @@ namespace DraCode.KoboldLair.Factories
                     tasksLoaded,
                     Path.GetFileName(filePath));
             }
+        }
+
+        /// <summary>
+        /// Puts a failed task back to Unassigned so it runs again (TASK-153), wherever it lives: in a Drake of the project
+        /// (the task's Kobold is let go and the task file saved), else in its task file (the store row follows), else
+        /// only in the task store. A Drake's tracker and its task file are what Drake works from; resetting just the
+        /// store row, as the REST retry once did, left the task Failed for Drake, which saved Failed back over it.
+        /// </summary>
+        public async Task<(TaskRetryOutcome Outcome, TaskStatus? Status)> RetryFailedTaskAsync(Models.Projects.Project project, string taskId)
+        {
+            foreach (var (drake, _) in GetDrakesForProject(project.Id))
+            {
+                var task = drake.GetAllTasks().FirstOrDefault(t => t.Id == taskId);
+                if (task == null)
+                    continue;
+                if (task.Status != TaskStatus.Failed)
+                    return (TaskRetryOutcome.NotFailed, task.Status);
+                drake.UpdateTask(task, TaskStatus.Unassigned); // clears the error and queues the file save
+                var kobold = drake.GetKoboldForTask(taskId);
+                if (kobold != null)
+                    drake.UnsummonKobold(kobold.Id);
+                await drake.UpdateTasksFileAsync();
+                return (TaskRetryOutcome.Retried, TaskStatus.Unassigned);
+            }
+
+            foreach (var filePath in project.Paths.TaskFiles.Values)
+            {
+                var tracker = new TaskTracker();
+                tracker.LoadFromFile(filePath);
+                var task = tracker.GetTaskById(taskId);
+                if (task == null)
+                    continue;
+                if (task.Status != TaskStatus.Failed)
+                    return (TaskRetryOutcome.NotFailed, task.Status);
+                // Attached after loading, so the load adds no rows and only this change reaches the store.
+                tracker.Repository = _taskRepository;
+                tracker.ProjectId = project.Id;
+                tracker.AreaName = ExtractAreaName(filePath);
+                tracker.UpdateTask(task, TaskStatus.Unassigned);
+                tracker.ClearError(task);
+                await tracker.SaveToFileAsync(filePath);
+                if (_taskRepository != null)
+                {
+                    await _taskRepository.ClearErrorAsync(taskId);
+                    await _taskRepository.SetStatusAsync(taskId, TaskStatus.Unassigned);
+                }
+                return (TaskRetryOutcome.Retried, TaskStatus.Unassigned);
+            }
+
+            var row = _taskRepository == null ? null : await _taskRepository.GetByIdAsync(taskId);
+            if (row == null || row.ProjectId != project.Id)
+                return (TaskRetryOutcome.NotFound, null);
+            if (row.Status != TaskStatus.Failed)
+                return (TaskRetryOutcome.NotFailed, row.Status);
+            await _taskRepository!.ClearErrorAsync(taskId);
+            await _taskRepository.SetStatusAsync(taskId, TaskStatus.Unassigned);
+            return (TaskRetryOutcome.Retried, TaskStatus.Unassigned);
         }
 
         /// <summary>
