@@ -40,6 +40,7 @@ export { DragonDock } from './views/dragon-dock.js';
 export { dragonConnection, DragonConnection, type DockState } from './services/dragon-connection.js';
 export { ProjectWorkspace, WORKSPACE_TABS } from './views/project-workspace.js';
 export { SpecTab } from './views/spec-tab.js';
+export { BoardTab, taskTitle } from './views/board-tab.js';
 export { renderMarkdown, sanitizeHtml } from './services/markdown.js';
 export { SettingsView } from './views/settings-view.js';
 

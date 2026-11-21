@@ -63,28 +63,28 @@ Examples:
             required = new[] { "action" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
         {
             try
             {
                 if (!arguments.TryGetValue("action", out var actionObj))
                 {
-                    return Task.FromResult("Error: Missing required 'action' parameter");
+                    return "Error: Missing required 'action' parameter";
                 }
 
                 var action = actionObj.ToString()?.ToLowerInvariant();
 
-                return Task.FromResult(action switch
+                return action switch
                 {
                     "list" => ListFailedTasks(),
-                    "retry" => RetryTask(arguments),
+                    "retry" => await RetryTaskAsync(arguments),
                     "retry_all" => RetryAllProjectTasks(arguments),
                     _ => $"Error: Unknown action '{action}'. Use 'list', 'retry', or 'retry_all'"
-                });
+                };
             }
             catch (Exception ex)
             {
-                return Task.FromResult($"Error: {ex.Message}");
+                return $"Error: {ex.Message}";
             }
         }
 
@@ -177,7 +177,8 @@ Examples:
             return result.ToString();
         }
 
-        private string RetryTask(Dictionary<string, object> arguments)
+        /// <summary>One failed task back to Unassigned, the same way the REST retry does it (TASK-153).</summary>
+        private async Task<string> RetryTaskAsync(Dictionary<string, object> arguments)
         {
             if (!arguments.TryGetValue("task_id", out var taskIdObj))
             {
@@ -190,92 +191,21 @@ Examples:
                 return "Error: Invalid task_id";
             }
 
-            // Find the task across all projects
-            var allProjects = _projectService.GetAllProjects();
-
-            foreach (var project in allProjects)
+            var shortId = taskId[..Math.Min(8, taskId.Length)];
+            foreach (var project in _projectService.GetAllProjects())
             {
-                // Try Drakes first (in-memory)
-                var drakes = _drakeFactory.GetDrakesForProject(project.Id);
-
-                foreach (var (drake, drakeName) in drakes)
+                var (outcome, status) = await _drakeFactory.RetryFailedTaskAsync(project, taskId);
+                switch (outcome)
                 {
-                    var task = drake.GetAllTasks().FirstOrDefault(t => t.Id == taskId);
-
-                    if (task != null)
-                    {
-                        if (task.Status != TaskStatus.Failed)
-                        {
-                            return $"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is not in Failed status (current: {task.Status})";
-                        }
-
-                        // Reset task to Unassigned
-                        drake.UpdateTask(task, TaskStatus.Unassigned);
-
-                        // Clear error message by getting the kobold and resetting it
-                        var kobold = drake.GetKoboldForTask(taskId);
-                        if (kobold != null)
-                        {
-                            // Unsummon the failed kobold so a fresh one can be created
-                            drake.UnsummonKobold(kobold.Id);
-                        }
-
-                        // Save tasks to file
-                        drake.UpdateTasksFile();
-
-                        return $"✅ Task {taskId[..Math.Min(8, taskId.Length)]} has been reset to Unassigned status and will be retried.\n" +
-                               $"Project: {project.Name}\n" +
-                               $"Task: {task.Task}";
-                    }
-                }
-
-                // Fall back to file access if no Drakes found
-                if (drakes.Count == 0)
-                {
-                    var result = RetryTaskFromFile(project, taskId);
-                    if (result != null)
-                    {
-                        return result;
-                    }
+                    case TaskRetryOutcome.Retried:
+                        return $"✅ Task {shortId} has been reset to Unassigned status and will be retried.\n" +
+                               $"Project: {project.Name}";
+                    case TaskRetryOutcome.NotFailed:
+                        return $"⚠️ Task {shortId} is not in Failed status (current: {status})";
                 }
             }
 
-            return $"❌ Task {taskId[..Math.Min(8, taskId.Length)]} not found in any project";
-        }
-
-        /// <summary>
-        /// Attempts to retry a task by loading it directly from task files on disk.
-        /// Used as fallback when no Drakes are in memory (e.g., after server restart).
-        /// </summary>
-        private string? RetryTaskFromFile(Models.Projects.Project project, string taskId)
-        {
-            foreach (var (area, filePath) in project.Paths.TaskFiles)
-            {
-                var tracker = new TaskTracker();
-                tracker.LoadFromFile(filePath);
-
-                var task = tracker.GetTaskById(taskId);
-                if (task == null) continue;
-
-                if (task.Status != TaskStatus.Failed)
-                {
-                    return $"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is not in Failed status (current: {task.Status})";
-                }
-
-                // Reset task to Unassigned and clear error state
-                tracker.UpdateTask(task, TaskStatus.Unassigned);
-                tracker.ClearError(task);
-
-                // Save both JSON and markdown
-                tracker.SaveToFile(filePath);
-
-                return $"✅ Task {taskId[..Math.Min(8, taskId.Length)]} has been reset to Unassigned status and will be retried.\n" +
-                       $"Project: {project.Name}\n" +
-                       $"Task: {task.Task}\n" +
-                       $"(Reset via file - task will be picked up when Drake starts)";
-            }
-
-            return null;
+            return $"❌ Task {shortId} not found in any project";
         }
 
         private string RetryAllProjectTasks(Dictionary<string, object> arguments)

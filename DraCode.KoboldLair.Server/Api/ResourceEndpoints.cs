@@ -2,6 +2,7 @@ using Birko.AI.Orchestration.Models;
 using Birko.Security.AspNetCore;
 using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
@@ -240,18 +241,25 @@ public static class ResourceEndpoints
             .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
 
         // POST /tasks/{id}/retry — reset a failed task so the Drake picks it up again.
+        // Through Drake (TASK-153): its tracker and task file are what it works from, so a reset of the store row
+        // alone left the task Failed.
         api.MapPost("/tasks/{id}/retry", async (string id, ICurrentUser user,
-                ProjectService projects, ITaskRepository? tasks) =>
+                ProjectService projects, DrakeFactory drakes, ITaskRepository? tasks) =>
             {
                 if (tasks is null) return TaskStoreUnavailable();
                 var task = await tasks.GetByIdAsync(id);
                 if (task is null || !CanAccessTask(user, projects, task))
                     return Results.NotFound();
-                if (task.Status != TaskStatus.Failed)
-                    return Results.BadRequest(new { error = $"task is {task.Status}; only Failed tasks can be retried" });
-                await tasks.ClearErrorAsync(id);
-                await tasks.SetStatusAsync(id, TaskStatus.Unassigned);
-                return Results.Ok(new { id, status = TaskStatus.Unassigned.ToString() });
+                var project = projects.GetProject(task.ProjectId);
+                if (project is null)
+                    return Results.NotFound();
+                var (outcome, status) = await drakes.RetryFailedTaskAsync(project, id);
+                return outcome switch
+                {
+                    TaskRetryOutcome.Retried => Results.Ok(new { id, status = TaskStatus.Unassigned.ToString() }),
+                    TaskRetryOutcome.NotFailed => Results.BadRequest(new { error = $"task is {status}; only Failed tasks can be retried" }),
+                    _ => Results.NotFound()
+                };
             })
             .RequirePermission(KoboldLairPermissionChecker.ExecuteAgents);
 

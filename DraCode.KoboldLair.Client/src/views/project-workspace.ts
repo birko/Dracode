@@ -1,6 +1,6 @@
 /**
  * Project workspace frame (TASK-150, FEATURE-026 D11): a project opens at `#/projects/{id}/{tab}` with its tabs in the
- * centre. A tab is listed once its screen exists, so for now that is Spec. An unknown or not-owned project (the API
+ * centre, in D11's order. A tab is listed once its screen exists: Board (TASK-153) and Spec (TASK-150). An unknown or not-owned project (the API
  * answers 404 for both) and an unknown tab show the not-found view. Dragon is docked on the right and follows the
  * project (TASK-151); below the breakpoint it sits under the tabs.
  */
@@ -10,11 +10,13 @@ import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 import { getToken } from '../auth-store.js';
 import type { ProjectSummary } from './home-view.js';
+import './board-tab.js';
 import './spec-tab.js';
 import './dragon-dock.js';
 
 /** The workspace tabs whose screens exist, in display order: id, label and the element that renders it. */
 export const WORKSPACE_TABS: readonly { id: string; label: string; tag: string }[] = [
+  { id: 'board', label: 'Board', tag: 'kobold-board-tab' },
   { id: 'spec', label: 'Spec', tag: 'kobold-spec-tab' },
 ];
 

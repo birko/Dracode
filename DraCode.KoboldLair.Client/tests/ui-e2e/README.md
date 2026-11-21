@@ -41,6 +41,12 @@ points to Dragon; hostile markup leaves no script, handler or `javascript:` URL;
 and an unknown tab show the not-found view; `#/projects/{id}` opens the Spec tab; at 375px a long code line and a wide
 table scroll inside themselves.
 
+`board.spec.ts` (TASK-153): the Board tab, the workspace's first tab, with the tasks stubbed: four status columns with
+their counts, cards sorted by priority with title, agent and priority, a failed card with the start of its error and
+Retry; Retry posts and moves the card to To do; a refused Retry says why on the card; the board refreshes on its own;
+an empty project says where tasks come from; in narrow space (the board's own width, as Dragon expanded will give it)
+and at 375px the columns become a compact list with no horizontal scroll.
+
 `dragon-dock.spec.ts` (TASK-151): Dragon docked on the right of the workspace (360px; under the tabs below the
 breakpoint, no horizontal scroll), against a fake `/dragon` server (`page.routeWebSocket`): the project's conversation is
 replayed after `project_selected`; sending shows the user's message, typing, what Dragon is doing and the reply as it

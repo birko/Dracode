@@ -416,6 +416,39 @@ public class ResourceEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task Retry_resets_the_task_in_the_task_file_Drake_works_from()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = MintToken(factory, UserA, OwnerScopes);
+        var projectId = await CreateProject(client, token, "FileRetry");
+
+        // The task as Drake keeps it: in the area's task file, with its row in the store.
+        var projectRepo = factory.Services.GetRequiredService<IProjectRepository>();
+        var project = projectRepo.GetById(projectId)!;
+        var file = Path.Combine(project.Paths.Output, "tasks", "backend-tasks.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        var tracker = new TaskTracker();
+        var failed = tracker.AddTask("Build the API");
+        tracker.UpdateTask(failed, TaskStatus.Failed, "csharp");
+        tracker.SetError(failed, "compile error");
+        tracker.SaveToFile(file);
+        project.Paths.TaskFiles["backend"] = file;
+        await projectRepo.UpdateAsync(project);
+        var taskRepo = factory.Services.GetRequiredService<ITaskRepository>();
+        await taskRepo.AddTaskAsync(projectId, "backend",
+            new TaskRecord { Id = failed.Id, Task = failed.Task, ProjectId = projectId, Status = TaskStatus.Failed, ErrorMessage = "compile error" });
+
+        var retry = await client.SendAsync(Authed(HttpMethod.Post, $"/api/v1/tasks/{failed.Id}/retry", token));
+
+        retry.StatusCode.Should().Be(HttpStatusCode.OK);
+        var reloaded = new TaskTracker();
+        reloaded.LoadFromFile(file);
+        reloaded.GetTaskById(failed.Id)!.Status.Should().Be(TaskStatus.Unassigned, "Drake loads the task file, not the store row");
+        (await taskRepo.GetByIdAsync(failed.Id))!.Status.Should().Be(TaskStatus.Unassigned);
+    }
+
+    [Fact]
     public async Task Retry_on_non_failed_task_returns_400()
     {
         using var factory = CreateFactory();
