@@ -3,5 +3,5 @@
  * Centralized exports for all state stores
  */
 
-export { notificationStore, default } from './notification-store.js';
-export type { Escalation } from './notification-store.js';
+export { notificationStore, default, NOTIFICATION_REFRESH_MS } from './notification-store.js';
+export type { NotificationView, NotificationState } from './notification-store.js';

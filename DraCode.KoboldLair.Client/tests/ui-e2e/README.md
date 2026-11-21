@@ -41,6 +41,12 @@ points to Dragon; hostile markup leaves no script, handler or `javascript:` URL;
 and an unknown tab show the not-found view; `#/projects/{id}` opens the Spec tab; at 375px a long code line and a wide
 table scroll inside themselves.
 
+`notifications.spec.ts` (TASK-159): the header bell and the project badges, with `/api/v1/notifications` stubbed: the
+unread count and the list (unread first, then earlier), asked for with `scope=all` and the token; opening one marks it
+read and opens its project; the cards show their unread count; a new one reaches the bell on its own; nothing unread
+shows no count; signed out there is no bell and no request; markup in a notification shows as text; at 375px the open
+menu stays on screen. `fixtures.ts` serves an empty notification list to every spec by default.
+
 `board.spec.ts` (TASK-153): the Board tab, the workspace's first tab, with the tasks stubbed: four status columns with
 their counts, cards sorted by priority with title, agent and priority, a failed card with the start of its error and
 Retry; Retry posts and moves the card to To do; a refused Retry says why on the card; the board refreshes on its own;

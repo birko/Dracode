@@ -133,6 +133,7 @@ _None_
     - [ ] [TASK-152](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-152-dragon-focus-resize.md) Dragon widens with focus (P2) · FEATURE-026 D13
   - STORY-047 Web UI: workspace tabs — board, runs, git, stats — planned (0/7)
     - [x] [TASK-153](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-153-board-kanban.md) Board tab: status kanban with Retry (P1) · FEATURE-026 D16
+    - [ ] [TASK-183](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-183-board-on-b-kanban.md) Board on Birko's b-kanban (P2; blocked: waiting for Birko b-kanban additions) · FEATURE-026 D9 D16
     - [ ] [TASK-154](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-154-board-priority-lanes.md) Board: priority lanes in To do, drag to reprioritise (P2) · FEATURE-026 D16
     - [ ] [TASK-155](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-155-runs-list.md) Runs tab: the project's runs (P2) · FEATURE-026 D7 D20
     - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-057-live-run-view.md) Runs tab: live run view (P2) · FEATURE-026 D7 D20
@@ -140,7 +141,7 @@ _None_
     - [ ] [TASK-157](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-157-git-merge.md) Git tab: merge a feature branch (P2) · FEATURE-026 D20
     - [ ] [TASK-158](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-158-stats-tab.md) Stats tab: per-project numbers (P2) · FEATURE-026 D18
   - STORY-048 Web UI: notifications and decision cards — planned (0/2)
-    - [ ] [TASK-159](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-159-notifications.md) Notifications: header bell and project badges (P1) · FEATURE-026 D17
+    - [x] [TASK-159](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-159-notifications.md) Notifications: header bell and project badges (P1) · FEATURE-026 D17
     - [ ] [TASK-160](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-160-decision-cards.md) Decision cards in Dragon (P1) · FEATURE-026 D14 D15 D17
   - STORY-049 Web UI: settings — planned (0/3)
     - [ ] [TASK-161](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-161-settings-providers.md) Settings: providers (P2) · FEATURE-026 D20

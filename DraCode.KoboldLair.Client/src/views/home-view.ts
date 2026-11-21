@@ -9,6 +9,7 @@ import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 import { getToken } from '../auth-store.js';
 import { DEFAULT_TAB } from './project-workspace.js';
+import { notificationStore } from '../stores/notification-store.js';
 
 export interface ProjectTaskCounts {
   total: number;
@@ -52,6 +53,8 @@ const EXECUTION_VARIANT: Record<string, string> = {
 
 export class HomeView extends KoboldComponent {
   private _state: HomeState = { kind: 'loading' };
+  private _unread = new Map<string, number>();
+  private _unsubscribe: (() => void) | null = null;
 
   static get styles() {
     return `
@@ -94,7 +97,17 @@ export class HomeView extends KoboldComponent {
     `;
   }
 
+  protected onUnmount() {
+    this._unsubscribe?.();
+    this._unsubscribe = null;
+  }
+
   protected async onMount() {
+    // Each card's unread notifications (TASK-159), from the same store as the header bell
+    this._unsubscribe = notificationStore.subscribe(() => {
+      this._unread = notificationStore.unreadByProject();
+      if (this._state.kind === 'loaded') this.update();
+    });
     if (!getToken()) {
       this._state = { kind: 'signed-out' };
       this.update();
@@ -134,6 +147,7 @@ export class HomeView extends KoboldComponent {
   }
 
   private renderCard(project: ProjectSummary): string {
+    const unread = this._unread.get(project.id) ?? 0;
     const tasks = project.tasks;
     const percent = tasks && tasks.total > 0 ? Math.round((tasks.done / tasks.total) * 100) : 0;
     const progress = !tasks
@@ -151,6 +165,7 @@ export class HomeView extends KoboldComponent {
         <div class="badges">
           <b-badge variant="${STATUS_VARIANT[project.status] ?? 'neutral'}">${escapeHtml(project.status)}</b-badge>
           <b-badge variant="${EXECUTION_VARIANT[project.executionState] ?? 'neutral'}">${escapeHtml(project.executionState)}</b-badge>
+          ${unread ? `<b-badge class="unread" variant="danger" title="Unread notifications">${unread} new</b-badge>` : ''}
         </div>
         ${progress}
       </a>

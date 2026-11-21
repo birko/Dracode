@@ -1,13 +1,14 @@
 /**
  * KoboldLair application frame (TASK-145, FEATURE-026 D10): a header over the route outlet, on Birko.Web.Shell's
  * BCoreAppShell. The header holds the product name, then a slot each for the project picker, the notification bell
- * and the user menu; their contents are their own tasks (TASK-146, TASK-159, TASK-056), so for now the picker and
- * the bell are empty and the user menu is the shell's own (sign out).
+ * and the user menu; their contents are their own tasks (TASK-146, TASK-159, TASK-056). The bell is TASK-159's; the
+ * picker is still empty and the user menu is the shell's own (sign out).
  */
 
 import { define } from 'birko-web-core';
 import { BCoreAppShell, registerThemes, BUILTIN_THEMES } from 'birko-web-shell/shell';
 import { authStore, clearAuth } from './auth-store.js';
+import './components/notification-bell.js';
 
 registerThemes([BUILTIN_THEMES.light, BUILTIN_THEMES.dark, BUILTIN_THEMES.neon, BUILTIN_THEMES.finstat]);
 
@@ -54,7 +55,7 @@ class KoboldLairAppShell extends BCoreAppShell {
         <div class="header-slot" data-header-slot="project-picker"></div>
         <div class="app-header-spacer"></div>
         <div class="app-actions">
-          <div class="header-slot" data-header-slot="notifications"></div>
+          <div class="header-slot" data-header-slot="notifications"><kobold-notification-bell></kobold-notification-bell></div>
           ${this.renderThemeDropdown()}
           <div class="header-slot" data-header-slot="user-menu">${this.renderUserDropdown()}</div>
         </div>
