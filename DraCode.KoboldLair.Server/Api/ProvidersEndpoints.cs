@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Birko.AI.Models;
+using Birko.AI.Tools;
 using Birko.Security.AspNetCore;
 using DraCode.KoboldLair.Data.Entities;
 using DraCode.KoboldLair.Data.Repositories.Sql;
@@ -43,25 +45,24 @@ public static class ProvidersEndpoints
             .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
 
         // Create or update a provider's metadata (NOT the key — that's the /key route). Preserves the key.
-        api.MapPost("/providers", async (ProviderUpsertDto dto, SqlProviderConfigRepository repo, ProviderConfigurationService svc) =>
-            {
-                if (string.IsNullOrWhiteSpace(dto.Name) || string.IsNullOrWhiteSpace(dto.Type))
-                    return Results.BadRequest(new { error = "name and type are required" });
+        api.MapPost("/providers", (ProviderUpsertDto dto, SqlProviderConfigRepository repo, ProviderConfigurationService svc) =>
+                UpsertAsync(dto.Name, dto, repo, svc))
+            .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
 
-                await repo.UpsertProviderAsync(new ProviderConfigEntity
-                {
-                    Name = dto.Name,
-                    DisplayName = dto.DisplayName,
-                    Type = dto.Type,
-                    Enabled = dto.Enabled ?? true,
-                    BaseUrl = dto.BaseUrl,
-                    RequiresApiKey = dto.RequiresApiKey ?? true,
-                    DefaultModel = dto.DefaultModel,
-                    CompatibleAgentsJson = JsonSerializer.Serialize(dto.CompatibleAgents ?? new List<string>()),
-                    ConfigurationJson = JsonSerializer.Serialize(dto.Configuration ?? new Dictionary<string, string>())
-                });
-                await svc.ReloadAsync();
-                return Results.Ok(new { name = dto.Name });
+        // The same upsert keyed by the route (TASK-161): what the web Settings screen's edit sends (Birko Shell's
+        // CRUD page updates with PUT {resource}/{id}). The name in the route wins over one in the body.
+        api.MapPut("/providers/{name}", (string name, ProviderUpsertDto dto, SqlProviderConfigRepository repo, ProviderConfigurationService svc) =>
+                UpsertAsync(name, dto, repo, svc))
+            .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
+
+        // Validate (TASK-161): the configuration check, then one tiny live request to the provider, so a wrong key or
+        // URL fails with the provider's own message. Answers 200 { valid, message } either way; 404 for an unknown one.
+        api.MapPost("/providers/{name}/validate", async (string name, SqlProviderConfigRepository repo,
+                ProviderConfigurationService svc, ILoggerFactory loggers, CancellationToken ct) =>
+            {
+                if (await repo.GetProviderAsync(name) is null) return Results.NotFound();
+                var (valid, message) = await ValidateAsync(name, svc, loggers.CreateLogger("ProviderValidation"), ct);
+                return Results.Ok(new { name, valid, message });
             })
             .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
 
@@ -174,6 +175,73 @@ public static class ProvidersEndpoints
             .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
 
         return api;
+    }
+
+    private static async Task<IResult> UpsertAsync(string name, ProviderUpsertDto dto, SqlProviderConfigRepository repo,
+        ProviderConfigurationService svc)
+    {
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(dto.Type))
+            return Results.BadRequest(new { error = "name and type are required" });
+
+        // The runtime reads the provider's base URL from its configuration, not the BaseUrl column (TASK-161)
+        var configuration = new Dictionary<string, string>(dto.Configuration ?? new Dictionary<string, string>());
+        if (!string.IsNullOrWhiteSpace(dto.BaseUrl))
+            configuration["baseUrl"] = dto.BaseUrl;
+
+        await repo.UpsertProviderAsync(new ProviderConfigEntity
+        {
+            Name = name,
+            DisplayName = dto.DisplayName,
+            Type = dto.Type,
+            Enabled = dto.Enabled ?? true,
+            BaseUrl = dto.BaseUrl,
+            RequiresApiKey = dto.RequiresApiKey ?? true,
+            DefaultModel = dto.DefaultModel,
+            CompatibleAgentsJson = JsonSerializer.Serialize(dto.CompatibleAgents ?? new List<string>()),
+            ConfigurationJson = JsonSerializer.Serialize(configuration)
+        });
+        await svc.ReloadAsync();
+        return Results.Ok(new { name });
+    }
+
+    /// <summary>How long the live validation request may take.</summary>
+    internal static TimeSpan ValidationTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The configuration check (<see cref="ProviderConfigurationService.ValidateProvider"/>: exists, enabled, key set when
+    /// required), then one short request through the provider itself. Any failure comes back as a message the person can
+    /// read: the provider's own error, a timeout, or the exception's message.
+    /// </summary>
+    internal static async Task<(bool Valid, string Message)> ValidateAsync(string name, ProviderConfigurationService svc,
+        ILogger logger, CancellationToken ct)
+    {
+        var (configured, configMessage) = svc.ValidateProvider(name);
+        if (!configured)
+            return (false, configMessage);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(ValidationTimeout);
+        try
+        {
+            var (type, config, _) = svc.GetProviderSettingsByName(name);
+            var llm = DraCode.KoboldLair.Agents.KoboldLairAgentFactory.CreateLlmProvider(type, config, logger: logger);
+            var response = await llm.SendMessageAsync(
+                [new Message { Role = "user", Content = "Reply with the single word OK." }],
+                new List<Tool>(), "You are a connectivity check. Reply with the single word OK.", timeout.Token);
+            if (string.Equals(response.StopReason, "error", StringComparison.OrdinalIgnoreCase))
+                return (false, $"The provider answered with an error: {response.ErrorMessage ?? "no details"}");
+            var model = config.TryGetValue("model", out var m) && !string.IsNullOrEmpty(m) ? $" (model {m})" : "";
+            return (true, $"Connected: the provider answered{model}.");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return (false, $"The provider did not answer within {ValidationTimeout.TotalSeconds:0} s.");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogInformation(ex, "Provider {Provider} failed validation", name);
+            return (false, $"Could not reach the provider: {ex.Message}");
+        }
     }
 
     private static object ToView(ProviderConfigEntity p, IReadOnlyList<ProviderModelEntity> models) => new

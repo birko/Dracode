@@ -38,6 +38,7 @@ const aliases = {
   'birko-web-components/layout':   `${BIRKO_SRC}/Birko.Web.Components/src/layout/index.ts`,
   'birko-web-components/data':     `${BIRKO_SRC}/Birko.Web.Components/src/data/index.ts`,
   'birko-web-components/feedback': `${BIRKO_SRC}/Birko.Web.Components/src/feedback/index.ts`,
+  'birko-web-components/form-utils': `${BIRKO_SRC}/Birko.Web.Components/src/form-utils/index.ts`,
   'birko-web-components/nav':      `${BIRKO_SRC}/Birko.Web.Components/src/nav/index.ts`,
   'birko-web-components/command':  `${BIRKO_SRC}/Birko.Web.Components/src/command/index.ts`,
   'birko-web-components/css':      `${BIRKO_SRC}/Birko.Web.Components/css/tokens.css`,
@@ -51,6 +52,7 @@ const aliases = {
   'birko-web-shell/notifications':  `${BIRKO_SRC}/Birko.Web.Shell/src/notifications/index.ts`,
   'birko-web-shell/connection':     `${BIRKO_SRC}/Birko.Web.Shell/src/connection/index.ts`,
   'birko-web-shell/commands':       `${BIRKO_SRC}/Birko.Web.Shell/src/commands/index.ts`,
+  'birko-web-shell/pages':          `${BIRKO_SRC}/Birko.Web.Shell/src/pages/index.ts`,
   'birko-web-shell/feedback':       `${BIRKO_SRC}/Birko.Web.Shell/src/feedback/index.ts`,
 };
 

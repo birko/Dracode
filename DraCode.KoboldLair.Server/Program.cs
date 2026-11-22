@@ -1052,8 +1052,10 @@ if (jwtRuntimeEnabled)
     apiV1.MapGitEndpoints(); // the workspace's Git tab: branches and their diffs (TASK-156)
     apiV1.MapStatsEndpoints(); // the workspace's Stats tab (TASK-158)
     // Admin /api/v1/providers CRUD (TASK-073) — only in DB mode. Read post-build so test-host config is seen.
-    if (!string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration)))
+    var providersEnabled = !string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration));
+    if (providersEnabled)
         apiV1.MapProviderEndpoints();
+    apiV1.MapSettingsEndpoints(providersEnabled); // what the Settings screen may show the caller (TASK-161)
 }
 
 // OpenAPI document + Scalar docs UI for the /api/v1 facade (TASK-042). Mapped anonymously (NOT under

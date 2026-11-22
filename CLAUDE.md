@@ -657,6 +657,14 @@ the page is visible, and refreshes at once when a decision card in the dock is a
 (TASK-147) gathers what waits on the caller across their projects — open decisions, failed and blocked tasks, unread
 `feature_branch_ready` notifications — for the homepage's "Needs you" list and the header pill.
 
+### Settings → Providers (TASK-161)
+
+`#/settings` shows what `GET /api/v1/settings/capabilities` allows: admins (`manage_config`) get a Providers tab, a Birko
+Shell `BaseListPage` over `/api/v1/providers`. Those routes exist only when a provider master key is set
+(`KoboldLair:ProviderConfig:MasterKey` or `KOBOLDLAIR_MASTER_KEY`, providers kept in the database); without one the tab
+says so. Edits go through `PUT /providers/{name}`, API keys are write-only (`PATCH /providers/{name}/key`, shown only
+as Set/Missing), and Validate (`POST /providers/{name}/validate`) makes one short request through the provider.
+
 ### Graceful Shutdown (TASK-121)
 
 ```json

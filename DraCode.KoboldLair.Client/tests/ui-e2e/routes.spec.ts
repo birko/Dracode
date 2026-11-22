@@ -13,12 +13,12 @@ async function hostRequiresAuth(page: Page) {
 }
 
 test.describe('module sub-routes open their screens', () => {
-  test('#/settings/providers and #/settings/general open the settings view on their tab', async ({ page }) => {
+  test('#/settings/providers opens the settings view on its Providers tab; #/settings/general is gone (TASK-161)', async ({ page }) => {
     await page.goto('/#/settings/providers');
     await expect(outlet(page, 'kobold-settings-view[tab="providers"]')).toHaveCount(1);
 
     await page.evaluate(() => { window.location.hash = '#/settings/general'; });
-    await expect(outlet(page, 'kobold-settings-view[tab="general"]')).toHaveCount(1);
+    await expect(outlet(page, 'kobold-not-found-view')).toHaveCount(1);
   });
 });
 

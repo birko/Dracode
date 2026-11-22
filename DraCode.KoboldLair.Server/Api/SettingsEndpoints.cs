@@ -1,0 +1,25 @@
+using Birko.Security.AspNetCore;
+using DraCode.KoboldLair.Server.Auth;
+
+namespace DraCode.KoboldLair.Server.Api;
+
+/// <summary>
+/// What the web Settings screen may show the caller (TASK-161). Always mapped, unlike <c>/providers</c>, so the screen
+/// can tell "not yours to manage" from "not enabled on this server".
+/// </summary>
+public static class SettingsEndpoints
+{
+    public static RouteGroupBuilder MapSettingsEndpoints(this RouteGroupBuilder api, bool providersEnabled)
+    {
+        api.MapGet("/settings/capabilities", (ICurrentUser user) => Results.Ok(new
+        {
+            // The /providers routes need manage_config; "*" is every permission
+            canManageProviders = user.Permissions.Contains("*") || user.Permissions.Contains(KoboldLairPermissionChecker.ManageConfig),
+            // They are mapped only when a provider master key is set (DB-backed provider configuration, TASK-073)
+            providersEnabled,
+            providersHint = providersEnabled ? null
+                : "Provider management is off on this server: set KoboldLair:ProviderConfig:MasterKey (or the KOBOLDLAIR_MASTER_KEY environment variable) and restart it."
+        }));
+        return api;
+    }
+}
