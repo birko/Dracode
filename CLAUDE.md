@@ -461,8 +461,11 @@ KoboldLair manages git automatically throughout the project lifecycle:
    └→ Author: Kobold-{agentType}
    └→ Conventional commit format with task metadata
 
-5. CLEANUP (automatic)        Drake.CleanupWorktreeAsync()
-   └→ git worktree remove       After task commit
+5. CLEANUP (automatic)        Drake.ReleaseWorktreeAsync() (TASK-168)
+   └→ git worktree remove       Only when nothing is lost: kept while its commit failed, its task waits on a
+                                decision, another run of the feature uses it, or it holds uncommitted work (a run
+                                stopped by a shutdown, a failed run); the feature's next run reuses it, and the run
+                                that commits and leaves it clean removes it
 
 6. NOTIFY (automatic)         ProjectNotificationService
    └→ Feature complete → notification persisted to notifications.json

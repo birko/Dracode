@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-22 18:17. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-22 19:12. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
 | planned      | 9                  | 33                 | —                   |
-| todo         | —                  | —                  | 80                  |
+| todo         | —                  | —                  | 79                  |
 | in-progress  | 7                  | 13                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 3                  | 98                  |
+| done         | 1                  | 3                  | 99                  |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 10× P1 · 50× P2 · 20× P3.
+`todo` by priority: 9× P1 · 50× P2 · 20× P3.
 
 ## In progress now
 
@@ -227,14 +227,14 @@ _None_
   - STORY-044 Follow Birko framework contract changes — planned (0/1 done)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies
     - ~~[TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule~~
-- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (8/16 tasks done)
+- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (9/16 tasks done)
   - STORY-041 Security & tenancy — planned (3/3 done)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller
     - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing
-  - STORY-042 Correctness & invariants — in-progress (5/12 done)
+  - STORY-042 Correctness & invariants — in-progress (6/12 done)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other
-    - [ ] [TASK-168](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-168-worktree-removed-with-uncommitted-work.md) A task's worktree is force-removed after its run even when the work was never committed
+    - [x] [TASK-168](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-168-worktree-removed-with-uncommitted-work.md) A task's worktree is force-removed after its run even when the work was never committed
     - [ ] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping
     - [ ] [TASK-166](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-166-task-file-reads-failed-tasks-as-unassigned.md) A task file read back turns Failed and BlockedByFailure tasks into Unassigned, so they run again
     - [ ] [TASK-169](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-169-monitor-escalations-routed-to-first-drake.md) Reasoning-monitor escalations go to the project's first Drake, not the one holding the task

@@ -1542,9 +1542,54 @@ namespace DraCode.KoboldLair.Orchestrators
             return (null, null);
         }
 
+        /// <summary>Runs of this Drake using each feature worktree right now (TASK-168): a worktree is shared by its feature's tasks.</summary>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _worktreeUsers =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>A run starts using <paramref name="worktreePath"/>.</summary>
+        internal void AcquireWorktree(string worktreePath) =>
+            _worktreeUsers.AddOrUpdate(worktreePath, 1, (_, n) => n + 1);
+
         /// <summary>
-        /// Removes a git worktree after task execution.
-        /// Only removes if no more tasks need this feature branch's worktree.
+        /// A run is done with its feature worktree (TASK-168). The worktree is removed only when nothing would be lost:
+        /// it is kept while its commit failed (manual recovery), while its task waits on a decision, while another run of
+        /// the feature still uses it, and while it holds uncommitted work — a run cancelled by a shutdown, a failed run,
+        /// or any run that ended without committing, so a resumed run continues on its files. A worktree kept that way
+        /// is reused by the feature's next run (<see cref="GitService.CreateWorktreeAsync"/>) and removed after the run
+        /// that commits and leaves it clean. Returns why it was kept, or null when it was removed.
+        /// </summary>
+        internal async Task<string?> ReleaseWorktreeAsync(TaskRecord task, string? worktreePath)
+        {
+            if (worktreePath == null)
+                return null;
+
+            var others = _worktreeUsers.AddOrUpdate(worktreePath, 0, (_, n) => Math.Max(0, n - 1));
+            if (others == 0)
+                _worktreeUsers.TryRemove(new KeyValuePair<string, int>(worktreePath, 0));
+
+            string? keep = null;
+            if (task.CommitFailed)
+                keep = "its commit failed — manual recovery required";
+            else if (task.Status == TaskStatus.AwaitingHumanDecision)
+                keep = "its task waits on a decision";
+            else if (others > 0)
+                keep = "another task of this feature is still running in it";
+            else if (_gitService != null && await _gitService.HasUncommittedChangesAsync(worktreePath) != false)
+                keep = "it holds work no commit has (the run ended without committing)";
+
+            if (keep != null)
+            {
+                _logger?.LogInformation("Keeping worktree {Path} after task {TaskId}: {Reason}",
+                    worktreePath, task.Id[..Math.Min(8, task.Id.Length)], keep);
+                return keep;
+            }
+
+            await CleanupWorktreeAsync(worktreePath);
+            return null;
+        }
+
+        /// <summary>
+        /// Removes a git worktree after task execution (<see cref="ReleaseWorktreeAsync"/> decides whether).
         /// </summary>
         private async Task CleanupWorktreeAsync(string worktreePath)
         {
@@ -1953,6 +1998,8 @@ namespace DraCode.KoboldLair.Orchestrators
             using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             BeginRun(task.Id, runCancellation);
             cancellationToken = runCancellation.Token;
+            if (worktreePath != null)
+                AcquireWorktree(worktreePath);
 
             try
             {
@@ -2088,6 +2135,8 @@ namespace DraCode.KoboldLair.Orchestrators
 
                 // Sync status from Kobold (it should have captured the error)
                 await SyncTaskFromKoboldAsync(kobold);
+                // A failed run keeps what it wrote (TASK-168)
+                await ReleaseWorktreeAsync(task, worktreePath);
                 throw;
             }
             finally
@@ -2110,27 +2159,8 @@ namespace DraCode.KoboldLair.Orchestrators
             // Final sync of task status from Kobold (commits happen here if task completed)
             await SyncTaskFromKoboldAsync(kobold, worktreePath);
 
-            // Clean up worktree after commit is done — but PRESERVE it on commit failure
-            // so the work isn't destroyed and a human can recover it manually.
-            if (worktreePath != null)
-            {
-                if (task.CommitFailed)
-                {
-                    _logger?.LogWarning(
-                        "Preserving worktree {Path} for task {TaskId} due to commit failure — manual recovery required",
-                        worktreePath, task.Id[..Math.Min(8, task.Id.Length)]);
-                }
-                else if (task.Status == TaskStatus.AwaitingHumanDecision)
-                {
-                    // Its uncommitted work waits with it (TASK-168 covers runs that end otherwise)
-                    _logger?.LogInformation("Keeping worktree {Path} for parked task {TaskId}",
-                        worktreePath, task.Id[..Math.Min(8, task.Id.Length)]);
-                }
-                else
-                {
-                    await CleanupWorktreeAsync(worktreePath);
-                }
-            }
+            // After the commit (if any): remove the worktree only when nothing in it would be lost
+            await ReleaseWorktreeAsync(task, worktreePath);
 
             // Update feature status if Wyvern is available
             UpdateFeatureStatus();
