@@ -208,6 +208,31 @@ public class DragonProjectSocketTests : IDisposable
     }
 
     [Fact]
+    public async Task Client_ready_after_selecting_a_project_asks_for_decisions_and_does_not_wake_Dragon()
+    {
+        // TASK-160: the web dock sends client_ready after project_selected for its decision cards. With the welcome
+        // already settled by the selected conversation, it once fell through to the chat and queued an empty message.
+        var factory = CreateFactory();
+        try
+        {
+            var shop = await CreateProject(factory, UserA, "Shop");
+            await SaveConversation(factory, shop, "Build a shop", "Which payment provider?");
+            using var client = await Client.ConnectAsync(factory, Token(factory, UserA));
+            await client.SelectAsync(shop, expected: 2);
+
+            await client.SendAsync(new { type = "client_ready" });
+
+            var woke = await client.WaitForAsync(m => Str(m, "type") is "dragon_typing" or "dragon_thinking" or "dragon_message" or "error"
+                || (Str(m, "type") == "user_message" && !Bool(m, "isReplay")), seconds: 3);
+            woke.Should().BeNull("client_ready is not a message to Dragon");
+            var folder = factory.Services.GetRequiredService<ProjectService>().GetProject(shop)!.Paths.Output;
+            var saved = await factory.Services.GetRequiredService<SqlHistoryRepository>().LoadHistoryJsonAsync(folder);
+            JsonDocument.Parse(saved!).RootElement.GetArrayLength().Should().Be(2, "nothing was added to the conversation");
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Fact]
     public async Task Another_users_project_cannot_be_selected()
     {
         var factory = CreateFactory();

@@ -486,23 +486,9 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
         notificationService.NotifyFeatureBranchReady(projectName, featureName, branchName);
     };
 
-    // A task parked on a decision raises an answerable card; its answer or timeout retires it (TASK-020)
-    factory.OnDecisionRequired = (projectName, decision) =>
-        notificationService.Notify(projectName, PendingDecisionNotification.RequiredType,
-            PendingDecisionNotification.QuestionText(decision), PendingDecisionNotification.ToMetadata(decision));
-    factory.OnDecisionResolved = (projectName, decision) =>
-    {
-        var cards = notificationService.GetPendingNotifications(projectName)
-            .Where(n => n.Type == PendingDecisionNotification.RequiredType
-                && n.Metadata.TryGetValue(PendingDecisionNotification.DecisionId, out var id) && id == decision.Id)
-            .Select(n => n.Id)
-            .ToList();
-        if (cards.Count > 0)
-            notificationService.MarkAsRead(projectName, cards);
-        notificationService.Notify(projectName, PendingDecisionNotification.ResolvedType,
-            $"Decision {decision.ResolutionKind?.ToString().ToLowerInvariant()}: {PendingDecisionNotification.QuestionText(decision)}",
-            PendingDecisionNotification.ToResolvedMetadata(decision));
-    };
+    // A task parked on a decision raises an answerable card; its answer or timeout retires it (TASK-020, TASK-160)
+    factory.OnDecisionRequired = (projectName, decision) => DecisionNotifications.Required(notificationService, projectName, decision);
+    factory.OnDecisionResolved = (projectName, decision) => DecisionNotifications.Resolved(notificationService, projectName, decision);
 
     // Wire escalation notifications to Dragon client
     factory.OnEscalation = (projectName, alert, resolution) =>

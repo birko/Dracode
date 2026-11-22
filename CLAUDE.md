@@ -111,7 +111,10 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     project. The client answers with `{ type: "answer_decision", decisionId, answer }` and gets
     `decision_answer_result` (`Resolved`, `AlreadyResolved`, `InvalidAnswer` or `NotFound`, with a message); a decision
     outside the caller's projects reads as `NotFound`. Warden's `pending_decisions` tool lists and answers them from
-    the chat.
+    the chat. The web dock (TASK-160) sends `client_ready` after each `project_selected` and resumed session; a
+    `client_ready` after the welcome only asks for the cards and never reaches Dragon. `DecisionNotifications`
+    (Server) raises and retires the cards' notifications: an answered decision's `decision_resolved` is kept read (the
+    person did it), a timed-out one unread.
   - **Task state is Drake's** (TASK-153): a Drake's `TaskTracker` and the area's task file are what Drake works from;
     the task store (`ITaskRepository`) holds a copy the tracker writes to. Change a task through its Drake, or its file
     when no Drake holds it — `DrakeFactory.RetryFailedTaskAsync` does this for a retry and
@@ -633,7 +636,7 @@ badges read the same records through `GET /api/v1/notifications` (owner-scoped, 
 and `POST /api/v1/notifications/{id}/read` (404 for a project the caller cannot see). Reading one stamps `ReadAt` rather
 than deleting it, so the bell can list it as read; each project keeps its newest 50 read ones. A project's file is loaded
 before a new notification is added, so a restart no longer saves over the unread ones. The bell polls every 15 s while
-the page is visible.
+the page is visible, and refreshes at once when a decision card in the dock is answered or retired (TASK-160).
 
 ### WebSocket Message Cap
 

@@ -1232,6 +1232,11 @@ namespace DraCode.KoboldLair.Server.Services
                     return;
                 }
 
+                // A later client_ready (the web dock sends one after each project_selected, TASK-160) only asks for the open
+                // decisions, sent above; it is not a message to Dragon
+                if (message.Type == "client_ready")
+                    return;
+
                 if (message.Type == "reload")
                 {
                     await ReloadAgentAsync(session, message.Provider);
