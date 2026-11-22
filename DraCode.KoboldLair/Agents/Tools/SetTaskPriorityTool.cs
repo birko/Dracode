@@ -59,18 +59,18 @@ complete, regardless of priority.";
             required = new[] { "task_id", "priority" }
         };
 
-        public override Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
+        public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments, CancellationToken cancellationToken = default)
         {
             try
             {
                 if (!arguments.TryGetValue("task_id", out var taskIdObj))
                 {
-                    return Task.FromResult("Error: Missing required 'task_id' parameter");
+                    return "Error: Missing required 'task_id' parameter";
                 }
 
                 if (!arguments.TryGetValue("priority", out var priorityObj))
                 {
-                    return Task.FromResult("Error: Missing required 'priority' parameter");
+                    return "Error: Missing required 'priority' parameter";
                 }
 
                 var taskId = taskIdObj.ToString();
@@ -78,12 +78,12 @@ complete, regardless of priority.";
 
                 if (string.IsNullOrEmpty(taskId))
                 {
-                    return Task.FromResult("Error: Invalid task_id");
+                    return "Error: Invalid task_id";
                 }
 
                 if (string.IsNullOrEmpty(priorityStr))
                 {
-                    return Task.FromResult("Error: Invalid priority");
+                    return "Error: Invalid priority";
                 }
 
                 // Parse priority
@@ -98,89 +98,32 @@ complete, regardless of priority.";
 
                 if (priority == null)
                 {
-                    return Task.FromResult($"Error: Invalid priority '{priorityStr}'. Must be one of: critical, high, normal, low");
+                    return $"Error: Invalid priority '{priorityStr}'. Must be one of: critical, high, normal, low";
                 }
 
-                // Find the task across all projects
-                var allProjects = _projectService.GetAllProjects();
-
-                foreach (var project in allProjects)
+                // Through DrakeFactory, the same way the REST priority call does it (TASK-154)
+                foreach (var project in _projectService.GetAllProjects())
                 {
-                    // Try Drakes first (in-memory)
-                    var drakes = _drakeFactory.GetDrakesForProject(project.Id);
-
-                    foreach (var (drake, drakeName) in drakes)
+                    var change = await _drakeFactory.SetTaskPriorityAsync(project, taskId, priority.Value);
+                    switch (change.Outcome)
                     {
-                        var task = drake.GetAllTasks().FirstOrDefault(t => t.Id == taskId);
-
-                        if (task != null)
-                        {
-                            if (task.Status == TaskStatus.Done)
-                            {
-                                return Task.FromResult($"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is already completed. Cannot change priority.");
-                            }
-
-                            var oldPriority = task.Priority;
-                            task.Priority = priority.Value;
-
-                            drake.UpdateTasksFile();
-
-                            return Task.FromResult(FormatSuccess(project.Name, taskId, task.Task, oldPriority, priority.Value, task.Status));
-                        }
-                    }
-
-                    // Fall back to file access if no Drakes found (e.g., after server restart)
-                    if (drakes.Count == 0)
-                    {
-                        var result = SetPriorityFromFile(project, taskId, priority.Value);
-                        if (result != null)
-                        {
-                            return Task.FromResult(result);
-                        }
+                        case TaskPriorityOutcome.Set:
+                            return FormatSuccess(project.Name, taskId, change.Task!.Task, change.Previous!.Value, priority.Value, change.Task.Status);
+                        case TaskPriorityOutcome.AlreadyDone:
+                            return $"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is already completed. Cannot change priority.";
                     }
                 }
 
-                return Task.FromResult($"❌ Task {taskId[..Math.Min(8, taskId.Length)]} not found in any project");
+                return $"❌ Task {taskId[..Math.Min(8, taskId.Length)]} not found in any project";
             }
             catch (Exception ex)
             {
-                return Task.FromResult($"Error: {ex.Message}");
+                return $"Error: {ex.Message}";
             }
-        }
-
-        /// <summary>
-        /// Sets task priority by loading directly from task files on disk.
-        /// Used as fallback when no Drakes are in memory (e.g., after server restart).
-        /// </summary>
-        private string? SetPriorityFromFile(Models.Projects.Project project, string taskId, TaskPriority priority)
-        {
-            foreach (var (area, filePath) in project.Paths.TaskFiles)
-            {
-                var tracker = new TaskTracker();
-                tracker.LoadFromFile(filePath);
-
-                var task = tracker.GetTaskById(taskId);
-                if (task == null) continue;
-
-                if (task.Status == TaskStatus.Done)
-                {
-                    return $"⚠️ Task {taskId[..Math.Min(8, taskId.Length)]} is already completed. Cannot change priority.";
-                }
-
-                var oldPriority = task.Priority;
-                task.Priority = priority;
-
-                tracker.SaveToFile(filePath);
-
-                return FormatSuccess(project.Name, taskId, task.Task, oldPriority, priority, task.Status,
-                    "(Updated via file - change will take effect when Drake starts)");
-            }
-
-            return null;
         }
 
         private static string FormatSuccess(string projectName, string taskId, string taskDescription,
-            TaskPriority oldPriority, TaskPriority newPriority, TaskStatus status, string? suffix = null)
+            TaskPriority oldPriority, TaskPriority newPriority, TaskStatus status)
         {
             var priorityIcon = newPriority switch
             {
@@ -197,7 +140,7 @@ complete, regardless of priority.";
                          $"Task: {taskDescription}\n" +
                          $"Priority: {oldPriority} → {priorityIcon} {newPriority}\n" +
                          $"Status: {status}\n\n" +
-                         (suffix ?? "The task will be scheduled according to its new priority on the next execution cycle.");
+                         "The task will be scheduled according to its new priority on the next execution cycle.";
 
             return result;
         }

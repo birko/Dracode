@@ -132,6 +132,20 @@ namespace DraCode.KoboldLair.Models.Tasks
         }
 
         /// <summary>
+        /// Set a task's priority (TASK-154)
+        /// </summary>
+        public void SetPriority(TaskRecord task, TaskPriority priority)
+        {
+            lock (_lock)
+            {
+                task.Priority = priority;
+                task.UpdatedAt = DateTime.UtcNow;
+
+                SyncToRepository(task);
+            }
+        }
+
+        /// <summary>
         /// Mark a task as having an error
         /// </summary>
         public void SetError(TaskRecord task, string errorMessage)

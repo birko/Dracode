@@ -449,6 +449,46 @@ public class ResourceEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task Priority_is_set_in_the_task_file_Drake_works_from_and_a_Done_task_is_refused()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = MintToken(factory, UserA, OwnerScopes);
+        var projectId = await CreateProject(client, token, "FilePriority");
+
+        var projectRepo = factory.Services.GetRequiredService<IProjectRepository>();
+        var project = projectRepo.GetById(projectId)!;
+        var file = Path.Combine(project.Paths.Output, "tasks", "backend-tasks.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        var tracker = new TaskTracker();
+        var open = tracker.AddTask("Build the API", TaskPriority.Normal);
+        var done = tracker.AddTask("Write the README", TaskPriority.Low);
+        tracker.UpdateTask(done, TaskStatus.Done, "documentation");
+        tracker.SaveToFile(file);
+        project.Paths.TaskFiles["backend"] = file;
+        await projectRepo.UpdateAsync(project);
+        var taskRepo = factory.Services.GetRequiredService<ITaskRepository>();
+        foreach (var t in tracker.GetAllTasks())
+            await taskRepo.AddTaskAsync(projectId, "backend",
+                new TaskRecord { Id = t.Id, Task = t.Task, ProjectId = projectId, Status = t.Status, Priority = t.Priority });
+
+        var set = await client.SendAsync(Authed(HttpMethod.Post, $"/api/v1/tasks/{open.Id}/priority", token, new { priority = "critical" }));
+
+        set.StatusCode.Should().Be(HttpStatusCode.OK);
+        var reloaded = new TaskTracker();
+        reloaded.LoadFromFile(file);
+        reloaded.GetTaskById(open.Id)!.Priority.Should().Be(TaskPriority.Critical, "Drake loads the task file, not the store row");
+        (await taskRepo.GetByIdAsync(open.Id))!.Priority.Should().Be(TaskPriority.Critical);
+
+        var refused = await client.SendAsync(Authed(HttpMethod.Post, $"/api/v1/tasks/{done.Id}/priority", token, new { priority = "high" }));
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await taskRepo.GetByIdAsync(done.Id))!.Priority.Should().Be(TaskPriority.Low);
+
+        var bad = await client.SendAsync(Authed(HttpMethod.Post, $"/api/v1/tasks/{open.Id}/priority", token, new { priority = "7" }));
+        bad.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Retry_on_non_failed_task_returns_400()
     {
         using var factory = CreateFactory();

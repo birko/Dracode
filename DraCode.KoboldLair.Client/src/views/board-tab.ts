@@ -1,9 +1,10 @@
 /**
  * The workspace's Board tab (TASK-153, FEATURE-026 D16): the project's tasks in fixed status columns — To do,
- * In progress, Blocked·Failed, Done — on Birko's `b-kanban` (TASK-183). The agents move the cards: every column is
- * locked, so a person drags nothing between them. A failed card has Retry. Nothing pushes task changes to a browser, so
- * the board polls while the page is visible. When its own width is narrow (a phone, or Dragon expanded beside it,
- * TASK-152) the columns stack one per row (`stackBelow`) and the cards turn compact.
+ * In progress, Blocked·Failed, Done — on Birko's `b-kanban` (TASK-183). The agents move the cards between columns:
+ * those are locked to a person. To do is split into priority lanes (TASK-154): moving a card to another lane, by mouse
+ * or keyboard, sets its priority, and a refused change puts it back with the reason. A failed card has Retry. Nothing
+ * pushes task changes to a browser, so the board polls while the page is visible. When its own width is narrow (a
+ * phone, or Dragon expanded beside it, TASK-152) the columns stack one per row (`stackBelow`) and the cards turn compact.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -45,6 +46,15 @@ const COLUMN_OF: Record<string, ColumnId> = {
 
 const PRIORITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Normal: 2, Low: 3 };
 const PRIORITY_VARIANT: Record<string, string> = { Critical: 'danger', High: 'warning', Normal: 'neutral', Low: 'neutral' };
+/** To do's lanes, top first (TASK-154). A lane's id is the priority in lower case, as the priority call takes it. */
+const PRIORITIES = ['Critical', 'High', 'Normal', 'Low'];
+const LANES = PRIORITIES.map((p) => ({
+  id: p.toLowerCase(),
+  label: p,
+  color: p === 'Critical' ? 'var(--b-color-danger)' : p === 'High' ? 'var(--b-color-warning)' : undefined,
+}));
+const laneOf = (priority: string) => (PRIORITIES.includes(priority) ? priority.toLowerCase() : 'normal');
+
 const STATUS_NOTE: Record<string, string> = {
   BlockedByFailure: 'Blocked by a failed task',
   AwaitingHumanDecision: 'Waiting for your decision',
@@ -63,6 +73,13 @@ export function taskTitle(task: string): string {
   return line.replace(/^#+\s*/, '').replace(/^[-*]\s+/, '').replace(/\*\*/g, '');
 }
 
+/** What b-kanban's `card-move` carries that the board reads. */
+interface CardMove {
+  card: KanbanCard;
+  fromLane?: string;
+  toLane?: string;
+}
+
 type BoardState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
@@ -74,6 +91,9 @@ export class BoardTab extends KoboldComponent {
   private _retrying = new Set<string>();
   private _retryErrors = new Map<string, string>();
   private _kanban: BKanban | null = null;
+  /** Priorities being saved, by task id: the card stays in its new lane while a refresh still has the old one. */
+  private _priorityChanges = new Map<string, string>();
+  private _moveError: string | null = null;
   private _onVisibility = () => { if (document.visibilityState === 'visible') void this.refresh(); };
 
   static get styles() {
@@ -81,6 +101,8 @@ export class BoardTab extends KoboldComponent {
       :host { display: block; min-width: 0; color: var(--b-text); }
       b-kanban { --b-kanban-col-min-width: 0; --b-kanban-col-max-width: none; }
       .message { color: var(--b-text-secondary); }
+      .move-error { margin: 0 0 var(--b-space-sm, 0.5rem); color: var(--b-color-danger-text, var(--b-color-danger)); font-size: var(--b-text-sm, 0.8125rem); }
+      .move-error[hidden] { display: none; }
     `;
   }
 
@@ -115,8 +137,8 @@ export class BoardTab extends KoboldComponent {
   }
 
   /**
-   * Show the current state. While the board stays on screen only its cards are handed over: re-rendering this view
-   * would morph the `b-kanban` element and drop the `stacked` attribute it sets on itself.
+   * Show the current state. While the board stays on screen its cards are handed to it: a re-render of this view only
+   * syncs the `b-kanban` element's attributes and never reaches its cards.
    */
   private show(): void {
     const tasks = this._state.kind === 'loaded' && this._state.tasks.length ? this._state.tasks : null;
@@ -134,7 +156,9 @@ export class BoardTab extends KoboldComponent {
       return `<p class="message"><strong>No tasks yet.</strong> Wyvern breaks the specification into tasks once it is
         approved.</p>`;
     }
-    return `<b-kanban empty-text="Nothing here"></b-kanban>`;
+    // The error line is always rendered, so b-kanban keeps its place and is never rebuilt by a re-render.
+    return `<p class="move-error" role="alert"${this._moveError ? '' : ' hidden'}>${escapeHtml(this._moveError ?? '')}</p>
+      <b-kanban empty-text="Nothing here"></b-kanban>`;
   }
 
   protected onUpdated() {
@@ -143,11 +167,16 @@ export class BoardTab extends KoboldComponent {
     this._kanban = kanban;
     if (!kanban || this._state.kind !== 'loaded') return;
     kanban.setConfig({
-      columns: COLUMNS.map((c): KanbanColumn => ({ id: c.id, label: c.label, locked: true, sortable: false })),
+      columns: COLUMNS.map((c): KanbanColumn => c.id === 'todo'
+        ? { id: c.id, label: c.label, lanes: LANES, defaultLane: 'normal', sortable: false }
+        : { id: c.id, label: c.label, locked: true, sortable: false }),
       cards: this.cards(this._state.tasks),
       renderCard: (card) => this.renderCard(card.metadata!.task as TaskView),
       stackBelow: STACK_BELOW,
+      maxNestingDepth: 0,
     });
+    // Only To do takes a person's moves, and only between its lanes: every other column is locked.
+    kanban.addEventListener('card-move', (e) => void this.moved((e as CustomEvent<CardMove>).detail));
     // Retry is the card's own control: b-kanban starts no drag and fires no card-click for it.
     kanban.shadowRoot!.addEventListener('click', (e) => {
       const button = e.composedPath().find((n): n is HTMLElement => n instanceof HTMLElement && n.matches('b-button[data-retry]'));
@@ -155,13 +184,18 @@ export class BoardTab extends KoboldComponent {
     });
   }
 
-  /** The tasks as b-kanban cards, each column in priority order. */
+  /** The tasks as b-kanban cards, each column in priority order, To do's in their priority's lane. */
   private cards(tasks: TaskView[]): KanbanCard[] {
-    return [...tasks]
+    return tasks
+      .map((t) => {
+        const priority = this._priorityChanges.get(t.id);
+        return priority ? { ...t, priority } : t;
+      })
       .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9))
       .map((t, i) => ({
         id: t.id,
         columnId: COLUMN_OF[t.status] ?? 'todo',
+        laneId: laneOf(t.priority),
         title: taskTitle(t.task),
         order: i,
         color: t.status === 'Failed' ? 'var(--b-color-danger)' : undefined,
@@ -200,6 +234,40 @@ export class BoardTab extends KoboldComponent {
         ${failed ? `<div class="actions" style="margin-top:var(--b-space-xs, 0.25rem);"><b-button class="retry" size="sm" variant="secondary"
           data-retry="${escapeHtml(t.id)}" ${this._retrying.has(t.id) ? 'loading' : ''}>Retry</b-button></div>` : ''}
       </div>`;
+  }
+
+  /** A card moved to another lane of To do: save its new priority, or put it back and say why. */
+  private async moved({ card, fromLane, toLane }: CardMove): Promise<void> {
+    const priority = PRIORITIES.find((p) => p.toLowerCase() === toLane);
+    if (!priority || toLane === fromLane || this._state.kind !== 'loaded') return;
+    const title = taskTitle((card.metadata?.task as TaskView | undefined)?.task ?? card.title);
+    this._priorityChanges.set(card.id, priority);
+    this.setMoveError(null);
+    let error: string | null = null;
+    try {
+      const response = await createRestClient().post<{ error?: string }>(`/tasks/${encodeURIComponent(card.id)}/priority`, { priority: toLane });
+      if (response.ok && this._state.kind === 'loaded') {
+        this._state = { kind: 'loaded', tasks: this._state.tasks.map((t) => (t.id === card.id ? { ...t, priority } : t)) };
+      } else if (!response.ok) {
+        error = response.data?.error ?? `the server answered ${response.status}`;
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+    this._priorityChanges.delete(card.id);
+    if (!this.isConnected) return;
+    if (error) {
+      if (!this._kanban?.revertMove(card.id)) this.show(); // a refresh since the move: redraw from the tasks instead
+      this.setMoveError(`Could not move “${title}” to ${priority}: ${error}`);
+    } else {
+      this.show();
+    }
+  }
+
+  private setMoveError(message: string | null): void {
+    if (message === this._moveError) return;
+    this._moveError = message;
+    this.update();
   }
 
   /** Put a failed task back to To do; the server resets it where Drake works from (TASK-153). */
