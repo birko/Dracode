@@ -19,6 +19,10 @@
  * project is open; the server answers `home_selected` and replays the user's own home conversation, kept apart from every
  * project's. A specification Dragon writes there registers a project; `onProjectsChanged` tells the homepage to reload.
  *
+ * Another project Dragon loaded from the chat (TASK-190): the session stays on the followed project and the server
+ * sends `project_switch_offered`; the state's `offer` holds it until the person answers (`dismissOffer`) or the dock
+ * follows another project.
+ *
  * One reply at a time (TASK-187): the server answers a session's messages in order, each request ending with a
  * `dragon_status` of `complete` or `error`. A message sent while Dragon is still answering is shown as waiting
  * (`status: 'sending'`, and a line under the chat) until the reply before it is done.
@@ -50,6 +54,8 @@ export interface DockState {
   projectName: string | null;
   /** Open decisions of every project the user can see, oldest first. */
   decisions: DecisionCard[];
+  /** A project Dragon loaded from the chat, offered to open (TASK-190); null when none is offered. */
+  offer: { projectId: string; projectName: string } | null;
 }
 
 /** An open decision an agent waits on (`decision_required`, TASK-024's metadata contract). */
@@ -83,6 +89,7 @@ const HOME = '#home';
 export class DragonConnection {
   private _state: DockState = {
     projectId: null, home: false, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [],
+    offer: null,
   };
   private readonly _listeners = new Set<Listener>();
   private _client: WsClient | null = null;
@@ -122,7 +129,7 @@ export class DragonConnection {
     this._serverProject = null;
     this.forgetPending();
     this.endStream();
-    this.set({ projectId: null, home: false, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [] });
+    this.set({ projectId: null, home: false, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [], offer: null });
   }
 
   get state(): DockState {
@@ -145,6 +152,11 @@ export class DragonConnection {
     this.follow(null, true);
   }
 
+  /** The person declined the offered project: the session stays where it is (TASK-190). */
+  dismissOffer(): void {
+    if (this._state.offer) this.set({ offer: null });
+  }
+
   /** Called when Dragon registered a project (a specification it wrote); returns the unsubscribe. */
   onProjectsChanged(listener: () => void): () => void {
     this._projectListeners.add(listener);
@@ -159,7 +171,7 @@ export class DragonConnection {
     if (this.target() === (home ? HOME : projectId) && (this._state.phase === 'switching' || this._state.phase === 'ready')) return;
     this.endStream();
     this.forgetPending();
-    this.set({ projectId, home, phase: 'switching', messages: [], typing: false, status: null, projectName: null });
+    this.set({ projectId, home, phase: 'switching', messages: [], typing: false, status: null, projectName: null, offer: null });
     if (!this._client) this.connect();
     else if (this._client.connected && !this._awaitingResume) this.sendSelect();
   }
@@ -268,6 +280,14 @@ export class DragonConnection {
         this.endStream();
         this.set({ phase: 'ready', messages: [], typing: false, status: null, projectName: str(msg.projectName) || null });
         this.sendReady();
+      }
+      return;
+    }
+
+    if (type === 'project_switch_offered') {
+      const projectId = str(msg.projectId);
+      if (projectId && !this._state.home && projectId !== this._state.projectId && msg.isReplay !== true) {
+        this.set({ offer: { projectId, projectName: str(msg.projectName) || projectId } });
       }
       return;
     }

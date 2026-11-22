@@ -534,6 +534,70 @@ public class DragonProjectSocketTests : IDisposable
         finally { SafeDispose(factory); }
     }
 
+    [Fact]
+    public async Task In_a_workspace_a_project_loaded_from_the_chat_is_offered_and_the_session_stays()
+    {
+        // TASK-190 (decided: ask, and stay until the person agrees). Before, the chat-driven load moved the session to
+        // the other project while the web dock kept showing the opened one.
+        var factory = CreateFactory();
+        try
+        {
+            var shop = await CreateProject(factory, UserA, "Shop");
+            var blog = await CreateProject(factory, UserA, "Blog");
+            await SaveConversation(factory, shop, "Build a shop", "Which payment provider?");
+            await SaveConversation(factory, blog, "Build a blog", "Static or dynamic?");
+            var projects = factory.Services.GetRequiredService<ProjectService>();
+            var service = factory.Services.GetRequiredService<DragonService>();
+            var shopFolder = projects.GetProject(shop)!.Paths.Output;
+
+            using var client = await Client.ConnectAsync(factory, Token(factory, UserA));
+            var (selected, _) = await client.SelectAsync(shop, expected: 2);
+            var session = service.GetSession(Str(selected, "sessionId")!)!;
+            var contextBefore = ContextTexts(session.Dragon!);
+
+            await service.OnProjectLoadedAsync(session, projects.GetProject(blog)!.Paths.Output);
+
+            var offer = await client.WaitForAsync(m => Str(m, "type") == "project_switch_offered");
+            offer.Should().NotBeNull("the dock is offered the project Dragon loaded");
+            Str(offer!.Value, "projectId").Should().Be(blog);
+            Str(offer.Value, "projectName").Should().Be("Blog");
+            session.CurrentProjectFolder.Should().Be(shopFolder, "the session stays on the project the person opened");
+            session.PendingContextReset.Should().BeFalse();
+            session.MessageHistory.Select(m => Text(JsonSerializer.SerializeToElement(m.Data))).Should()
+                .Equal("Build a shop", "Which payment provider?");
+            ContextTexts(session.Dragon!).Should().Equal(contextBefore);
+
+            // Accepting is the client's own select_project: Dragon then follows with the blog's conversation
+            var (_, replayed) = await client.SelectAsync(blog, expected: 2);
+            replayed.Should().Equal("Build a blog", "Static or dynamic?");
+            session.CurrentProjectFolder.Should().Be(projects.GetProject(blog)!.Paths.Output);
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Fact]
+    public async Task A_project_the_caller_cannot_see_is_not_offered()
+    {
+        var factory = CreateFactory();
+        try
+        {
+            var shop = await CreateProject(factory, UserA, "Shop");
+            var theirs = await CreateProject(factory, UserB, "Secret");
+            var projects = factory.Services.GetRequiredService<ProjectService>();
+            var service = factory.Services.GetRequiredService<DragonService>();
+
+            using var client = await Client.ConnectAsync(factory, Token(factory, UserA));
+            var (selected, _) = await client.SelectAsync(shop, expected: 0);
+            var session = service.GetSession(Str(selected, "sessionId")!)!;
+
+            await service.OnProjectLoadedAsync(session, projects.GetProject(theirs)!.Paths.Output);
+
+            (await client.WaitForAsync(m => Str(m, "type") == "project_switch_offered", seconds: 3)).Should().BeNull();
+            session.CurrentProjectFolder.Should().Be(projects.GetProject(shop)!.Paths.Output);
+        }
+        finally { SafeDispose(factory); }
+    }
+
     private static async Task WaitUntil(Func<Task<bool>> condition, int seconds = 10)
     {
         var until = DateTime.UtcNow.AddSeconds(seconds);

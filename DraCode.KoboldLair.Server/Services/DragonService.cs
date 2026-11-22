@@ -64,6 +64,13 @@ namespace DraCode.KoboldLair.Server.Services
         public bool Home { get; set; }
 
         /// <summary>
+        /// The client opened this session's project itself (<c>select_project</c>: the web workspace). Such a session keeps
+        /// that project when Dragon loads another one from the chat; the client is offered the other project instead
+        /// (<c>project_switch_offered</c>, TASK-190). A session no client selected for keeps the chat-driven switch.
+        /// </summary>
+        public bool SelectedByClient { get; set; }
+
+        /// <summary>
         /// Dragon switched project from the chat (its spec tool loaded another project): after the reply that announced
         /// it, Dragon's LLM context is rebuilt from the new project's conversation
         /// (<see cref="DragonService.ApplyPendingContextReset"/>, TASK-180), so the old project's exchange does not leak.
@@ -179,6 +186,9 @@ namespace DraCode.KoboldLair.Server.Services
 
         private readonly ILogger<DragonService> _logger;
         private readonly ConcurrentDictionary<string, DragonSession> _sessions;
+
+        /// <summary>A live session by id (read by tests).</summary>
+        internal DragonSession? GetSession(string sessionId) => _sessions.TryGetValue(sessionId, out var s) ? s : null;
         private readonly ConcurrentDictionary<string, WebSocket> _sessionWebSockets;
         private readonly ProviderConfigurationService _providerConfigService;
         private readonly ProjectService _projectService;
@@ -822,6 +832,17 @@ namespace DraCode.KoboldLair.Server.Services
             if (SameFolder(session.CurrentProjectFolder, projectFolder))
                 return null; // Already on this project
 
+            // In a workspace the person chose the project: Dragon only reads the other one, and the client is asked
+            // whether to open it (TASK-190). Nothing of the session moves until the person agrees.
+            if (session.SelectedByClient && !session.Home)
+            {
+                _logger.LogInformation("Session {SessionId} loaded {Folder} from the chat; it stays on {Current} and offers the switch",
+                    session.SessionId, projectFolder, session.CurrentProjectFolder);
+                if (currentProject != null)
+                    await OfferProjectSwitchAsync(session, currentProject);
+                return null;
+            }
+
             var isProjectSwitch = session.CurrentProjectFolder != null;
             session.CurrentProjectFolder = projectFolder;
 
@@ -1058,6 +1079,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             session.CurrentProjectFolder = folder;
             session.Home = false;
+            session.SelectedByClient = true;
             session.PendingContextReset = false;
             session.WelcomeSent = true;
             lock (session._historyLock)
@@ -1157,6 +1179,7 @@ namespace DraCode.KoboldLair.Server.Services
                 history = history.Skip(history.Count - _maxMessageHistory).ToList();
 
             session.Home = true;
+            session.SelectedByClient = false;
             session.CurrentProjectFolder = null;
             session.PendingContextReset = false;
             session.WelcomeSent = true;
@@ -1525,8 +1548,10 @@ namespace DraCode.KoboldLair.Server.Services
                     var gitInitialized = gitInstalled && await _gitService.IsRepositoryAsync(projectFolder);
                     var gitStatus = gitInitialized ? "initialized" : (gitInstalled ? "not_initialized" : "not_installed");
 
-                    // Set current project folder and load history if available
-                    if (session.CurrentProjectFolder != projectFolder)
+                    // Set current project folder and load history if available — not in a workspace, which keeps the project
+                    // the person opened and is offered the new one below (TASK-190)
+                    var keepsSelected = session.SelectedByClient && !session.Home;
+                    if (!keepsSelected && session.CurrentProjectFolder != projectFolder)
                     {
                         session.CurrentProjectFolder = projectFolder;
                         var loadedHistory = session.Home ? null : await LoadProjectHistoryAsync(projectFolder);
@@ -1585,8 +1610,33 @@ namespace DraCode.KoboldLair.Server.Services
                         gitInstalled,
                         gitInitialized
                     });
+
+                    if (keepsSelected && projectId != null && !SameFolder(session.CurrentProjectFolder, projectFolder)
+                        && _projectService.GetProject(projectId) is { } created)
+                        await OfferProjectSwitchAsync(session, created);
                 }
             }
+        }
+
+        /// <summary>
+        /// Tells the client Dragon loaded another project from the chat while the session stays on the one the person
+        /// opened (TASK-190): <c>project_switch_offered</c>, which the web dock shows as a notice to open that project.
+        /// Only a project the caller can see; not saved to the conversation, as it is an offer, not a message.
+        /// </summary>
+        private async Task OfferProjectSwitchAsync(DragonSession session, Project project)
+        {
+            if (!GetVisibleProjects(session).Any(p => p.Id == project.Id))
+                return;
+            if (!_sessionWebSockets.TryGetValue(session.SessionId, out var webSocket))
+                return;
+            await SendMessageAsync(webSocket, new
+            {
+                type = "project_switch_offered",
+                sessionId = session.SessionId,
+                projectId = project.Id,
+                projectName = project.Name,
+                timestamp = DateTime.UtcNow
+            });
         }
 
         private async Task SendThinkingUpdateAsync(WebSocket webSocket, DragonSession session, string sessionId, string eventType, string content, string? agentSource = null)
