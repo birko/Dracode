@@ -528,6 +528,18 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// Whether a working tree holds changes no commit has: modified, staged or untracked files (TASK-168). Null when
+        /// git cannot tell, which a caller deciding whether to delete the tree treats as "yes".
+        /// </summary>
+        public async Task<bool?> HasUncommittedChangesAsync(string workingTree)
+        {
+            if (!Directory.Exists(workingTree))
+                return false;
+            var result = await RunGitCommandAsync(workingTree, "status", "--porcelain");
+            return result.Success ? !string.IsNullOrWhiteSpace(result.Output) : null;
+        }
+
+        /// <summary>
         /// Gets the git status (staged, unstaged, untracked files)
         /// </summary>
         public async Task<string> GetStatusAsync(string projectFolder)
