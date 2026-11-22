@@ -4,7 +4,12 @@ using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Birko.AI;
+using Birko.AI.Models;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
 using Birko.Security;
+using DraCode.KoboldLair.Agents;
 using DraCode.KoboldLair.Data.Repositories.Sql;
 using DraCode.KoboldLair.Server.Services;
 using DraCode.KoboldLair.Services;
@@ -454,6 +459,79 @@ public class DragonProjectSocketTests : IDisposable
         }
         finally { SafeDispose(factory); }
         await Task.CompletedTask;
+    }
+
+    private sealed class NoCallsProvider : ILlmProvider
+    {
+        public string Name => "none";
+        public Action<string, string>? MessageCallback { get; set; }
+        public Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools,
+            string systemPrompt, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private static List<string> ContextTexts(DragonAgent dragon) =>
+        dragon.Conversation.Select(m => m.Content as string ?? "").ToList();
+
+    [Fact]
+    public async Task After_a_switch_made_from_the_chat_Dragon_holds_only_the_new_projects_conversation()
+    {
+        // TASK-180: the chat route (Dragon's spec tool loading another project) set a flag nothing read, so Dragon's
+        // LLM context kept the old project's exchange after the switch.
+        var factory = CreateFactory();
+        try
+        {
+            var shop = await CreateProject(factory, UserA, "Shop");
+            var blog = await CreateProject(factory, UserA, "Blog");
+            await SaveConversation(factory, shop, "Build a shop", "Which payment provider?");
+            await SaveConversation(factory, blog, "Build a blog", "Static or dynamic?");
+            var projects = factory.Services.GetRequiredService<ProjectService>();
+            var service = factory.Services.GetRequiredService<DragonService>();
+            var dragon = new DragonAgent(new NoCallsProvider(), new AgentOptions { Verbose = false });
+            var session = new DragonSession
+            {
+                SessionId = "s-chat", OwnerSub = UserA, Dragon = dragon,
+                CurrentProjectFolder = projects.GetProject(shop)!.Paths.Output
+            };
+            session.MessageHistory.AddRange(Turns("Build a shop", "Which payment provider?"));
+            dragon.RestoreContext([("user", "Build a shop"), ("assistant", "Which payment provider?")]);
+
+            // The request: the user asks for the blog, Dragon's tool loads it, Dragon replies
+            await service.OnProjectLoadedAsync(session, projects.GetProject(blog)!.Paths.Output);
+            dragon.RestoreContext([("user", "Open the blog"), ("assistant", "Here is the blog.")]); // Dragon's own write-back
+            session.MessageHistory.Add(Turns("x", "Here is the blog.")[1]);
+            service.ApplyPendingContextReset(session);
+
+            var context = ContextTexts(dragon);
+            context.Should().NotContain("Build a shop").And.NotContain("Which payment provider?");
+            // The blog's conversation, its last Dragon turn joined with the reply that announced the switch
+            context.Should().HaveCount(2);
+            context[0].Should().Be("Build a blog");
+            context[1].Should().StartWith("Static or dynamic?").And.Contain("Here is the blog.");
+            session.PendingContextReset.Should().BeFalse("the reset is consumed");
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Fact]
+    public async Task The_chat_route_keys_a_project_by_the_folder_select_project_uses()
+    {
+        var factory = CreateFactory();
+        try
+        {
+            var blog = await CreateProject(factory, UserA, "Blog");
+            var projects = factory.Services.GetRequiredService<ProjectService>();
+            var service = factory.Services.GetRequiredService<DragonService>();
+            var output = projects.GetProject(blog)!.Paths.Output;
+            var session = new DragonSession { SessionId = "s-key", OwnerSub = UserA };
+
+            // The spec tool may name the folder another way: here with a trailing separator and in another case
+            await service.OnProjectLoadedAsync(session, output.ToUpperInvariant() + Path.DirectorySeparatorChar);
+
+            session.CurrentProjectFolder.Should().Be(output);
+        }
+        finally { SafeDispose(factory); }
     }
 
     private static async Task WaitUntil(Func<Task<bool>> condition, int seconds = 10)

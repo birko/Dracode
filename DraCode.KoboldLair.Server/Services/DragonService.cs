@@ -64,8 +64,9 @@ namespace DraCode.KoboldLair.Server.Services
         public bool Home { get; set; }
 
         /// <summary>
-        /// Tracks whether the Dragon's conversation context should be reset after the current response.
-        /// Set when switching between projects so old project context doesn't leak.
+        /// Dragon switched project from the chat (its spec tool loaded another project): after the reply that announced
+        /// it, Dragon's LLM context is rebuilt from the new project's conversation
+        /// (<see cref="DragonService.ApplyPendingContextReset"/>, TASK-180), so the old project's exchange does not leak.
         /// </summary>
         public bool PendingContextReset { get; set; }
 
@@ -809,10 +810,16 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Called when a project specification is loaded. Sets the session's project folder,
         /// loads conversation history, and returns a brief summary for the Dragon to present.
+        /// The folder is the project's own <c>Paths.Output</c> when it is a registered project, the key
+        /// <c>select_project</c> uses too, so both routes read and write one conversation (TASK-180).
         /// </summary>
         internal async Task<string?> OnProjectLoadedAsync(DragonSession session, string projectFolder)
         {
-            if (session.CurrentProjectFolder == projectFolder)
+            var currentProject = FindProjectByFolder(projectFolder);
+            if (currentProject != null)
+                projectFolder = currentProject.Paths.Output;
+
+            if (SameFolder(session.CurrentProjectFolder, projectFolder))
                 return null; // Already on this project
 
             var isProjectSwitch = session.CurrentProjectFolder != null;
@@ -821,27 +828,6 @@ namespace DraCode.KoboldLair.Server.Services
             // Update Dragon's context with project-specific paths
             if (session.Dragon != null)
             {
-                // Find the project to get its allowed external paths
-                var allProjects = _projectService.GetAllProjects();
-
-                // Normalize the project folder for comparison (handle relative vs absolute paths)
-                var normalizedProjectFolder = Path.GetFullPath(projectFolder);
-
-                var currentProject = allProjects.FirstOrDefault(p =>
-                {
-                    if (string.IsNullOrEmpty(p.Paths.Output))
-                        return false;
-
-                    // Get the full path of the project's output directory
-                    var projectOutputPath = Path.IsPathRooted(p.Paths.Output)
-                        ? p.Paths.Output
-                        : Path.Combine(_projectsPath, p.Paths.Output);
-                    projectOutputPath = Path.GetFullPath(projectOutputPath);
-
-                    // Compare normalized paths
-                    return string.Equals(projectOutputPath, normalizedProjectFolder, StringComparison.OrdinalIgnoreCase);
-                });
-
                 List<string>? allowedPaths = null;
                 if (currentProject != null)
                 {
@@ -866,7 +852,8 @@ namespace DraCode.KoboldLair.Server.Services
             }
             else if (isProjectSwitch)
             {
-                // Switching between projects - reset Dragon context after response is sent
+                // Switching between projects - Dragon's context is rebuilt from the new project's conversation after
+                // the reply that announced the switch (ApplyPendingContextReset)
                 session.PendingContextReset = true;
 
                 // Clear old project's message history
@@ -931,6 +918,40 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogError(ex, "Failed to load conversation history for project folder: {Folder}", projectFolder);
                 return null;
             }
+        }
+
+        /// <summary>The registered project whose folder (<c>Paths.Output</c>) is <paramref name="folder"/>, or null.</summary>
+        private Project? FindProjectByFolder(string folder) =>
+            _projectService.GetAllProjects().FirstOrDefault(p => !string.IsNullOrEmpty(p.Paths.Output)
+                && SameFolder(Path.IsPathRooted(p.Paths.Output) ? p.Paths.Output : Path.Combine(_projectsPath, p.Paths.Output), folder));
+
+        /// <summary>Whether two folder paths name one folder (full paths, no trailing separator, any case).</summary>
+        private static bool SameFolder(string? a, string? b) =>
+            a != null && b != null && string.Equals(
+                Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// After a reply: when that request switched project from the chat (<see cref="DragonSession.PendingContextReset"/>),
+        /// Dragon's LLM context becomes the new project's conversation — its saved history and the reply that announced
+        /// the switch — as <c>select_project</c> builds it (TASK-180). Runs after Dragon's own write-back of the
+        /// conversation, which would otherwise put the old project's exchange back.
+        /// </summary>
+        internal void ApplyPendingContextReset(DragonSession session)
+        {
+            if (!session.PendingContextReset || session.Dragon == null)
+                return;
+            session.PendingContextReset = false;
+            List<SessionMessage> snapshot;
+            lock (session._historyLock)
+            {
+                snapshot = new List<SessionMessage>(session.MessageHistory);
+            }
+            session.Dragon.ClearContext();
+            session.Dragon.RestoreContext(ConversationFromHistory(snapshot));
+            _logger.LogInformation("Session {SessionId}: Dragon's context rebuilt from {Folder}'s conversation ({Count} messages)",
+                session.SessionId, session.CurrentProjectFolder, snapshot.Count);
         }
 
         /// <summary>
@@ -1037,6 +1058,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             session.CurrentProjectFolder = folder;
             session.Home = false;
+            session.PendingContextReset = false;
             session.WelcomeSent = true;
             lock (session._historyLock)
             {
@@ -1136,6 +1158,7 @@ namespace DraCode.KoboldLair.Server.Services
 
             session.Home = true;
             session.CurrentProjectFolder = null;
+            session.PendingContextReset = false;
             session.WelcomeSent = true;
             lock (session._historyLock)
             {
@@ -1433,6 +1456,7 @@ namespace DraCode.KoboldLair.Server.Services
                         ["isStreamed"] = isStreamed,
                         ["timestamp"] = DateTime.UtcNow
                     });
+                    ApplyPendingContextReset(session);
                     return Task.CompletedTask;
                 };
 

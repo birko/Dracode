@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-11-22 19:46. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-22 20:17. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,7 +11,7 @@ _Generated 2026-11-22 19:46. Run `/tasks triage` to refresh. **Do not hand-edit*
 | in-progress  | 7                  | 13                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 3                  | 101                 |
+| done         | 1                  | 3                  | 102                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
 `todo` by priority: 9× P1 · 48× P2 · 21× P3.
@@ -227,12 +227,12 @@ _None_
   - STORY-044 Follow Birko framework contract changes — planned (0/1 done)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies
     - ~~[TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule~~
-- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (11/17 tasks done)
+- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (12/18 tasks done)
   - STORY-041 Security & tenancy — planned (3/3 done)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller
     - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing
-  - STORY-042 Correctness & invariants — in-progress (8/13 done)
+  - STORY-042 Correctness & invariants — in-progress (9/14 done)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other
     - [x] [TASK-168](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-168-worktree-removed-with-uncommitted-work.md) A task's worktree is force-removed after its run even when the work was never committed
     - [ ] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping
@@ -240,9 +240,10 @@ _None_
     - [x] [TASK-169](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-169-monitor-escalations-routed-to-first-drake.md) Reasoning-monitor escalations go to the project's first Drake, not the one holding the task
     - [x] [TASK-178](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-178-verification-fix-tasks-never-run.md) Verification fix tasks are never run, and new ones are written every cycle
     - [x] [TASK-179](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-179-verification-checks-run-outside-the-workspace.md) Verification checks run outside the code they check, so a fixed project fails verification forever
-    - [ ] [TASK-180](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-180-chat-project-switch-keeps-old-context.md) A project switch made from the chat keeps the old project's conversation in Dragon's context
+    - [x] [TASK-180](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-180-chat-project-switch-keeps-old-context.md) A project switch made from the chat keeps the old project's conversation in Dragon's context
     - [x] [TASK-186](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-186-new-project-reuses-loaded-project-folder.md) A new project cannot be created once Dragon has loaded another project in the session
     - [x] [TASK-187](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-187-new-message-cancels-running-answer.md) A message sent while Dragon is still answering cancels that answer, and Dragon replies without it
+    - [ ] [TASK-190](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-190-dock-stays-on-project-after-chat-switch.md) After Dragon switches project from the chat, the web dock still shows the project that was opened · FEATURE-026
     - [ ] [TASK-181](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-181-dragon-request-queue-dispose-throws.md) DragonRequestQueue.Dispose throws when it stops its workers
     - [ ] [TASK-182](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-182-finished-task-escalated-as-stalled.md) A finished task is escalated as "progress stalled" and its plan revised after it is Done
     - [ ] [TASK-189](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-189-flaky-auth-spec-config-route.md) An e2e auth test fails about one run in six: its config route is still fetching when the page closes

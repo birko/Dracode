@@ -194,6 +194,9 @@ Prototype (Sage) → New (queued for Wyrm/Wyvern) → Analyzed (tasks ready) →
         /// </summary>
         public int ConversationMessageCount => _conversationHistory.Count;
 
+        /// <summary>Dragon's LLM conversation as it stands (read by tests, TASK-180).</summary>
+        internal IReadOnlyList<Message> Conversation => _conversationHistory;
+
         /// <summary>
         /// Clears the conversation history
         /// </summary>
