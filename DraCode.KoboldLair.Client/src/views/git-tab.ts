@@ -3,12 +3,18 @@
  * main each is, whether it merges cleanly (or the files it would conflict in), its last commit — and, for the branch
  * chosen, the files it changes and its diff against main, file by file (`git diff main...branch`, what merging would
  * bring). Data from `GET /api/v1/projects/{id}/git/branches` and `.../git/branches/{name}/diff`. Loaded when the tab
- * opens and on Refresh (each listing runs a merge check per branch, so it does not poll). Merging is TASK-157.
+ * opens and on Refresh (each listing runs a merge check per branch, so it does not poll).
+ *
+ * Merging (TASK-157): the chosen branch has "Merge into main", confirmed in the page (not a browser dialog), then
+ * `POST .../git/branches/{name}/merge`: a merged branch is deleted and leaves the list, and its ready-to-merge item leaves
+ * the bell and Needs you; a conflict lists the files, and the repository is left as it was.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
 import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
+import { needsYouStore } from '../stores/needs-you-store.js';
+import { notificationStore } from '../stores/notification-store.js';
 
 export interface BranchView {
   name: string;
@@ -30,6 +36,13 @@ type ListState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'loaded'; repository: boolean; base: string; branches: BranchView[] };
+
+type MergeState =
+  | { kind: 'idle' }
+  | { kind: 'confirm' }
+  | { kind: 'merging' }
+  | { kind: 'conflict'; files: string[]; message: string }
+  | { kind: 'failed'; message: string };
 
 type DiffState = { kind: 'none' } | { kind: 'loading'; branch: string } | { kind: 'error'; branch: string; message: string } | { kind: 'loaded'; diff: DiffView };
 
@@ -59,6 +72,9 @@ function patchHtml(patch: string): string {
 export class GitTab extends KoboldComponent {
   private _list: ListState = { kind: 'loading' };
   private _diff: DiffState = { kind: 'none' };
+  private _merge: MergeState = { kind: 'idle' };
+  /** What the last merge did, shown above the list until the next one. */
+  private _merged: string | null = null;
 
   static get styles() {
     return `
@@ -103,6 +119,14 @@ export class GitTab extends KoboldComponent {
       .line.hunk { color: var(--b-color-info, var(--b-color-primary)); background: var(--b-bg-secondary); }
       .line.meta { color: var(--b-text-muted); }
       .note { margin: var(--b-space-xs, 0.25rem) var(--b-space-sm, 0.5rem); font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); }
+      .merge-box { display: flex; flex-wrap: wrap; align-items: center; gap: var(--b-space-sm, 0.5rem); margin: 0 0 var(--b-space-md, 0.75rem);
+        padding: var(--b-space-sm, 0.5rem) var(--b-space-md, 0.75rem); border: 1px solid var(--b-border); border-radius: var(--b-radius, 0.375rem);
+        background: var(--b-bg-secondary); font-size: var(--b-text-sm, 0.8125rem); }
+      .merge-box.conflict { border-color: var(--b-color-danger); }
+      .merge-box p { margin: 0; flex: 1 1 14rem; overflow-wrap: anywhere; }
+      .merge-box ul { flex-basis: 100%; margin: 0; padding-left: 1.25rem; font-family: var(--b-font-mono, monospace); font-size: var(--b-text-xs, 0.75rem); }
+      .merged { margin: 0 0 var(--b-space-sm, 0.5rem); padding: var(--b-space-xs, 0.25rem) var(--b-space-sm, 0.5rem); border-radius: var(--b-radius, 0.375rem);
+        background: var(--b-color-success-light, var(--b-bg-secondary)); color: var(--b-color-success-text, var(--b-text)); font-size: var(--b-text-sm, 0.8125rem); overflow-wrap: anywhere; }
     `;
   }
 
@@ -134,6 +158,7 @@ export class GitTab extends KoboldComponent {
   }
 
   private async open(branch: string): Promise<void> {
+    if (this._diff.kind !== 'loaded' || this._diff.diff.branch !== branch) this._merge = { kind: 'idle' };
     this._diff = { kind: 'loading', branch };
     this.update();
     try {
@@ -154,7 +179,8 @@ export class GitTab extends KoboldComponent {
     if (list.kind === 'loading') return `<b-spinner></b-spinner>`;
     if (list.kind === 'error') return `<p class="message"><strong>Could not load the branches.</strong> ${escapeHtml(list.message)}</p>`;
     if (!list.repository) return `<p class="message"><strong>No git repository yet.</strong> The project's repository is made when its folder is.</p>`;
-    const bar = `<div class="bar"><span>${list.branches.length === 1 ? '1 branch' : `${list.branches.length} branches`} besides ${escapeHtml(list.base)}</span>
+    const merged = this._merged ? `<p class="merged" role="status">${escapeHtml(this._merged)}</p>` : '';
+    const bar = `${merged}<div class="bar"><span>${list.branches.length === 1 ? '1 branch' : `${list.branches.length} branches`} besides ${escapeHtml(list.base)}</span>
       <span class="spacer"></span><b-button class="refresh" size="sm" variant="ghost">Refresh</b-button></div>`;
     if (list.branches.length === 0) {
       return `${bar}<p class="message"><strong>No branches besides ${escapeHtml(list.base)}.</strong> Each feature gets its branch when the
@@ -191,6 +217,7 @@ export class GitTab extends KoboldComponent {
     const deleted = diff.files.reduce((n, f) => n + f.deleted, 0);
     return `
       <h3>${escapeHtml(diff.branch)} — ${diff.files.length === 1 ? '1 file' : `${diff.files.length} files`}, <span class="plus">+${added}</span> <span class="minus">−${deleted}</span></h3>
+      ${this.mergeHtml(diff)}
       <ul class="files">${diff.files.map((f, i) => `<li data-path="${escapeHtml(f.path)}">
         <span class="mark ${STATUS_MARK[f.status] ?? ''}" title="${escapeHtml(f.status)}">${STATUS_MARK[f.status] ?? '?'}</span>
         <a href="#" data-file="${i}">${f.oldPath ? `${escapeHtml(f.oldPath)} → ` : ''}${escapeHtml(f.path)}</a>
@@ -203,7 +230,70 @@ export class GitTab extends KoboldComponent {
       ${diff.truncated ? `<p class="note">The whole diff is too long; later files are listed without their changes.</p>` : ''}`;
   }
 
+  /** The merge control for the chosen branch: a button, the confirmation, or what the merge answered. */
+  private mergeHtml(diff: DiffView): string {
+    const m = this._merge;
+    const branch = escapeHtml(diff.branch);
+    const base = escapeHtml(diff.base);
+    const summary = this._list.kind === 'loaded' ? this._list.branches.find((b) => b.name === diff.branch) : undefined;
+    switch (m.kind) {
+      case 'confirm':
+        return `<div class="merge-box confirm" role="group" aria-label="Confirm the merge">
+          <p>Merge <strong>${branch}</strong> into ${base} and delete the branch?</p>
+          <b-button class="merge-confirm" size="sm" variant="primary">Merge</b-button>
+          <b-button class="merge-cancel" size="sm" variant="secondary">Cancel</b-button></div>`;
+      case 'merging':
+        return `<div class="merge-box"><p>Merging ${branch} into ${base}…</p><b-button size="sm" variant="primary" loading>Merge</b-button></div>`;
+      case 'conflict':
+        return `<div class="merge-box conflict" role="alert"><p>Not merged: ${escapeHtml(m.message)} Nothing in the repository changed. It conflicts in:</p>
+          <b-button class="merge-dismiss" size="sm" variant="secondary">Close</b-button>
+          <ul class="conflicts">${m.files.map((f) => `<li>${escapeHtml(f)}</li>`).join('')}</ul></div>`;
+      case 'failed':
+        return `<div class="merge-box conflict" role="alert"><p>Not merged: ${escapeHtml(m.message)}</p>
+          <b-button class="merge-dismiss" size="sm" variant="secondary">Close</b-button></div>`;
+      default:
+        return `<div class="merge-box"><p>${summary?.mergesCleanly === false
+          ? `Git expects conflicts with ${base}; a merge would be refused.`
+          : `Merging brings these changes into ${base} and deletes the branch.`}</p>
+          <b-button class="merge" size="sm" variant="primary">Merge into ${base}</b-button></div>`;
+    }
+  }
+
+  private async merge(branch: string): Promise<void> {
+    this._merge = { kind: 'merging' };
+    this.update();
+    try {
+      const response = await createRestClient().post<{ mergeCommit?: string; deleted?: boolean; message?: string; conflicts?: string[] }>(
+        `/projects/${encodeURIComponent(this.projectId)}/git/branches/${encodeURIComponent(branch)}/merge`);
+      if (response.ok) {
+        const commit = response.data?.mergeCommit ? ` (${response.data.mergeCommit.slice(0, 8)})` : '';
+        this._merged = `Merged ${branch} into main${commit}; ${response.data?.deleted === false ? 'the branch could not be deleted.' : 'the branch was deleted.'}`;
+        this._merge = { kind: 'idle' };
+        this._diff = { kind: 'none' };
+        void needsYouStore.refresh();
+        void notificationStore.refresh();
+        await this.load();
+        return;
+      }
+      this._merge = response.status === 409
+        ? { kind: 'conflict', files: response.data?.conflicts ?? [], message: response.data?.message ?? 'the branch does not merge cleanly.' }
+        : { kind: 'failed', message: response.data?.message ?? `the server answered ${response.status}.` };
+    } catch (error) {
+      this._merge = { kind: 'failed', message: error instanceof Error ? error.message : String(error) };
+    }
+    if (this.isConnected) this.update();
+  }
+
   protected onUpdated() {
+    const branchName = this._diff.kind === 'loaded' ? this._diff.diff.branch : null;
+    const on = (selector: string, action: () => void) => {
+      const el = this.$(selector);
+      if (el) this.listen(el, 'click', action);
+    };
+    on('b-button.merge', () => { this._merge = { kind: 'confirm' }; this._merged = null; this.update(); });
+    on('b-button.merge-cancel', () => { this._merge = { kind: 'idle' }; this.update(); });
+    on('b-button.merge-dismiss', () => { this._merge = { kind: 'idle' }; this.update(); });
+    on('b-button.merge-confirm', () => { if (branchName) void this.merge(branchName); });
     const refresh = this.$('b-button.refresh');
     if (refresh) this.listen(refresh, 'click', () => void this.load());
     const branches = this.$('.branches');
