@@ -14,11 +14,15 @@ import { getToken } from '../auth-store.js';
 import './providers-page.js';
 import type { AgentProvidersTab } from './agent-providers-tab.js';
 import './agent-providers-tab.js';
+import './api-keys-page.js';
 
 export interface SettingsCapabilities {
   canManageProviders: boolean;
   providersEnabled: boolean;
   providersHint: string | null;
+  /** Service-account API keys (TASK-162): any signed-in user, when the server's OAuth is on. */
+  keysEnabled?: boolean;
+  keysHint?: string | null;
 }
 
 type State =
@@ -74,16 +78,19 @@ export class SettingsView extends KoboldComponent {
         return '<div class="message"><strong>Sign in to change settings.</strong>Settings come from the server’s API, which needs a signed-in user.</div>';
       case 'error':
         return `<div class="message"><strong>Could not load your settings.</strong>${escapeHtml(s.message)}</div>`;
-      case 'loaded':
-        if (!s.caps.canManageProviders) {
-          return '<div class="message"><strong>Nothing to set here for your account yet.</strong>Provider settings are for administrators.</div>';
-        }
+      case 'loaded': {
+        const admin = s.caps.canManageProviders;
+        const keys = `<div slot="keys" class="panel">${s.caps.keysEnabled
+          ? '<kobold-api-keys-page></kobold-api-keys-page>'
+          : `<div class="message keys-off"><strong>API keys are off on this server.</strong>${escapeHtml(s.caps.keysHint ?? '')}</div>`}</div>`;
         return `<b-tabs id="settingsTabs">
-          <div slot="providers" class="panel">${s.caps.providersEnabled
+          ${admin ? `<div slot="providers" class="panel">${s.caps.providersEnabled
             ? '<kobold-providers-page></kobold-providers-page>'
-            : `<div class="message providers-off"><strong>Provider management is off on this server.</strong>${escapeHtml(s.caps.providersHint ?? '')}</div>`}</div>
-          ${s.caps.providersEnabled ? '<div slot="agents" class="panel"><kobold-agent-providers></kobold-agent-providers></div>' : ''}
+            : `<div class="message providers-off"><strong>Provider management is off on this server.</strong>${escapeHtml(s.caps.providersHint ?? '')}</div>`}</div>` : ''}
+          ${admin && s.caps.providersEnabled ? '<div slot="agents" class="panel"><kobold-agent-providers></kobold-agent-providers></div>' : ''}
+          ${keys}
         </b-tabs>`;
+      }
     }
   }
 
@@ -91,10 +98,14 @@ export class SettingsView extends KoboldComponent {
     const tabs = this.$<BTabs>('#settingsTabs');
     // b-tabs takes its labels from setTabs() and its panels from children slotted by tab id (TASK-112)
     if (!tabs || this._state.kind !== 'loaded') return;
-    const list = [{ id: 'providers', label: 'Providers' }];
+    const caps = this._state.caps;
+    const list: { id: string; label: string }[] = [];
+    if (caps.canManageProviders) list.push({ id: 'providers', label: 'Providers' });
     // Which provider each agent uses (TASK-192): only where the providers live in the database
-    if (this._state.caps.providersEnabled) list.push({ id: 'agents', label: 'Agents' });
-    tabs.setTabs(list, this.getAttribute('tab') === 'agents' && list.length > 1 ? 'agents' : 'providers');
+    if (caps.canManageProviders && caps.providersEnabled) list.push({ id: 'agents', label: 'Agents' });
+    list.push({ id: 'keys', label: 'API keys' }); // every signed-in user (TASK-162)
+    const wanted = this.getAttribute('tab');
+    tabs.setTabs(list, list.some((t) => t.id === wanted) ? wanted! : list[0].id);
     // The Agents tab reloads when it is opened: a provider added or changed on the Providers tab must be choosable there
     this.listen<CustomEvent<{ tab: string }>>(tabs, 'tab-change', (e) => {
       if (e.detail.tab === 'agents') void this.$<AgentProvidersTab>('kobold-agent-providers')?.refresh();

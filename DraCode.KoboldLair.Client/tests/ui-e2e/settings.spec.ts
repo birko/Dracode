@@ -181,11 +181,10 @@ test('deleting a provider asks first, then removes it', async ({ page }) => {
   expect(requests.find((r) => r.method === 'DELETE')).toMatchObject({ path: 'providers/claude' });
 });
 
-test('a non-admin sees no Providers tab', async ({ page }) => {
+test('a non-admin sees no Providers or Agents tab, only API keys', async ({ page }) => {
   const requests = await serve(page, { canManageProviders: false, providersEnabled: true });
 
-  await expect(settings(page)).toContainText('Nothing to set here for your account yet');
-  await expect(settings(page).locator('b-tabs')).toHaveCount(0);
+  await expect(settings(page).locator('b-tabs').getByRole('tab')).toHaveText(['API keys']);
   expect(requests).toEqual([]);
 });
 

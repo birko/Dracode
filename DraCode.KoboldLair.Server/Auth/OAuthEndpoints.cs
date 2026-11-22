@@ -214,11 +214,14 @@ public static class OAuthEndpoints
         catch (OAuthServerException ex) { return Error(ex); }
     }
 
-    private static async Task<IResult> HandleRegisterAsync(ClientRegistrationRequest body, OAuthServer server)
+    private static async Task<IResult> HandleRegisterAsync(ClientRegistrationRequest body, OAuthServer server,
+        ICurrentUser user, ServiceKeyRegistry keys)
     {
         try
         {
             var r = await server.ClientRegistration.RegisterAsync(body);
+            // The admin who registered it owns it, so it shows in their Settings → API keys (TASK-162)
+            await keys.AddAsync(new ServiceKey(r.ClientId, user.GetClaim(System.Security.Claims.ClaimTypes.NameIdentifier) ?? "", r.Name, r.CreatedAt));
             return Results.Json(new
             {
                 client_id = r.ClientId,
