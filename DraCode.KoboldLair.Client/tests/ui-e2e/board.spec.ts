@@ -2,12 +2,16 @@ import { test, expect } from './fixtures.js';
 import type { Page, Request } from '@playwright/test';
 
 // TASK-153: the workspace's Board tab — the project's tasks in four status columns, Retry on a failed card, refreshing
-// on its own, and a compact list when its space is narrow. REST stubbed with page.route; the docked Dragon's socket is
-// held open silently.
+// on its own, and stacked compact columns when its space is narrow. TASK-183: drawn by Birko's b-kanban, every column
+// locked. REST stubbed with page.route; the docked Dragon's socket is held open silently.
 
 const board = (page: Page) => page.locator('#route-outlet kobold-board-tab');
-const column = (page: Page, id: string) => board(page).locator(`.column[data-column="${id}"]`);
-const card = (page: Page, taskId: string) => board(page).locator(`.card[data-task-id="${taskId}"]`);
+const kanban = (page: Page) => board(page).locator('b-kanban');
+const column = (page: Page, id: string) => kanban(page).locator(`.column[data-column-id="${id}"]`);
+const card = (page: Page, taskId: string) => kanban(page).locator(`.card[data-card-id="${taskId}"]`);
+/** Each column's "title count", e.g. "To do 2". */
+const heads = (page: Page) => kanban(page).locator('.column-header').evaluateAll((els) =>
+  els.map((el) => `${el.querySelector('.column-title')!.textContent} ${el.querySelector('.column-count')!.textContent}`));
 
 interface Task { id: string; task: string; status: string; priority: string; assignedAgent: string | null; errorMessage: string | null }
 
@@ -50,7 +54,7 @@ test('four status columns, each card with its title, agent and priority, a faile
   await serve(page, TASKS());
   await page.goto('/#/projects/p-1/board');
 
-  await expect(board(page).locator('.column-head')).toHaveText(['To do 2', 'In progress 2', 'Blocked·Failed 2', 'Done 1']);
+  await expect.poll(() => heads(page)).toEqual(['To do 2', 'In progress 2', 'Blocked·Failed 2', 'Done 1']);
   await expect(column(page, 'todo').locator('.title')).toHaveText(['Set up the project', 'Write the greet module']); // Critical first
   await expect(column(page, 'progress').locator('.card')).toHaveCount(2);
   await expect(column(page, 'blocked').locator('.card')).toHaveCount(2);
@@ -69,13 +73,27 @@ test('four status columns, each card with its title, agent and priority, a faile
   await expect(card(page, 't-6').locator('b-button.retry')).toHaveCount(0); // only Failed cards retry
 });
 
+test('the agents move the cards: every column is locked and no card can be dragged', async ({ page }) => {
+  await serve(page, TASKS());
+  await page.goto('/#/projects/p-1/board');
+  await expect(kanban(page).locator('.card')).toHaveCount(7);
+
+  await expect(kanban(page).locator('.column.locked')).toHaveCount(4);
+  expect(new Set(await kanban(page).locator('.card').evaluateAll((els) => els.map((el) => el.getAttribute('draggable'))))).toEqual(new Set(['false']));
+
+  // A drag attempt leaves the card where it was.
+  await card(page, 't-1').dragTo(column(page, 'done'));
+  await expect(column(page, 'todo').locator('.card[data-card-id="t-1"]')).toHaveCount(1);
+  await expect(column(page, 'done').locator('.card')).toHaveCount(1);
+});
+
 test('Retry on a failed card resets it and the card moves to To do', async ({ page }) => {
   const { retries } = await serve(page, TASKS());
   await page.goto('/#/projects/p-1/board');
 
   await card(page, 't-5').locator('b-button.retry').click();
-  await expect(column(page, 'todo').locator('.card[data-task-id="t-5"]')).toHaveCount(1);
-  await expect(column(page, 'blocked').locator('.card[data-task-id="t-5"]')).toHaveCount(0);
+  await expect(column(page, 'todo').locator('.card[data-card-id="t-5"]')).toHaveCount(1);
+  await expect(column(page, 'blocked').locator('.card[data-card-id="t-5"]')).toHaveCount(0);
   await expect(card(page, 't-5').locator('.error')).toHaveCount(0);
   expect(retries).toHaveLength(1);
   expect(retries[0].method()).toBe('POST');
@@ -97,13 +115,13 @@ test('the board refreshes on its own as the agents move the cards', async ({ pag
   const tasks = TASKS();
   await serve(page, tasks);
   await page.goto('/#/projects/p-1/board');
-  await expect(column(page, 'progress').locator('.card[data-task-id="t-3"]')).toHaveCount(1);
+  await expect(column(page, 'progress').locator('.card[data-card-id="t-3"]')).toHaveCount(1);
 
   Object.assign(tasks.find((t) => t.id === 't-3')!, { status: 'Done' });
   Object.assign(tasks.find((t) => t.id === 't-1')!, { status: 'Working', assignedAgent: 'csharp' });
 
-  await expect(column(page, 'done').locator('.card[data-task-id="t-3"]')).toHaveCount(1, { timeout: 12_000 });
-  await expect(column(page, 'progress').locator('.card[data-task-id="t-1"]')).toHaveCount(1);
+  await expect(column(page, 'done').locator('.card[data-card-id="t-3"]')).toHaveCount(1, { timeout: 12_000 });
+  await expect(column(page, 'progress').locator('.card[data-card-id="t-1"]')).toHaveCount(1);
   await expect(card(page, 't-1')).toContainText('csharp');
 });
 
@@ -113,26 +131,35 @@ test('a project with no tasks says where they come from', async ({ page }) => {
   await expect(board(page)).toContainText('No tasks yet');
 });
 
-test('in narrow space the board becomes a compact list', async ({ page }) => {
-  await serve(page, TASKS());
+test('in narrow space the columns stack and the cards turn compact', async ({ page }) => {
+  const tasks = TASKS();
+  await serve(page, tasks);
   await page.goto('/#/projects/p-1/board');
-  await expect(board(page).locator('.card')).toHaveCount(7);
+  await expect(kanban(page).locator('.card')).toHaveCount(7);
+  expect(await card(page, 't-1').locator('.title').evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('2');
 
-  const lefts = () => board(page).locator('.column').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
+  const lefts = () => kanban(page).locator('.column').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
   expect(new Set(await lefts()).size).toBe(4); // side by side
 
   // Dragon expanded (TASK-152) narrows the board's space; the board follows its own width, not the window's.
   await board(page).evaluate((el) => { (el as HTMLElement).style.width = '420px'; });
   await expect.poll(async () => new Set(await lefts()).size).toBe(1);
+  await expect(kanban(page)).toHaveAttribute('stacked', '');
   const titleLines = await card(page, 't-1').locator('.title').evaluate((el) => getComputedStyle(el).webkitLineClamp);
   expect(titleLines).toBe('1');
+
+  // A refresh that moves a card keeps the board stacked (re-rendering the view would strip b-kanban's own attribute).
+  tasks.find((t) => t.id === 't-3')!.status = 'Done';
+  await expect(column(page, 'done').locator('.card[data-card-id="t-3"]')).toHaveCount(1, { timeout: 12_000 });
+  await expect(kanban(page)).toHaveAttribute('stacked', '');
+  expect(new Set(await lefts()).size).toBe(1);
 });
 
-test('below the breakpoint the board is a compact list with no horizontal scroll', async ({ page }) => {
+test('below the breakpoint the columns stack with no horizontal scroll', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await serve(page, TASKS());
   await page.goto('/#/projects/p-1/board');
-  await expect(board(page).locator('.card')).toHaveCount(7);
+  await expect(kanban(page).locator('.card')).toHaveCount(7);
 
   const layout = await page.evaluate(() => {
     const content = document.querySelector('kobold-lair-shell')!.shadowRoot!.querySelector('.app-content') as HTMLElement;
@@ -142,6 +169,6 @@ test('below the breakpoint the board is a compact list with no horizontal scroll
     };
   });
   expect(layout).toEqual({ page: 0, content: 0 });
-  const lefts = await board(page).locator('.column').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
+  const lefts = await kanban(page).locator('.column').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
   expect(new Set(lefts).size).toBe(1);
 });
