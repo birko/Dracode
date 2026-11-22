@@ -275,12 +275,16 @@ export class DragonDock extends KoboldComponent {
     if (status) status.textContent = state.status ?? '';
   }
 
-  /** Bring b-chat to the state's messages: a streamed reply grows in place, anything else resets the list. */
+  /**
+   * Bring b-chat to the state's messages: a streamed reply grows in place, anything else resets the list (b-chat's
+   * in-place update redraws only the text, so a message whose waiting mark changed is redrawn with the list, TASK-187).
+   */
   private sync(chat: BChat): void {
     const next = this._state.messages;
     const prev = this._shown;
     const sameUpToLast = next.length === prev.length && next.length > 0
-      && next.slice(0, -1).every((m, i) => m === prev[i]) && next[next.length - 1].id === prev[prev.length - 1].id;
+      && next.slice(0, -1).every((m, i) => m === prev[i]) && next[next.length - 1].id === prev[prev.length - 1].id
+      && next[next.length - 1].status === prev[prev.length - 1].status;
     if (sameUpToLast) {
       const last = next[next.length - 1];
       if (last !== prev[prev.length - 1]) chat.updateMessage(last.id, { content: last.content });

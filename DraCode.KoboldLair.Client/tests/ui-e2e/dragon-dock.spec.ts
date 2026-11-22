@@ -250,3 +250,35 @@ test('below the breakpoint Dragon sits under the tabs, with no horizontal scroll
   });
   expect(layout).toEqual({ dockBelow: true, page: 0, content: 0 });
 });
+
+test('a message sent while Dragon is still answering waits its turn, marked, and is answered next', async ({ page }) => {
+  // TASK-187: the server answers a session's messages one at a time; the dock shows the second one waiting until
+  // Dragon has finished the first, so it is never mistaken for lost.
+  const dragon = await open(page);
+  await expect(bubbles(page, 'assistant')).toHaveCount(1);
+  const ws = dragon.last;
+  const status = (text: string) => dock(page).locator('b-chat .message.user').filter({ hasText: text }).locator('.message-status');
+
+  await input(page).fill('Use Stripe');
+  await input(page).press('Enter');
+  dragon.send(ws, { type: 'dragon_typing' });
+  dragon.send(ws, { type: 'dragon_stream', chunk: 'Stripe it is.' });
+  await expect(bubbles(page, 'assistant')).toHaveCount(2);
+  await expect(status('Use Stripe')).toHaveCount(0);
+
+  await input(page).fill('And PayPal too');
+  await input(page).press('Enter');
+  await expect.poll(() => dragon.sent('message').map((m) => m.message)).toEqual(['Use Stripe', 'And PayPal too']);
+  await expect(status('And PayPal too')).toHaveText(/sending/i);
+  await expect(dock(page).locator('.status')).toHaveText(/waits until Dragon finishes/i);
+
+  dragon.send(ws, { type: 'dragon_message', message: 'Stripe it is.', isStreamed: true });
+  dragon.send(ws, { type: 'dragon_status', statusType: 'complete', message: 'Response complete' });
+  await expect(status('And PayPal too')).toHaveCount(0);
+  await expect(dock(page).locator('b-chat .typing:not(.hidden)')).toHaveCount(1);
+
+  dragon.send(ws, { type: 'dragon_message', message: 'PayPal added as well.' });
+  dragon.send(ws, { type: 'dragon_status', statusType: 'complete', message: 'Response complete' });
+  await expect(bubbles(page, 'assistant')).toHaveText(['Which payment provider?', 'Stripe it is.', 'PayPal added as well.']);
+  await expect(dock(page).locator('b-chat .typing:not(.hidden)')).toHaveCount(0);
+});
