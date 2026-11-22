@@ -825,7 +825,11 @@ namespace DraCode.KoboldLair.Services
             return (true, $"Project '{project.Name}' has been reset. {summary}.\n\nSpecification preserved. Wyrm will pick it up for re-analysis on the next cycle.");
         }
 
-        private string? ResolveProjectFolder(Project project)
+        /// <summary>
+        /// The project's git root: an imported project's <c>SourcePath</c>, else its KoboldLair folder (where its
+        /// specification lives); null when neither exists.
+        /// </summary>
+        public string? ResolveProjectFolder(Project project)
         {
             // External projects use SourcePath
             if (project.Metadata.TryGetValue("IsExistingProject", out var isExisting) &&
