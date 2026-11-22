@@ -23,7 +23,8 @@ namespace DraCode.KoboldLair.Tests.Endpoint;
 /// <summary>
 /// The docked Dragon follows the project the person opened (TASK-151, FEATURE-026 D12): <c>select_project</c> makes the
 /// project's saved conversation the session's, replays it after <c>project_selected</c>, and a reconnect resumes it.
-/// Only the caller's own projects can be selected.
+/// Only the caller's own projects can be selected. With no project, <c>select_home</c> follows the caller's own home
+/// conversation (TASK-149), kept apart from every project's.
 /// </summary>
 public class DragonProjectSocketTests : IDisposable
 {
@@ -108,6 +109,23 @@ public class DragonProjectSocketTests : IDisposable
         await factory.Services.GetRequiredService<SqlHistoryRepository>().SaveHistoryAsync(folder, messages);
     }
 
+    private static List<SessionMessage> Turns(params string[] turns) => turns.Select((text, i) => i % 2 == 0
+        ? new SessionMessage(Guid.NewGuid().ToString(), "user_message",
+            new Dictionary<string, object> { ["role"] = "user", ["content"] = text }, DateTime.UtcNow.AddMinutes(i))
+        : new SessionMessage(Guid.NewGuid().ToString(), "dragon_message",
+            new Dictionary<string, object> { ["type"] = "dragon_message", ["message"] = text }, DateTime.UtcNow.AddMinutes(i)))
+        .ToList();
+
+    private static Task SaveHome(WebApplicationFactory<Program> factory, string sub, params string[] turns) =>
+        factory.Services.GetRequiredService<SqlHistoryRepository>().SaveHomeHistoryAsync(sub, Turns(turns));
+
+    private static async Task<List<string>> SavedTexts(Task<string?> load)
+    {
+        var json = await load;
+        return json == null ? new List<string>() : JsonDocument.Parse(json).RootElement.EnumerateArray()
+            .Select(m => m.GetProperty("data")).Select(Text).ToList();
+    }
+
     private sealed class Client(WebSocket socket) : IDisposable
     {
         private readonly List<JsonElement> _seen = new();
@@ -161,6 +179,19 @@ public class DragonProjectSocketTests : IDisposable
             await SendAsync(new { type = "select_project", projectId });
             var selected = await WaitForAsync(m => Str(m, "type") == "project_selected" && Str(m, "projectId") == projectId);
             selected.Should().NotBeNull("the server answers select_project for the caller's own project");
+            var from = _seen.Count;
+            for (var i = 0; i < expected; i++)
+                (await WaitForAsync(m => Bool(m, "isReplay"))).Should().NotBeNull("each saved message is replayed");
+            var replayed = _seen.Skip(from).Where(m => Bool(m, "isReplay")).Select(Text).ToList();
+            return (selected!.Value, replayed);
+        }
+
+        /// <summary>Go home and collect the replay that follows <c>home_selected</c>.</summary>
+        public async Task<(JsonElement Selected, List<string> Replayed)> SelectHomeAsync(int expected)
+        {
+            await SendAsync(new { type = "select_home" });
+            var selected = await WaitForAsync(m => Str(m, "type") == "home_selected");
+            selected.Should().NotBeNull("the server answers select_home");
             var from = _seen.Count;
             for (var i = 0; i < expected; i++)
                 (await WaitForAsync(m => Bool(m, "isReplay"))).Should().NotBeNull("each saved message is replayed");
@@ -278,5 +309,114 @@ public class DragonProjectSocketTests : IDisposable
             second.Seen.Where(m => Bool(m, "isReplay")).Select(Text).Should().ContainInOrder("Build a shop", "Which payment provider?");
         }
         finally { SafeDispose(factory); }
+    }
+
+    [Fact]
+    public async Task Going_home_replays_the_callers_own_home_conversation()
+    {
+        var factory = CreateFactory();
+        try
+        {
+            await SaveHome(factory, UserA, "I want a shop", "What will it sell?");
+            await SaveHome(factory, UserB, "B's home idea", "Tell me more.");
+
+            using var a = await Client.ConnectAsync(factory, Token(factory, UserA));
+            var (selected, replayed) = await a.SelectHomeAsync(expected: 2);
+            selected.GetProperty("messageCount").GetInt32().Should().Be(2);
+            replayed.Should().Equal("I want a shop", "What will it sell?");
+
+            using var b = await Client.ConnectAsync(factory, Token(factory, UserB));
+            (_, replayed) = await b.SelectHomeAsync(expected: 2);
+            replayed.Should().Equal("B's home idea", "Tell me more.");
+            b.Seen.Select(Text).Should().NotContain("I want a shop");
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Fact]
+    public async Task An_empty_home_conversation_starts_with_Dragons_welcome()
+    {
+        var factory = CreateFactory();
+        try
+        {
+            using var client = await Client.ConnectAsync(factory, Token(factory, UserA));
+            var (selected, replayed) = await client.SelectHomeAsync(expected: 0);
+            selected.GetProperty("messageCount").GetInt32().Should().Be(0);
+            replayed.Should().BeEmpty();
+
+            // No LLM answers here, so the welcome comes back as the error Dragon could not start with; either is the first message
+            var first = await client.WaitForAsync(m => Str(m, "type") is "dragon_message" or "error", seconds: 120);
+            first.Should().NotBeNull("an empty home conversation is opened by Dragon");
+            await WaitUntil(async () => (await SavedTexts(factory.Services.GetRequiredService<SqlHistoryRepository>()
+                .LoadHomeHistoryJsonAsync(UserA))).Count == 1);
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Fact]
+    public async Task A_message_at_home_is_kept_as_the_home_conversation_and_not_the_project_left()
+    {
+        var factory = CreateFactory();
+        try
+        {
+            var shop = await CreateProject(factory, UserA, "Shop");
+            await SaveConversation(factory, shop, "Build a shop", "Which payment provider?");
+            await SaveHome(factory, UserA, "Hello", "Hi, what shall we build?");
+            var history = factory.Services.GetRequiredService<SqlHistoryRepository>();
+            var shopFolder = factory.Services.GetRequiredService<ProjectService>().GetProject(shop)!.Paths.Output;
+
+            using var client = await Client.ConnectAsync(factory, Token(factory, UserA));
+            await client.SelectAsync(shop, expected: 2);
+            var (_, replayed) = await client.SelectHomeAsync(expected: 2);
+            replayed.Should().Equal("Hello", "Hi, what shall we build?");
+
+            // Back in the project: its own conversation, without the home one; then home again
+            (_, replayed) = await client.SelectAsync(shop, expected: 2);
+            replayed.Should().Equal("Build a shop", "Which payment provider?");
+            (_, replayed) = await client.SelectHomeAsync(expected: 2);
+            replayed.Should().Equal("Hello", "Hi, what shall we build?");
+
+            // (No LLM answers here, so the message is the last thing this test sends: a switch would wait for its request.)
+            await client.SendAsync(new { type = "message", message = "Start a blog" });
+            await WaitUntil(async () => (await SavedTexts(history.LoadHomeHistoryJsonAsync(UserA))).Contains("Start a blog"));
+            (await SavedTexts(history.LoadHistoryJsonAsync(shopFolder))).Should().Equal("Build a shop", "Which payment provider?");
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Fact]
+    public async Task A_project_the_home_chat_loads_leaves_the_home_conversation_as_it_is()
+    {
+        // Found in TASK-149's human test: Sage loading one project and then another from the home chat went through the
+        // chat-driven switch, which cleared the session history, and the next message saved that over the home conversation.
+        var factory = CreateFactory();
+        try
+        {
+            var shop = await CreateProject(factory, UserA, "Shop");
+            var blog = await CreateProject(factory, UserA, "Blog");
+            await SaveConversation(factory, shop, "Build a shop", "Which payment provider?");
+            var projects = factory.Services.GetRequiredService<ProjectService>();
+            var dragon = factory.Services.GetRequiredService<DragonService>();
+            var session = new DragonSession { SessionId = "s-home", OwnerSub = UserA, Home = true };
+            session.MessageHistory.AddRange(Turns("I want a shop", "What will it sell?"));
+
+            await dragon.OnProjectLoadedAsync(session, projects.GetProject(blog)!.Paths.Output);
+            await dragon.OnProjectLoadedAsync(session, projects.GetProject(shop)!.Paths.Output);
+
+            session.MessageHistory.Select(m => Text(JsonSerializer.SerializeToElement(m.Data))).Should()
+                .Equal("I want a shop", "What will it sell?");
+            session.CurrentProjectFolder.Should().Be(projects.GetProject(shop)!.Paths.Output, "Dragon still works in the loaded project");
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    private static async Task WaitUntil(Func<Task<bool>> condition, int seconds = 10)
+    {
+        var until = DateTime.UtcNow.AddSeconds(seconds);
+        while (!await condition())
+        {
+            DateTime.UtcNow.Should().BeBefore(until, "the condition should hold within {0} s", seconds);
+            await Task.Delay(100);
+        }
     }
 }

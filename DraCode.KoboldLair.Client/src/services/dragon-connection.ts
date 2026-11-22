@@ -15,6 +15,10 @@
  * followed project's. `answer(id, text)` sends `answer_decision`; the card is pending until `decision_answer_result`,
  * which can come only after a reply Dragon is still writing.
  *
+ * The home conversation (TASK-149, FEATURE-026 D12): `selectHome()` sends `select_home` for the homepage, where no
+ * project is open; the server answers `home_selected` and replays the user's own home conversation, kept apart from every
+ * project's. A specification Dragon writes there registers a project; `onProjectsChanged` tells the homepage to reload.
+ *
  * The connection belongs to the signed-in user (TASK-056): signing out, or another user signing in, closes it and
  * forgets its session, so the next user never reuses it; a refreshed token for the same user keeps it.
  */
@@ -30,6 +34,8 @@ export type DockPhase = 'idle' | 'signed-out' | 'switching' | 'ready' | 'not-fou
 
 export interface DockState {
   projectId: string | null;
+  /** Following the home conversation (no project). */
+  home: boolean;
   phase: DockPhase;
   connected: boolean;
   messages: ChatMessage[];
@@ -67,16 +73,20 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 /** How long to wait for `session_resumed` / `session_not_found` after reconnecting before selecting again anyway. */
 const RESUME_WAIT_MS = 1500;
 
+/** What the server follows for the home conversation, in place of a project id. */
+const HOME = '#home';
+
 export class DragonConnection {
   private _state: DockState = {
-    projectId: null, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [],
+    projectId: null, home: false, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [],
   };
   private readonly _listeners = new Set<Listener>();
   private _client: WsClient | null = null;
   private _options: WsClientOptions | null = null;
   private _sessionId: string | null = null;
-  /** The project the server last confirmed with `project_selected`. */
+  /** The project the server last confirmed with `project_selected`, or HOME after `home_selected`. */
   private _serverProject: string | null = null;
+  private readonly _projectListeners = new Set<() => void>();
   private _awaitingResume = false;
   private _resumeTimer: ReturnType<typeof setTimeout> | null = null;
   private _streamId: string | null = null;
@@ -104,7 +114,7 @@ export class DragonConnection {
     this._sessionId = null;
     this._serverProject = null;
     this.endStream();
-    this.set({ projectId: null, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [] });
+    this.set({ projectId: null, home: false, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [] });
   }
 
   get state(): DockState {
@@ -119,15 +129,35 @@ export class DragonConnection {
 
   /** Follow `projectId`: its conversation replaces the current one. Selecting the project already followed does nothing. */
   select(projectId: string): void {
+    this.follow(projectId, false);
+  }
+
+  /** Follow the user's home conversation (the homepage's Dragon). Already following it does nothing. */
+  selectHome(): void {
+    this.follow(null, true);
+  }
+
+  /** Called when Dragon registered a project (a specification it wrote); returns the unsubscribe. */
+  onProjectsChanged(listener: () => void): () => void {
+    this._projectListeners.add(listener);
+    return () => this._projectListeners.delete(listener);
+  }
+
+  private follow(projectId: string | null, home: boolean): void {
     if (!getToken()) {
-      this.set({ projectId, phase: 'signed-out', messages: [], typing: false, status: null });
+      this.set({ projectId, home, phase: 'signed-out', messages: [], typing: false, status: null });
       return;
     }
-    if (this._state.projectId === projectId && (this._state.phase === 'switching' || this._state.phase === 'ready')) return;
+    if (this.target() === (home ? HOME : projectId) && (this._state.phase === 'switching' || this._state.phase === 'ready')) return;
     this.endStream();
-    this.set({ projectId, phase: 'switching', messages: [], typing: false, status: null });
+    this.set({ projectId, home, phase: 'switching', messages: [], typing: false, status: null, projectName: null });
     if (!this._client) this.connect();
     else if (this._client.connected && !this._awaitingResume) this.sendSelect();
+  }
+
+  /** What the dock follows: a project id, HOME, or nothing yet. */
+  private target(): string | null {
+    return this._state.home ? HOME : this._state.projectId;
   }
 
   /** Send the person's message to Dragon; false when no project's conversation is open yet. */
@@ -172,7 +202,7 @@ export class DragonConnection {
       this._awaitingResume = true;
       if (this._state.phase === 'ready') this.set({ phase: 'switching' });
       this._resumeTimer = setTimeout(() => this.resumeSettled(false), RESUME_WAIT_MS);
-    } else if (this._state.projectId) {
+    } else if (this.target()) {
       this.sendSelect();
     }
   }
@@ -183,12 +213,12 @@ export class DragonConnection {
     this._resumeTimer = null;
     if (!this._awaitingResume) return;
     this._awaitingResume = false;
-    const projectId = this._state.projectId;
-    if (resumed && projectId && projectId === this._serverProject) {
+    const target = this.target();
+    if (resumed && target && target === this._serverProject) {
       this.endStream();
       this.set({ phase: 'ready', messages: [], typing: false, status: null }); // the replay that follows rebuilds it
       this.sendReady();
-    } else if (projectId) {
+    } else if (target) {
       this.set({ phase: 'switching', messages: [], typing: false, status: null });
       this.sendSelect();
     }
@@ -201,7 +231,8 @@ export class DragonConnection {
   }
 
   private sendSelect(): void {
-    if (this._state.projectId) this._client?.send(JSON.stringify({ type: 'select_project', projectId: this._state.projectId }));
+    if (this._state.home) this._client?.send(JSON.stringify({ type: 'select_home' }));
+    else if (this._state.projectId) this._client?.send(JSON.stringify({ type: 'select_project', projectId: this._state.projectId }));
   }
 
   private onMessage(msg: Msg): void {
@@ -218,12 +249,27 @@ export class DragonConnection {
 
     if (type === 'project_selected') {
       this._serverProject = str(msg.projectId);
-      if (this._serverProject === this._state.projectId) {
+      if (!this._state.home && this._serverProject === this._state.projectId) {
         this.endStream();
         this.set({ phase: 'ready', messages: [], typing: false, status: null, projectName: str(msg.projectName) || null });
         this.sendReady();
       }
       return;
+    }
+
+    if (type === 'home_selected') {
+      this._serverProject = HOME;
+      if (this._state.home) {
+        this.endStream();
+        this.set({ phase: 'ready', messages: [], typing: false, status: null, projectName: null });
+        this.sendReady();
+      }
+      return;
+    }
+
+    // A project Dragon registered: lists of projects reload. The message itself is shown below, as a live one.
+    if (type === 'specification_created' && msg.isReplay !== true) {
+      for (const listener of this._projectListeners) listener();
     }
 
     // Decisions belong to the user, not to the conversation, so they count whatever project is open. A replayed one is

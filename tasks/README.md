@@ -124,10 +124,10 @@ _None_
     - [x] [TASK-142](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-142-wire-views-to-the-server.md) Wire the web client's views to the server; they show mock data (P1) · FEATURE-026 — cancelled, superseded by the UI rebuild (FEATURE-026 D9)
     - [ ] [TASK-143](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-143-public-preview-deployments.md) Public preview deployments of projects on subdomains (P3) · FEATURE-026 D23
     - [ ] [TASK-144](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-144-phone-push-notifications.md) Phone push notifications when a project needs you (P3) · FEATURE-026 D24
-  - STORY-045 Web UI: projects homepage overview — planned (0/3)
+  - STORY-045 Web UI: projects homepage overview — in-progress (2/3)
     - [x] [TASK-147](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-147-needs-you.md) What needs you: homepage list and header pill (P1) · FEATURE-026 D10
     - [ ] [TASK-148](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-148-cross-project-charts.md) Cross-project charts and numbers on the homepage (P2) · FEATURE-026 D18
-    - [ ] [TASK-149](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-149-home-dragon.md) Home Dragon on the projects homepage (P2) · FEATURE-026 D12
+    - [x] [TASK-149](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-149-home-dragon.md) Home Dragon on the projects homepage (P2) · FEATURE-026 D12
   - STORY-046 Web UI: project workspace with Dragon docked — planned (0/3)
     - [x] [TASK-150](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-150-workspace-frame-spec.md) Project workspace frame with the read-only spec tab (P1) · FEATURE-026 D11 D19
     - [x] [TASK-151](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-151-dragon-dock.md) Dragon docked in the workspace, following the project (P1) · FEATURE-026 D11 D12
@@ -231,6 +231,8 @@ _None_
     - [ ] [TASK-180](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-180-chat-project-switch-keeps-old-context.md) A project switch made from the chat keeps the old project's conversation in Dragon's context (P2)
     - [ ] [TASK-181](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-181-dragon-request-queue-dispose-throws.md) DragonRequestQueue.Dispose throws when it stops its workers (P3)
     - [ ] [TASK-182](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-182-finished-task-escalated-as-stalled.md) A finished task is escalated as "progress stalled" and its plan revised after it is Done (P3)
+    - [ ] [TASK-186](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-186-new-project-reuses-loaded-project-folder.md) A new project cannot be created once Dragon has loaded another project in the session (P2)
+    - [ ] [TASK-187](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-187-new-message-cancels-running-answer.md) A message sent while Dragon is still answering cancels that answer, and Dragon replies without it (P2)
   - STORY-043 Reuse & dead code — planned (0/1)
     - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation (P3) · CR-3
 

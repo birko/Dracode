@@ -41,12 +41,31 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// <summary>
         /// Saves message history for a project. Serialized via semaphore to prevent races.
         /// </summary>
-        public async Task SaveHistoryAsync<T>(string projectFolder, List<T> messages)
+        public Task SaveHistoryAsync<T>(string projectFolder, List<T> messages) =>
+            SaveAsync(NormalizeFolder(projectFolder), messages);
+
+        /// <summary>
+        /// Saves a user's home conversation (TASK-149): Dragon with no project selected. Stored in the same table under
+        /// <see cref="HomeKey"/>, which is not a path, so it never meets a project folder's key.
+        /// </summary>
+        public Task SaveHomeHistoryAsync<T>(string ownerSub, List<T> messages) => SaveAsync(HomeKey(ownerSub), messages);
+
+        /// <summary>Loads a user's home conversation, or null when none is saved.</summary>
+        public async Task<string?> LoadHomeHistoryJsonAsync(string ownerSub)
+        {
+            var key = HomeKey(ownerSub);
+            var entity = await _repository.ReadAsync(e => e.ProjectFolder == key, CancellationToken.None);
+            return entity?.MessagesJson;
+        }
+
+        /// <summary>The key of a user's home conversation.</summary>
+        public static string HomeKey(string ownerSub) => $"home:{ownerSub}";
+
+        private async Task SaveAsync<T>(string normalizedFolder, List<T> messages)
         {
             await _writeLock.WaitAsync();
             try
             {
-                var normalizedFolder = NormalizeFolder(projectFolder);
                 var json = JsonSerializer.Serialize(messages, JsonOptions);
 
                 var existing = await _repository.ReadAsync(

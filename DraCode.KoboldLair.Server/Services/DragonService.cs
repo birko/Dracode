@@ -57,6 +57,13 @@ namespace DraCode.KoboldLair.Server.Services
         public string? CurrentProjectFolder { get; set; }
 
         /// <summary>
+        /// The session follows the user's home conversation (TASK-149, <c>select_home</c>): Dragon with no project
+        /// selected. Its messages are saved under the owner, wherever <see cref="CurrentProjectFolder"/> points — a project
+        /// the home chat creates moves that folder, and its conversation stays at home.
+        /// </summary>
+        public bool Home { get; set; }
+
+        /// <summary>
         /// Tracks whether the Dragon's conversation context should be reset after the current response.
         /// Set when switching between projects so old project context doesn't leak.
         /// </summary>
@@ -785,7 +792,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// Called when a project specification is loaded. Sets the session's project folder,
         /// loads conversation history, and returns a brief summary for the Dragon to present.
         /// </summary>
-        private async Task<string?> OnProjectLoadedAsync(DragonSession session, string projectFolder)
+        internal async Task<string?> OnProjectLoadedAsync(DragonSession session, string projectFolder)
         {
             if (session.CurrentProjectFolder == projectFolder)
                 return null; // Already on this project
@@ -833,7 +840,13 @@ namespace DraCode.KoboldLair.Server.Services
                     projectFolder, allowedPaths?.Count ?? 0);
             }
 
-            if (isProjectSwitch)
+            // At home the conversation is the user's, not the project's: a project Dragon loads from the home chat leaves it
+            // as it is (TASK-149). Clearing or loading it here would be saved over the home conversation.
+            if (session.Home)
+            {
+                _logger.LogInformation("Session {SessionId} loaded project {Folder} from the home conversation", session.SessionId, projectFolder);
+            }
+            else if (isProjectSwitch)
             {
                 // Switching between projects - reset Dragon context after response is sent
                 session.PendingContextReset = true;
@@ -860,7 +873,7 @@ namespace DraCode.KoboldLair.Server.Services
                 // Load history into session for replay/persistence
                 lock (session._historyLock)
                 {
-                    if (session.MessageHistory.Count == 0)
+                    if (session.MessageHistory.Count == 0 && !session.Home)
                     {
                         session.MessageHistory.AddRange(history);
                     }
@@ -1005,6 +1018,7 @@ namespace DraCode.KoboldLair.Server.Services
                 history = history.Skip(history.Count - _maxMessageHistory).ToList();
 
             session.CurrentProjectFolder = folder;
+            session.Home = false;
             session.WelcomeSent = true;
             lock (session._historyLock)
             {
@@ -1030,6 +1044,131 @@ namespace DraCode.KoboldLair.Server.Services
                 timestamp = DateTime.UtcNow
             });
             await ReplayAsync(webSocket, sessionId, history);
+        }
+
+        /// <summary>
+        /// Dragon's welcome, as the conversation's first message: on the first <c>client_ready</c>, and for an empty home
+        /// conversation (TASK-149). An LLM failure is sent as an error instead.
+        /// </summary>
+        private async Task SendWelcomeAsync(WebSocket webSocket, DragonSession session)
+        {
+            var sessionId = session.SessionId;
+            try
+            {
+                session.StreamingResponseSent = false;
+                var welcomeResponse = await session.Dragon!.StartSessionAsync();
+                _logger.LogInformation("[Dragon] Welcome: {Response}", welcomeResponse);
+
+                _logger.LogDebug("[Dragon] Sending welcome (isStreamed={IsStreamed})", session.StreamingResponseSent);
+                await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
+                {
+                    type = "dragon_message",
+                    sessionId,
+                    message = welcomeResponse,
+                    timestamp = DateTime.UtcNow,
+                    isStreamed = session.StreamingResponseSent
+                });
+                session.WelcomeSent = true;
+
+                // Send any pending notifications (e.g., feature branches ready for merge)
+                await SendPendingNotificationsAsync(webSocket, session);
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "Failed to start Dragon session - LLM connection error");
+                await SendTrackedMessageAsync(webSocket, session, "error", new
+                {
+                    type = "error",
+                    errorType = "llm_connection",
+                    sessionId,
+                    message = $"Failed to connect to LLM provider: {ex.Message}",
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start Dragon session");
+                await SendTrackedMessageAsync(webSocket, session, "error", new
+                {
+                    type = "error",
+                    errorType = "startup_error",
+                    sessionId,
+                    message = $"Failed to initialize Dragon: {ex.Message}",
+                    timestamp = DateTime.UtcNow
+                });
+            }
+        }
+
+        /// <summary>
+        /// <c>select_home</c> (TASK-149, FEATURE-026 D12): the client opened the homepage, and the session follows the
+        /// user's home conversation — Dragon with no project, for starting projects. Its saved conversation becomes the
+        /// session history and Dragon's context, Dragon leaves any project folder, and the client gets <c>home_selected</c>
+        /// and then that conversation replayed; an empty one starts with Dragon's welcome. A running request is waited for
+        /// first, as for <c>select_project</c>.
+        /// </summary>
+        private async Task SelectHomeAsync(WebSocket webSocket, DragonSession session)
+        {
+            var sessionId = session.SessionId;
+            if (!await _requestQueue.WaitForSessionIdleAsync(sessionId, s_switchWait))
+                _logger.LogWarning("Session {SessionId} went home while a Dragon request was still running", sessionId);
+
+            var history = await LoadHomeHistoryAsync(session.OwnerSub) ?? new List<SessionMessage>();
+            if (history.Count > _maxMessageHistory)
+                history = history.Skip(history.Count - _maxMessageHistory).ToList();
+
+            session.Home = true;
+            session.CurrentProjectFolder = null;
+            session.WelcomeSent = true;
+            lock (session._historyLock)
+            {
+                session.MessageHistory.Clear();
+                session.MessageHistory.AddRange(history);
+            }
+            if (session.Dragon != null)
+            {
+                session.Dragon.ClearContext();
+                session.Dragon.RestoreContext(ConversationFromHistory(history));
+                session.Dragon.ResetProjectContext();
+            }
+            _logger.LogInformation("Session {SessionId} selected the home conversation ({Count} saved messages)", sessionId, history.Count);
+
+            await SendMessageAsync(webSocket, new
+            {
+                type = "home_selected",
+                sessionId,
+                messageCount = history.Count,
+                timestamp = DateTime.UtcNow
+            });
+            await ReplayAsync(webSocket, sessionId, history);
+            if (history.Count == 0 && session.Dragon != null)
+                await SendWelcomeAsync(webSocket, session);
+        }
+
+        /// <summary>
+        /// A user's saved home conversation (TASK-149): the SQL history table when there is one, else
+        /// <c>{ProjectsPath}/.home/{owner}/dragon-history.json</c>. Null when nothing is saved or it cannot be read.
+        /// </summary>
+        private async Task<List<SessionMessage>?> LoadHomeHistoryAsync(string ownerSub)
+        {
+            if (_historyRepository == null)
+                return await DragonSession.LoadHistoryFromFileAsync(HomeFolder(ownerSub), _logger);
+            try
+            {
+                var json = await _historyRepository.LoadHomeHistoryJsonAsync(ownerSub);
+                return json == null ? null : JsonSerializer.Deserialize<List<SessionMessage>>(json, s_readOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load the home Dragon history of {Owner}", ownerSub);
+                return null;
+            }
+        }
+
+        /// <summary>Where a user's home conversation is kept without the SQL store.</summary>
+        private string HomeFolder(string ownerSub)
+        {
+            var safe = string.Concat(ownerSub.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+            return Path.Combine(_projectsPath, ".home", safe);
         }
 
         private static string? ExtractMessageContent(Dictionary<string, object>? data)
@@ -1171,6 +1310,12 @@ namespace DraCode.KoboldLair.Server.Services
                     return;
                 }
 
+                if (messageType == "select_home")
+                {
+                    await SelectHomeAsync(webSocket, session);
+                    return;
+                }
+
                 if (messageType == "answer_decision")
                 {
                     await AnswerDecisionAsync(webSocket, session, message.DecisionId, message.Answer);
@@ -1185,50 +1330,7 @@ namespace DraCode.KoboldLair.Server.Services
                 if (message.Type == "client_ready" && !session.WelcomeSent && session.Dragon != null)
                 {
                     _logger.LogInformation("[Dragon] Client ready, sending welcome message");
-                    try
-                    {
-                        session.StreamingResponseSent = false;
-                        var welcomeResponse = await session.Dragon.StartSessionAsync();
-                        _logger.LogInformation("[Dragon] Welcome: {Response}", welcomeResponse);
-
-                        _logger.LogDebug("[Dragon] Sending welcome (isStreamed={IsStreamed})", session.StreamingResponseSent);
-                        await SendTrackedMessageAsync(webSocket, session, "dragon_message", new
-                        {
-                            type = "dragon_message",
-                            sessionId,
-                            message = welcomeResponse,
-                            timestamp = DateTime.UtcNow,
-                            isStreamed = session.StreamingResponseSent
-                        });
-                        session.WelcomeSent = true;
-
-                        // Send any pending notifications (e.g., feature branches ready for merge)
-                        await SendPendingNotificationsAsync(webSocket, session);
-                    }
-                    catch (HttpRequestException ex)
-                    {
-                        _logger.LogError(ex, "Failed to start Dragon session - LLM connection error");
-                        await SendTrackedMessageAsync(webSocket, session, "error", new
-                        {
-                            type = "error",
-                            errorType = "llm_connection",
-                            sessionId,
-                            message = $"Failed to connect to LLM provider: {ex.Message}",
-                            timestamp = DateTime.UtcNow
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to start Dragon session");
-                        await SendTrackedMessageAsync(webSocket, session, "error", new
-                        {
-                            type = "error",
-                            errorType = "startup_error",
-                            sessionId,
-                            message = $"Failed to initialize Dragon: {ex.Message}",
-                            timestamp = DateTime.UtcNow
-                        });
-                    }
+                    await SendWelcomeAsync(webSocket, session);
                     return;
                 }
 
@@ -1385,7 +1487,7 @@ namespace DraCode.KoboldLair.Server.Services
                     if (session.CurrentProjectFolder != projectFolder)
                     {
                         session.CurrentProjectFolder = projectFolder;
-                        var loadedHistory = await LoadProjectHistoryAsync(projectFolder);
+                        var loadedHistory = session.Home ? null : await LoadProjectHistoryAsync(projectFolder);
                         if (loadedHistory != null && loadedHistory.Count > 0)
                         {
                             // Only load if session history is empty or very different
@@ -1400,19 +1502,8 @@ namespace DraCode.KoboldLair.Server.Services
                         }
                     }
 
-                    await SendTrackedMessageAsync(webSocket, session, "specification_created", new
-                    {
-                        type = "specification_created",
-                        sessionId = session.SessionId,
-                        filename = "specification.md",
-                        path = latestSpec,
-                        projectFolder,
-                        timestamp = DateTime.UtcNow,
-                        gitStatus,
-                        gitInstalled,
-                        gitInitialized
-                    });
-
+                    // Registered first, so the message can name the project and a homepage that reloads on it finds it (TASK-149)
+                    string? projectId = null;
                     try
                     {
                         // Check if this folder already belongs to an existing project (e.g., imported project)
@@ -1424,11 +1515,13 @@ namespace DraCode.KoboldLair.Server.Services
                         {
                             // Link specification to existing project instead of creating a new one
                             _projectService.UpdateSpecificationPath(existingProject.Id, latestSpec);
+                            projectId = existingProject.Id;
                             _logger.LogInformation("Linked specification to existing project: {Name} ({Id})", existingProject.Name, existingProject.Id);
                         }
                         else
                         {
                             var project = _projectService.RegisterProject(projectName, latestSpec, session.OwnerSub);
+                            projectId = project.Id;
                             _logger.LogInformation("Auto-registered project: {Name} ({Id}, Owner: {Owner})", projectName, project.Id, session.OwnerSub);
                         }
                     }
@@ -1436,6 +1529,20 @@ namespace DraCode.KoboldLair.Server.Services
                     {
                         _logger.LogError(ex, "Failed to auto-register project: {Path}", latestSpec);
                     }
+
+                    await SendTrackedMessageAsync(webSocket, session, "specification_created", new
+                    {
+                        type = "specification_created",
+                        sessionId = session.SessionId,
+                        filename = "specification.md",
+                        path = latestSpec,
+                        projectFolder,
+                        projectId,
+                        timestamp = DateTime.UtcNow,
+                        gitStatus,
+                        gitInstalled,
+                        gitInitialized
+                    });
                 }
             }
         }
@@ -1764,8 +1871,21 @@ namespace DraCode.KoboldLair.Server.Services
                     session.MessageHistory.RemoveRange(0, excess);
             }
 
-            // Persist history — prefer SQL (serialized, no race) with file as fallback
-            if (!string.IsNullOrEmpty(session.CurrentProjectFolder))
+            // Persist history — prefer SQL (serialized, no race) with file as fallback. The home conversation is the owner's,
+            // wherever the folder points (TASK-149)
+            if (session.Home)
+            {
+                List<SessionMessage> snapshot;
+                lock (session._historyLock)
+                {
+                    snapshot = new List<SessionMessage>(session.MessageHistory);
+                }
+                if (_historyRepository != null)
+                    _ = _historyRepository.SaveHomeHistoryAsync(session.OwnerSub, snapshot);
+                else
+                    _ = Task.Run(() => session.SaveHistoryToFileAsync(HomeFolder(session.OwnerSub), _logger));
+            }
+            else if (!string.IsNullOrEmpty(session.CurrentProjectFolder))
             {
                 if (_historyRepository != null)
                 {

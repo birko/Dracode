@@ -28,6 +28,9 @@ namespace DraCode.KoboldLair.Agents
         /// <param name="options">Agent options</param>
         /// <param name="getProjects">Function to get list of all projects for listing</param>
         /// <param name="delegateToCouncil">Function to delegate tasks to council members (memberName, task) => result</param>
+        /// <summary>The working directory Dragon was created with: where it works with no project selected.</summary>
+        private readonly string _homeWorkingDirectory;
+
         public DragonAgent(
             ILlmProvider provider,
             AgentOptions? options = null,
@@ -37,6 +40,7 @@ namespace DraCode.KoboldLair.Agents
         {
             _getProjects = getProjects;
             _delegateToCouncil = delegateToCouncil;
+            _homeWorkingDirectory = Options.WorkingDirectory;
             // Rebuild tools now that our fields are set (base constructor called CreateTools before these were assigned)
             RebuildTools();
         }
@@ -234,6 +238,17 @@ Prototype (Sage) → New (queued for Wyrm/Wyvern) → Analyzed (tasks ready) →
             }
 
             // Rebuild tools to propagate the updated options
+            RebuildTools();
+        }
+
+        /// <summary>
+        /// Leaves any project (TASK-149, the home conversation): back to the working directory Dragon was created with,
+        /// with no external paths.
+        /// </summary>
+        public void ResetProjectContext()
+        {
+            Options.WorkingDirectory = _homeWorkingDirectory;
+            Options.AllowedExternalPaths = new List<string>();
             RebuildTools();
         }
     }

@@ -1,7 +1,9 @@
 /**
  * Dragon docked in the project workspace (TASK-151, FEATURE-026 D11/D12): the project's conversation with Dragon on
  * `b-chat`, with streaming text, typing and what Dragon is doing. It shows the page's Dragon connection
- * (`dragonConnection`), which follows the project given in `project-id`. Its header holds the "Keep expanded" pin
+ * (`dragonConnection`), which follows the project given in `project-id`. Without `project-id` it is the homepage's
+ * "home Dragon" (TASK-149): the user's own conversation with no project, for starting projects; it shows no decision
+ * cards (the homepage's Needs you lists them) and no pin. Its header holds the "Keep expanded" pin
  * (TASK-152): the workspace widens the dock while focus is in it, or always while pinned.
  *
  * Decision cards (TASK-160, FEATURE-026 D14/D15) sit above the chat, with their count in the header: the open decisions
@@ -23,6 +25,11 @@ const PLACEHOLDER: Record<DockState['phase'], string> = {
   switching: 'Opening this project’s conversation…',
   ready: 'Ask Dragon about this project…',
   'not-found': 'Dragon cannot open this project',
+};
+
+const HOME_PLACEHOLDER: Partial<Record<DockState['phase'], string>> = {
+  switching: 'Opening your conversation…',
+  ready: 'Ask Dragon to start a project…',
 };
 
 export class DragonDock extends KoboldComponent {
@@ -104,6 +111,7 @@ export class DragonDock extends KoboldComponent {
   protected onMount() {
     const id = this.attr('project-id');
     if (id) dragonConnection.select(id);
+    else dragonConnection.selectHome();
     this._unsubscribe = dragonConnection.subscribe((state) => this.show(state));
   }
 
@@ -115,13 +123,15 @@ export class DragonDock extends KoboldComponent {
   render() {
     const s = this._state;
     const conn = s.phase === 'signed-out' || s.phase === 'idle' ? '' : s.connected ? 'connected' : 'reconnecting…';
+    const home = !this.attr('project-id');
+    const placeholder = (home ? HOME_PLACEHOLDER[s.phase] : undefined) ?? PLACEHOLDER[s.phase];
     return `
       <div class="dock-head" title="Click into Dragon or press ${DRAGON_SHORTCUT.label} to widen it">🐉 Dragon
         <b-badge class="decision-count" variant="warning" hidden></b-badge><span class="conn${s.connected ? '' : ' offline'}">${conn}</span>
-        <button class="pin" type="button" aria-pressed="${this._pinned}" title="Keep Dragon wide when focus leaves it">📌 Keep expanded</button>
+        ${home ? '' : `<button class="pin" type="button" aria-pressed="${this._pinned}" title="Keep Dragon wide when focus leaves it">📌 Keep expanded</button>`}
       </div>
       <section class="decisions" data-morph="skip" aria-label="Decisions waiting for you"></section>
-      <b-chat ${s.phase === 'ready' && s.connected ? '' : 'disabled'} placeholder="${escapeHtml(PLACEHOLDER[s.phase])}">
+      <b-chat ${s.phase === 'ready' && s.connected ? '' : 'disabled'} placeholder="${escapeHtml(placeholder)}">
         <div slot="footer" class="status">${escapeHtml(s.status ?? '')}</div>
       </b-chat>
     `;
