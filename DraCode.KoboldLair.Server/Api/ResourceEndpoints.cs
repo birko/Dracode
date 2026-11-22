@@ -264,18 +264,27 @@ public static class ResourceEndpoints
             .RequirePermission(KoboldLairPermissionChecker.ExecuteAgents);
 
         // POST /tasks/{id}/priority — manual priority override.
+        // Through Drake (TASK-154), like retry: setting only the store row was overwritten by Drake's next save.
         api.MapPost("/tasks/{id}/priority", async (string id, SetPriorityDto dto, ICurrentUser user,
-                ProjectService projects, ITaskRepository? tasks) =>
+                ProjectService projects, DrakeFactory drakes, ITaskRepository? tasks) =>
             {
                 if (tasks is null) return TaskStoreUnavailable();
-                if (!Enum.TryParse<TaskPriority>(dto.Priority, ignoreCase: true, out var priority))
+                if (!Enum.TryParse<TaskPriority>(dto.Priority, ignoreCase: true, out var priority)
+                    || !Enum.IsDefined(priority) || int.TryParse(dto.Priority, out _))
                     return Results.BadRequest(new { error = "priority must be one of: low, normal, high, critical" });
                 var task = await tasks.GetByIdAsync(id);
                 if (task is null || !CanAccessTask(user, projects, task))
                     return Results.NotFound();
-                task.Priority = priority;
-                await tasks.UpdateTaskAsync(task);
-                return Results.Ok(new { id, priority = priority.ToString() });
+                var project = projects.GetProject(task.ProjectId);
+                if (project is null)
+                    return Results.NotFound();
+                var change = await drakes.SetTaskPriorityAsync(project, id, priority);
+                return change.Outcome switch
+                {
+                    TaskPriorityOutcome.Set => Results.Ok(new { id, priority = priority.ToString() }),
+                    TaskPriorityOutcome.AlreadyDone => Results.BadRequest(new { error = "task is Done; its priority can no longer change" }),
+                    _ => Results.NotFound()
+                };
             })
             .RequirePermission(KoboldLairPermissionChecker.ManageProjects);
     }

@@ -3244,6 +3244,15 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
+        /// Sets a task's priority (TASK-154); the work picker orders by it on its next pass.
+        /// </summary>
+        public void SetTaskPriority(TaskRecord task, TaskPriority priority)
+        {
+            _taskTracker.SetPriority(task, priority);
+            SaveTasksToFile();
+        }
+
+        /// <summary>
         /// Writes the task file (JSON and markdown) and clears the WAL. TASK-178: a tracker holding no tasks does not write
         /// over a file that holds some, since Drake never removes tasks; that tracker loaded nothing from a file it could not
         /// read, and saving would destroy the tasks. The WAL is kept in that case too.

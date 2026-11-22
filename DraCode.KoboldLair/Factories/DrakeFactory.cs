@@ -570,6 +570,65 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
+        /// Sets a task's priority wherever it lives (TASK-154), like <see cref="RetryFailedTaskAsync"/>: in a Drake of the
+        /// project (its task file saved), else in its task file, else only in the task store; the store row is updated
+        /// before this returns, so a read right after sees it. A Done task is left alone.
+        /// </summary>
+        public async Task<TaskPriorityChange> SetTaskPriorityAsync(Models.Projects.Project project, string taskId, TaskPriority priority)
+        {
+            foreach (var (drake, _) in GetDrakesForProject(project.Id))
+            {
+                var task = drake.GetAllTasks().FirstOrDefault(t => t.Id == taskId);
+                if (task == null)
+                    continue;
+                if (task.Status == TaskStatus.Done)
+                    return new(TaskPriorityOutcome.AlreadyDone, task, task.Priority);
+                var previous = task.Priority;
+                drake.SetTaskPriority(task, priority);
+                await drake.UpdateTasksFileAsync();
+                await SetStoredPriorityAsync(taskId, priority);
+                return new(TaskPriorityOutcome.Set, task, previous);
+            }
+
+            foreach (var filePath in project.Paths.TaskFiles.Values)
+            {
+                var tracker = new TaskTracker();
+                tracker.LoadFromFile(filePath);
+                var task = tracker.GetTaskById(taskId);
+                if (task == null)
+                    continue;
+                if (task.Status == TaskStatus.Done)
+                    return new(TaskPriorityOutcome.AlreadyDone, task, task.Priority);
+                var previous = task.Priority;
+                tracker.SetPriority(task, priority);
+                await tracker.SaveToFileAsync(filePath);
+                await SetStoredPriorityAsync(taskId, priority);
+                return new(TaskPriorityOutcome.Set, task, previous);
+            }
+
+            var row = _taskRepository == null ? null : await _taskRepository.GetByIdAsync(taskId);
+            if (row == null || row.ProjectId != project.Id)
+                return new(TaskPriorityOutcome.NotFound);
+            if (row.Status == TaskStatus.Done)
+                return new(TaskPriorityOutcome.AlreadyDone, row, row.Priority);
+            var before = row.Priority;
+            row.Priority = priority;
+            await _taskRepository!.UpdateTaskAsync(row);
+            return new(TaskPriorityOutcome.Set, row, before);
+        }
+
+        private async Task SetStoredPriorityAsync(string taskId, TaskPriority priority)
+        {
+            if (_taskRepository == null)
+                return;
+            var row = await _taskRepository.GetByIdAsync(taskId);
+            if (row == null || row.Priority == priority)
+                return;
+            row.Priority = priority;
+            await _taskRepository.UpdateTaskAsync(row);
+        }
+
+        /// <summary>
         /// Extracts the area name from a task file path.
         /// e.g., "C:\projects\myapp\tasks\frontend-tasks.md" → "frontend"
         /// </summary>

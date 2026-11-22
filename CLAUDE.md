@@ -114,8 +114,9 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     the chat.
   - **Task state is Drake's** (TASK-153): a Drake's `TaskTracker` and the area's task file are what Drake works from;
     the task store (`ITaskRepository`) holds a copy the tracker writes to. Change a task through its Drake, or its file
-    when no Drake holds it — `DrakeFactory.RetryFailedTaskAsync` does this for a retry (REST and Warden's tool). A
-    change made only in the store is overwritten by the next save, or lost on a restart.
+    when no Drake holds it — `DrakeFactory.RetryFailedTaskAsync` does this for a retry and
+    `DrakeFactory.SetTaskPriorityAsync` for a priority change (TASK-154), each for REST and Warden's tool. A change
+    made only in the store is overwritten by the next save, or lost on a restart.
   - **Git Worktrees**: Creates isolated worktrees per feature branch for parallel-safe execution
   - **Post-task verification**: After task completion, runs Critical-priority verification steps (e.g., `tsc --noEmit`) from Wyrm recommendations
   - **Acceptance check** (TASK-025, FEATURE-031; off unless `KoboldLair:Verification:TaskAcceptanceEnabled`): before

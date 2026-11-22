@@ -2,8 +2,9 @@ import { test, expect } from './fixtures.js';
 import type { Page, Request } from '@playwright/test';
 
 // TASK-153: the workspace's Board tab — the project's tasks in four status columns, Retry on a failed card, refreshing
-// on its own, and stacked compact columns when its space is narrow. TASK-183: drawn by Birko's b-kanban, every column
-// locked. REST stubbed with page.route; the docked Dragon's socket is held open silently.
+// on its own, and stacked compact columns when its space is narrow. TASK-183: drawn by Birko's b-kanban, the agents'
+// columns locked. TASK-154: To do's priority lanes, a move between them sets the priority. REST stubbed with page.route;
+// the docked Dragon's socket is held open silently.
 
 const board = (page: Page) => page.locator('#route-outlet kobold-board-tab');
 const kanban = (page: Page) => board(page).locator('b-kanban');
@@ -28,9 +29,13 @@ const TASKS = (): Task[] => [
   { id: 't-7', task: 'Write the README', status: 'Done', priority: 'Low', assignedAgent: 'documentation', errorMessage: null },
 ];
 
-/** Serve one project and a mutable task list; Retry flips a Failed task to Unassigned like the server does. */
-async function serve(page: Page, tasks: Task[]) {
+/**
+ * Serve one project and a mutable task list; Retry flips a Failed task to Unassigned and a priority call sets the
+ * priority, like the server does. `refusePriority` makes the priority call fail with that error.
+ */
+async function serve(page: Page, tasks: Task[], options: { refusePriority?: string } = {}) {
   const retries: Request[] = [];
+  const priorities: { id: string; body: unknown }[] = [];
   await page.addInitScript(() => localStorage.setItem('koboldlair_auth', JSON.stringify({ token: 'test-token' })));
   await page.routeWebSocket(/\/dragon(\?|$)/, () => {});
   await page.route(/\/api\/v1\/(projects|tasks)(\/|\?|$)/, (route) => {
@@ -44,11 +49,24 @@ async function serve(page: Page, tasks: Task[]) {
       task.errorMessage = null;
       return route.fulfill({ json: { id, status: 'Unassigned' } });
     }
+    if (path.endsWith('/priority')) {
+      const id = path.split('/')[4];
+      const body = route.request().postDataJSON() as { priority: string };
+      priorities.push({ id, body });
+      if (options.refusePriority) return route.fulfill({ status: 400, json: { error: options.refusePriority } });
+      const task = tasks.find((t) => t.id === id)!;
+      task.priority = body.priority[0].toUpperCase() + body.priority.slice(1);
+      return route.fulfill({ json: { id, priority: task.priority } });
+    }
     if (path.endsWith('/tasks')) return route.fulfill({ json: tasks.map((t) => ({ ...t, projectId: 'p-1', featureId: null, commitFailed: false })) });
     return route.fulfill({ json: { id: 'p-1', name: 'waver', ownerId: 'u-1', status: 'InProgress', executionState: 'Running', createdAt: '2026-11-21T10:00:00Z' } });
   });
-  return { retries };
+  return { retries, priorities };
 }
+
+const lane = (page: Page, id: string) => column(page, 'todo').locator(`.lane[data-lane-id="${id}"]`);
+const laneOfCard = (page: Page, taskId: string) =>
+  card(page, taskId).evaluate((el) => el.closest('.lane')?.getAttribute('data-lane-id') ?? null);
 
 test('four status columns, each card with its title, agent and priority, a failed card with the start of its error', async ({ page }) => {
   await serve(page, TASKS());
@@ -73,18 +91,75 @@ test('four status columns, each card with its title, agent and priority, a faile
   await expect(card(page, 't-6').locator('b-button.retry')).toHaveCount(0); // only Failed cards retry
 });
 
-test('the agents move the cards: every column is locked and no card can be dragged', async ({ page }) => {
-  await serve(page, TASKS());
+test('the agents move the cards between columns: only To do takes a person\'s moves, and only between its lanes', async ({ page }) => {
+  const { priorities } = await serve(page, TASKS());
   await page.goto('/#/projects/p-1/board');
   await expect(kanban(page).locator('.card')).toHaveCount(7);
 
-  await expect(kanban(page).locator('.column.locked')).toHaveCount(4);
-  expect(new Set(await kanban(page).locator('.card').evaluateAll((els) => els.map((el) => el.getAttribute('draggable'))))).toEqual(new Set(['false']));
+  await expect(kanban(page).locator('.column.locked')).toHaveCount(3);
+  await expect(column(page, 'todo')).not.toHaveClass(/locked/);
+  for (const id of ['progress', 'blocked', 'done']) {
+    expect(new Set(await column(page, id).locator('.card').evaluateAll((els) => els.map((el) => el.getAttribute('draggable'))))).toEqual(new Set(['false']));
+  }
 
-  // A drag attempt leaves the card where it was.
+  // A drag out of To do, or out of a locked column, leaves the card where it was and changes nothing.
   await card(page, 't-1').dragTo(column(page, 'done'));
+  await card(page, 't-3').dragTo(lane(page, 'low'));
   await expect(column(page, 'todo').locator('.card[data-card-id="t-1"]')).toHaveCount(1);
+  await expect(column(page, 'progress').locator('.card[data-card-id="t-3"]')).toHaveCount(1);
   await expect(column(page, 'done').locator('.card')).toHaveCount(1);
+  expect(priorities).toEqual([]);
+});
+
+test('To do is split into priority lanes; dragging a card to another lane sets its priority and it stays there', async ({ page }) => {
+  const tasks = TASKS();
+  const { priorities } = await serve(page, tasks);
+  await page.goto('/#/projects/p-1/board');
+  await expect(kanban(page).locator('.card')).toHaveCount(7);
+
+  await expect(column(page, 'todo').locator('.lane-title')).toHaveText(['Critical', 'High', 'Normal', 'Low']);
+  expect(await laneOfCard(page, 't-1')).toBe('critical');
+  expect(await laneOfCard(page, 't-2')).toBe('low');
+  await expect(lane(page, 'high').locator('.card')).toHaveCount(0); // an empty lane stays, to drop on
+
+  await card(page, 't-2').dragTo(lane(page, 'critical').locator('.column-body'));
+
+  await expect.poll(() => laneOfCard(page, 't-2')).toBe('critical');
+  expect(priorities).toEqual([{ id: 't-2', body: { priority: 'critical' } }]);
+  await expect(card(page, 't-2').locator('b-badge')).toHaveText('Critical');
+  // Still there after the board refreshes from the server.
+  await page.waitForTimeout(6000);
+  expect(await laneOfCard(page, 't-2')).toBe('critical');
+  await expect(board(page).locator('.move-error')).toBeHidden();
+});
+
+test('a keyboard user moves a card to another lane: Space picks it up, an arrow moves it, Enter drops it', async ({ page }) => {
+  const { priorities } = await serve(page, TASKS());
+  await page.goto('/#/projects/p-1/board');
+  await expect(kanban(page).locator('.card')).toHaveCount(7);
+
+  await card(page, 't-2').focus();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('ArrowUp'); // Low → Normal: To do keeps no order inside a lane, so the arrows go lane to lane
+  await page.keyboard.press('Enter');
+
+  await expect.poll(() => laneOfCard(page, 't-2')).toBe('normal');
+  expect(priorities).toEqual([{ id: 't-2', body: { priority: 'normal' } }]);
+});
+
+test('a refused priority change puts the card back in its lane and says why', async ({ page }) => {
+  const tasks = TASKS();
+  const { priorities } = await serve(page, tasks, { refusePriority: 'task is Done; its priority can no longer change' });
+  await page.goto('/#/projects/p-1/board');
+  await expect(kanban(page).locator('.card')).toHaveCount(7);
+
+  await card(page, 't-2').dragTo(lane(page, 'high').locator('.column-body'));
+
+  await expect(board(page).locator('.move-error')).toContainText('Could not move “Write the greet module” to High');
+  await expect(board(page).locator('.move-error')).toContainText('task is Done; its priority can no longer change');
+  expect(await laneOfCard(page, 't-2')).toBe('low');
+  expect(priorities).toHaveLength(1);
+  expect(tasks.find((t) => t.id === 't-2')!.priority).toBe('Low');
 });
 
 test('Retry on a failed card resets it and the card moves to To do', async ({ page }) => {
@@ -148,7 +223,7 @@ test('in narrow space the columns stack and the cards turn compact', async ({ pa
   const titleLines = await card(page, 't-1').locator('.title').evaluate((el) => getComputedStyle(el).webkitLineClamp);
   expect(titleLines).toBe('1');
 
-  // A refresh that moves a card keeps the board stacked (re-rendering the view would strip b-kanban's own attribute).
+  // A refresh that moves a card keeps the board stacked.
   tasks.find((t) => t.id === 't-3')!.status = 'Done';
   await expect(column(page, 'done').locator('.card[data-card-id="t-3"]')).toHaveCount(1, { timeout: 12_000 });
   await expect(kanban(page)).toHaveAttribute('stacked', '');
