@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using DraCode.KoboldLair.Events.Run;
+using DraCode.KoboldLair.Server.Api;
 using DraCode.KoboldLair.Server.Models.WebSocket;
 using DraCode.KoboldLair.Services;
 using Microsoft.Extensions.Logging;
@@ -84,7 +85,8 @@ namespace DraCode.KoboldLair.Server.Services
 
             // Track the run in the shared registry so it's queryable via GET /api/v1/runs/{id} too — same
             // engine, same status store across transports (TASK-044). Register before start (subscribe-before-start).
-            _runRegistry.Register(runId, caller.Sub, handler.Mode);
+            _runRegistry.Register(runId, caller.Sub, handler.Mode, RunsEndpoints.ProjectOf(request, handler.Mode), request.TaskId,
+                request.Prompt ?? request.Task);
 
             KoboldRunStartInfo startInfo;
             try

@@ -1,4 +1,5 @@
 using Birko.Security.AspNetCore;
+using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Events.Run;
 using DraCode.KoboldLair.Server.Auth;
 using DraCode.KoboldLair.Server.Models.WebSocket;
@@ -42,7 +43,7 @@ public static class RunsEndpoints
                 // Subscribe-before-start: register (which subscribes to the event source) before the run begins,
                 // so no early/terminal events are missed (the event source has no replay).
                 var runId = Guid.NewGuid();
-                registry.Register(runId, owner, handler.Mode);
+                registry.Register(runId, owner, handler.Mode, ProjectOf(request, handler.Mode), request.TaskId, request.Prompt ?? request.Task);
 
                 // Fire-and-forget: StartAsync kicks the run off on a background task and returns its start info.
                 // A synchronous failure (bad payload, project not runnable) surfaces as 400 and fails the run.
@@ -79,17 +80,29 @@ public static class RunsEndpoints
                 if (!IsAdmin(user) && (owner is null || run.Owner is null || run.Owner != owner))
                     return Results.NotFound();
 
-                return Results.Ok(new
+                return Results.Ok(View(run));
+            })
+            .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
+
+        // GET /api/v1/runs — the caller's runs, newest first (TASK-155); every run for an admin asking with
+        // ?scope=all. ?projectId= keeps that project's runs (404 for a project the caller cannot see), and with
+        // &adhoc=true the caller's ad-hoc runs too, which belong to no project (FEATURE-026 D7).
+        api.MapGet("/runs", (ICurrentUser user, RunRegistry registry, IProjectRepository projects,
+                string? scope, string? projectId, bool? adhoc) =>
+            {
+                var caller = ApiOwnership.CallerId(user);
+                var runs = IsAdmin(user) && (scope == "all" || caller is null) ? registry.List() : registry.ListByOwner(caller);
+                if (!IsAdmin(user) && caller is null)
+                    runs = []; // a subject-less caller owns nothing it could be shown
+                if (projectId != null)
                 {
-                    runId = run.RunId,
-                    mode = run.Mode,
-                    status = run.State.ToString().ToLowerInvariant(),
-                    startedAt = run.StartedAt,
-                    completedAt = run.CompletedAt,
-                    completedSteps = run.CompletedSteps,
-                    totalSteps = run.TotalSteps,
-                    summary = run.Summary
-                });
+                    var project = projects.GetById(projectId);
+                    if (project is null || !ApiOwnership.CanAccess(user, project.OwnerId))
+                        return Results.NotFound();
+                    var withAdHoc = adhoc == true;
+                    runs = runs.Where(r => r.ProjectId == projectId || (withAdHoc && r.ProjectId is null && r.Owner == caller)).ToList();
+                }
+                return Results.Ok(runs.Select(View));
             })
             .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
 
@@ -110,6 +123,26 @@ public static class RunsEndpoints
 
         return api;
     }
+
+    /// <summary>A run as the REST surface shows it (status, steps, and what it is for).</summary>
+    private static object View(RunRegistry.RunRecord run) => new
+    {
+        runId = run.RunId,
+        mode = run.Mode,
+        projectId = run.ProjectId,
+        taskId = run.TaskId,
+        prompt = run.Prompt,
+        status = run.State.ToString().ToLowerInvariant(),
+        startedAt = run.StartedAt,
+        completedAt = run.CompletedAt,
+        completedSteps = run.CompletedSteps,
+        totalSteps = run.TotalSteps,
+        summary = run.Summary
+    };
+
+    /// <summary>The project a run belongs to: a project-mode run's <c>projectId</c>; an ad-hoc run has none.</summary>
+    public static string? ProjectOf(KoboldRunRequest request, string mode) =>
+        string.Equals(mode, "project", StringComparison.OrdinalIgnoreCase) ? request.ProjectId : null;
 
     /// <summary>How often the stream sends a comment line, keeping proxies from closing an idle connection and
     /// letting the stream notice a run that ended without delivering its terminal event.</summary>

@@ -25,6 +25,12 @@ namespace DraCode.KoboldLair.Services
             /// <summary>Owning caller (JWT <c>sub</c>); null when started without an identity. Gate reads on this.</summary>
             public string? Owner { get; init; }
             public required string Mode { get; init; }
+            /// <summary>The project a project-mode run works in; null for an ad-hoc run (TASK-155).</summary>
+            public string? ProjectId { get; init; }
+            /// <summary>The task a project-mode run executes.</summary>
+            public string? TaskId { get; init; }
+            /// <summary>An ad-hoc run's request, its first line and at most <see cref="PromptLength"/> characters.</summary>
+            public string? Prompt { get; init; }
             public required DateTime StartedAt { get; init; }
             public RunState State { get; set; } = RunState.Pending;
             public DateTime? CompletedAt { get; set; }
@@ -37,11 +43,14 @@ namespace DraCode.KoboldLair.Services
             /// <summary>A consistent point-in-time copy (taken under the registry lock).</summary>
             internal RunRecord Snapshot() => new()
             {
-                RunId = RunId, Owner = Owner, Mode = Mode, StartedAt = StartedAt,
+                RunId = RunId, Owner = Owner, Mode = Mode, ProjectId = ProjectId, TaskId = TaskId, Prompt = Prompt, StartedAt = StartedAt,
                 State = State, CompletedAt = CompletedAt,
                 CompletedSteps = CompletedSteps, TotalSteps = TotalSteps, Summary = Summary
             };
         }
+
+        /// <summary>How much of an ad-hoc run's request a record keeps for listing.</summary>
+        public const int PromptLength = 200;
 
         private readonly KoboldRunEventSource _events;
         private readonly int _maxRuns;
@@ -60,13 +69,17 @@ namespace DraCode.KoboldLair.Services
         /// record tracks status to completion. MUST be called before the run starts (the event source has no
         /// replay), mirroring the WS endpoint's subscribe-before-start contract. Returns the live record.
         /// </summary>
-        public RunRecord Register(Guid runId, string? owner, string mode)
+        public RunRecord Register(Guid runId, string? owner, string mode,
+            string? projectId = null, string? taskId = null, string? prompt = null)
         {
             var record = new RunRecord
             {
                 RunId = runId,
                 Owner = owner,
                 Mode = mode,
+                ProjectId = string.IsNullOrWhiteSpace(projectId) ? null : projectId,
+                TaskId = string.IsNullOrWhiteSpace(taskId) ? null : taskId,
+                Prompt = Shorten(prompt),
                 StartedAt = DateTime.UtcNow
             };
             _runs[runId] = record;
@@ -85,6 +98,13 @@ namespace DraCode.KoboldLair.Services
             });
 
             return record;
+        }
+
+        private static string? Shorten(string? prompt)
+        {
+            var line = prompt?.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
+            if (string.IsNullOrEmpty(line)) return null;
+            return line.Length <= PromptLength ? line : line[..PromptLength] + "…";
         }
 
         /// <summary>Folds one run event into the record's state. Terminal is monotonic — once a run has
