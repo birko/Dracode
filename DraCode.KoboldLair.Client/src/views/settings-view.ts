@@ -12,6 +12,8 @@ import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 import { getToken } from '../auth-store.js';
 import './providers-page.js';
+import type { AgentProvidersTab } from './agent-providers-tab.js';
+import './agent-providers-tab.js';
 
 export interface SettingsCapabilities {
   canManageProviders: boolean;
@@ -80,6 +82,7 @@ export class SettingsView extends KoboldComponent {
           <div slot="providers" class="panel">${s.caps.providersEnabled
             ? '<kobold-providers-page></kobold-providers-page>'
             : `<div class="message providers-off"><strong>Provider management is off on this server.</strong>${escapeHtml(s.caps.providersHint ?? '')}</div>`}</div>
+          ${s.caps.providersEnabled ? '<div slot="agents" class="panel"><kobold-agent-providers></kobold-agent-providers></div>' : ''}
         </b-tabs>`;
     }
   }
@@ -87,7 +90,15 @@ export class SettingsView extends KoboldComponent {
   protected onUpdated() {
     const tabs = this.$<BTabs>('#settingsTabs');
     // b-tabs takes its labels from setTabs() and its panels from children slotted by tab id (TASK-112)
-    if (tabs) tabs.setTabs([{ id: 'providers', label: 'Providers' }], 'providers');
+    if (!tabs || this._state.kind !== 'loaded') return;
+    const list = [{ id: 'providers', label: 'Providers' }];
+    // Which provider each agent uses (TASK-192): only where the providers live in the database
+    if (this._state.caps.providersEnabled) list.push({ id: 'agents', label: 'Agents' });
+    tabs.setTabs(list, this.getAttribute('tab') === 'agents' && list.length > 1 ? 'agents' : 'providers');
+    // The Agents tab reloads when it is opened: a provider added or changed on the Providers tab must be choosable there
+    this.listen<CustomEvent<{ tab: string }>>(tabs, 'tab-change', (e) => {
+      if (e.detail.tab === 'agents') void this.$<AgentProvidersTab>('kobold-agent-providers')?.refresh();
+    });
   }
 }
 

@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-11-22 21:42. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-22 22:05. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,10 +11,10 @@ _Generated 2026-11-22 21:42. Run `/tasks triage` to refresh. **Do not hand-edit*
 | in-progress  | 7                  | 14                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 3                  | 105                 |
+| done         | 1                  | 3                  | 106                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 46× P2 · 22× P3.
+`todo` by priority: 9× P1 · 45× P2 · 23× P3.
 
 ## In progress now
 
@@ -93,7 +93,7 @@ _None_
   - (epic level) — 2/2 done
     - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko · FEATURE-077
     - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` · FEATURE-021
-- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (21/46 tasks done)
+- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (22/46 tasks done)
   - STORY-019 DraCode.KoboldLair.Cli — single-file binary CLI client — planned (0/5 done)
     - [ ] [TASK-050](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-050-rename-scaffold-publish.md) Rename DraCode → DraCode.KoboldLair.Cli + single-file publish · FEATURE-022
     - [ ] [TASK-051](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-051-daemon-interaction.md) CLI daemon interaction + discovery ⏳ waits on TASK-050, TASK-049 ⚠ blocked: waiting on TASK-050, TASK-049 · FEATURE-022
@@ -145,10 +145,10 @@ _None_
   - STORY-048 Web UI: notifications and decision cards — planned (2/2 done)
     - [x] [TASK-159](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-159-notifications.md) Notifications: header bell and project badges · FEATURE-026
     - [x] [TASK-160](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-160-decision-cards.md) Decision cards in Dragon · FEATURE-026
-  - STORY-049 Web UI: settings — in-progress (1/5 done)
+  - STORY-049 Web UI: settings — in-progress (2/5 done)
     - [x] [TASK-161](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-161-settings-providers.md) Settings: providers · FEATURE-026
     - [ ] [TASK-162](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-162-settings-api-keys.md) Settings: service-account API keys · FEATURE-026
-    - [ ] [TASK-192](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-192-settings-models-default-agent-providers.md) Settings: a provider's models, the default provider, and which provider each agent uses · FEATURE-026
+    - [x] [TASK-192](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-192-settings-models-default-agent-providers.md) Settings: a provider's models, the default provider, and which provider each agent uses · FEATURE-026
     - [ ] [TASK-163](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-163-settings-budgets.md) Settings: budgets · FEATURE-026
     - [ ] [TASK-188](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-188-theme-setting-follows-browser.md) The theme setting is applied, and "Auto" follows the browser's light/dark preference · FEATURE-026
   - STORY-050 Web UI: phone check-and-respond layout — planned (0/1 done)
@@ -228,12 +228,12 @@ _None_
   - STORY-044 Follow Birko framework contract changes — planned (0/1 done)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies
     - ~~[TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule~~
-- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (14/19 tasks done)
+- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (14/20 tasks done)
   - STORY-041 Security & tenancy — planned (3/3 done)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller
     - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing
-  - STORY-042 Correctness & invariants — in-progress (11/15 done)
+  - STORY-042 Correctness & invariants — in-progress (11/16 done)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other
     - [x] [TASK-168](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-168-worktree-removed-with-uncommitted-work.md) A task's worktree is force-removed after its run even when the work was never committed
     - [x] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping
@@ -249,6 +249,7 @@ _None_
     - [ ] [TASK-182](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-182-finished-task-escalated-as-stalled.md) A finished task is escalated as "progress stalled" and its plan revised after it is Done
     - [ ] [TASK-189](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-189-flaky-auth-spec-config-route.md) An e2e auth test fails about one run in six: its config route is still fetching when the page closes
     - [ ] [TASK-191](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-191-cancelled-run-logged-as-iteration-limit.md) A run stopped by a shutdown is logged as having reached its iteration limit
+    - [ ] [TASK-193](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-193-usage-records-name-provider-class.md) Usage records and rate limits name the provider class, not the configured provider
   - STORY-043 Reuse & dead code — planned (0/1 done)
     - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation
 
