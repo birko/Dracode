@@ -657,7 +657,7 @@ the page is visible, and refreshes at once when a decision card in the dock is a
 (TASK-147) gathers what waits on the caller across their projects — open decisions, failed and blocked tasks, unread
 `feature_branch_ready` notifications — for the homepage's "Needs you" list and the header pill.
 
-### Settings → Providers and Agents (TASK-161, TASK-192)
+### Settings → Providers, Agents and API keys (TASK-161, TASK-192, TASK-162)
 
 `#/settings` shows what `GET /api/v1/settings/capabilities` allows: admins (`manage_config`) get a Providers tab, a Birko
 Shell `BaseListPage` over `/api/v1/providers`. Those routes exist only when a provider master key is set
@@ -668,6 +668,11 @@ The Providers tab's "Models" action edits a provider's model list; the Agents ta
 the default provider, each orchestrator's provider and model, and per-Kobold-type overrides
 (`GET /providers/agent-types` lists the types an override can name). It reloads when opened, and lists a provider that
 is assigned but not available as "<name> (not available)".
+The API keys tab (TASK-162, `#/settings/keys`) is for every signed-in user: `GET|POST /api/v1/keys`,
+`POST /api/v1/keys/{id}/revoke` (mapped when `Authentication:OAuth:Enabled`). A key is a confidential client_credentials
+OAuth client acting as `service:<name>` (names unique), with view_own, manage_projects and execute_agents narrowed to its
+creator's; its secret is returned once. Owners live in the `service_keys` table (`ServiceKeyRegistry`), as the OAuth
+client store cannot be listed; `/register` records its admin as owner.
 
 ### Graceful Shutdown (TASK-121)
 

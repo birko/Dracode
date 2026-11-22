@@ -163,6 +163,14 @@ oauthDataConfig.ProjectsPath =
 var oauthUseSqlite = oauthDataConfig.DefaultBackend == StorageBackend.SqLite;
 var oauthDbPath = oauthUseSqlite ? RepositoryFactory.ResolveSqLitePath(oauthDataConfig) : null;
 builder.Services.AddOAuthServerStores(oauthUseSqlite, oauthDbPath);
+// Who created each service-account key (TASK-162): the OAuth client store cannot be listed. The server's database on the
+// SQLite backend, else in memory, like the OAuth stores; resolved when first used, so a test host's settings are seen.
+builder.Services.AddSingleton(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    return new ServiceKeyRegistry(dataConfig.DefaultBackend == StorageBackend.SqLite
+        ? RepositoryFactory.ResolveSqLitePath(dataConfig) : null);
+});
 builder.Services.AddSingleton<OAuthServer>(sp =>
 {
     var jwt = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtAuthenticationConfiguration>>().Value;
@@ -1055,7 +1063,11 @@ if (jwtRuntimeEnabled)
     var providersEnabled = !string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration));
     if (providersEnabled)
         apiV1.MapProviderEndpoints();
-    apiV1.MapSettingsEndpoints(providersEnabled); // what the Settings screen may show the caller (TASK-161)
+    // Service-account API keys (TASK-162): a key is exchanged for a token at /token, so they need the OAuth server
+    var keysEnabled = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<OAuthServerConfiguration>>().Value.Enabled;
+    if (keysEnabled)
+        apiV1.MapKeyEndpoints();
+    apiV1.MapSettingsEndpoints(providersEnabled, keysEnabled); // what the Settings screen may show the caller (TASK-161)
 }
 
 // OpenAPI document + Scalar docs UI for the /api/v1 facade (TASK-042). Mapped anonymously (NOT under

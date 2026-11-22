@@ -9,7 +9,7 @@ namespace DraCode.KoboldLair.Server.Api;
 /// </summary>
 public static class SettingsEndpoints
 {
-    public static RouteGroupBuilder MapSettingsEndpoints(this RouteGroupBuilder api, bool providersEnabled)
+    public static RouteGroupBuilder MapSettingsEndpoints(this RouteGroupBuilder api, bool providersEnabled, bool keysEnabled = false)
     {
         api.MapGet("/settings/capabilities", (ICurrentUser user) => Results.Ok(new
         {
@@ -18,7 +18,11 @@ public static class SettingsEndpoints
             // They are mapped only when a provider master key is set (DB-backed provider configuration, TASK-073)
             providersEnabled,
             providersHint = providersEnabled ? null
-                : "Provider management is off on this server: set KoboldLair:ProviderConfig:MasterKey (or the KOBOLDLAIR_MASTER_KEY environment variable) and restart it."
+                : "Provider management is off on this server: set KoboldLair:ProviderConfig:MasterKey (or the KOBOLDLAIR_MASTER_KEY environment variable) and restart it.",
+            // Service-account API keys (TASK-162): any signed-in user, when the OAuth server is on
+            keysEnabled,
+            keysHint = keysEnabled ? null
+                : "API keys are off on this server: set Authentication:OAuth:Enabled (with JWT on) and restart it."
         }));
         return api;
     }

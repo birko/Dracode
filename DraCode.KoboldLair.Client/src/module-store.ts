@@ -27,7 +27,8 @@ export async function loadModules(): Promise<ModuleManifest[]> {
       order: 2,
       options: [
         { id: 'providers', label: 'Providers', route: '#/settings/providers' },
-        { id: 'agents', label: 'Agents', route: '#/settings/agents' }
+        { id: 'agents', label: 'Agents', route: '#/settings/agents' },
+        { id: 'keys', label: 'API keys', route: '#/settings/keys' }
       ],
       permissions: [],
       status: { text: 'active', variant: 'success' }
