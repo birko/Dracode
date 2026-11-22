@@ -2657,6 +2657,9 @@ namespace DraCode.KoboldLair.Orchestrators
             return true;
         }
 
+        /// <summary>Whether this Drake's tracker holds the task — a project has one Drake per task area (TASK-169).</summary>
+        public bool HoldsTask(string taskId) => _taskTracker.GetTaskById(taskId) != null;
+
         /// <summary>True while the task waits on a pending decision.</summary>
         public bool IsTaskParked(string taskId) =>
             _taskTracker.GetTaskById(taskId)?.Status == TaskStatus.AwaitingHumanDecision;
