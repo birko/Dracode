@@ -3,7 +3,7 @@
  * from the auth store on every request / connection (TASK-114), like the /wyvern WebSocket client.
  */
 
-import { ApiClient as RestClient, SseClient } from 'birko-web-core/http';
+import { ApiClient as RestClient, SseClient, type SseOptions } from 'birko-web-core/http';
 import configService from './config.js';
 import { authSession, endSession } from './auth-session.js';
 import { getToken } from '../auth-store.js';
@@ -27,6 +27,7 @@ export function createRestClient(): RestClient {
 }
 
 /** An SSE client for a server event stream, e.g. `/api/v1/runs/{id}/events`. */
-export function createSseClient(path: string, onMessage?: (event: MessageEvent) => void): SseClient {
-  return new SseClient({ url: `${serverHttpOrigin()}${path}`, getToken, onMessage });
+export function createSseClient(path: string, onMessage?: (event: MessageEvent) => void,
+  options: Pick<SseOptions, 'reconnectMs' | 'reconnectDelays' | 'failingAfter'> = {}): SseClient {
+  return new SseClient({ url: `${serverHttpOrigin()}${path}`, getToken, onMessage, ...options });
 }

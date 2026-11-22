@@ -132,13 +132,13 @@ _None_
     - [x] [TASK-150](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-150-workspace-frame-spec.md) Project workspace frame with the read-only spec tab (P1) · FEATURE-026 D11 D19
     - [x] [TASK-151](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-151-dragon-dock.md) Dragon docked in the workspace, following the project (P1) · FEATURE-026 D11 D12
     - [x] [TASK-152](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-152-dragon-focus-resize.md) Dragon widens with focus (P2) · FEATURE-026 D13
-  - STORY-047 Web UI: workspace tabs — board, runs, git, stats — in-progress (5/9)
+  - STORY-047 Web UI: workspace tabs — board, runs, git, stats — in-progress (6/9)
     - [x] [TASK-153](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-153-board-kanban.md) Board tab: status kanban with Retry (P1) · FEATURE-026 D16
     - [x] [TASK-183](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-183-board-on-b-kanban.md) Board on Birko's b-kanban (P2) · FEATURE-026 D9 D16
     - [x] [TASK-154](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-154-board-priority-lanes.md) Board: priority lanes in To do, drag to reprioritise (P2) · FEATURE-026 D16
     - [x] [TASK-155](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-155-runs-list.md) Runs tab: the project's runs (P2) · FEATURE-026 D7 D20
     - [x] [TASK-184](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-184-runs-tab-pipeline-kobolds.md) Runs tab: list the pipeline's own Kobold runs (P2) · FEATURE-026 D7 D20
-    - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-057-live-run-view.md) Runs tab: live run view (P2) · FEATURE-026 D7 D20
+    - [x] [TASK-057](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-057-live-run-view.md) Runs tab: live run view (P2) · FEATURE-026 D7 D20
     - [ ] [TASK-156](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-156-git-branches-diff.md) Git tab: feature branches and their diff (P2) · FEATURE-026 D20
     - [ ] [TASK-157](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-157-git-merge.md) Git tab: merge a feature branch (P2) · FEATURE-026 D20
     - [ ] [TASK-158](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-158-stats-tab.md) Stats tab: per-project numbers (P2) · FEATURE-026 D18
