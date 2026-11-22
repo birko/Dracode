@@ -36,7 +36,12 @@ does nothing.
 The framework side, an `auto` theme in the shell that follows `prefers-color-scheme` and switches live, was asked of the
 Birko.Web session on 2026-11-22 and filed there as Birko FEATURE-024 (not scheduled yet). DraCode's answers to its open
 questions (owner, 2026-11-22): each app opts in to Auto as its starting theme (DraCode will); the app names its light and
-dark theme (DraCode: light / dark); no flash of light for a dark browser. Start this task once that ships.
+dark theme (DraCode: light / dark); no flash of light for a dark browser. **Shipped in Birko.Web v0.5.2**
+(2026-11-22): the theme menu lists Auto first when dark is registered; Auto follows `prefers-color-scheme` live and is
+saved as `'auto'`; an app starts on it by overriding `protected get defaultTheme() { return 'auto'; }`; `appliedTheme`
+gives what Auto resolved to and `theme-change` carries `{ theme, applied }`; `themeBootScript({ prefix, defaultTheme:
+'auto' })` from `birko-web-shell` returns an inline head script against the light flash (same prefix as the shell's
+`storagePrefix`). Auto picks the registered dark theme, else light.
 
 ## Acceptance criteria
 
@@ -48,7 +53,7 @@ dark theme (DraCode: light / dark); no flash of light for a dark browser. Start 
 
 ## Out of scope
 
-- The shell's `auto` support itself (Birko.Web)
+- The shell's `auto` support itself (Birko.Web, shipped in v0.5.2)
 
 ## Human test plan
 

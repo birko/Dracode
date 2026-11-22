@@ -290,9 +290,9 @@ namespace DraCode.KoboldLair.Models.Tasks
                         _ => statusDisplay
                     };
 
-                    // A parked task keeps its status: written as "error" it would read back as Done
-                    if (!string.IsNullOrEmpty(task.ErrorMessage) && task.Status != TaskStatus.Failed
-                        && task.Status != TaskStatus.AwaitingHumanDecision)
+                    // "error" marks a finished task with an error message, and reads back as Done: any other status keeps its
+                    // own word, or a parked, failed or blocked task would come back finished (TASK-166)
+                    if (!string.IsNullOrEmpty(task.ErrorMessage) && task.Status == TaskStatus.Done)
                     {
                         statusWithEmoji = "🔴 error";
                     }
@@ -695,16 +695,15 @@ namespace DraCode.KoboldLair.Models.Tasks
                 statusWord = parts.Length > 0 ? parts[^1] : statusString;
             }
 
-            return statusWord.ToLowerInvariant() switch
-            {
-                "unassigned" => TaskStatus.Unassigned,
-                "notinitialized" => TaskStatus.NotInitialized,
-                "working" => TaskStatus.Working,
-                "done" => TaskStatus.Done,
-                "awaitinghumandecision" => TaskStatus.AwaitingHumanDecision,
-                "error" => TaskStatus.Done, // Errors are considered "done" but with error message
-                _ => TaskStatus.Unassigned // Default for unknown status
-            };
+            // Errors are considered "done" but with error message
+            if (statusWord.Equals("error", StringComparison.OrdinalIgnoreCase))
+                return TaskStatus.Done;
+
+            // The writer's words are the enum names in lower case, so every status reads back, a new one included
+            // (TASK-166: a failed or blocked task once fell through to Unassigned and ran again)
+            return Enum.TryParse<TaskStatus>(statusWord, ignoreCase: true, out var status) && Enum.IsDefined(status)
+                ? status
+                : TaskStatus.Unassigned; // Default for unknown status
         }
 
         /// <summary>
