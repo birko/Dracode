@@ -36,12 +36,13 @@ Decisions: FEATURE-026 D10.
 - [ ] The new endpoint is owner-scoped through `ApiOwnership` (404, not 403, for another owner's data; admins see all); server tests include a `github:` subject and another owner's data
 - [ ] The homepage lists them grouped by project, newest first; each item opens its project
 - [ ] Inside a project, the header pill counts the other projects with items, and is hidden at zero
+- [ ] Open decisions are items too (kind `decision`, TASK-160's cards: the `decision_required` notifications, or the
+      `/dragon` cards), opening the project where the dock shows the card, and leave once answered
 - [ ] Lays out below the ~900px breakpoint without horizontal scroll (D22)
 - [ ] An e2e spec in `DraCode.KoboldLair.Client/tests/ui-e2e` covers it, red before the change; the suite stays green
 
 ## Out of scope
 
-- Decisions as items (they arrive with TASK-160)
 - Deep links into a specific tab
 
 ## Human test plan

@@ -34,9 +34,9 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Adds a notification for a project. Persists to disk and fires event.
+        /// Adds a notification for a project. Persists to disk and fires event. Returns the notification added.
         /// </summary>
-        public void Notify(string projectName, string type, string message, Dictionary<string, string>? metadata = null)
+        public ProjectNotification Notify(string projectName, string type, string message, Dictionary<string, string>? metadata = null)
         {
             var notification = new ProjectNotification
             {
@@ -68,6 +68,7 @@ namespace DraCode.KoboldLair.Server.Services
             }
 
             _logger.LogInformation("Notification [{Type}] for project {Project}: {Message}", type, projectName, message);
+            return notification;
         }
 
         /// <summary>

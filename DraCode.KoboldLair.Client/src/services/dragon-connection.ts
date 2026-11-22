@@ -8,12 +8,19 @@
  * dropped connection it reconnects with its `sessionId`: `session_resumed` replays the session (the selected project's
  * conversation); if the session is gone (`session_not_found`, e.g. after a server restart) it selects the project again,
  * and the server reloads its saved conversation.
+ *
+ * Decision cards (TASK-160, FEATURE-026 D14/D15): once a project is open (and after every resumed session) it sends
+ * `client_ready`, and the server answers with a `decision_required` card for each open decision of the user's projects;
+ * new ones arrive live, and `decision_resolved` retires one. Cards are kept for every project and the dock shows the
+ * followed project's. `answer(id, text)` sends `answer_decision`; the card is pending until `decision_answer_result`,
+ * which can come only after a reply Dragon is still writing.
  */
 
 import type { ChatMessage } from 'birko-web-components/layout';
 import { WsClient, type WsClientOptions } from 'birko-web-core/http';
 import { getToken } from '../auth-store.js';
 import { renderMarkdown } from './markdown.js';
+import { notificationStore } from '../stores/notification-store.js';
 
 export type DockPhase = 'idle' | 'signed-out' | 'switching' | 'ready' | 'not-found';
 
@@ -25,6 +32,27 @@ export interface DockState {
   typing: boolean;
   /** What Dragon (or a council member) is doing right now, while it works on a reply. */
   status: string | null;
+  /** The followed project's name, as the server confirmed it (decision cards carry the name). */
+  projectName: string | null;
+  /** Open decisions of every project the user can see, oldest first. */
+  decisions: DecisionCard[];
+}
+
+/** An open decision an agent waits on (`decision_required`, TASK-024's metadata contract). */
+export interface DecisionCard {
+  id: string;
+  projectName: string;
+  question: string;
+  context: string;
+  /** Escalation, AskHuman or Approval. */
+  source: string;
+  options: string[];
+  allowFreeText: boolean;
+  timeoutAt: string | null;
+  /** An answer was sent and its result has not come back. */
+  pending: boolean;
+  /** Why the last answer was not taken (an answer not among the options). */
+  error: string | null;
 }
 
 type Listener = (state: DockState) => void;
@@ -36,7 +64,9 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const RESUME_WAIT_MS = 1500;
 
 export class DragonConnection {
-  private _state: DockState = { projectId: null, phase: 'idle', connected: false, messages: [], typing: false, status: null };
+  private _state: DockState = {
+    projectId: null, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [],
+  };
   private readonly _listeners = new Set<Listener>();
   private _client: WsClient | null = null;
   private _options: WsClientOptions | null = null;
@@ -84,6 +114,14 @@ export class DragonConnection {
     return true;
   }
 
+  /** Answer a decision card; false when it cannot be sent now. */
+  answer(decisionId: string, answer: string): boolean {
+    if (!answer.trim() || !this._client?.connected || !this._state.decisions.some((d) => d.id === decisionId)) return false;
+    this.patchDecision(decisionId, { pending: true, error: null });
+    this._client.send(JSON.stringify({ type: 'answer_decision', decisionId, answer }));
+    return true;
+  }
+
   private connect(): void {
     const origin = window.location.origin.replace(/^http/, 'ws');
     this._options = {
@@ -121,10 +159,17 @@ export class DragonConnection {
     if (resumed && projectId && projectId === this._serverProject) {
       this.endStream();
       this.set({ phase: 'ready', messages: [], typing: false, status: null }); // the replay that follows rebuilds it
+      this.sendReady();
     } else if (projectId) {
       this.set({ phase: 'switching', messages: [], typing: false, status: null });
       this.sendSelect();
     }
+  }
+
+  /** Ask for the open decisions again: cards answered or timed out while away are not sent, so they go. */
+  private sendReady(): void {
+    this.set({ decisions: [] });
+    this._client?.send(JSON.stringify({ type: 'client_ready' }));
   }
 
   private sendSelect(): void {
@@ -147,10 +192,19 @@ export class DragonConnection {
       this._serverProject = str(msg.projectId);
       if (this._serverProject === this._state.projectId) {
         this.endStream();
-        this.set({ phase: 'ready', messages: [], typing: false, status: null });
+        this.set({ phase: 'ready', messages: [], typing: false, status: null, projectName: str(msg.projectName) || null });
+        this.sendReady();
       }
       return;
     }
+
+    // Decisions belong to the user, not to the conversation, so they count whatever project is open. A replayed one is
+    // history: client_ready brings what is still open.
+    if (type === 'project_notification') {
+      if (msg.isReplay !== true) this.onNotification(msg);
+      return;
+    }
+    if (type === 'decision_answer_result') return this.onAnswerResult(msg);
 
     if (msg.isReplay === true) {
       const replayed = this.toMessage(msg);
@@ -192,6 +246,66 @@ export class DragonConnection {
         if (shown) this.set({ messages: [...this._state.messages, shown], typing: false, status: null });
       }
     }
+  }
+
+  private onNotification(msg: Msg): void {
+    const meta = (msg.metadata && typeof msg.metadata === 'object' ? msg.metadata : {}) as Record<string, unknown>;
+    const id = str(meta.decisionId);
+    if (!id) return;
+    if (str(msg.notificationType) === 'decision_resolved') {
+      this.dropDecision(id);
+      return;
+    }
+    if (str(msg.notificationType) !== 'decision_required') return;
+    let schema: { kind?: string; options?: unknown; allowFreeText?: unknown } = {};
+    try {
+      schema = JSON.parse(str(meta.responseSchema) || '{}');
+    } catch {
+      // Answered in free text, as a decision with no schema is.
+    }
+    const options = Array.isArray(schema.options) ? schema.options.filter((o): o is string => typeof o === 'string') : [];
+    const card: DecisionCard = {
+      id,
+      projectName: str(msg.projectName),
+      question: str(meta.question) || str(msg.message),
+      context: str(meta.context),
+      source: str(meta.source),
+      options,
+      allowFreeText: schema.allowFreeText !== false || options.length === 0,
+      timeoutAt: str(meta.timeoutAt) || null,
+      pending: false,
+      error: null,
+    };
+    const known = this._state.decisions.find((d) => d.id === id);
+    this.set({
+      decisions: known
+        ? this._state.decisions.map((d) => (d.id === id ? { ...card, pending: d.pending, error: d.error } : d))
+        : [...this._state.decisions, card],
+    });
+  }
+
+  private onAnswerResult(msg: Msg): void {
+    const id = str(msg.decisionId);
+    if (str(msg.result) === 'InvalidAnswer') {
+      this.patchDecision(id, { pending: false, error: str(msg.message) || 'That answer was not taken.' });
+      return;
+    }
+    // Resolved, or already answered / timed out / gone: either way nothing is left to answer. The server's words say which.
+    const said = str(msg.message);
+    if (said && this._state.phase === 'ready') {
+      this.set({ messages: [...this._state.messages, { id: this.nextId('decision'), role: 'system', content: said, timestamp: Date.now() }] });
+    }
+    this.dropDecision(id);
+  }
+
+  private dropDecision(id: string): void {
+    if (!this._state.decisions.some((d) => d.id === id)) return;
+    this.set({ decisions: this._state.decisions.filter((d) => d.id !== id) });
+    void notificationStore.refresh(); // the bell drops the card's notification, which the server has marked read
+  }
+
+  private patchDecision(id: string, patch: Partial<DecisionCard>): void {
+    this.set({ decisions: this._state.decisions.map((d) => (d.id === id ? { ...d, ...patch } : d)) });
   }
 
   /** A saved or live message as a chat bubble; null for what the dock does not show (notifications, decisions…). */

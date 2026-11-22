@@ -142,7 +142,7 @@ _None_
     - [ ] [TASK-158](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-158-stats-tab.md) Stats tab: per-project numbers (P2) · FEATURE-026 D18
   - STORY-048 Web UI: notifications and decision cards — planned (0/2)
     - [x] [TASK-159](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-159-notifications.md) Notifications: header bell and project badges (P1) · FEATURE-026 D17
-    - [ ] [TASK-160](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-160-decision-cards.md) Decision cards in Dragon (P1) · FEATURE-026 D14 D15 D17
+    - [x] [TASK-160](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-160-decision-cards.md) Decision cards in Dragon (P1) · FEATURE-026 D14 D15 D17
   - STORY-049 Web UI: settings — planned (0/3)
     - [ ] [TASK-161](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-161-settings-providers.md) Settings: providers (P2) · FEATURE-026 D20
     - [ ] [TASK-162](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-162-settings-api-keys.md) Settings: service-account API keys (P2) · FEATURE-026 D6
