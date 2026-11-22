@@ -130,7 +130,7 @@ _None_
   - STORY-046 Web UI: project workspace with Dragon docked — planned (0/3)
     - [x] [TASK-150](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-150-workspace-frame-spec.md) Project workspace frame with the read-only spec tab (P1) · FEATURE-026 D11 D19
     - [x] [TASK-151](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-151-dragon-dock.md) Dragon docked in the workspace, following the project (P1) · FEATURE-026 D11 D12
-    - [ ] [TASK-152](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-152-dragon-focus-resize.md) Dragon widens with focus (P2) · FEATURE-026 D13
+    - [x] [TASK-152](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-152-dragon-focus-resize.md) Dragon widens with focus (P2) · FEATURE-026 D13
   - STORY-047 Web UI: workspace tabs — board, runs, git, stats — planned (0/7)
     - [x] [TASK-153](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-153-board-kanban.md) Board tab: status kanban with Retry (P1) · FEATURE-026 D16
     - [x] [TASK-183](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-183-board-on-b-kanban.md) Board on Birko's b-kanban (P2) · FEATURE-026 D9 D16
