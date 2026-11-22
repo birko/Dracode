@@ -22,13 +22,25 @@ const LOGIN_DIFF = {
   ],
 };
 
-interface Server { branches: object[]; repository: boolean; diffs: Record<string, object>; diffRequests: string[] }
+interface Server {
+  branches: object[]; repository: boolean; diffs: Record<string, object>; diffRequests: string[];
+  /** TASK-157: what a merge answers, and the branches merged. */
+  mergeAnswer?: (name: string) => { status: number; json: object };
+  merges?: string[];
+}
 
 async function serve(page: Page, server: Server): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('koboldlair_auth', JSON.stringify({ token: 'test-token' })));
   await page.routeWebSocket(/\/dragon(\?|$)/, () => {});
   await page.route(/\/api\/v1\/(projects|tasks)(\/|\?|$)/, (route: Route) => {
     const path = new URL(route.request().url()).pathname;
+    const merge = /\/git\/branches\/([^/]+)\/merge$/.exec(path);
+    if (merge && route.request().method() === 'POST') {
+      const name = decodeURIComponent(merge[1]);
+      (server.merges ??= []).push(name);
+      const answer = server.mergeAnswer?.(name) ?? { status: 404, json: {} };
+      return route.fulfill({ status: answer.status, json: answer.json });
+    }
     const diff = /\/git\/branches\/([^/]+)\/diff$/.exec(path);
     if (diff) {
       const name = decodeURIComponent(diff[1]);
@@ -117,4 +129,67 @@ test('diff text and names are shown as text', async ({ page }) => {
   await expect(tab(page).locator('.line.add')).toHaveText('+<script>window.__pwned=1</script>');
   await expect(tab(page).locator('img, script')).toHaveCount(0);
   expect(await page.evaluate(() => (window as any).__pwned)).toBeUndefined();
+});
+
+// TASK-157: merging from the tab — confirmed in the page, then the branch leaves the list (and its ready item Needs you);
+// a conflict lists the files and nothing changes.
+
+test('Merge asks in the page, merges, and the branch leaves the list', async ({ page }) => {
+  let needsYouCalls = 0;
+  page.on('dialog', () => { throw new Error('a browser dialog was opened'); });
+  await page.route(/\/api\/v1\/needs-you(\/|\?|$)/, (route) => { needsYouCalls++; return route.fulfill({ json: [] }); });
+  const server: Server = {
+    branches: BRANCHES, repository: true, diffs: { 'feature/f1-login': LOGIN_DIFF }, diffRequests: [],
+    mergeAnswer: () => {
+      server.branches = [BRANCHES[1]]; // merged and deleted
+      return { status: 200, json: { merged: true, branch: 'feature/f1-login', mergeCommit: 'a1b2c3d4e5f6', deleted: true } };
+    },
+  };
+  await serve(page, server);
+  await page.goto('/#/projects/p-1/git');
+  await branch(page, 'feature/f1-login').click();
+  await expect(tab(page).locator('.merge-box')).toContainText('Merging brings these changes into main and deletes the branch.');
+
+  await tab(page).locator('b-button.merge').click();
+  await expect(tab(page).locator('.merge-box.confirm')).toContainText('Merge feature/f1-login into main and delete the branch?');
+  expect(server.merges ?? []).toEqual([]); // nothing is merged before the confirmation
+  const before = needsYouCalls;
+  await tab(page).locator('b-button.merge-confirm').click();
+
+  await expect(tab(page).locator('.merged')).toHaveText('Merged feature/f1-login into main (a1b2c3d4); the branch was deleted.');
+  expect(server.merges).toEqual(['feature/f1-login']);
+  await expect(tab(page).locator('.branch')).toHaveCount(1);
+  await expect(branch(page, 'feature/f1-login')).toHaveCount(0);
+  expect(needsYouCalls).toBeGreaterThan(before); // its ready-to-merge item leaves Needs you
+});
+
+test('Cancel leaves the branch unmerged', async ({ page }) => {
+  const server: Server = { branches: BRANCHES, repository: true, diffs: { 'feature/f1-login': LOGIN_DIFF }, diffRequests: [],
+    mergeAnswer: () => ({ status: 200, json: { merged: true } }) };
+  await serve(page, server);
+  await page.goto('/#/projects/p-1/git');
+  await branch(page, 'feature/f1-login').click();
+  await tab(page).locator('b-button.merge').click();
+  await tab(page).locator('b-button.merge-cancel').click();
+  await expect(tab(page).locator('.merge-box.confirm')).toHaveCount(0);
+  await expect(tab(page).locator('b-button.merge')).toHaveCount(1);
+  expect(server.merges ?? []).toEqual([]);
+});
+
+test('a conflicting branch is not merged and the conflicting files are listed', async ({ page }) => {
+  const greeting = { ...LOGIN_DIFF, branch: 'feature/f2-greeting', files: [LOGIN_DIFF.files[0]] };
+  const server: Server = { branches: BRANCHES, repository: true, diffs: { 'feature/f2-greeting': greeting }, diffRequests: [],
+    mergeAnswer: () => ({ status: 409, json: { error: 'conflicts', message: 'feature/f2-greeting does not merge into main cleanly.', conflicts: ['app.js', 'lib/util.js'] } }) };
+  await serve(page, server);
+  await page.goto('/#/projects/p-1/git');
+  await branch(page, 'feature/f2-greeting').click();
+  await expect(tab(page).locator('.merge-box')).toContainText('Git expects conflicts with main; a merge would be refused.');
+  await tab(page).locator('b-button.merge').click();
+  await tab(page).locator('b-button.merge-confirm').click();
+
+  await expect(tab(page).locator('.merge-box.conflict')).toContainText('Not merged: feature/f2-greeting does not merge into main cleanly. Nothing in the repository changed.');
+  await expect(tab(page).locator('.merge-box .conflicts li')).toHaveText(['app.js', 'lib/util.js']);
+  await expect(tab(page).locator('.branch')).toHaveCount(2);
+  await tab(page).locator('b-button.merge-dismiss').click();
+  await expect(tab(page).locator('b-button.merge')).toHaveCount(1);
 });

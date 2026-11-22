@@ -204,6 +204,78 @@ public class GitEndpointsTests : IDisposable
             .Select(f => f.GetProperty("patch").GetString())).Should().Be(whole);
     }
 
+    private static Task<HttpResponseMessage> Merge(HttpClient client, string token, string id, string branch) =>
+        client.SendAsync(Authed(HttpMethod.Post, $"/api/v1/projects/{id}/git/branches/{Uri.EscapeDataString(branch)}/merge", token));
+
+    [Fact]
+    public async Task Merging_a_clean_branch_merges_it_into_main_deletes_it_and_retires_its_ready_notification()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = Token(factory, GitHubOwner);
+        var id = await CreateProject(client, token, "Shop");
+        var folder = SeedRepository(factory, id);
+        var notifications = factory.Services.GetRequiredService<DraCode.KoboldLair.Server.Services.ProjectNotificationService>();
+        notifications.NotifyFeatureBranchReady("Shop", "login", "feature/f1-login");
+        notifications.NotifyFeatureBranchReady("Shop", "greeting", "feature/f2-greeting");
+
+        var response = await Merge(client, token, id, "feature/f1-login");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using (var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync()))
+        {
+            doc.RootElement.GetProperty("merged").GetBoolean().Should().BeTrue();
+            doc.RootElement.GetProperty("deleted").GetBoolean().Should().BeTrue();
+        }
+        Git(folder, "log", "--format=%s", "main").Should().Contain("Login returns true").And.Contain("Merge branch 'feature/f1-login' into main");
+        Git(folder, "branch", "--list", "feature/f1-login").Trim().Should().BeEmpty("a merged branch is deleted");
+        File.ReadAllText(Path.Combine(folder, "app.js")).Should().Contain("module.exports = { greeting };").And.Contain("'hey'");
+        notifications.GetPendingNotifications("Shop").Select(n => n.Metadata["branchName"]).Should().Equal(new[] { "feature/f2-greeting" },
+            "the merged branch's ready-to-merge notification is read; the other stays");
+    }
+
+    [Fact]
+    public async Task A_conflicting_branch_answers_409_with_the_files_and_leaves_the_repository_untouched()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = Token(factory, GitHubOwner);
+        var id = await CreateProject(client, token, "Shop");
+        var folder = SeedRepository(factory, id);
+        Write(folder, "scratch.txt", "uncommitted work\n");
+        var head = Git(folder, "rev-parse", "HEAD");
+        var branches = Git(folder, "branch", "--list");
+
+        var response = await Merge(client, token, id, "feature/f2-greeting");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        using (var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync()))
+            doc.RootElement.GetProperty("conflicts").EnumerateArray().Select(c => c.GetString()).Should().Equal("app.js");
+        Git(folder, "rev-parse", "HEAD").Should().Be(head);
+        Git(folder, "branch", "--list").Should().Be(branches, "nothing was deleted");
+        Git(folder, "status", "--porcelain").Trim().Should().Be("?? scratch.txt", "no merge left behind");
+    }
+
+    [Fact]
+    public async Task Merging_needs_the_project_and_the_permission_and_a_real_branch_other_than_main()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var mine = Token(factory, GitHubOwner);
+        var theirs = Token(factory, OtherOwner);
+        var secret = await CreateProject(client, theirs, "Secret");
+        var folder = SeedRepository(factory, secret);
+
+        (await Merge(client, mine, secret, "feature/f1-login")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await Merge(client, Token(factory, OtherOwner, "view_own"), secret, "feature/f1-login")).StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "merging needs manage_projects");
+        (await Merge(client, theirs, secret, "nope")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await Merge(client, theirs, secret, "main")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        Git(folder, "branch", "--list", "feature/f1-login").Trim().Should().NotBeEmpty();
+
+        (await Merge(client, Token(factory, "admin", "*"), secret, "feature/f1-login")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     [Fact]
     public async Task Another_owners_project_and_an_unknown_branch_are_not_found_and_an_admin_sees_all()
     {

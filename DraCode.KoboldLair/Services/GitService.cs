@@ -636,10 +636,7 @@ namespace DraCode.KoboldLair.Services
         /// </summary>
         public async Task<BranchDiff?> GetBranchFilesAsync(string projectFolder, string branch, string baseBranch = "main")
         {
-            if (!await IsRepositoryAsync(projectFolder))
-                return null;
-            var known = await RunGitCommandAsync(projectFolder, "for-each-ref", "--format=%(refname:short)", "refs/heads");
-            if (!known.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Any(b => b.TrimEnd('\r') == branch))
+            if (!await BranchExistsAsync(projectFolder, branch))
                 return null; // only a real branch name ever reaches git as a revision, never an option
 
             var range = $"{baseBranch}...{branch}";
@@ -697,6 +694,18 @@ namespace DraCode.KoboldLair.Services
                 });
             }
             return new BranchDiff { Branch = branch, Base = baseBranch, Files = files, Truncated = truncated };
+        }
+
+        /// <summary>
+        /// Whether <paramref name="branch"/> is one of the repository's local branches — checked before a name from a
+        /// request reaches git, so it can only ever be a revision, never an option (TASK-156, TASK-157).
+        /// </summary>
+        public async Task<bool> BranchExistsAsync(string projectFolder, string branch)
+        {
+            if (string.IsNullOrWhiteSpace(branch) || !await IsRepositoryAsync(projectFolder))
+                return false;
+            var known = await RunGitCommandAsync(projectFolder, "for-each-ref", "--format=%(refname:short)", "refs/heads");
+            return known.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Any(b => b.TrimEnd('\r') == branch);
         }
 
         /// <summary>A numstat path: a rename shows as <c>dir/{old =&gt; new}/f</c> or <c>old =&gt; new</c>; the new path is wanted.</summary>
