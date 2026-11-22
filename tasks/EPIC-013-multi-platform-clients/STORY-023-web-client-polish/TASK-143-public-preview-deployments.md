@@ -8,7 +8,6 @@ assignee: ai
 created: 2026-11-12
 depends-on: []
 blocks: []
-blocked: null
 pr: null
 github-issue: null
 jira-key: null

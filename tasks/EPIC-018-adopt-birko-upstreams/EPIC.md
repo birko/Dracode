@@ -1,6 +1,6 @@
 ---
 id: EPIC-018
-status: planned
+status: in-progress
 created: 2026-10-07
 owner: ai
 affects: [DraCode.KoboldLair, DraCode.KoboldLair.Server, DraCode.KoboldLair.Client, DraCode.ServiceDefaults]
