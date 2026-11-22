@@ -636,7 +636,9 @@ badges read the same records through `GET /api/v1/notifications` (owner-scoped, 
 and `POST /api/v1/notifications/{id}/read` (404 for a project the caller cannot see). Reading one stamps `ReadAt` rather
 than deleting it, so the bell can list it as read; each project keeps its newest 50 read ones. A project's file is loaded
 before a new notification is added, so a restart no longer saves over the unread ones. The bell polls every 15 s while
-the page is visible, and refreshes at once when a decision card in the dock is answered or retired (TASK-160).
+the page is visible, and refreshes at once when a decision card in the dock is answered or retired (TASK-160). `GET /api/v1/needs-you`
+(TASK-147) gathers what waits on the caller across their projects — open decisions, failed and blocked tasks, unread
+`feature_branch_ready` notifications — for the homepage's "Needs you" list and the header pill.
 
 ### WebSocket Message Cap
 

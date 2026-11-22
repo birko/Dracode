@@ -24,6 +24,7 @@ import { WsClient, type WsClientOptions } from 'birko-web-core/http';
 import { authStore, getToken } from '../auth-store.js';
 import { renderMarkdown } from './markdown.js';
 import { notificationStore } from '../stores/notification-store.js';
+import { needsYouStore } from '../stores/needs-you-store.js';
 
 export type DockPhase = 'idle' | 'signed-out' | 'switching' | 'ready' | 'not-found';
 
@@ -329,6 +330,7 @@ export class DragonConnection {
     if (!this._state.decisions.some((d) => d.id === id)) return;
     this.set({ decisions: this._state.decisions.filter((d) => d.id !== id) });
     void notificationStore.refresh(); // the bell drops the card's notification, which the server has marked read
+    void needsYouStore.refresh(); // and Needs you its item (TASK-147)
   }
 
   private patchDecision(id: string, patch: Partial<DecisionCard>): void {

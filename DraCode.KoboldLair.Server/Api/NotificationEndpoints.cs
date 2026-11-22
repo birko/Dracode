@@ -20,7 +20,7 @@ public static class NotificationEndpoints
         api.MapGet("/notifications", (ICurrentUser user, IProjectRepository repo, ProjectNotificationService notifications,
                 string? scope) =>
             {
-                var views = VisibleProjects(user, repo, scope)
+                var views = ApiOwnership.VisibleProjects(user, repo, scope)
                     .SelectMany(p => notifications.GetNotifications(p.Name).Select(n => (Project: p, Notification: n)))
                     .OrderBy(x => x.Notification.ReadAt == null ? 0 : 1)
                     .ThenByDescending(x => x.Notification.CreatedAt)
@@ -33,7 +33,7 @@ public static class NotificationEndpoints
         api.MapPost("/notifications/{id}/read", (string id, ICurrentUser user, IProjectRepository repo,
                 ProjectNotificationService notifications) =>
             {
-                foreach (var project in VisibleProjects(user, repo, "all"))
+                foreach (var project in ApiOwnership.VisibleProjects(user, repo, "all"))
                 {
                     var notification = notifications.GetNotifications(project.Name).FirstOrDefault(n => n.Id == id);
                     if (notification == null)
@@ -46,14 +46,6 @@ public static class NotificationEndpoints
             .RequirePermission(KoboldLairPermissionChecker.ViewOwn);
 
         return api;
-    }
-
-    /// <summary>The caller's projects; every project for an admin asking with <c>scope=all</c> (or with no identity).</summary>
-    private static IEnumerable<Project> VisibleProjects(ICurrentUser user, IProjectRepository repo, string? scope)
-    {
-        var admin = ApiOwnership.IsAdmin(user);
-        var caller = ApiOwnership.CallerId(user);
-        return (admin && (scope == "all" || caller is null)) ? repo.GetAll() : repo.GetAllForOwner(caller ?? string.Empty);
     }
 
     private static object View(Project project, ProjectNotification n) => new
