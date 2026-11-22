@@ -1,13 +1,15 @@
 /**
  * Dragon docked in the project workspace (TASK-151, FEATURE-026 D11/D12): the project's conversation with Dragon on
  * `b-chat`, with streaming text, typing and what Dragon is doing. It shows the page's Dragon connection
- * (`dragonConnection`), which follows the project given in `project-id`.
+ * (`dragonConnection`), which follows the project given in `project-id`. Its header holds the "Keep expanded" pin
+ * (TASK-152): the workspace widens the dock while focus is in it, or always while pinned.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
 import type { BChat, ChatMessage } from 'birko-web-components/layout';
 import { KoboldComponent } from '../components/kobold-component.js';
 import { dragonConnection, type DockState } from '../services/dragon-connection.js';
+import { DRAGON_PIN_EVENT, DRAGON_SHORTCUT, isDragonPinned, setDragonPinned } from '../services/dock-layout.js';
 
 const PLACEHOLDER: Record<DockState['phase'], string> = {
   idle: 'Dragon is starting…',
@@ -21,6 +23,7 @@ export class DragonDock extends KoboldComponent {
   private _unsubscribe: (() => void) | null = null;
   private _shown: ChatMessage[] = [];
   private _state: DockState = dragonConnection.state;
+  private _pinned = isDragonPinned();
 
   static get styles() {
     return `
@@ -36,6 +39,16 @@ export class DragonDock extends KoboldComponent {
         font-weight: var(--b-font-weight-bold, 700); color: var(--b-text);
       }
       .conn { margin-left: auto; font-size: var(--b-text-xs, 0.75rem); font-weight: normal; color: var(--b-text-muted); }
+      .pin {
+        border: 1px solid transparent; border-radius: var(--b-radius, 0.375rem); background: none; cursor: pointer;
+        padding: 0.125rem var(--b-space-xs, 0.25rem); font: inherit; font-size: var(--b-text-xs, 0.75rem); font-weight: normal;
+        color: var(--b-text-muted);
+      }
+      .pin:hover { color: var(--b-text); background: var(--b-bg-tertiary, var(--b-bg-secondary)); }
+      .pin[aria-pressed="true"] { color: var(--b-color-primary); border-color: var(--b-color-primary); }
+      .pin:focus-visible { outline: none; box-shadow: var(--b-focus-ring); }
+      /* Below the breakpoint the dock sits under the tabs at full width: nothing to widen. */
+      @media (max-width: 56rem) { .pin { display: none; } }
       .conn.offline { color: var(--b-color-warning); }
       b-chat { flex: 1; min-height: 0; }
       .status {
@@ -61,7 +74,9 @@ export class DragonDock extends KoboldComponent {
     const s = this._state;
     const conn = s.phase === 'signed-out' || s.phase === 'idle' ? '' : s.connected ? 'connected' : 'reconnecting…';
     return `
-      <div class="dock-head">🐉 Dragon<span class="conn${s.connected ? '' : ' offline'}">${conn}</span></div>
+      <div class="dock-head" title="Click into Dragon or press ${DRAGON_SHORTCUT.label} to widen it">🐉 Dragon<span class="conn${s.connected ? '' : ' offline'}">${conn}</span>
+        <button class="pin" type="button" aria-pressed="${this._pinned}" title="Keep Dragon wide when focus leaves it">📌 Keep expanded</button>
+      </div>
       <b-chat ${s.phase === 'ready' && s.connected ? '' : 'disabled'} placeholder="${escapeHtml(PLACEHOLDER[s.phase])}">
         <div slot="footer" class="status">${escapeHtml(s.status ?? '')}</div>
       </b-chat>
@@ -77,6 +92,21 @@ export class DragonDock extends KoboldComponent {
     this.listen<CustomEvent<{ text: string }>>(chat, 'send', (e) => {
       if (!dragonConnection.send(e.detail.text)) chat.focusInput();
     });
+    const pin = this.$('.pin');
+    if (pin) this.listen(pin, 'click', () => this.togglePin());
+  }
+
+  /** Put focus in Dragon's input (the workspace's shortcut); false when the input cannot take it. */
+  focusInput(): boolean {
+    this.chat()?.focusInput();
+    return this.shadowRoot?.activeElement != null;
+  }
+
+  private togglePin(): void {
+    this._pinned = !this._pinned;
+    setDragonPinned(this._pinned);
+    this.$('.pin')?.setAttribute('aria-pressed', String(this._pinned));
+    this.dispatchEvent(new CustomEvent(DRAGON_PIN_EVENT, { detail: { pinned: this._pinned }, bubbles: true, composed: true }));
   }
 
   private chat(): BChat | null {

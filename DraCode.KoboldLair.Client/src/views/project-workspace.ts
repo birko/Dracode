@@ -2,7 +2,8 @@
  * Project workspace frame (TASK-150, FEATURE-026 D11): a project opens at `#/projects/{id}/{tab}` with its tabs in the
  * centre, in D11's order. A tab is listed once its screen exists: Board (TASK-153) and Spec (TASK-150). An unknown or not-owned project (the API
  * answers 404 for both) and an unknown tab show the not-found view. Dragon is docked on the right and follows the
- * project (TASK-151); below the breakpoint it sits under the tabs.
+ * project (TASK-151); below the breakpoint it sits under the tabs. Dragon widens with focus (TASK-152, D13): ~360px,
+ * ~60% of the width while focus is inside it (a click, or the shortcut) or while pinned; no timers.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -13,6 +14,8 @@ import type { ProjectSummary } from './home-view.js';
 import './board-tab.js';
 import './spec-tab.js';
 import './dragon-dock.js';
+import type { DragonDock } from './dragon-dock.js';
+import { DRAGON_PIN_EVENT, DRAGON_SHORTCUT, isDragonPinned } from '../services/dock-layout.js';
 
 /** The workspace tabs whose screens exist, in display order: id, label and the element that renders it. */
 export const WORKSPACE_TABS: readonly { id: string; label: string; tag: string }[] = [
@@ -31,18 +34,32 @@ type WorkspaceState =
 
 export class ProjectWorkspace extends KoboldComponent {
   private _state: WorkspaceState = { kind: 'loading' };
+  /** Focus is inside the dock. */
+  private _dockFocused = false;
+  private _pinned = isDragonPinned();
+  private readonly _onKey = (e: KeyboardEvent) => {
+    if (!DRAGON_SHORTCUT.matches(e) || this._state.kind !== 'loaded') return;
+    e.preventDefault();
+    this.focusDragon();
+  };
 
   static get styles() {
     return `
       :host { display: block; min-width: 0; }
-      .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--b-space-lg, 1rem); align-items: start; }
+      .workspace {
+        display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--b-space-lg, 1rem); align-items: start;
+        transition: grid-template-columns 150ms ease;
+      }
+      .workspace.expanded { grid-template-columns: minmax(0, 1fr) 60%; }
+      @media (prefers-reduced-motion: reduce) { .workspace { transition: none; } }
       .main { min-width: 0; }
       .dock {
         position: sticky; top: 0; min-width: 0;
         height: calc(100vh - 7rem); min-height: 24rem;
       }
+      .dock:focus { outline: none; }
       @media (max-width: 56rem) {
-        .workspace { grid-template-columns: minmax(0, 1fr); }
+        .workspace, .workspace.expanded { grid-template-columns: minmax(0, 1fr); }
         .dock { position: static; height: 28rem; min-height: 0; }
       }
       .project-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--b-space-sm, 0.5rem); margin-bottom: var(--b-space-md, 0.75rem); min-width: 0; }
@@ -66,7 +83,12 @@ export class ProjectWorkspace extends KoboldComponent {
     return WORKSPACE_TABS.find((t) => t.id === this.attr('tab'));
   }
 
+  protected onUnmount() {
+    document.removeEventListener('keydown', this._onKey);
+  }
+
   protected async onMount() {
+    document.addEventListener('keydown', this._onKey);
     const id = this.attr('project-id');
     if (!id || !this.tab) {
       this._state = { kind: 'not-found' };
@@ -104,7 +126,7 @@ export class ProjectWorkspace extends KoboldComponent {
         const { project } = state;
         const active = this.tab!;
         return `
-          <div class="workspace">
+          <div class="workspace${this.expanded ? ' expanded' : ''}">
           <div class="main">
           <div class="project-head">
             <a class="back" href="#/">← Projects</a>
@@ -118,14 +140,46 @@ export class ProjectWorkspace extends KoboldComponent {
             <div slot="${active.id}"><${active.tag} project-id="${escapeHtml(project.id)}"></${active.tag}></div>
           </b-tabs>
           </div>
-          <aside class="dock" aria-label="Dragon"><kobold-dragon-dock project-id="${escapeHtml(project.id)}"></kobold-dragon-dock></aside>
+          <aside class="dock" aria-label="Dragon" tabindex="-1" aria-keyshortcuts="${DRAGON_SHORTCUT.label}"><kobold-dragon-dock project-id="${escapeHtml(project.id)}"></kobold-dragon-dock></aside>
           </div>
         `;
       }
     }
   }
 
+  private get expanded(): boolean {
+    return this._dockFocused || this._pinned;
+  }
+
+  private layout(): void {
+    this.$('.workspace')?.classList.toggle('expanded', this.expanded);
+  }
+
+  /** The shortcut: into Dragon's input, or the dock itself while the input is disabled. */
+  private focusDragon(): void {
+    const dock = this.$('kobold-dragon-dock') as DragonDock | null;
+    if (!dock?.focusInput()) (this.$('.dock') as HTMLElement | null)?.focus();
+  }
+
   protected onUpdated() {
+    const dock = this.$('.dock') as HTMLElement | null;
+    if (dock) {
+      // A click anywhere in the dock focuses at least the dock (tabindex -1), so clicking in widens it.
+      this.listen(dock, 'focusin', () => {
+        this._dockFocused = true;
+        this.layout();
+      });
+      this.listen<FocusEvent>(dock, 'focusout', (e) => {
+        if (!document.hasFocus()) return; // the window lost focus; it comes back to the same place
+        if (e.relatedTarget instanceof Node && dock.contains(e.relatedTarget)) return;
+        this._dockFocused = false;
+        this.layout();
+      });
+      this.listen<CustomEvent<{ pinned: boolean }>>(dock, DRAGON_PIN_EVENT, (e) => {
+        this._pinned = e.detail.pinned;
+        this.layout();
+      });
+    }
     const tabs = this.$('b-tabs') as (HTMLElement & { setTabs(t: { id: string; label: string }[], a?: string): void }) | null;
     if (!tabs) return;
     tabs.setTabs(WORKSPACE_TABS.map(({ id, label }) => ({ id, label })), this.attr('tab') ?? DEFAULT_TAB);
