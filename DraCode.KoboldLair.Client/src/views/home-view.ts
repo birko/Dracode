@@ -2,6 +2,7 @@
  * Projects homepage (TASK-145, FEATURE-026 D10): the caller's projects as cards, each with its status, execution
  * state and a progress bar from its task counts. Data comes from `GET /api/v1/projects` (owner-scoped; `scope=all`
  * lets an admin see every project and is ignored for anyone else). A card opens the project's workspace (TASK-150).
+ * Above the cards, "Needs you" (TASK-147) lists what waits on the user, grouped by project, each item opening it.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -10,6 +11,7 @@ import { createRestClient } from '../services/http.js';
 import { getToken } from '../auth-store.js';
 import { DEFAULT_TAB } from './project-workspace.js';
 import { notificationStore } from '../stores/notification-store.js';
+import { needsYouStore, type NeedsYouItem } from '../stores/needs-you-store.js';
 
 export interface ProjectTaskCounts {
   total: number;
@@ -51,10 +53,31 @@ const EXECUTION_VARIANT: Record<string, string> = {
   Cancelled: 'danger',
 };
 
+const NEEDS_LABEL: Record<string, string> = {
+  decision: 'Decision',
+  failed_task: 'Failed',
+  blocked_task: 'Blocked',
+  merge_ready: 'Ready to merge',
+};
+const NEEDS_VARIANT: Record<string, string> = { decision: 'warning', failed_task: 'danger', blocked_task: 'warning', merge_ready: 'success' };
+
+function since(iso: string): string {
+  const t = Date.parse(iso);
+  if (!t) return '';
+  const minutes = Math.round((Date.now() - t) / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return new Date(t).toLocaleDateString();
+}
+
 export class HomeView extends KoboldComponent {
   private _state: HomeState = { kind: 'loading' };
   private _unread = new Map<string, number>();
+  private _needsYou: NeedsYouItem[] = [];
   private _unsubscribe: (() => void) | null = null;
+  private _unsubscribeNeeds: (() => void) | null = null;
 
   static get styles() {
     return `
@@ -94,12 +117,32 @@ export class HomeView extends KoboldComponent {
       }
       .message strong { display: block; margin-bottom: var(--b-space-xs, 0.25rem); color: var(--b-text); }
       a { color: var(--b-color-primary); }
+      .needs-you { margin: 0 0 var(--b-space-xl, 1.5rem); }
+      .needs-you h2 { margin: 0 0 var(--b-space-sm, 0.5rem); font-size: var(--b-text-lg, 1rem); color: var(--b-text); }
+      .needs-group {
+        margin: 0 0 var(--b-space-sm, 0.5rem); padding: var(--b-space-sm, 0.5rem) var(--b-space-md, 0.75rem);
+        background: var(--b-bg-elevated); border: 1px solid var(--b-border); border-left: 3px solid var(--b-color-warning);
+        border-radius: var(--b-radius-lg, 0.5rem);
+      }
+      .needs-group h3 { margin: 0 0 var(--b-space-xs, 0.25rem); font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text); overflow-wrap: anywhere; }
+      .needs-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.125rem; }
+      .needs-item {
+        display: flex; align-items: baseline; gap: var(--b-space-sm, 0.5rem); min-width: 0;
+        padding: 0.25rem 0; color: var(--b-text); text-decoration: none; font-size: var(--b-text-sm, 0.8125rem);
+      }
+      .needs-item:hover .needs-title { text-decoration: underline; }
+      .needs-item:focus-visible { outline: none; box-shadow: var(--b-focus-ring); border-radius: var(--b-radius-sm, 0.25rem); }
+      .needs-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .needs-when { flex-shrink: 0; font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); }
+      .all-clear { margin: 0; font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text-muted); }
     `;
   }
 
   protected onUnmount() {
     this._unsubscribe?.();
     this._unsubscribe = null;
+    this._unsubscribeNeeds?.();
+    this._unsubscribeNeeds = null;
   }
 
   protected async onMount() {
@@ -108,6 +151,15 @@ export class HomeView extends KoboldComponent {
       this._unread = notificationStore.unreadByProject();
       if (this._state.kind === 'loaded') this.update();
     });
+    // What waits on the user (TASK-147). The header's pill may already keep the store polling, so ask for a fresh list:
+    // the homepage is where the person looks.
+    if (getToken()) {
+      this._unsubscribeNeeds = needsYouStore.subscribe((state) => {
+        this._needsYou = state.items;
+        if (this._state.kind === 'loaded') this.update();
+      });
+      void needsYouStore.refresh();
+    }
     if (!getToken()) {
       this._state = { kind: 'signed-out' };
       this.update();
@@ -142,8 +194,32 @@ export class HomeView extends KoboldComponent {
         return state.projects.length === 0
           ? `<div class="message"><strong>No projects yet.</strong>A project starts as a conversation with Dragon, which
               writes its specification; the agents take it from there.</div>`
-          : `<div class="grid">${state.projects.map((p) => this.renderCard(p)).join('')}</div>`;
+          : `${this.renderNeedsYou()}<div class="grid">${state.projects.map((p) => this.renderCard(p)).join('')}</div>`;
     }
+  }
+
+  /** Needs you (TASK-147): grouped by project, the project with the newest item first, each item newest first. */
+  private renderNeedsYou(): string {
+    if (this._needsYou.length === 0) {
+      return `<section class="needs-you" id="needs-you" aria-label="Needs you"><p class="all-clear">Nothing needs you right now.</p></section>`;
+    }
+    const groups = new Map<string, NeedsYouItem[]>();
+    for (const item of [...this._needsYou].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))) {
+      groups.set(item.projectId, [...(groups.get(item.projectId) ?? []), item]);
+    }
+    return `<section class="needs-you" id="needs-you" aria-labelledby="needs-you-title">
+      <h2 id="needs-you-title">Needs you</h2>
+      ${[...groups.values()].map((items) => `
+        <div class="needs-group" data-project-id="${escapeHtml(items[0].projectId)}">
+          <h3>${escapeHtml(items[0].projectName)}</h3>
+          <ul class="needs-items">${items.map((i) => `<li><a class="needs-item" data-kind="${escapeHtml(i.kind)}"
+              href="#/projects/${encodeURIComponent(i.projectId)}/${DEFAULT_TAB}">
+            <b-badge variant="${NEEDS_VARIANT[i.kind] ?? 'neutral'}">${escapeHtml(NEEDS_LABEL[i.kind] ?? i.kind)}</b-badge>
+            <span class="needs-title" title="${escapeHtml(i.title)}">${escapeHtml(i.title)}</span>
+            <span class="needs-when">${escapeHtml(since(i.createdAt))}</span>
+          </a></li>`).join('')}</ul>
+        </div>`).join('')}
+    </section>`;
   }
 
   private renderCard(project: ProjectSummary): string {

@@ -9,6 +9,7 @@ import { withBirkoFixtures } from 'birko-web-testing/playwright';
 export const test = withBirkoFixtures(base).extend<{ page: Page }>({
   page: async ({ page }: { page: Page }, use: (page: Page) => Promise<void>) => {
     await page.route(/\/api\/v1\/notifications(\/|\?|$)/, (route) => route.fulfill({ json: [] }));
+    await page.route(/\/api\/v1\/needs-you(\/|\?|$)/, (route) => route.fulfill({ json: [] }));
     await use(page);
   },
 });

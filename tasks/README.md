@@ -124,7 +124,7 @@ _None_
     - [ ] [TASK-143](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-143-public-preview-deployments.md) Public preview deployments of projects on subdomains (P3) · FEATURE-026 D23
     - [ ] [TASK-144](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-144-phone-push-notifications.md) Phone push notifications when a project needs you (P3) · FEATURE-026 D24
   - STORY-045 Web UI: projects homepage overview — planned (0/3)
-    - [ ] [TASK-147](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-147-needs-you.md) What needs you: homepage list and header pill (P1) · FEATURE-026 D10
+    - [x] [TASK-147](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-147-needs-you.md) What needs you: homepage list and header pill (P1) · FEATURE-026 D10
     - [ ] [TASK-148](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-148-cross-project-charts.md) Cross-project charts and numbers on the homepage (P2) · FEATURE-026 D18
     - [ ] [TASK-149](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-149-home-dragon.md) Home Dragon on the projects homepage (P2) · FEATURE-026 D12
   - STORY-046 Web UI: project workspace with Dragon docked — planned (0/3)

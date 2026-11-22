@@ -1087,6 +1087,7 @@ if (jwtRuntimeEnabled)
     apiV1.MapRunEndpoints(); // POST/GET /api/v1/runs (TASK-044)
     apiV1.MapResourceEndpoints(); // projects/spec/features/tasks/plans (TASK-043)
     apiV1.MapNotificationEndpoints(); // the bell and project badges (TASK-159)
+    apiV1.MapNeedsYouEndpoints(); // the homepage's Needs you list and the header pill (TASK-147)
     // Admin /api/v1/providers CRUD (TASK-073) — only in DB mode. Read post-build so test-host config is seen.
     if (!string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration)))
         apiV1.MapProviderEndpoints();

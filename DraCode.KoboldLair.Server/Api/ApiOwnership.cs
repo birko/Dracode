@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using Birko.Security.AspNetCore;
+using DraCode.KoboldLair.Data.Repositories;
+using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Server.Auth;
 
 namespace DraCode.KoboldLair.Server.Api;
@@ -38,5 +40,16 @@ public static class ApiOwnership
             return true;
         var caller = CallerId(user);
         return caller is not null && ownerId is not null && ownerId == caller;
+    }
+
+    /// <summary>
+    /// The caller's projects; every project for an admin asking with <c>scope=all</c> (or with no identity). Shared by the
+    /// listings that span projects (notifications, needs-you).
+    /// </summary>
+    public static IEnumerable<Project> VisibleProjects(ICurrentUser user, IProjectRepository repo, string? scope)
+    {
+        var admin = IsAdmin(user);
+        var caller = CallerId(user);
+        return (admin && (scope == "all" || caller is null)) ? repo.GetAll() : repo.GetAllForOwner(caller ?? string.Empty);
     }
 }

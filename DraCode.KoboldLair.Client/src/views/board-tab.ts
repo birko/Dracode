@@ -11,6 +11,7 @@ import { define, escapeHtml } from 'birko-web-core';
 import type { BKanban, KanbanCard, KanbanColumn } from 'birko-web-components/data';
 import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
+import { needsYouStore } from '../stores/needs-you-store.js';
 
 export interface TaskView {
   id: string;
@@ -283,6 +284,7 @@ export class BoardTab extends KoboldComponent {
           kind: 'loaded',
           tasks: this._state.tasks.map((t) => (t.id === taskId ? { ...t, status: 'Unassigned', errorMessage: null } : t)),
         };
+        void needsYouStore.refresh(); // a retried task no longer needs the person (TASK-147)
       } else if (!response.ok) {
         this._retryErrors.set(taskId, response.data?.error ?? `Retry failed: the server answered ${response.status}.`);
       }
