@@ -1,3 +1,4 @@
+using System.Text;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -555,6 +556,179 @@ namespace DraCode.KoboldLair.Services
                 : 0;
 
             return (diff, stat, filesChanged);
+        }
+
+        /// <summary>The longest patch kept for one file, and for a whole branch diff (TASK-156).</summary>
+        public const int MaxFilePatchChars = 200_000;
+        public const int MaxDiffChars = 2_000_000;
+
+        /// <summary>
+        /// Every local branch but <paramref name="baseBranch"/>, newest commit first, with its distance from the base and
+        /// whether it merges cleanly (TASK-156). Read-only: the merge is computed by <c>git merge-tree --write-tree</c>,
+        /// which touches neither the working tree nor the index (unlike <see cref="CanMergeBranchAsync"/>, which checks
+        /// out the base to try it). An empty list when the folder is not a repository.
+        /// </summary>
+        public async Task<List<BranchSummary>> ListBranchesAsync(string projectFolder, string baseBranch = "main")
+        {
+            var branches = new List<BranchSummary>();
+            if (!await IsRepositoryAsync(projectFolder))
+                return branches;
+
+            var refs = await RunGitCommandAsync(projectFolder, "for-each-ref", "--sort=-committerdate",
+                "--format=%(refname:short)%09%(objectname:short)%09%(committerdate:iso-strict)%09%(subject)", "refs/heads");
+            if (!refs.Success)
+                return branches;
+
+            foreach (var line in refs.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = line.TrimEnd('\r').Split('\t');
+                if (parts.Length < 4 || parts[0] == baseBranch)
+                    continue;
+                var name = parts[0];
+
+                int ahead = 0, behind = 0;
+                var counts = await RunGitCommandAsync(projectFolder, "rev-list", "--left-right", "--count", $"{baseBranch}...{name}");
+                var nums = counts.Output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                if (counts.Success && nums.Length == 2)
+                {
+                    int.TryParse(nums[0], out behind);
+                    int.TryParse(nums[1], out ahead);
+                }
+
+                var (clean, conflicts) = await CheckMergeAsync(projectFolder, name, baseBranch);
+                var feature = Regex.Match(name, @"^feature/([^-]+)-(.+)$");
+                branches.Add(new BranchSummary
+                {
+                    Name = name,
+                    Ahead = ahead,
+                    Behind = behind,
+                    LastCommitHash = parts[1],
+                    LastCommitDate = DateTime.TryParse(parts[2], out var date) ? date.ToUniversalTime() : null,
+                    LastCommitMessage = string.Join("\t", parts.Skip(3)),
+                    MergesCleanly = clean,
+                    Conflicts = conflicts,
+                    FeatureId = feature.Success ? feature.Groups[1].Value : null,
+                    FeatureName = feature.Success ? feature.Groups[2].Value.Replace("-", " ") : null
+                });
+            }
+            return branches;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="branch"/> merges into <paramref name="baseBranch"/> cleanly, and the conflicting files if
+        /// not, without touching the working tree (<c>git merge-tree --write-tree</c>, git 2.38+). Null when git cannot tell.
+        /// </summary>
+        public async Task<(bool? Clean, List<string> Conflicts)> CheckMergeAsync(string projectFolder, string branch, string baseBranch = "main")
+        {
+            var result = await RunGitCommandAsync(projectFolder, "merge-tree", "--write-tree", "--name-only", "--no-messages", baseBranch, branch);
+            var lines = result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.TrimEnd('\r')).ToList();
+            // The first line is the merged tree's id; a conflicted merge lists the conflicted files after it (exit code 1)
+            if (lines.Count == 0 || !Regex.IsMatch(lines[0], "^[0-9a-f]{40,64}$"))
+                return (null, new List<string>());
+            return result.Success ? (true, new List<string>()) : (false, lines.Skip(1).Distinct().ToList());
+        }
+
+        /// <summary>
+        /// A branch's changes against the base, <c>git diff base...branch</c> (what merging would bring), file by file:
+        /// each file's status, added and deleted lines, and its own part of the unified diff (TASK-156). Patches over
+        /// <see cref="MaxFilePatchChars"/> are cut; past <see cref="MaxDiffChars"/> in all, later files carry none.
+        /// Null when <paramref name="branch"/> is not a local branch of the repository.
+        /// </summary>
+        public async Task<BranchDiff?> GetBranchFilesAsync(string projectFolder, string branch, string baseBranch = "main")
+        {
+            if (!await IsRepositoryAsync(projectFolder))
+                return null;
+            var known = await RunGitCommandAsync(projectFolder, "for-each-ref", "--format=%(refname:short)", "refs/heads");
+            if (!known.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Any(b => b.TrimEnd('\r') == branch))
+                return null; // only a real branch name ever reaches git as a revision, never an option
+
+            var range = $"{baseBranch}...{branch}";
+            var nameStatus = await RunGitCommandAsync(projectFolder, "diff", "--name-status", "-M", range);
+            var numstat = await RunGitCommandAsync(projectFolder, "diff", "--numstat", "-M", range);
+            var diff = await RunGitCommandAsync(projectFolder, "diff", "--no-color", "-M", range);
+
+            var counts = new Dictionary<string, (int Added, int Deleted, bool Binary)>();
+            foreach (var line in numstat.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = line.TrimEnd('\r').Split('\t');
+                if (parts.Length < 3) continue;
+                var binary = parts[0] == "-";
+                int.TryParse(parts[0], out var added);
+                int.TryParse(parts[1], out var deleted);
+                counts[NumstatPath(parts[2])] = (added, deleted, binary);
+            }
+
+            var patches = SplitPatches(diff.Output);
+            var files = new List<BranchFileChange>();
+            var total = 0;
+            var truncated = false;
+            foreach (var line in nameStatus.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = line.TrimEnd('\r').Split('\t');
+                if (parts.Length < 2) continue;
+                var code = parts[0];
+                var path = parts[^1];
+                var oldPath = parts.Length > 2 ? parts[1] : null;
+                counts.TryGetValue(path, out var c);
+                patches.TryGetValue(path, out var patch);
+                patch ??= "";
+                var cut = patch.Length > MaxFilePatchChars;
+                if (cut) patch = patch[..MaxFilePatchChars];
+                if (total + patch.Length > MaxDiffChars)
+                {
+                    truncated = true;
+                    patch = "";
+                    cut = true;
+                }
+                total += patch.Length;
+                files.Add(new BranchFileChange
+                {
+                    Path = path,
+                    OldPath = oldPath,
+                    Status = code[0] switch
+                    {
+                        'A' => "Added", 'M' => "Modified", 'D' => "Deleted", 'R' => "Renamed", 'C' => "Copied", _ => "Changed"
+                    },
+                    Added = c.Added,
+                    Deleted = c.Deleted,
+                    Binary = c.Binary,
+                    Patch = patch,
+                    Truncated = cut
+                });
+            }
+            return new BranchDiff { Branch = branch, Base = baseBranch, Files = files, Truncated = truncated };
+        }
+
+        /// <summary>A numstat path: a rename shows as <c>dir/{old =&gt; new}/f</c> or <c>old =&gt; new</c>; the new path is wanted.</summary>
+        private static string NumstatPath(string path)
+        {
+            var brace = Regex.Match(path, @"^(.*)\{(.*) => (.*)\}(.*)$");
+            if (brace.Success)
+                return (brace.Groups[1].Value + brace.Groups[3].Value + brace.Groups[4].Value).Replace("//", "/");
+            var arrow = path.IndexOf(" => ", StringComparison.Ordinal);
+            return arrow >= 0 ? path[(arrow + 4)..] : path;
+        }
+
+        /// <summary>A unified diff split at each <c>diff --git a/x b/y</c> line, keyed by the new path.</summary>
+        private static Dictionary<string, string> SplitPatches(string diff)
+        {
+            var patches = new Dictionary<string, string>();
+            string? path = null;
+            var current = new StringBuilder();
+            foreach (var raw in diff.Split('\n'))
+            {
+                var line = raw.TrimEnd('\r');
+                var header = Regex.Match(line, @"^diff --git a/(.+) b/(.+)$");
+                if (header.Success)
+                {
+                    if (path != null) patches[path] = current.ToString().TrimEnd('\n');
+                    path = header.Groups[2].Value;
+                    current.Clear();
+                }
+                if (path != null) current.Append(line).Append('\n');
+            }
+            if (path != null) patches[path] = current.ToString().TrimEnd('\n');
+            return patches;
         }
 
         /// <summary>
