@@ -2,7 +2,7 @@
 id: TASK-166
 parent: STORY-042
 feature: null
-status: todo
+status: done
 priority: P2
 assignee: agent
 created: 2026-11-16
@@ -32,10 +32,10 @@ it decides whether the defect is visible.
 
 ## Acceptance criteria
 
-- [ ] A Failed task and a BlockedByFailure task keep their status through `GenerateMarkdown` → `LoadFromMarkdown`
-- [ ] A test pins both, red on the current code
-- [ ] Every value of `TaskStatus` round-trips through the markdown file (one test over the enum, so a status added later cannot slip again)
-- [ ] The Context's open question is answered in the task: whether a Failed task was actually re-run, and by which path
+- [x] A Failed task and a BlockedByFailure task keep their status through `GenerateMarkdown` → `LoadFromMarkdown`
+- [x] A test pins both, red on the current code
+- [x] Every value of `TaskStatus` round-trips through the markdown file (one test over the enum, so a status added later cannot slip again)
+- [x] The Context's open question is answered in the task: whether a Failed task was actually re-run, and by which path
 
 ## Out of scope
 
@@ -47,4 +47,24 @@ N/A — the round trip is a pure read/write of a file, fully asserted by the tes
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-166` — leave empty until then._
+1. Answer the open question from the loaders (below).
+2. `ParseStatus` reads any status word through `Enum.TryParse` (the writer's words are the enum names in lower case);
+   `error` still reads as Done.
+3. `GenerateMarkdown` writes `error` only for a Done task with an error message; every other status keeps its word.
+4. `TaskMarkdownRoundTripTests`: Failed and BlockedByFailure, and a theory over every `TaskStatus` value, with and
+   without an error message.
+
+## Notes
+
+- **The open question:** the markdown is read only when a task file has no JSON sidecar. `TaskTracker.LoadFromFile` /
+  `LoadFromFileAsync` — used by `DrakeFactory` (Drake's load and reload), the Warden tools (retry, batch, progress,
+  task details) and `JsonToSqlMigration` — prefer `<area>-tasks.json` and parse the markdown only without it; Drake
+  writes both on every save. So a Failed task was re-run only in a project whose task file had no sidecar (one from
+  before the JSON format, or whose sidecar was lost): its next load read it Unassigned and the work picker offered it.
+  No run of that kind was seen; the defect was latent on current projects.
+- **Also fixed:** the writer put `error` (read back as Done) for any task with an error message except Failed and
+  parked ones, so a BlockedByFailure, Unassigned or Working task with a message came back finished. Now only a Done
+  task is written as `error`.
+- **Fix** (`TaskTracker.ParseStatus`, `GenerateMarkdown`) and **tests** (`TaskMarkdownRoundTripTests`, 16 cases, 8 red
+  on the old code: Failed and BlockedByFailure without a message, and every non-Done status with one). Suites .NET
+  558/558, e2e 137/137 (twice). Human test N/A, as the task says.
