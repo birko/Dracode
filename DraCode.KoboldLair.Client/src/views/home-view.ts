@@ -3,6 +3,8 @@
  * state and a progress bar from its task counts. Data comes from `GET /api/v1/projects` (owner-scoped; `scope=all`
  * lets an admin see every project and is ignored for anyone else). A card opens the project's workspace (TASK-150).
  * Above the cards, "Needs you" (TASK-147) lists what waits on the user, grouped by project, each item opening it.
+ * Beside them (below, on a narrow screen) the home Dragon (TASK-149): the user's own conversation with no project, for
+ * starting projects. A project it registers reloads the cards.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -12,6 +14,8 @@ import { getToken } from '../auth-store.js';
 import { DEFAULT_TAB } from './project-workspace.js';
 import { notificationStore } from '../stores/notification-store.js';
 import { needsYouStore, type NeedsYouItem } from '../stores/needs-you-store.js';
+import { dragonConnection } from '../services/dragon-connection.js';
+import './dragon-dock.js';
 
 export interface ProjectTaskCounts {
   total: number;
@@ -78,10 +82,20 @@ export class HomeView extends KoboldComponent {
   private _needsYou: NeedsYouItem[] = [];
   private _unsubscribe: (() => void) | null = null;
   private _unsubscribeNeeds: (() => void) | null = null;
+  private _unsubscribeProjects: (() => void) | null = null;
 
   static get styles() {
     return `
-      :host { display: block; }
+      :host { display: block; min-width: 0; }
+      .home {
+        display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--b-space-lg, 1rem); align-items: start;
+      }
+      .main { min-width: 0; }
+      .dock { position: sticky; top: 0; min-width: 0; height: calc(100vh - 7rem); min-height: 24rem; }
+      @media (max-width: 56rem) {
+        .home { grid-template-columns: minmax(0, 1fr); }
+        .dock { position: static; height: 28rem; min-height: 0; }
+      }
       h1 { margin: 0 0 var(--b-space-lg, 1rem); font-size: var(--b-text-2xl, 1.5rem); color: var(--b-text); }
       .grid {
         display: grid;
@@ -143,6 +157,8 @@ export class HomeView extends KoboldComponent {
     this._unsubscribe = null;
     this._unsubscribeNeeds?.();
     this._unsubscribeNeeds = null;
+    this._unsubscribeProjects?.();
+    this._unsubscribeProjects = null;
   }
 
   protected async onMount() {
@@ -165,6 +181,11 @@ export class HomeView extends KoboldComponent {
       this.update();
       return;
     }
+    this._unsubscribeProjects = dragonConnection.onProjectsChanged(() => void this.load());
+    await this.load();
+  }
+
+  private async load(): Promise<void> {
     try {
       const response = await createRestClient().get<ProjectSummary[]>('/projects', { scope: 'all' });
       this._state = response.ok && Array.isArray(response.data)
@@ -177,7 +198,11 @@ export class HomeView extends KoboldComponent {
   }
 
   render() {
-    return `<h1>Projects</h1>${this.renderBody()}`;
+    // The dock is left alone by re-renders (data-morph="skip"), so its chat survives the cards reloading
+    return `<div class="home">
+      <div class="main"><h1>Projects</h1>${this.renderBody()}</div>
+      <aside class="dock" aria-label="Dragon" data-morph="skip"><kobold-dragon-dock></kobold-dragon-dock></aside>
+    </div>`;
   }
 
   private renderBody(): string {

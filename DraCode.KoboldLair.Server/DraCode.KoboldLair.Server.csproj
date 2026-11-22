@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DraCode.KoboldLair.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DraCode.KoboldLair\DraCode.KoboldLair.csproj" />
     <ProjectReference Include="..\DraCode.ServiceDefaults\DraCode.ServiceDefaults.csproj" />
   </ItemGroup>

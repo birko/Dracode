@@ -1,6 +1,6 @@
 ---
 id: EPIC-013
-status: planned
+status: in-progress
 created: 2026-05-28
 owner: ai
 affects: [EPIC-003, EPIC-007]
