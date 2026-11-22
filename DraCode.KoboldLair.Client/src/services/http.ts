@@ -5,19 +5,24 @@
 
 import { ApiClient as RestClient, SseClient } from 'birko-web-core/http';
 import configService from './config.js';
-import { getToken, clearAuth } from '../auth-store.js';
+import { authSession, endSession } from './auth-session.js';
+import { getToken } from '../auth-store.js';
 
 /** The server's HTTP origin, from the configured WebSocket URL (ws://host:port → http://host:port). */
 export function serverHttpOrigin(): string {
   return configService.getConfig().serverUrl.replace(/^ws(s?):\/\//, 'http$1://').replace(/\/$/, '');
 }
 
-/** A REST client for the server's /api/v1 facade. A 401 the token cannot fix signs the user out. */
+/**
+ * A REST client for the server's /api/v1 facade. A 401 refreshes the token once and retries (TASK-056); a 401 that
+ * cannot be fixed ends the session and goes to the sign-in screen.
+ */
 export function createRestClient(): RestClient {
   return new RestClient({
     baseUrl: `${serverHttpOrigin()}/api/v1`,
     getToken,
-    onUnauthorized: () => clearAuth(),
+    onRefreshToken: () => authSession.onRefreshToken(),
+    onUnauthorized: () => endSession(),
   });
 }
 

@@ -24,6 +24,8 @@ const auth = createAuthStore({
   }
 });
 
+/** The whole store handle, for Birko.Web.Shell's auth session (TASK-056). */
+export const authHandle = auth;
 export const authStore = auth.store;
 export const setAuth = auth.setAuth;
 export const clearAuth = auth.clearAuth;

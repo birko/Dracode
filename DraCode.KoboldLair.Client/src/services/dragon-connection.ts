@@ -14,11 +14,14 @@
  * new ones arrive live, and `decision_resolved` retires one. Cards are kept for every project and the dock shows the
  * followed project's. `answer(id, text)` sends `answer_decision`; the card is pending until `decision_answer_result`,
  * which can come only after a reply Dragon is still writing.
+ *
+ * The connection belongs to the signed-in user (TASK-056): signing out, or another user signing in, closes it and
+ * forgets its session, so the next user never reuses it; a refreshed token for the same user keeps it.
  */
 
 import type { ChatMessage } from 'birko-web-components/layout';
 import { WsClient, type WsClientOptions } from 'birko-web-core/http';
-import { getToken } from '../auth-store.js';
+import { authStore, getToken } from '../auth-store.js';
 import { renderMarkdown } from './markdown.js';
 import { notificationStore } from '../stores/notification-store.js';
 
@@ -78,6 +81,30 @@ export class DragonConnection {
   private _streamId: string | null = null;
   private _streamText = '';
   private _seq = 0;
+  /** Whose connection this is. */
+  private _userId: string | null = authStore.get('userId') as string | null;
+
+  constructor() {
+    authStore.onChange('token', () => {
+      const userId = getToken() ? authStore.get('userId') as string | null : null;
+      if (userId !== this._userId || !getToken()) this.reset();
+      this._userId = userId;
+    });
+  }
+
+  /** Close the connection and forget its session and cards; the next select() connects afresh. */
+  reset(): void {
+    if (this._resumeTimer) clearTimeout(this._resumeTimer);
+    this._resumeTimer = null;
+    this._awaitingResume = false;
+    this._client?.disconnect();
+    this._client = null;
+    this._options = null;
+    this._sessionId = null;
+    this._serverProject = null;
+    this.endStream();
+    this.set({ projectId: null, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [] });
+  }
 
   get state(): DockState {
     return this._state;

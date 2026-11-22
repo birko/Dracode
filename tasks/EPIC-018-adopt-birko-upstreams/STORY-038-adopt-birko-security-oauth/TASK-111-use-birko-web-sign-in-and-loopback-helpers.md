@@ -22,6 +22,8 @@ GitHub web sign-in uses DraCode's own `OAuthStateStore` (51 lines), `GitHubToken
 and daemon mode its own `DaemonLoopback` (65). Birko TASK-521 / TASK-522 move them into the framework.
 
 Framework side: Birko TASK-521, TASK-522 in `Framework/Birko.Framework/tasks/EPIC-019-birko-backports-from-dracode`.
+Both are done in Birko (checked 2026-11-22, while TASK-056 built the web sign-in on the local pieces), so this task
+can start.
 
 ## Acceptance criteria
 

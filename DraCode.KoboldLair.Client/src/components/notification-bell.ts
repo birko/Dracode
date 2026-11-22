@@ -8,7 +8,7 @@ import { define, escapeHtml } from 'birko-web-core';
 import type { BDropdownMenu, DropdownItem } from 'birko-web-components/layout';
 import { KoboldComponent } from './kobold-component.js';
 import { notificationStore, type NotificationState, type NotificationView } from '../stores/notification-store.js';
-import { getToken } from '../auth-store.js';
+import { authStore, getToken } from '../auth-store.js';
 
 /** How many notifications the menu lists. */
 const LISTED = 20;
@@ -60,10 +60,13 @@ export class NotificationBell extends KoboldComponent {
     `;
   }
 
+  private _unsubscribeAuth: (() => void) | null = null;
+
   protected onMount() {
-    if (!getToken()) return;
-    this._unsubscribe = notificationStore.subscribe((state) => {
-      this._state = state;
+    this.follow();
+    // Signing in or out (TASK-056) starts or stops the list; a refreshed token changes nothing here.
+    this._unsubscribeAuth = authStore.onChange('isAuthenticated', () => {
+      this.follow();
       this.update();
     });
   }
@@ -71,6 +74,21 @@ export class NotificationBell extends KoboldComponent {
   protected onUnmount() {
     this._unsubscribe?.();
     this._unsubscribe = null;
+    this._unsubscribeAuth?.();
+    this._unsubscribeAuth = null;
+  }
+
+  /** Listen to the store while someone is signed in. */
+  private follow(): void {
+    if (getToken() && !this._unsubscribe) {
+      this._unsubscribe = notificationStore.subscribe((state) => {
+        this._state = state;
+        this.update();
+      });
+    } else if (!getToken() && this._unsubscribe) {
+      this._unsubscribe();
+      this._unsubscribe = null;
+    }
   }
 
   render() {

@@ -2,7 +2,8 @@
 id: TASK-056
 parent: STORY-023
 feature: FEATURE-026
-status: todo
+status: in-progress
+blocked: the human test needs a registered GitHub OAuth app and real GitHub accounts (see Notes)
 priority: P1
 assignee: agent
 created: 2026-06-11
@@ -41,12 +42,12 @@ Decisions: FEATURE-026 D5, D8.
 
 ## Acceptance criteria
 
-- [ ] When sign-in is required, `#/login` shows "Sign in with GitHub", which starts the server flow. No token-paste field remains anywhere
-- [ ] The callback's fragment lands in the auth store, the fragment is cleared from the URL, and the user arrives on the homepage
-- [ ] The token is refreshed before it expires. A 401 or an expired session returns to `#/login`
-- [ ] The header's user menu shows the signed-in user and Sign out. Sign out calls `/auth/logout` and clears the store
-- [ ] With `authRequired` false, the app opens without a sign-in screen
-- [ ] An e2e spec in `DraCode.KoboldLair.Client/tests/ui-e2e` covers it with a stubbed callback fragment, red before the change; the suite stays green
+- [x] When sign-in is required, `#/login` shows "Sign in with GitHub", which starts the server flow. No token-paste field remains anywhere
+- [x] The callback's fragment lands in the auth store, the fragment is cleared from the URL, and the user arrives on the homepage
+- [x] The token is refreshed before it expires. A 401 or an expired session returns to `#/login`
+- [x] The header's user menu shows the signed-in user and Sign out. Sign out calls `/auth/logout` and clears the store
+- [x] With `authRequired` false, the app opens without a sign-in screen
+- [x] An e2e spec in `DraCode.KoboldLair.Client/tests/ui-e2e` covers it with a stubbed callback fragment, red before the change; the suite stays green
 
 ## Out of scope
 
@@ -61,8 +62,44 @@ Decisions: FEATURE-026 D5, D8.
   - Sign in as user B: B's project list omits A's project, and B's own creates carry B's `sub`.
   - An admin (`ViewAll`) sees both.
   - Under loopback-dev, creates are owned by `Guid.Empty` and the list shows all.
-- [ ] Sign out, then press Back: the app shows the sign-in screen, not a project
+- [x] Sign out, then press Back: the app shows the sign-in screen, not a project
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-056` — leave empty until then._
+_Not drafted; the work followed the acceptance criteria directly._
+
+## Notes
+
+- **On Birko.Web.Shell's auth (TASK-524)**, nothing hand-written: `services/auth-session.ts` wires `readAuthFragment`
+  (at startup, before the router reads the hash: the callback's `#access_token=…&refresh_token=…` goes into the store
+  and leaves the address bar, so the homepage opens) and `createAuthSession` (refresh a minute before `exp` and after
+  a 401, through `POST /auth/refresh`; a refused refresh clears the store and goes to `#/login`). The REST client takes
+  its `onRefreshToken`; a 401 nothing fixes ends the session. Sign out posts the refresh token to `/auth/logout`
+  (best effort) and clears the store.
+- **Sign-in screen** (`login-view.ts`): "Sign in with GitHub", a link to the server's `/auth/github/login`; a signed-in
+  user goes on to the homepage; with `authRequired` false it says sign-in is optional and links to the projects. No
+  field takes a token.
+- **User menu** (`app-shell.ts`): the signed-in user (the store's name, else the token's `name`/`sub`) with Settings
+  and Sign out; nothing when signed out ("Guest" is gone; Profile dropped, there is no `#/profile`). The name is
+  escaped: the shell's `renderUserDropdown` puts it into HTML as given, and a GitHub profile name is anyone's to set
+  (reported to the Birko session).
+- **A user's state goes with them:** signing out, or another user signing in, closes the Dragon socket and forgets its
+  session and cards (a refreshed token for the same user keeps it); the notification store drops its list; the bell
+  starts and stops with the sign-in.
+- **The old token fields:** the legacy vanilla-JS pages in `wwwroot/archive` (token inputs in the old server selector)
+  were still served at `/archive/…`, though the README said they were not; the client host now answers 404 there.
+- **Tests:** e2e `auth.spec.ts`, 8 tests with a stubbed GitHub round trip (the server's login answered by a redirect
+  back with tokens in the fragment): signed out → `#/login` with only the GitHub link; sign-in lands on the homepage
+  with the fragment gone and the user shown; refresh before expiry; a 401 the refresh cannot fix → `#/login`; sign out
+  revokes, clears, closes Dragon's socket, Back stays on sign-in; the name as text; the legacy pages 404; with sign-in
+  off the app opens. 7 red on the old client (the sign-in-off one passes either way). Suite 94/94.
+- **Human test, partly** (throwaway Testing server on a scratch copy, client host with `KoboldLair__AuthRequired=true`):
+  signed out, `#/` went to `#/login` with the GitHub button (no inputs; light, and dark at 375px without sideways
+  scroll); the button's target answered 404 because GitHub federation is not enabled on this machine; the legacy page
+  404. With a server-issued token: the menu showed "Test Owner" with Settings and Sign out, the homepage that owner's
+  two projects; Sign out cleared the store, closed Dragon's socket, and Back stayed on `#/login`. A token the server
+  refused ended the session on `#/login`; so did an expired one. No console errors.
+- **Not yet run — needs the owner:** the GitHub consent itself and TASK-034's two-user scoping. They need a GitHub OAuth
+  app (callback `…/auth/github/callback` on the server, `KOBOLDLAIR_GITHUB_CLIENT_ID`/`_SECRET`,
+  `Authentication:GitHub:Enabled`, `PostLoginRedirectUri` = the client host's URL) and two GitHub
+  accounts, one of them admin (`ViewAll`).

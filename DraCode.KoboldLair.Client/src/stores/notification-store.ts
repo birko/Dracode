@@ -6,7 +6,7 @@
  */
 
 import { createRestClient } from '../services/http.js';
-import { getToken } from '../auth-store.js';
+import { authStore, getToken } from '../auth-store.js';
 
 export interface NotificationView {
   id: string;
@@ -35,6 +35,11 @@ class NotificationStore {
   private readonly _listeners = new Set<Listener>();
   private _timer: ReturnType<typeof setTimeout> | null = null;
   private readonly _onVisibility = () => { if (document.visibilityState === 'visible' && this._listeners.size) void this.refresh(); };
+
+  constructor() {
+    // Signed out (TASK-056): nothing of the last user's list stays for the next one to see.
+    authStore.onChange('isAuthenticated', (signedIn) => { if (!signedIn) this.set({ items: [], loaded: false }); });
+  }
 
   get state(): NotificationState {
     return this._state;
