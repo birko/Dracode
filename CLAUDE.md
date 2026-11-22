@@ -383,9 +383,11 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
   with `home_selected` and replayed; an empty one starts with the welcome. While home, every message is saved there,
   even after the chat creates a project and Dragon's folder moves to it; the new project's own conversation starts
   empty. `specification_created` goes out after the project is registered and carries its `projectId`
-- **Context Isolation**: the `select_project` route above. The chat-driven route (Dragon's spec tool loading another
-  project, `OnProjectLoadedAsync`) loads the new history but sets a `PendingContextReset` that nothing reads, so its LLM
-  context carries over
+- **Context Isolation**: both routes leave Dragon with only the new project's conversation. `select_project` (above)
+  rebuilds it at once. The chat-driven route (Dragon's spec tool loading another project, `OnProjectLoadedAsync`) loads
+  the new history and sets `PendingContextReset`; after the reply that announced the switch,
+  `ApplyPendingContextReset` rebuilds the context from that history (TASK-180). Both key a project's history by its
+  `Paths.Output`
 - **One reply at a time** (TASK-187): `DragonRequestQueue` runs a session's messages in the order they came; one sent
   while Dragon is still answering is taken up when that answer ends (each request ends with `dragon_status`
   `complete` or `error`), and the dock shows it waiting. Sending never cancels; the cancel command drops only requests
