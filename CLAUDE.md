@@ -657,6 +657,18 @@ the page is visible, and refreshes at once when a decision card in the dock is a
 (TASK-147) gathers what waits on the caller across their projects — open decisions, failed and blocked tasks, unread
 `feature_branch_ready` notifications — for the homepage's "Needs you" list and the header pill.
 
+### Graceful Shutdown (TASK-121)
+
+```json
+{ "KoboldLair": { "Shutdown": { "TimeoutSeconds": 30 } } }
+```
+
+Sets `HostOptions.ShutdownTimeout` (default 30 s), the whole budget for stopping. On Ctrl+C the host cancels each
+background service's stopping token and waits: `DrakeExecutionService`'s runs take that token, so a Kobold saves its
+plan and its run ends before the service stops. `ShutdownFlushService`, registered before the background services
+(hosted services stop in reverse order), then saves Drakes' pending task files, the planning contexts and the
+notifications. No lifetime callback blocks or sleeps.
+
 ### WebSocket Message Cap
 
 `/dragon`, `/wyvern` and `/kobold` read whole messages up to a cap:

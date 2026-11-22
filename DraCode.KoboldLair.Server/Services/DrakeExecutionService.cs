@@ -18,7 +18,6 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ILogger<DrakeExecutionService> _logger;
         private readonly ProjectService _projectService;
         private readonly DrakeFactory _drakeFactory;
-        private readonly GracefulShutdownCoordinator _shutdownCoordinator;
         private readonly ProjectNotificationService? _notificationService;
         private readonly int _maxKoboldIterations;
 
@@ -32,7 +31,6 @@ namespace DraCode.KoboldLair.Server.Services
             ILogger<DrakeExecutionService> logger,
             ProjectService projectService,
             DrakeFactory drakeFactory,
-            GracefulShutdownCoordinator shutdownCoordinator,
             ProjectNotificationService? notificationService = null,
             int executionIntervalSeconds = 30,
             int maxKoboldIterations = 100)
@@ -41,7 +39,6 @@ namespace DraCode.KoboldLair.Server.Services
             _logger = logger;
             _projectService = projectService;
             _drakeFactory = drakeFactory;
-            _shutdownCoordinator = shutdownCoordinator;
             _notificationService = notificationService;
             _maxKoboldIterations = maxKoboldIterations;
             _projectThrottle = new SemaphoreSlim(MaxConcurrentProjects, MaxConcurrentProjects);
@@ -357,7 +354,9 @@ namespace DraCode.KoboldLair.Server.Services
                         agentType,
                         maxIterations: _maxKoboldIterations,
                         messageCallback: (level, msg) => _logger.LogInformation("[{Level}] {Message}", level, msg),
-                        cancellationToken: _shutdownCoordinator.ShutdownToken
+                        // The service's stopping token: on shutdown the run saves its plan and ends, and the host waits
+                        // for this cycle to finish (TASK-121)
+                        cancellationToken: cancellationToken
                     );
 
                     var taskDuration = DateTime.UtcNow - taskStart;
