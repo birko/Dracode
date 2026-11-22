@@ -3,7 +3,7 @@ id: TASK-186
 parent: STORY-042
 feature: null
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 # blocked: <reason> — set by /tasks block, never by hand; status stays as it is; /tasks unblock removes it
 priority: P2
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
@@ -15,7 +15,7 @@ blocks: []
 # findings: ids this task remediates — from a review/audit/harvest/drill pass, or from ordinary
 # field use with no pass behind it at all. Prefixes: see /tasks intake
 findings: [FIELD-033]
-pr: null
+pr: 34
 github-issue: null
 jira-key: null
 ---
@@ -37,10 +37,10 @@ home Dragon is where people start projects, so it shows there first.
 
 ## Acceptance criteria
 
-- [ ] After Sage loads an existing project in a session, creating a spec under a new name creates its own project folder
+- [x] After Sage loads an existing project in a session, creating a spec under a new name creates its own project folder
       and registers it, proved by a test that fails today
-- [ ] An imported project (Seeker registers it, then Sage writes its spec) still gets its spec in the imported folder
-- [ ] Creating a spec under the loaded project's own name still updates that project, not a new folder
+- [x] An imported project (Seeker registers it, then Sage writes its spec) still gets its spec in the imported folder
+- [x] Creating a spec under the loaded project's own name still updates that project, not a new folder
 
 ## Out of scope
 
@@ -48,9 +48,38 @@ home Dragon is where people start projects, so it shows there first.
 
 ## Human test plan
 
-- [ ] On a throwaway server, home Dragon: ask Sage to load an existing project, then ask for a new project — its card
+- [x] On a throwaway server, home Dragon: ask Sage to load an existing project, then ask for a new project — its card
       appears on the homepage, and the loaded project's spec is unchanged
+  - **Passed 2026-11-22:** see Notes
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-186` — leave empty until then._
+Sage's `create` (`SpecificationManagementTool.CreateSpecificationAsync`) takes its folder from `getProjectFolder`,
+which is `DragonService.ResolveProjectFolder`, and refuses when that folder already has a `specification.md`.
+
+1. `ResolveProjectFolder(session, name)` reuses `session.CurrentProjectFolder` only when that folder is meant for this
+   spec: it holds no `specification.md` yet (an imported project waiting for its spec), or the project registered there
+   is named `name` (same sanitized name). Otherwise it goes on as today: an existing project by name, else a new folder.
+2. Make it `internal` (the Server already exposes internals to the tests since TASK-149) and test it directly:
+   a loaded project with a spec + a new name → a new folder under `ProjectsPath`, the loaded spec untouched (red today);
+   an imported folder with no spec → that folder; the loaded project's own name → its folder (so `create` still answers
+   "use update").
+3. Human test on a throwaway server: home Dragon, have Sage load waver, then ask for a new project.
+
+Not changed: `FindProjectByName`'s containment match (a new name that contains an existing project's name resolves to
+that project) — pre-existing, outside this task.
+
+## Notes
+
+- **Fix** (`DragonService.ResolveProjectFolder`, now `internal`): the session's folder is reused only when it is meant
+  for the spec being created (`IsFolderFor`): it has no `specification.md` yet (an imported project waiting for its
+  spec), or the project registered there has the same sanitized name. Otherwise resolution goes on as before (a project
+  by name, else a new folder).
+- **Tests:** `DragonProjectSocketTests` +2: after a project with a spec is loaded, a new name resolves to its own new
+  folder and the loaded spec is untouched, while the loaded project's own name still resolves to it (red with the old
+  rule: it resolved to the loaded `shop` folder); an imported folder with no spec is reused (guards the import path).
+  Suites .NET 535/535, e2e 136/136. The first e2e run after a cold client-host start had one failure, and three runs
+  after it were green, so it was a flake (its name was not captured).
+- **Human test** (throwaway Testing server, scratch copy of `projects160`, LAN model): in the home Dragon, Sage loaded
+  waver and summarised it, then `notes186` was asked for. Its folder was created and registered, the card appeared on
+  the homepage, waver's `specification.md` kept the same hash, and the home conversation was stored complete.

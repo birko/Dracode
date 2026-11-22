@@ -410,6 +410,52 @@ public class DragonProjectSocketTests : IDisposable
         finally { SafeDispose(factory); }
     }
 
+    [Fact]
+    public async Task A_new_spec_gets_its_own_folder_after_Dragon_loaded_another_project()
+    {
+        // TASK-186: Sage's create resolved to the session's folder whenever one was set, so after loading a project
+        // every new spec was aimed at that project's folder and refused as "already exists".
+        var factory = CreateFactory();
+        try
+        {
+            var shop = await CreateProject(factory, UserA, "Shop");
+            var dragon = factory.Services.GetRequiredService<DragonService>();
+            var shopFolder = factory.Services.GetRequiredService<ProjectService>().GetProject(shop)!.Paths.Output;
+            Directory.CreateDirectory(shopFolder);
+            var shopSpec = Path.Combine(shopFolder, "specification.md");
+            await File.WriteAllTextAsync(shopSpec, "# Shop");
+            var session = new DragonSession { SessionId = "s-1", OwnerSub = UserA, CurrentProjectFolder = shopFolder };
+
+            var folder = dragon.ResolveProjectFolder(session, "todo186");
+
+            Path.GetFullPath(folder).Should().NotBe(Path.GetFullPath(shopFolder));
+            Path.GetFileName(folder.TrimEnd('/', '\\')).Should().Be("todo186");
+            File.Exists(Path.Combine(folder, "specification.md")).Should().BeFalse("the new project has no spec yet");
+            (await File.ReadAllTextAsync(shopSpec)).Should().Be("# Shop");
+
+            // The loaded project's own name still resolves to it, so create answers "use update"
+            Path.GetFullPath(dragon.ResolveProjectFolder(session, "Shop")).Should().Be(Path.GetFullPath(shopFolder));
+        }
+        finally { SafeDispose(factory); }
+    }
+
+    [Fact]
+    public async Task An_imported_project_waiting_for_its_spec_gets_it_in_its_own_folder()
+    {
+        var factory = CreateFactory();
+        try
+        {
+            var dragon = factory.Services.GetRequiredService<DragonService>();
+            var imported = Path.Combine(_projectsPath, "imported-src");
+            Directory.CreateDirectory(imported);
+            var session = new DragonSession { SessionId = "s-2", OwnerSub = UserA, CurrentProjectFolder = imported };
+
+            dragon.ResolveProjectFolder(session, "My App").Should().Be(imported);
+        }
+        finally { SafeDispose(factory); }
+        await Task.CompletedTask;
+    }
+
     private static async Task WaitUntil(Func<Task<bool>> condition, int seconds = 10)
     {
         var until = DateTime.UtcNow.AddSeconds(seconds);

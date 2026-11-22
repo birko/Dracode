@@ -149,6 +149,7 @@ _None_
     - [ ] [TASK-161](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-161-settings-providers.md) Settings: providers (P2) · FEATURE-026 D20
     - [ ] [TASK-162](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-162-settings-api-keys.md) Settings: service-account API keys (P2) · FEATURE-026 D6
     - [ ] [TASK-163](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-163-settings-budgets.md) Settings: budgets (P3) · FEATURE-026 D20
+    - [ ] [TASK-188](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-188-theme-setting-follows-browser.md) The theme setting is applied, and "Auto" follows the browser's light/dark preference (P3) · FEATURE-026
   - STORY-050 Web UI: phone check-and-respond layout — planned (0/1)
     - [ ] [TASK-164](EPIC-013-multi-platform-clients/STORY-050-phone-layout/TASK-164-phone-check-and-respond.md) Phone check-and-respond layout (P2) · FEATURE-026 D21 D22
 - **EPIC-014 Human-in-the-loop decision gates** — planned (0/6)
@@ -223,7 +224,7 @@ _None_
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment (P1) · SEC-1
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller (P1) · SEC-2
     - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing (P2)
-  - STORY-042 Correctness & invariants — planned (0/2)
+  - STORY-042 Correctness & invariants — in-progress (4/10)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other (P1) · CR-1
     - [ ] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping (P2) · CR-2
     - [x] [TASK-178](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-178-verification-fix-tasks-never-run.md) Verification fix tasks are never run, and new ones are written every cycle (P2)
@@ -231,7 +232,7 @@ _None_
     - [ ] [TASK-180](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-180-chat-project-switch-keeps-old-context.md) A project switch made from the chat keeps the old project's conversation in Dragon's context (P2)
     - [ ] [TASK-181](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-181-dragon-request-queue-dispose-throws.md) DragonRequestQueue.Dispose throws when it stops its workers (P3)
     - [ ] [TASK-182](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-182-finished-task-escalated-as-stalled.md) A finished task is escalated as "progress stalled" and its plan revised after it is Done (P3)
-    - [ ] [TASK-186](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-186-new-project-reuses-loaded-project-folder.md) A new project cannot be created once Dragon has loaded another project in the session (P2)
+    - [x] [TASK-186](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-186-new-project-reuses-loaded-project-folder.md) A new project cannot be created once Dragon has loaded another project in the session (P2)
     - [ ] [TASK-187](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-187-new-message-cancels-running-answer.md) A message sent while Dragon is still answering cancels that answer, and Dragon replies without it (P2)
   - STORY-043 Reuse & dead code — planned (0/1)
     - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation (P3) · CR-3

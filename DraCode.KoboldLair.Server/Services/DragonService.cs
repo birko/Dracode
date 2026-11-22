@@ -748,14 +748,17 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Resolves the project folder for a given name, preferring the current session's project
         /// or an existing project with a matching name before creating a new folder.
+        /// The session's folder is reused only when it is meant for this spec (TASK-186): it has no specification yet (an
+        /// imported project waiting for one), or the project there has this name. A folder Dragon merely loaded keeps
+        /// its spec, and a new name gets a project of its own.
         /// </summary>
-        private string ResolveProjectFolder(DragonSession session, string name)
+        internal string ResolveProjectFolder(DragonSession session, string name)
         {
-            // If session already has a project folder set (e.g., from import), use it
-            if (!string.IsNullOrEmpty(session.CurrentProjectFolder) && Directory.Exists(session.CurrentProjectFolder))
+            var current = session.CurrentProjectFolder;
+            if (!string.IsNullOrEmpty(current) && Directory.Exists(current) && IsFolderFor(current, name))
             {
-                _logger.LogInformation("Using session's current project folder: {Folder}", session.CurrentProjectFolder);
-                return session.CurrentProjectFolder;
+                _logger.LogInformation("Using session's current project folder: {Folder}", current);
+                return current;
             }
 
             // Check if an existing project matches this name (fuzzy)
@@ -770,6 +773,21 @@ namespace DraCode.KoboldLair.Server.Services
             // No existing project found - create a new folder (original behavior)
             return _projectService.CreateProjectFolder(name);
         }
+
+        /// <summary>Whether a spec named <paramref name="name"/> belongs in <paramref name="folder"/>.</summary>
+        private bool IsFolderFor(string folder, string name)
+        {
+            if (!File.Exists(Path.Combine(folder, "specification.md")))
+                return true;
+            var full = Path.GetFullPath(folder);
+            var project = _projectService.GetAllProjects().FirstOrDefault(p => !string.IsNullOrEmpty(p.Paths.Output)
+                && string.Equals(Path.GetFullPath(p.Paths.Output), full, StringComparison.OrdinalIgnoreCase));
+            return project != null && string.Equals(Sanitized(project.Name), Sanitized(name), StringComparison.Ordinal);
+        }
+
+        private static string Sanitized(string name) =>
+            string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries))
+                .Trim().Replace(" ", "-").ToLowerInvariant();
 
         /// <summary>
         /// Gets the active project name from the session's current project folder.
