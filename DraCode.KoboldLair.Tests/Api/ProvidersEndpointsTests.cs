@@ -304,4 +304,22 @@ public class ProvidersEndpointsTests
         (await client.SendAsync(Req(HttpMethod.Get, "/api/v1/providers", token))).StatusCode
             .Should().Be(HttpStatusCode.NotFound, "the routes are not mapped");
     }
+
+    [Fact]
+    public async Task The_agent_types_an_override_can_name_are_listed_for_an_admin()
+    {
+        // TASK-192: the Settings Agents tab offers these for per-Kobold-type overrides
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var admin = MintToken(factory, KoboldLairPermissionChecker.ManageConfig);
+
+        var types = await (await client.SendAsync(Req(HttpMethod.Get, "/api/v1/providers/agent-types", admin)))
+            .Content.ReadFromJsonAsync<List<string>>();
+        types.Should().Contain(["csharp", "python", "typescript", "coding"]);
+        types.Should().NotContain(["dragon", "wyvern", "wyrm", "kobold"], "the orchestrators have their own settings");
+        types.Should().BeInAscendingOrder(StringComparer.OrdinalIgnoreCase);
+
+        (await client.SendAsync(Req(HttpMethod.Get, "/api/v1/providers/agent-types",
+            MintToken(factory, KoboldLairPermissionChecker.ViewOwn)))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
 }

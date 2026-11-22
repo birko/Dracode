@@ -19,6 +19,7 @@ import { DEFAULT_TAB } from './views/project-workspace.js';
 /** The element (and attributes) each module option opens, keyed `moduleId/optionId`. */
 const OPTION_VIEWS: Record<string, { tag: string; attrs?: Record<string, string> }> = {
   'settings/providers': { tag: 'kobold-settings-view', attrs: { tab: 'providers' } },
+  'settings/agents': { tag: 'kobold-settings-view', attrs: { tab: 'agents' } },
 };
 
 /** Screens no module option claims; `#/` is the projects homepage (TASK-145). */

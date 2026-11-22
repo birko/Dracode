@@ -3,16 +3,28 @@
  * list page (table, create/edit modal, delete confirm) over `/api/v1/providers` (admin only; mapped only when the
  * server keeps provider configuration in its database). The API key is write-only: the form sends it to
  * `PATCH providers/{name}/key` after saving, and the table shows only whether one is set. "Validate" asks the server to
- * check the configuration and make one short request through the provider, and shows its answer.
+ * check the configuration and make one short request through the provider, and shows its answer. "Models" opens the
+ * provider's switchable model list (TASK-192): add, enable or disable, remove (`POST|DELETE providers/{name}/models`).
  */
 
-import { define } from 'birko-web-core';
+import { define, escapeHtml } from 'birko-web-core';
 import type { ApiClient } from 'birko-web-core/http';
 import type { RowAction, TableColumn } from 'birko-web-components/data';
 import type { BForm, FormSchema } from 'birko-web-components/inputs';
+import type { BModal } from 'birko-web-components/layout';
 import { toast } from 'birko-web-components/feedback';
 import { BaseListPage } from 'birko-web-shell/pages';
 import { createRestClient } from '../services/http.js';
+
+export interface ProviderModel {
+  modelId: string;
+  displayName: string | null;
+  enabled: boolean;
+  sortOrder: number;
+  reasoning: boolean;
+  contextWindow: number;
+  inputModalities: string | null;
+}
 
 export interface ProviderView extends Record<string, unknown> {
   name: string;
@@ -24,6 +36,7 @@ export interface ProviderView extends Record<string, unknown> {
   defaultModel: string | null;
   compatibleAgents: string[];
   hasKey: boolean;
+  models?: ProviderModel[];
 }
 
 /** The provider types the server's LLM factory knows (Birko.AI's LlmProviderFactory registrations). */
@@ -41,6 +54,40 @@ export class ProvidersPage extends BaseListPage<ProviderView> {
   private readonly _api = createRestClient();
   /** The key typed into the form, sent after the provider itself is saved (never part of the provider). */
   private _pendingKey: string | null = null;
+  /** The provider whose models the Models dialog shows. */
+  private _modelsOf: ProviderView | null = null;
+
+  static override get styles(): string {
+    return BaseListPage.styles + `
+      .models-table { width: 100%; border-collapse: collapse; font-size: var(--b-text-sm, 0.8125rem); margin-bottom: var(--b-space-md, 0.75rem); }
+      .models-table th, .models-table td { text-align: left; padding: var(--b-space-xs, 0.25rem) var(--b-space-sm, 0.5rem); border-bottom: 1px solid var(--b-border); color: var(--b-text); }
+      .models-table th { color: var(--b-text-secondary); }
+      .models-table td.row-buttons { text-align: right; white-space: nowrap; }
+      .models-empty { color: var(--b-text-muted); }
+      .models-add { display: flex; justify-content: flex-end; margin-top: var(--b-space-sm, 0.5rem); }
+    `;
+  }
+
+  /** The table, and the Models dialog beside the page's own create/edit modal. */
+  protected override renderContent(): string {
+    return super.renderContent() + `
+      <b-modal id="models-modal" title="Models">
+        <div class="models-body"></div>
+        <b-form id="modelForm"></b-form>
+        <div class="models-add"><b-button id="btn-add-model" variant="secondary" size="sm">Add model</b-button></div>
+      </b-modal>`;
+  }
+
+  protected override onUpdated(): void {
+    super.onUpdated();
+    const body = this.$('.models-body');
+    if (body) this.listen(body, 'click', (e) => {
+      const btn = e.composedPath().find((n): n is HTMLElement => n instanceof HTMLElement && !!n.dataset?.modelAction);
+      if (btn) void this.modelAction(btn.dataset.modelAction!, btn.dataset.model!);
+    });
+    const add = this.$('#btn-add-model');
+    if (add) this.listen(add, 'click', () => void this.addModel());
+  }
 
   protected override get entityLabel(): string { return 'Provider'; }
   /** The page heading names the list; the modal and toasts keep the singular entity label. */
@@ -132,11 +179,74 @@ export class ProvidersPage extends BaseListPage<ProviderView> {
   }
 
   protected override get extraRowActions(): RowAction[] {
-    return [{ id: 'validate', label: 'Validate' }];
+    return [{ id: 'validate', label: 'Validate' }, { id: 'models', label: 'Models' }];
   }
 
   protected override onRowAction(action: string, id: string): void {
     if (action === 'validate') void this.validate(id);
+    else if (action === 'models') void this.openModels(id);
+  }
+
+  /** Open the Models dialog for a provider, with its current models. */
+  private async openModels(name: string): Promise<void> {
+    if (!(await this.loadModels(name))) return;
+    const form = this.$<BForm>('#modelForm');
+    form?.setSchema({ name: 'root', children: [
+      { name: 'modelId', type: 'text', label: 'Model id', required: true, placeholder: 'e.g. claude-sonnet-4-6' },
+      { name: 'displayName', type: 'text', label: 'Display name' },
+    ] } as FormSchema);
+    form?.setValues({ modelId: '', displayName: '' });
+    this.$<BModal>('#models-modal')?.open();
+  }
+
+  private async loadModels(name: string): Promise<boolean> {
+    const resp = await this.api.get<ProviderView>(`providers/${encodeURIComponent(name)}`);
+    if (!resp.ok || !resp.data) {
+      toast.error(`Could not load ${name}'s models (${resp.status}).`);
+      return false;
+    }
+    this._modelsOf = resp.data;
+    this.$<BModal>('#models-modal')?.setAttribute('title', `Models of ${name}`);
+    const models = [...(resp.data.models ?? [])].sort((a, b) => a.sortOrder - b.sortOrder || a.modelId.localeCompare(b.modelId));
+    const body = this.$('.models-body');
+    if (body) body.innerHTML = `<table class="models-table">
+      <thead><tr><th>Model</th><th>Display name</th><th>Enabled</th><th></th></tr></thead>
+      <tbody>${models.length === 0
+        ? '<tr><td colspan="4" class="models-empty">No models yet: agents use the default model.</td></tr>'
+        : models.map((m) => `<tr data-model-row="${escapeHtml(m.modelId)}">
+            <td>${escapeHtml(m.modelId)}</td><td>${escapeHtml(m.displayName ?? '')}</td><td>${m.enabled ? 'Yes' : 'No'}</td>
+            <td class="row-buttons">
+              <b-button size="sm" variant="ghost" data-model-action="toggle" data-model="${escapeHtml(m.modelId)}">${m.enabled ? 'Disable' : 'Enable'}</b-button>
+              <b-button size="sm" variant="ghost" data-model-action="remove" data-model="${escapeHtml(m.modelId)}">Remove</b-button>
+            </td></tr>`).join('')}</tbody>
+    </table>`;
+    return true;
+  }
+
+  private async addModel(): Promise<void> {
+    const provider = this._modelsOf;
+    const form = this.$<BForm>('#modelForm');
+    if (!provider || !form) return;
+    const { valid, data } = form.validate();
+    if (!valid) return;
+    const modelId = String(data.modelId ?? '').trim();
+    const resp = await this.api.post(`providers/${encodeURIComponent(provider.name)}/models`,
+      { modelId, displayName: String(data.displayName ?? '').trim() || null, enabled: true });
+    if (!resp.ok) return void toast.error((resp.data as { error?: string } | undefined)?.error ?? `Could not add ${modelId} (${resp.status}).`);
+    form.setValues({ modelId: '', displayName: '' });
+    await this.loadModels(provider.name);
+  }
+
+  private async modelAction(action: string, modelId: string): Promise<void> {
+    const provider = this._modelsOf;
+    const model = provider?.models?.find((m) => m.modelId === modelId);
+    if (!provider || !model) return;
+    const base = `providers/${encodeURIComponent(provider.name)}/models`;
+    const resp = action === 'remove'
+      ? await this.api.delete(`${base}/${encodeURIComponent(modelId)}`)
+      : await this.api.post(base, { ...model, enabled: !model.enabled });
+    if (!resp.ok) return void toast.error(`Could not change ${modelId} (${resp.status}).`);
+    await this.loadModels(provider.name);
   }
 
   /** Ask the server to check the provider for real, and say what it found. */

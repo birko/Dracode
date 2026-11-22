@@ -124,6 +124,19 @@ public static class ProvidersEndpoints
 
         // --- agent → provider/model assignments ------------------------------------------------
 
+        // The agent types a per-Kobold-type override can name (TASK-192): every registered agent but the orchestrators,
+        // which have their own settings (dragon, wyvern, wyrm, kobold).
+        api.MapGet("/providers/agent-types", () =>
+            {
+                Birko.AI.Agents.AgentRegistration.RegisterAll();
+                var orchestrators = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "dragon", "wyvern", "wyrm", "kobold" };
+                return Results.Ok(Birko.AI.Factories.AgentFactory.GetRegisteredAgentTypes()
+                    .Where(t => !orchestrators.Contains(t))
+                    .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
+            })
+            .RequirePermission(KoboldLairPermissionChecker.ManageConfig);
+
         api.MapGet("/providers/settings", (ProviderConfigurationService svc) =>
                 Results.Ok(svc.GetUserSettings()))
             .RequirePermission(KoboldLairPermissionChecker.ManageConfig);

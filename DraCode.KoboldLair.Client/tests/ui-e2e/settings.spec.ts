@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures.js';
 import type { Page, Request } from '@playwright/test';
 
-// TASK-161: Settings at #/settings, on /api/v1. Providers is Birko Shell's list page over /api/v1/providers, for an
+// TASK-161 / TASK-192: Settings at #/settings, on /api/v1. Providers is Birko Shell's list page over /api/v1/providers, for an
 // admin only; with provider management off on the server the tab says how to turn it on. The REST answers are stubbed.
 
 const settings = (page: Page) => page.locator('#route-outlet kobold-settings-view');
@@ -11,16 +11,27 @@ const rows = (page: Page) => providers(page).locator('b-data-table tbody tr');
 interface Provider {
   name: string; displayName: string | null; type: string; enabled: boolean; baseUrl: string | null;
   requiresApiKey: boolean; defaultModel: string | null; compatibleAgents: string[]; hasKey: boolean;
+  models?: { modelId: string; displayName: string | null; enabled: boolean; sortOrder: number }[];
 }
 
 const CLAUDE: Provider = {
   name: 'claude', displayName: 'Claude', type: 'claude', enabled: true, baseUrl: null, requiresApiKey: true,
   defaultModel: 'claude-sonnet', compatibleAgents: ['all'], hasKey: true,
+  models: [{ modelId: 'claude-sonnet', displayName: 'Sonnet', enabled: true, sortOrder: 0 }],
 };
 
+/** What GET providers/settings answers, and PUTs change. */
+const SETTINGS = () => ({
+  dragonProvider: 'claude', dragonModel: null, wyvernProvider: 'claude', wyvernModel: null,
+  wyrmProvider: 'claude', wyrmModel: null, koboldProvider: 'claude', koboldModel: null,
+  koboldAgentTypeSettings: [{ agentType: 'python', provider: 'claude', model: 'claude-haiku' }],
+});
+
 /** Sign in, serve the capabilities and a providers API backed by `list`; returns the requests the page made. */
-async function serve(page: Page, caps: { canManageProviders: boolean; providersEnabled: boolean }, list: Provider[] = [CLAUDE]) {
+async function serve(page: Page, caps: { canManageProviders: boolean; providersEnabled: boolean },
+  list: Provider[] = [structuredClone(CLAUDE)], settings: any = SETTINGS()) {
   const requests: { method: string; path: string; body: any }[] = [];
+  let defaultProvider = 'claude';
   await page.addInitScript(() => localStorage.setItem('koboldlair_auth', JSON.stringify({ token: 'test-token' })));
   await page.route(/\/api\/v1\/settings\/capabilities/, (route) => route.fulfill({
     json: { ...caps, providersHint: caps.providersEnabled ? null : 'Provider management is off on this server: set KoboldLair:ProviderConfig:MasterKey (or the KOBOLDLAIR_MASTER_KEY environment variable) and restart it.' },
@@ -30,8 +41,38 @@ async function serve(page: Page, caps: { canManageProviders: boolean; providersE
     const path = new URL(req.url()).pathname.replace('/api/v1/', '');
     const body = req.postData() ? JSON.parse(req.postData()!) : null;
     requests.push({ method: req.method(), path, body });
-    const [, name, sub] = path.split('/');
+    const [, name, sub, subId] = path.split('/');
     if (req.method() === 'GET' && !name) return route.fulfill({ json: list });
+    if (name === 'agent-types') return route.fulfill({ json: ['csharp', 'python', 'typescript'] });
+    if (name === 'default') {
+      if (req.method() === 'PUT') { defaultProvider = body.provider; return route.fulfill({ status: 204, body: '' }); }
+      return route.fulfill({ json: { defaultProvider } });
+    }
+    if (name === 'settings' && !sub) return route.fulfill({ json: settings });
+    if (name === 'settings' && sub === 'agent') {
+      if (body.provider === 'broken') return route.fulfill({ status: 400, json: { error: "Provider 'broken' is not compatible with 'dragon'" } });
+      settings[`${body.agentType}Provider`] = body.provider;
+      settings[`${body.agentType}Model`] = body.model;
+      return route.fulfill({ status: 204, body: '' });
+    }
+    if (name === 'settings' && sub === 'kobold') {
+      settings.koboldAgentTypeSettings = settings.koboldAgentTypeSettings.filter((o: any) => o.agentType !== body.agentType);
+      if (body.provider) settings.koboldAgentTypeSettings.push({ agentType: body.agentType, provider: body.provider, model: body.model });
+      return route.fulfill({ status: 204, body: '' });
+    }
+    if (sub === 'models') {
+      const p = list.find((x) => x.name === name)!;
+      p.models ??= [];
+      if (req.method() === 'POST') {
+        p.models = p.models.filter((m) => m.modelId !== body.modelId);
+        p.models.push({ sortOrder: 0, displayName: null, ...body });
+        return route.fulfill({ json: { name, model: body.modelId } });
+      }
+      if (req.method() === 'DELETE') {
+        p.models = p.models.filter((m) => m.modelId !== decodeURIComponent(subId));
+        return route.fulfill({ status: 204, body: '' });
+      }
+    }
     if (req.method() === 'GET') {
       const p = list.find((x) => x.name === name);
       return p ? route.fulfill({ json: p }) : route.fulfill({ status: 404, body: '' });
@@ -154,4 +195,111 @@ test('with provider management off, the tab says how to turn it on', async ({ pa
   await expect(settings(page).locator('.providers-off')).toContainText('KoboldLair:ProviderConfig:MasterKey');
   await expect(providers(page)).toHaveCount(0);
   expect(requests).toEqual([]);
+});
+
+const modelRows = (page: Page) => providers(page).locator('#models-modal .models-table tbody tr[data-model-row]');
+
+test('Models lists a provider\'s models; one is added, disabled and removed', async ({ page }) => {
+  const requests = await serve(page, { canManageProviders: true, providersEnabled: true });
+  await expect(rows(page)).toHaveCount(1);
+
+  await rowAction(page, 'claude', /models/i);
+  await expect(modelRows(page)).toHaveCount(1);
+  await expect(modelRows(page).first()).toContainText('claude-sonnet');
+
+  await providers(page).locator('#modelForm').evaluate((f: any) => f.setValues({ modelId: 'claude-opus', displayName: 'Opus' }));
+  await providers(page).locator('#btn-add-model').click();
+  await expect(modelRows(page)).toHaveCount(2);
+  expect(requests.find((r) => r.method === 'POST' && r.path === 'providers/claude/models')?.body)
+    .toMatchObject({ modelId: 'claude-opus', displayName: 'Opus', enabled: true });
+
+  await modelRows(page).filter({ hasText: 'claude-opus' }).locator('b-button[data-model-action="toggle"]').click();
+  await expect(modelRows(page).filter({ hasText: 'claude-opus' })).toContainText('No');
+  await modelRows(page).filter({ hasText: 'claude-opus' }).locator('b-button[data-model-action="remove"]').click();
+  await expect(modelRows(page)).toHaveCount(1);
+  expect(requests.some((r) => r.method === 'DELETE' && r.path === 'providers/claude/models/claude-opus')).toBe(true);
+});
+
+const agents = (page: Page) => settings(page).locator('kobold-agent-providers');
+
+async function openAgents(page: Page, list?: Provider[]) {
+  const requests = await serve(page, { canManageProviders: true, providersEnabled: true },
+    list ?? [structuredClone(CLAUDE), { ...structuredClone(CLAUDE), name: 'local', displayName: 'Local', type: 'vllm' }]);
+  await settings(page).locator('b-tabs').getByRole('tab', { name: 'Agents' }).click();
+  await expect(agents(page).locator('#agentsForm')).toBeVisible();
+  await expect.poll(() => agents(page).locator('#agentsForm').evaluate((f: any) => f.getValues().dragonProvider)).toBe('claude');
+  return requests;
+}
+
+test('the Agents tab sets the default provider and the provider and model of an orchestrator', async ({ page }) => {
+  const requests = await openAgents(page);
+
+  await agents(page).locator('#defaultForm').evaluate((f: any) => f.setValues({ provider: 'local' }));
+  await agents(page).locator('#saveDefault').click();
+  await expect.poll(() => requests.find((r) => r.method === 'PUT' && r.path === 'providers/default')?.body).toEqual({ provider: 'local' });
+
+  await agents(page).locator('#agentsForm').evaluate((f: any) => f.setValues({ dragonProvider: 'local', dragonModel: 'qwen' }));
+  await agents(page).locator('#saveAgents').click();
+  await expect(page.locator('b-toast-item[variant="success"]').last()).toContainText('Dragon now uses local (qwen)');
+  const puts = requests.filter((r) => r.method === 'PUT' && r.path === 'providers/settings/agent');
+  expect(puts.map((r) => r.body)).toEqual([{ agentType: 'dragon', provider: 'local', model: 'qwen' }]);
+});
+
+test('a refused orchestrator change shows the server\'s reason', async ({ page }) => {
+  await openAgents(page, [structuredClone(CLAUDE), { ...structuredClone(CLAUDE), name: 'broken', displayName: null }]);
+
+  await agents(page).locator('#agentsForm').evaluate((f: any) => f.setValues({ dragonProvider: 'broken' }));
+  await agents(page).locator('#saveAgents').click();
+  await expect(page.locator('b-toast-item[variant="error"]')).toContainText("not compatible with 'dragon'");
+});
+
+test('Kobold overrides are listed, added and removed', async ({ page }) => {
+  const requests = await openAgents(page);
+  const overrideRows = agents(page).locator('.overrides tbody tr[data-agent-type]');
+  await expect(overrideRows).toHaveCount(1);
+  await expect(overrideRows.first()).toContainText('python');
+
+  await agents(page).locator('#overrideForm').evaluate((f: any) => f.setValues({ agentType: 'csharp', provider: 'local', model: 'qwen-coder' }));
+  await agents(page).locator('#addOverride').click();
+  await expect(overrideRows).toHaveCount(2);
+  expect(requests.find((r) => r.path === 'providers/settings/kobold')?.body).toEqual({ agentType: 'csharp', provider: 'local', model: 'qwen-coder' });
+
+  await overrideRows.filter({ hasText: 'python' }).locator('b-button[data-remove]').click();
+  await expect(overrideRows).toHaveCount(1);
+  expect(requests.filter((r) => r.path === 'providers/settings/kobold').at(-1)?.body).toEqual({ agentType: 'python', provider: null, model: null });
+});
+
+test('#/settings/agents opens the Agents tab', async ({ page }) => {
+  await serve(page, { canManageProviders: true, providersEnabled: true });
+  await page.goto('/#/settings/agents');
+  await expect(settings(page).locator('b-tabs').getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('a provider added on the Providers tab can be chosen on the Agents tab right away', async ({ page }) => {
+  // TASK-192: the Agents tab loaded its providers once; one added afterwards could not be picked
+  await serve(page, { canManageProviders: true, providersEnabled: true });
+  await settings(page).locator('b-tabs').getByRole('tab', { name: 'Agents' }).click();
+  await expect(agents(page).locator('#agentsForm')).toBeVisible();
+
+  await settings(page).locator('b-tabs').getByRole('tab', { name: 'Providers' }).click();
+  await providers(page).locator('#btn-create').click();
+  await providers(page).locator('#modal b-form').evaluate((f: any) => f.setValues({ name: 'later', type: 'vllm' }));
+  await providers(page).locator('#btn-save').click();
+  await expect(rows(page)).toHaveCount(2);
+
+  await settings(page).locator('b-tabs').getByRole('tab', { name: 'Agents' }).click();
+  await expect.poll(() => agents(page).locator('#agentsForm').evaluate((f: any) => {
+    f.setValues({ dragonProvider: 'later' });
+    return f.getValues().dragonProvider;
+  })).toBe('later');
+});
+
+test('an orchestrator set to a provider that is not available shows it as such', async ({ page }) => {
+  const s = SETTINGS();
+  s.dragonProvider = 'zai';
+  await serve(page, { canManageProviders: true, providersEnabled: true }, [structuredClone(CLAUDE)], s);
+  await settings(page).locator('b-tabs').getByRole('tab', { name: 'Agents' }).click();
+
+  await expect.poll(() => agents(page).locator('#agentsForm').evaluate((f: any) => f.getValues().dragonProvider)).toBe('zai');
+  await expect(agents(page).locator('#agentsForm')).toContainText('zai (not available)');
 });
