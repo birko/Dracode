@@ -224,12 +224,33 @@ namespace DraCode.KoboldLair.Server.Services
         /// <summary>
         /// Routes an escalation alert to a Drake, retrying if no Drake is currently available.
         /// </summary>
-        private async Task RouteEscalationWithRetryAsync(string projectId, EscalationAlert alert, int maxRetries = 3)
+        private Task RouteEscalationWithRetryAsync(string projectId, EscalationAlert alert, int maxRetries = 3) =>
+            RouteToHoldingDrakeAsync(alert, () => _drakeFactory.GetDrakesByProject(projectId), _logger, maxRetries,
+                TimeSpan.FromSeconds(30));
+
+        /// <summary>
+        /// Hands a monitor escalation to the Drake whose tracker holds its task (TASK-169). A project has one Drake per
+        /// task area, and every other Drake would answer "task not found" and do nothing, so the first Drake is never
+        /// taken blindly. While none holds the task (none yet, or the task not loaded yet), it retries after
+        /// <paramref name="retryDelay"/>; after the last attempt it logs a warning and routes nothing. Returns the Drake
+        /// that handled the escalation, or null.
+        /// </summary>
+        internal static async Task<Drake?> RouteToHoldingDrakeAsync(EscalationAlert alert, Func<IReadOnlyList<Drake>> drakes,
+            ILogger logger, int maxRetries, TimeSpan retryDelay)
         {
+            if (string.IsNullOrEmpty(alert.TaskId))
+            {
+                logger.LogWarning("Escalation {AlertId} ({Type}) for project {ProjectId} names no task; not routed",
+                    alert.Id[..8], alert.Type, alert.ProjectId);
+                return null;
+            }
+
+            var projectDrakes = 0;
             for (var attempt = 0; attempt < maxRetries; attempt++)
             {
-                var drakes = _drakeFactory.GetDrakesByProject(projectId);
-                var drake = drakes.FirstOrDefault();
+                var current = drakes();
+                projectDrakes = current.Count;
+                var drake = current.FirstOrDefault(d => d.HoldsTask(alert.TaskId));
                 if (drake != null)
                 {
                     try
@@ -238,24 +259,25 @@ namespace DraCode.KoboldLair.Server.Services
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to handle escalation {AlertId} via Drake for project {ProjectId}",
-                            alert.Id[..8], projectId);
+                        logger.LogError(ex, "Failed to handle escalation {AlertId} via Drake for project {ProjectId}",
+                            alert.Id[..8], alert.ProjectId);
                     }
-                    return;
+                    return drake;
                 }
 
                 if (attempt < maxRetries - 1)
                 {
-                    _logger.LogDebug("No Drake found for project {ProjectId}, retrying escalation routing in 30s (attempt {Attempt}/{Max})",
-                        projectId, attempt + 1, maxRetries);
-                    await Task.Delay(TimeSpan.FromSeconds(30));
+                    logger.LogDebug("No Drake of project {ProjectId} holds task {TaskId} ({Count} Drakes), retrying escalation routing in {Delay}s (attempt {Attempt}/{Max})",
+                        alert.ProjectId, alert.TaskId[..Math.Min(8, alert.TaskId.Length)], current.Count, retryDelay.TotalSeconds, attempt + 1, maxRetries);
+                    await Task.Delay(retryDelay);
                 }
             }
 
-            _logger.LogWarning(
-                "No Drake found for project {ProjectId} after {MaxRetries} attempts - escalation {AlertId} ({Type}) could not be routed. " +
-                "Alert is preserved in plan and will be processed when Drake is recreated.",
-                projectId, maxRetries, alert.Id[..8], alert.Type);
+            logger.LogWarning(
+                "No Drake of project {ProjectId} holds task {TaskId} after {MaxRetries} attempts ({Count} Drakes) - escalation {AlertId} ({Type}) was not routed. " +
+                "Alert is preserved in plan and will be processed when its Drake is recreated.",
+                alert.ProjectId, alert.TaskId[..Math.Min(8, alert.TaskId.Length)], maxRetries, projectDrakes, alert.Id[..8], alert.Type);
+            return null;
         }
     }
 }
