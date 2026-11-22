@@ -407,7 +407,7 @@ The projects path is configurable via `appsettings.json` under `KoboldLair`:
             plan-index.json           # Plan lookup index
         planning-context.json         # Shared planning context
         dragon-history.json           # Dragon conversation history (server-persisted)
-        notifications.json            # Pending project notifications (feature completion, etc.)
+        notifications.json            # Project notifications: unread, plus the newest 50 read (TASK-159)
         .worktrees/                   # Git worktrees for parallel feature branch execution
             feature-abc-name/         # Isolated worktree per feature branch
 provider-config.json                  # Provider configuration
@@ -624,6 +624,16 @@ Controls Kobold self-reflection and escalation behavior:
 - **NoProgressTimeoutMinutes**: Minutes without step completion before monitor flags stall (default: 10)
 - **MaxFileWriteRepetitions**: Repeated file writes before monitor flags stuck loop (default: 3)
 
+### Project Notifications (TASK-159)
+
+One stream, seen three ways (FEATURE-026 D17): `ProjectNotificationService` keeps each project's notifications in its
+`notifications.json`; Dragon gets the unread ones over `/dragon`, and the web header bell and the homepage's project
+badges read the same records through `GET /api/v1/notifications` (owner-scoped, `?scope=all` for an admin, unread first)
+and `POST /api/v1/notifications/{id}/read` (404 for a project the caller cannot see). Reading one stamps `ReadAt` rather
+than deleting it, so the bell can list it as read; each project keeps its newest 50 read ones. A project's file is loaded
+before a new notification is added, so a restart no longer saves over the unread ones. The bell polls every 15 s while
+the page is visible.
+
 ### WebSocket Message Cap
 
 `/dragon`, `/wyvern` and `/kobold` read whole messages up to a cap:
@@ -831,7 +841,7 @@ dotnet run --project DraCode.AppHost
 
 ### Client-Side Issues — resolved
 - **Event listener leak** → moot in the new UI: dragon-view rewritten as a Shadow DOM `BaseComponent` (from `birko-web-core`), which handles connectedCallback/disconnectedCallback lifecycle automatically. Old vanilla-JS `dragon-view.js` (now in `wwwroot/archive/old-vanilla-ui/`) had the explicit `_handlers` / `detachEventListeners` fix.
-- **Notification dedup** → `seenIds` Set in the current `stores/notification-store.js` (composite key `taskId_type_message`) silently drops duplicates.
+- **Notification dedup** → resolved then by a `seenIds` Set in the old client store; that store was replaced in TASK-159 by the header bell's, which reads the server's list (`GET /api/v1/notifications`), so there is nothing to dedupe.
 
 ### Birko.Framework Migration Impact
 
