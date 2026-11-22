@@ -296,6 +296,26 @@ namespace DraCode.KoboldLair.Models.Agents
         }
 
         /// <summary>
+        /// Ends the run's telemetry: a terminal event (completed with the plan's step counts, or an error naming the
+        /// status), then completes the stream so subscribers' readers finish. Called from every run path's
+        /// <c>finally</c>; a no-op without an event source.
+        /// </summary>
+        private void EndRunTelemetry()
+        {
+            if (_runEventSource == null) return;
+            if (Status == KoboldStatus.Done)
+                PublishRunEvent(new RunCompletedEvent
+                {
+                    FinalStatus = Status,
+                    CompletedSteps = ImplementationPlan?.CompletedStepsCount ?? 0,
+                    TotalSteps = ImplementationPlan?.Steps.Count ?? 0
+                });
+            else
+                PublishRunEvent(new RunErrorEvent { Message = ErrorMessage ?? $"Run ended with status {Status}" });
+            _runEventSource.CompleteRun(RunId);
+        }
+
+        /// <summary>
         /// Sets project constraints for this Kobold (from Wyrm and Wyvern analysis).
         /// These are passed to the KoboldPlannerAgent during plan creation.
         /// </summary>
@@ -571,6 +591,9 @@ namespace DraCode.KoboldLair.Models.Agents
             Status = KoboldStatus.Working;
             StartedAt = workStart;
             LastLlmResponseAt = DateTime.UtcNow; // Initialize to start time
+            // A run without a plan has telemetry too (TASK-184): started now, ended in the finally below
+            RunId = ConsumeAssignedRunId();
+            PublishRunEvent(new RunStartedEvent());
 
             var taskPreview = TaskDescription?.Length > 60
                 ? TaskDescription.Substring(0, 60) + "..."
@@ -659,6 +682,10 @@ You are working on a task that is part of a larger project. Below is the project
                     "[Kobold] FAILED {KoboldId} | Type: {AgentType} | Duration: {Duration}ms | Task: {TaskPreview}",
                     Id.ToString()[..8], AgentType, totalDuration.TotalMilliseconds.ToString("F0"), taskPreview);
                 throw; // Re-throw so caller knows it failed
+            }
+            finally
+            {
+                EndRunTelemetry();
             }
         }
 
@@ -1075,19 +1102,7 @@ You are working on a task that is part of a larger project. Below is the project
 
                 // Per-run telemetry (TASK-037): emit a terminal event, then complete the stream so
                 // subscribers' readers finish. Runs even on exception propagation (no-op if no source).
-                if (_runEventSource != null)
-                {
-                    if (Status == KoboldStatus.Done)
-                        PublishRunEvent(new RunCompletedEvent
-                        {
-                            FinalStatus = Status,
-                            CompletedSteps = ImplementationPlan?.CompletedStepsCount ?? 0,
-                            TotalSteps = ImplementationPlan?.Steps.Count ?? 0
-                        });
-                    else
-                        PublishRunEvent(new RunErrorEvent { Message = $"Run ended with status {Status}" });
-                    _runEventSource.CompleteRun(RunId);
-                }
+                EndRunTelemetry();
             }
         }
 
@@ -1285,19 +1300,7 @@ You are working on a task that is part of a larger project. Below is the project
                 }
 
                 // Per-run telemetry (TASK-037): terminal event + complete the stream (see basic path).
-                if (_runEventSource != null)
-                {
-                    if (Status == KoboldStatus.Done)
-                        PublishRunEvent(new RunCompletedEvent
-                        {
-                            FinalStatus = Status,
-                            CompletedSteps = ImplementationPlan?.CompletedStepsCount ?? 0,
-                            TotalSteps = ImplementationPlan?.Steps.Count ?? 0
-                        });
-                    else
-                        PublishRunEvent(new RunErrorEvent { Message = $"Run ended with status {Status}" });
-                    _runEventSource.CompleteRun(RunId);
-                }
+                EndRunTelemetry();
             }
         }
 

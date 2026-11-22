@@ -2,7 +2,8 @@ import { test, expect } from './fixtures.js';
 import type { Page, Request } from '@playwright/test';
 
 // TASK-155: the workspace's Runs tab — this project's runs and the user's ad-hoc runs (marked), newest first, with mode,
-// status, start time and step progress; refreshing on its own. REST stubbed; the docked Dragon's socket held open.
+// status, start time and step progress; refreshing on its own. TASK-184: the pipeline's own Kobold runs, told apart.
+// REST stubbed; the docked Dragon's socket held open.
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60000).toISOString();
 interface Run { runId: string; mode: string; projectId: string | null; taskId: string | null; prompt: string | null; status: string;
@@ -42,7 +43,7 @@ test('the Runs tab lists the project\'s runs and the ad-hoc ones, newest first, 
   await expect(tab(page).locator('.run')).toHaveCount(3);
   await expect(tab(page).locator('.what')).toHaveText(['Rename the README', 'Build the API', 'Task t-gone']);
   await expect(run(page, 'r-3').locator('b-badge.adhoc')).toHaveText('Ad-hoc');
-  await expect(run(page, 'r-2').locator('b-badge.mode')).toHaveText('project');
+  await expect(run(page, 'r-2').locator('b-badge.mode')).toHaveText('Started by hand');
   await expect(run(page, 'r-2').locator('b-badge.adhoc')).toHaveCount(0);
   await expect(tab(page).locator('.status')).toHaveText(['Running', 'Failed', 'Completed']);
   await expect(run(page, 'r-3').locator('.started')).toHaveText('started 2 min ago');
@@ -53,6 +54,20 @@ test('the Runs tab lists the project\'s runs and the ad-hoc ones, newest first, 
   const query = new URL(requests[0].url()).searchParams;
   expect(query.get('projectId')).toBe('p-1');
   expect(query.get('adhoc')).toBe('true');
+});
+
+test('the pipeline\'s own Kobold runs are listed, named by their task and marked as the pipeline\'s', async ({ page }) => {
+  await serve(page, { list: [
+    { runId: 'r-9', mode: 'pipeline', projectId: 'p-1', taskId: 't-1', prompt: null, status: 'running', startedAt: minutesAgo(1),
+      completedAt: null, completedSteps: 2, totalSteps: 6, summary: null },
+    ...RUNS(),
+  ] });
+  await page.goto('/#/projects/p-1/runs');
+  await expect(run(page, 'r-9').locator('.what')).toHaveText('Build the API');
+  await expect(run(page, 'r-9').locator('b-badge.mode')).toHaveText('Pipeline');
+  await expect(run(page, 'r-9').locator('b-badge.adhoc')).toHaveCount(0);
+  await expect(run(page, 'r-9').locator('.steps')).toContainText('2 of 6 steps');
+  await expect(tab(page).locator('b-badge.mode')).toHaveText(['Pipeline', 'Started by hand', 'Started by hand']);
 });
 
 test('the Runs tab is in the workspace\'s tabs, after Spec', async ({ page }) => {

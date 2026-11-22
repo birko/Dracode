@@ -49,6 +49,9 @@ namespace DraCode.KoboldLair.Services
             };
         }
 
+        /// <summary>The mode of a run the pipeline started (a Kobold Drake summoned), as opposed to a transport's.</summary>
+        public const string PipelineMode = "pipeline";
+
         /// <summary>How much of an ad-hoc run's request a record keeps for listing.</summary>
         public const int PromptLength = 200;
 
@@ -105,6 +108,20 @@ namespace DraCode.KoboldLair.Services
             var line = prompt?.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
             if (string.IsNullOrEmpty(line)) return null;
             return line.Length <= PromptLength ? line : line[..PromptLength] + "…";
+        }
+
+        /// <summary>
+        /// Registers every run nobody else registered — the pipeline's own Kobolds (TASK-184) — when it starts, as a
+        /// <see cref="PipelineMode"/> run with its project and task from the event and the project's owner, so such
+        /// runs are listed and owner-scoped like any other. Transports register their runs first and are untouched.
+        /// </summary>
+        public void TrackUnregisteredRuns(Func<string?, string?> ownerOfProject)
+        {
+            _events.RunStartedUnwatched = started =>
+            {
+                if (_runs.ContainsKey(started.RunId)) return;
+                Register(started.RunId, ownerOfProject(started.ProjectId), PipelineMode, started.ProjectId, started.TaskId);
+            };
         }
 
         /// <summary>Folds one run event into the record's state. Terminal is monotonic — once a run has

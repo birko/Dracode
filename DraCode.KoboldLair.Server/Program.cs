@@ -526,7 +526,15 @@ builder.Services.AddSingleton<KoboldRunEventSource>();
 
 // Queryable run directory (TASK-044) — folds the live event stream into per-run status that outlives the
 // run, so REST/SSE callers can poll a runId after completion. Shared by the /kobold WS + /api/v1/runs.
-builder.Services.AddSingleton<RunRegistry>();
+// It also registers the runs nobody started over a transport — the pipeline's own Kobolds (TASK-184) — owned by their
+// project's owner.
+builder.Services.AddSingleton<RunRegistry>(sp =>
+{
+    var registry = new RunRegistry(sp.GetRequiredService<KoboldRunEventSource>());
+    var projects = sp.GetRequiredService<IProjectRepository>();
+    registry.TrackUnregisteredRuns(projectId => string.IsNullOrEmpty(projectId) ? null : projects.GetById(projectId)?.OwnerId);
+    return registry;
+});
 
 // /kobold WebSocket endpoint (TASK-038): mode-handler strategies + the protocol service that
 // subscribes to KoboldRunEventSource and relays kobold_* frames. Ad-hoc/project mechanics are TASK-039/040.
@@ -548,6 +556,7 @@ builder.Services.AddSingleton<KoboldFactory>(sp =>
     var rateLimiter = sp.GetRequiredService<ProviderRateLimiter>();
     var costTracker = sp.GetRequiredService<CostTrackingService>();
     var runEventSource = sp.GetRequiredService<KoboldRunEventSource>();
+    _ = sp.GetRequiredService<RunRegistry>(); // exists before any Kobold runs, so the pipeline's runs are registered
     return new KoboldFactory(projectRepository, loggerFactory, config,
         rateLimiter: rateLimiter, costTracker: costTracker, runEventSource: runEventSource);
 });
