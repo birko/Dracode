@@ -3,7 +3,11 @@
  * `b-chat`, with streaming text, typing and what Dragon is doing. It shows the page's Dragon connection
  * (`dragonConnection`), which follows the project given in `project-id`. Without `project-id` it is the homepage's
  * "home Dragon" (TASK-149): the user's own conversation with no project, for starting projects; it shows no decision
- * cards (the homepage's Needs you lists them) and no pin. Its header holds the "Keep expanded" pin
+ * cards (the homepage's Needs you lists them) and no pin.
+ *
+ * When Dragon loads another project from the chat, the session stays on this one and a notice offers to open the other
+ * project (TASK-190): "Open <name>" goes to its workspace (and Dragon follows with its conversation), "Stay here" keeps
+ * everything as it is. Its header holds the "Keep expanded" pin
  * (TASK-152): the workspace widens the dock while focus is in it, or always while pinned.
  *
  * Decision cards (TASK-160, FEATURE-026 D14/D15) sit above the chat, with their count in the header: the open decisions
@@ -42,6 +46,8 @@ export class DragonDock extends KoboldComponent {
   private readonly _drafts = new Map<string, string>();
   /** The decisions last drawn, to redraw the cards only when they change (a redraw would reset a box being typed in). */
   private _drawn = '';
+  /** The offer last drawn. */
+  private _offerDrawn = '';
 
   static get styles() {
     return `
@@ -70,6 +76,14 @@ export class DragonDock extends KoboldComponent {
       .conn.offline { color: var(--b-color-warning); }
       b-chat { flex: 1; min-height: 0; }
       .decision-count[hidden] { display: none; }
+      .offer:empty { display: none; }
+      .offer-box {
+        display: flex; flex-wrap: wrap; align-items: center; gap: var(--b-space-xs, 0.25rem) var(--b-space-sm, 0.5rem);
+        padding: var(--b-space-sm, 0.5rem) var(--b-space-md, 0.75rem); border-bottom: 1px solid var(--b-border);
+        border-left: 3px solid var(--b-color-info, var(--b-color-primary)); font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text);
+      }
+      .offer-text { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+      .offer-actions { display: flex; gap: var(--b-space-xs, 0.25rem); }
       .decisions { flex: 0 1 auto; max-height: 45%; overflow-y: auto; border-bottom: 1px solid var(--b-border); }
       .decisions:empty { display: none; }
       .decision { padding: var(--b-space-sm, 0.5rem) var(--b-space-md, 0.75rem); border-left: 3px solid var(--b-color-warning); }
@@ -130,6 +144,7 @@ export class DragonDock extends KoboldComponent {
         <b-badge class="decision-count" variant="warning" hidden></b-badge><span class="conn${s.connected ? '' : ' offline'}">${conn}</span>
         ${home ? '' : `<button class="pin" type="button" aria-pressed="${this._pinned}" title="Keep Dragon wide when focus leaves it">📌 Keep expanded</button>`}
       </div>
+      <section class="offer" data-morph="skip" aria-label="Another project" aria-live="polite"></section>
       <section class="decisions" data-morph="skip" aria-label="Decisions waiting for you"></section>
       <b-chat ${s.phase === 'ready' && s.connected ? '' : 'disabled'} placeholder="${escapeHtml(placeholder)}">
         <div slot="footer" class="status">${escapeHtml(s.status ?? '')}</div>
@@ -163,8 +178,41 @@ export class DragonDock extends KoboldComponent {
         }
       });
     }
+    const offer = this.$('.offer');
+    if (offer) this.listen(offer, 'click', (e) => this.onOfferClick(e));
     this._drawn = '';
+    this._offerDrawn = '';
     this.drawDecisions();
+    this.drawOffer();
+  }
+
+  /** The project Dragon loaded from the chat, offered to open (TASK-190). */
+  private drawOffer(): void {
+    const section = this.$('.offer');
+    if (!section) return;
+    const offer = this.attr('project-id') ? this._state.offer : null;
+    const key = JSON.stringify(offer);
+    if (key === this._offerDrawn) return;
+    this._offerDrawn = key;
+    section.innerHTML = !offer ? '' : `<div class="offer-box">
+      <span class="offer-text">Dragon loaded <strong>${escapeHtml(offer.projectName)}</strong>. This conversation stays here until you open it.</span>
+      <span class="offer-actions">
+        <b-button size="sm" variant="primary" data-offer="open">Open ${escapeHtml(offer.projectName)}</b-button>
+        <b-button size="sm" variant="secondary" data-offer="stay">Stay here</b-button>
+      </span>
+    </div>`;
+  }
+
+  private onOfferClick(e: Event): void {
+    const button = e.composedPath().find((n): n is HTMLElement => n instanceof HTMLElement && n.matches('b-button[data-offer]'));
+    const offer = this._state.offer;
+    if (!button || !offer) return;
+    if (button.dataset.offer === 'open') {
+      window.location.hash = `#/projects/${encodeURIComponent(offer.projectId)}`;
+    } else {
+      dragonConnection.dismissOffer();
+      this.chat()?.focusInput();
+    }
   }
 
   /** This project's open decisions. */
@@ -269,6 +317,7 @@ export class DragonDock extends KoboldComponent {
       return;
     }
     this.drawDecisions();
+    this.drawOffer();
     const chat = this.chat()!;
     this.sync(chat);
     const status = this.$('.status');

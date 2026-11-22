@@ -282,3 +282,25 @@ test('a message sent while Dragon is still answering waits its turn, marked, and
   await expect(bubbles(page, 'assistant')).toHaveText(['Which payment provider?', 'Stripe it is.', 'PayPal added as well.']);
   await expect(dock(page).locator('b-chat .typing:not(.hidden)')).toHaveCount(0);
 });
+
+test('a project Dragon loads from the chat is offered: Stay here keeps the workspace, Open goes there', async ({ page }) => {
+  // TASK-190: the session stays on the opened project until the person agrees to switch.
+  const dragon = await open(page);
+  await expect(bubbles(page, 'user')).toHaveText(['Build a shop']);
+  const notice = dock(page).locator('.offer');
+
+  dragon.send(dragon.last, { type: 'project_switch_offered', projectId: 'p-2', projectName: 'Blog', sessionId: dragon.sessionId });
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText('Blog');
+  await notice.getByRole('button', { name: /stay here/i }).click();
+  await expect(notice).toBeHidden();
+  await expect(page).toHaveURL(/#\/projects\/p-1\//);
+  expect(dragon.sent('select_project').map((m) => m.projectId)).toEqual(['p-1']);
+
+  dragon.send(dragon.last, { type: 'project_switch_offered', projectId: 'p-2', projectName: 'Blog', sessionId: dragon.sessionId });
+  await notice.getByRole('button', { name: /open blog/i }).click();
+  await expect(page).toHaveURL(/#\/projects\/p-2\//);
+  await expect.poll(() => dragon.sent('select_project').map((m) => m.projectId)).toEqual(['p-1', 'p-2']);
+  await expect(bubbles(page, 'user')).toHaveText(['Build a blog']);
+  await expect(dock(page).locator('.offer')).toBeHidden();
+});

@@ -387,7 +387,10 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
   rebuilds it at once. The chat-driven route (Dragon's spec tool loading another project, `OnProjectLoadedAsync`) loads
   the new history and sets `PendingContextReset`; after the reply that announced the switch,
   `ApplyPendingContextReset` rebuilds the context from that history (TASK-180). Both key a project's history by its
-  `Paths.Output`
+  `Paths.Output`. In a workspace (a session whose client sent `select_project`, `SelectedByClient`) the chat route
+  does not switch: the session keeps the opened project and the client gets `project_switch_offered { projectId,
+  projectName }`, which the dock shows as "Open <name>" / "Stay here"; opening is the client's own `select_project`
+  (TASK-190). A new spec Dragon writes there is offered the same way
 - **One reply at a time** (TASK-187): `DragonRequestQueue` runs a session's messages in the order they came; one sent
   while Dragon is still answering is taken up when that answer ends (each request ends with `dragon_status`
   `complete` or `error`), and the dock shows it waiting. Sending never cancels; the cancel command drops only requests
@@ -396,7 +399,7 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
 - **Cleanup**: Automatic cleanup timer runs every 60 seconds
 - **Reconnection**: Sessions persist across disconnects; message history replayed on reconnect (`?sessionId=`, which the
   client host's proxy forwards since TASK-151; a session the server no longer has gets `session_not_found`)
-- **Message Types**: `session_resumed`, `dragon_message`, `dragon_thinking`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`, `project_notification`, `decision_answer_result`, `project_selected`, `home_selected`; the client sends `select_project` to follow a project, `select_home` for the home conversation, and `answer_decision`
+- **Message Types**: `session_resumed`, `dragon_message`, `dragon_thinking`, `dragon_typing`, `specification_created`, `error`, `dragon_reloaded`, `project_notification`, `decision_answer_result`, `project_selected`, `home_selected`, `project_switch_offered`; the client sends `select_project` to follow a project, `select_home` for the home conversation, and `answer_decision`
   to answer a decision card
 
 ### Data Storage Locations (Consolidated Per-Project Folders)
