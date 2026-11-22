@@ -4,12 +4,14 @@
  * progress. Data from `GET /api/v1/runs?projectId=…&adhoc=true`; a project run's task is named from the project's tasks.
  * The pipeline's own Kobolds are listed (mode `pipeline`, TASK-184) beside runs started over `/kobold` (the CLI) or
  * `POST /api/v1/runs`. The server keeps runs in memory, so a restart empties the list. Polls while the page is visible.
+ * Selecting a run opens its live view (TASK-057, `kobold-run-view`) in the tab's place; "All runs" comes back.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
 import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 import { taskTitle, type TaskView } from './board-tab.js';
+import './run-view.js';
 
 export interface RunView {
   runId: string;
@@ -53,6 +55,8 @@ function started(iso: string): string {
 export class RunsTab extends KoboldComponent {
   private _state: RunsState = { kind: 'loading' };
   private _timer: ReturnType<typeof setTimeout> | null = null;
+  /** The run opened in its live view, and its title as the list named it. */
+  private _open: { id: string; title: string } | null = null;
   private readonly _onVisibility = () => { if (document.visibilityState === 'visible') void this.refresh(); };
 
   static get styles() {
@@ -72,6 +76,9 @@ export class RunsTab extends KoboldComponent {
         font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); }
       .steps { display: inline-flex; align-items: center; gap: var(--b-space-xs, 0.25rem); }
       .steps b-progress { width: 6rem; }
+      .run { cursor: pointer; }
+      .run:hover { border-color: var(--b-color-primary); }
+      .run:focus-visible { outline: none; box-shadow: var(--b-focus-ring); }
       .summary { grid-column: 1 / -1; margin: 0; font-size: var(--b-text-xs, 0.75rem); color: var(--b-color-danger-text, var(--b-color-danger)); overflow-wrap: anywhere; }
     `;
   }
@@ -111,11 +118,14 @@ export class RunsTab extends KoboldComponent {
       if (this._state.kind !== 'loaded') this._state = { kind: 'error', message: error instanceof Error ? error.message : String(error) };
     }
     if (!this.isConnected) return;
-    if (JSON.stringify(this._state) !== before) this.update();
+    if (JSON.stringify(this._state) !== before && !this._open) this.update();
     if (document.visibilityState === 'visible') this._timer = setTimeout(() => void this.refresh(), RUNS_REFRESH_MS);
   }
 
   render() {
+    if (this._open) {
+      return `<kobold-run-view run-id="${escapeHtml(this._open.id)}" run-title="${escapeHtml(this._open.title)}"></kobold-run-view>`;
+    }
     const state = this._state;
     if (state.kind === 'loading') return `<b-spinner></b-spinner>`;
     if (state.kind === 'error') return `<p class="message"><strong>Could not load the runs.</strong> ${escapeHtml(state.message)}</p>`;
@@ -124,6 +134,22 @@ export class RunsTab extends KoboldComponent {
         started from the CLI or the API and your ad-hoc runs; the server keeps them until it restarts.</p>`;
     }
     return `<ul class="runs">${state.runs.map((r) => this.renderRun(r, state.titles)).join('')}</ul>`;
+  }
+
+  protected onUpdated() {
+    const view = this.$('kobold-run-view');
+    if (view) {
+      this.listen(view, 'run-close', () => { this._open = null; this.update(); void this.refresh(); });
+      return;
+    }
+    const list = this.$('.runs');
+    if (!list) return;
+    const open = (e: Event) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>('.run');
+      if (row) { this._open = { id: row.dataset.runId!, title: row.dataset.title ?? '' }; this.update(); }
+    };
+    this.listen(list, 'click', open);
+    this.listen<KeyboardEvent>(list, 'keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); } });
   }
 
   private renderRun(r: RunView, titles: Record<string, string>): string {
@@ -137,7 +163,8 @@ export class RunsTab extends KoboldComponent {
          ${r.completedSteps} of ${r.totalSteps} steps</span>`
       : `<span class="steps">${r.status === 'pending' || r.status === 'running' ? 'no plan steps yet' : 'no plan steps'}</span>`;
     return `
-      <li class="run${r.status === 'failed' ? ' failed' : ''}" data-run-id="${escapeHtml(r.runId)}" data-status="${escapeHtml(r.status)}">
+      <li class="run${r.status === 'failed' ? ' failed' : ''}" data-run-id="${escapeHtml(r.runId)}" data-status="${escapeHtml(r.status)}"
+          data-title="${escapeHtml(what)}" tabindex="0" role="button" aria-label="Open run: ${escapeHtml(what)}">
         <span class="what" title="${escapeHtml(what)}">${escapeHtml(what)}</span>
         <b-badge class="status" variant="${STATUS_VARIANT[r.status] ?? 'neutral'}">${escapeHtml(STATUS_LABEL[r.status] ?? r.status)}</b-badge>
         <div class="meta">
