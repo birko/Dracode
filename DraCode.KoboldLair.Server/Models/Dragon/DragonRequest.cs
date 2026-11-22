@@ -43,6 +43,12 @@ namespace DraCode.KoboldLair.Server.Models.Dragon
         /// Whether this request was cancelled
         /// </summary>
         public bool IsCancelled => CancellationTokenSource.IsCancellationRequested;
+
+        /// <summary>
+        /// Completes when the queue is done with this request — answered, failed, timed out or skipped as cancelled. The
+        /// session's next request starts after it (TASK-187).
+        /// </summary>
+        internal TaskCompletionSource Finished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     /// <summary>

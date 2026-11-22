@@ -386,6 +386,10 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
 - **Context Isolation**: the `select_project` route above. The chat-driven route (Dragon's spec tool loading another
   project, `OnProjectLoadedAsync`) loads the new history but sets a `PendingContextReset` that nothing reads, so its LLM
   context carries over
+- **One reply at a time** (TASK-187): `DragonRequestQueue` runs a session's messages in the order they came; one sent
+  while Dragon is still answering is taken up when that answer ends (each request ends with `dragon_status`
+  `complete` or `error`), and the dock shows it waiting. Sending never cancels; the cancel command drops only requests
+  not yet started (a running one cannot be stopped)
 - **No Client localStorage**: Client has no persistent storage for sessions; server is source of truth
 - **Cleanup**: Automatic cleanup timer runs every 60 seconds
 - **Reconnection**: Sessions persist across disconnects; message history replayed on reconnect (`?sessionId=`, which the

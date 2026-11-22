@@ -25,7 +25,8 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly ConcurrentDictionary<string, DragonRequest> _activeRequests;
         /// <summary>Requests enqueued and not yet finished or skipped, waiting or running (TASK-151).</summary>
         private readonly ConcurrentDictionary<string, DragonRequest> _pending = new();
-        private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationTokens;
+        /// <summary>Each session's newest request, which the session's next request waits for (TASK-187).</summary>
+        private readonly Dictionary<string, DragonRequest> _lastBySession = new();
         private readonly SemaphoreSlim _concurrencyLimiter;
         private readonly Task _processingTask;
         private readonly CancellationTokenSource _shutdownCts;
@@ -58,7 +59,6 @@ namespace DraCode.KoboldLair.Server.Services
             });
 
             _activeRequests = new ConcurrentDictionary<string, DragonRequest>();
-            _cancellationTokens = new ConcurrentDictionary<string, CancellationTokenSource>();
 
             // Start processing tasks
             _processingTask = StartProcessingAsync(_shutdownCts.Token);
@@ -68,19 +68,33 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Enqueues a Dragon request for asynchronous processing
+        /// Enqueues a Dragon request for asynchronous processing. A session's requests run one at a time, in the order
+        /// they came (TASK-187): one sent while the session's previous request is still waiting or running is taken up
+        /// when that one finishes. Sending a message never cancels the one before it; they share one Dragon and its
+        /// conversation, so two at once would each answer without the other.
         /// </summary>
         public async Task<string> EnqueueAsync(DragonRequest request)
         {
-            // Cancel any existing request for this session
-            await CancelSessionRequestAsync(request.SessionId);
             _pending[request.RequestId] = request;
 
-            // Store the cancellation token
-            _cancellationTokens[request.SessionId] = request.CancellationTokenSource;
+            DragonRequest? previous;
+            lock (_lastBySession)
+            {
+                _lastBySession.TryGetValue(request.SessionId, out previous);
+                _lastBySession[request.SessionId] = request;
+            }
 
-            // Send to channel (non-blocking)
-            await _requestChannel.Writer.WriteAsync(request);
+            if (previous == null || previous.Finished.Task.IsCompleted)
+            {
+                await _requestChannel.Writer.WriteAsync(request);
+            }
+            else
+            {
+                // No worker waits for it: the request joins the channel when the session's previous one is done
+                _ = previous.Finished.Task.ContinueWith(_ => _requestChannel.Writer.TryWrite(request), TaskScheduler.Default);
+                _logger.LogInformation("[DragonRequest] WAITING {RequestId} | Session {SessionId} is still answering {Previous}",
+                    request.RequestId, request.SessionId, previous.RequestId);
+            }
 
             _logger.LogDebug("Request enqueued: {RequestId} for session {SessionId}",
                 request.RequestId, request.SessionId);
@@ -89,19 +103,28 @@ namespace DraCode.KoboldLair.Server.Services
         }
 
         /// <summary>
-        /// Cancels the active request for a session
+        /// Cancels a session's requests that have not started (the explicit cancel command). A request already running
+        /// cannot be stopped — Dragon's call takes no cancellation — and finishes on its own.
         /// </summary>
-        public async Task<bool> CancelSessionRequestAsync(string sessionId)
+        public Task<bool> CancelSessionRequestAsync(string sessionId)
         {
-            if (_cancellationTokens.TryRemove(sessionId, out var cts))
+            var cancelled = false;
+            foreach (var request in _pending.Values.Where(r => r.SessionId == sessionId && !_activeRequests.ContainsKey(r.RequestId)))
             {
-                await Task.Run(() => cts.Cancel());
-                cts.Dispose();
-                Interlocked.Increment(ref _totalRequestsCancelled);
-                _logger.LogDebug("Cancelled request for session: {SessionId}", sessionId);
-                return true;
+                try
+                {
+                    request.CancellationTokenSource.Cancel();
+                    cancelled = true;
+                    Interlocked.Increment(ref _totalRequestsCancelled);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Finished meanwhile
+                }
             }
-            return false;
+            if (cancelled)
+                _logger.LogDebug("Cancelled waiting requests for session: {SessionId}", sessionId);
+            return Task.FromResult(cancelled);
         }
 
         /// <summary>
@@ -173,7 +196,7 @@ namespace DraCode.KoboldLair.Server.Services
                 if (request.IsCancelled)
                 {
                     _logger.LogDebug("Skipping cancelled request: {RequestId}", request.RequestId);
-                    _pending.TryRemove(request.RequestId, out _);
+                    Finish(request);
                     continue;
                 }
 
@@ -240,12 +263,23 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     // Remove from active requests
                     _activeRequests.TryRemove(request.RequestId, out _);
-                    _pending.TryRemove(request.RequestId, out _);
-                    _cancellationTokens.TryRemove(request.SessionId, out var cts);
-                    cts?.Dispose();
                     _concurrencyLimiter.Release();
+                    Finish(request);
                 }
             }
+        }
+
+        /// <summary>The queue is done with a request: forget it, and let the session's next one start.</summary>
+        private void Finish(DragonRequest request)
+        {
+            _pending.TryRemove(request.RequestId, out _);
+            lock (_lastBySession)
+            {
+                if (_lastBySession.TryGetValue(request.SessionId, out var last) && last == request)
+                    _lastBySession.Remove(request.SessionId);
+            }
+            request.CancellationTokenSource.Dispose();
+            request.Finished.TrySetResult();
         }
 
         /// <summary>
@@ -538,11 +572,11 @@ namespace DraCode.KoboldLair.Server.Services
                 _shutdownCts.Dispose();
                 _concurrencyLimiter.Dispose();
 
-                // Cancel all active requests
-                foreach (var cts in _cancellationTokens.Values)
+                // Cancel every request still waiting or running
+                foreach (var request in _pending.Values)
                 {
-                    cts.Cancel();
-                    cts.Dispose();
+                    try { request.CancellationTokenSource.Cancel(); }
+                    catch (ObjectDisposedException) { }
                 }
 
                 _disposed = true;

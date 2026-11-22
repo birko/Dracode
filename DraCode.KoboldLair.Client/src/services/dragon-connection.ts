@@ -19,6 +19,10 @@
  * project is open; the server answers `home_selected` and replays the user's own home conversation, kept apart from every
  * project's. A specification Dragon writes there registers a project; `onProjectsChanged` tells the homepage to reload.
  *
+ * One reply at a time (TASK-187): the server answers a session's messages in order, each request ending with a
+ * `dragon_status` of `complete` or `error`. A message sent while Dragon is still answering is shown as waiting
+ * (`status: 'sending'`, and a line under the chat) until the reply before it is done.
+ *
  * The connection belongs to the signed-in user (TASK-056): signing out, or another user signing in, closes it and
  * forgets its session, so the next user never reuses it; a refreshed token for the same user keeps it.
  */
@@ -92,6 +96,9 @@ export class DragonConnection {
   private _streamId: string | null = null;
   private _streamText = '';
   private _seq = 0;
+  /** Messages sent and not yet answered in this conversation, and the ids of those waiting behind the one being answered. */
+  private _inFlight = 0;
+  private _waiting: string[] = [];
   /** Whose connection this is. */
   private _userId: string | null = authStore.get('userId') as string | null;
 
@@ -113,6 +120,7 @@ export class DragonConnection {
     this._options = null;
     this._sessionId = null;
     this._serverProject = null;
+    this.forgetPending();
     this.endStream();
     this.set({ projectId: null, home: false, phase: 'idle', connected: false, messages: [], typing: false, status: null, projectName: null, decisions: [] });
   }
@@ -150,6 +158,7 @@ export class DragonConnection {
     }
     if (this.target() === (home ? HOME : projectId) && (this._state.phase === 'switching' || this._state.phase === 'ready')) return;
     this.endStream();
+    this.forgetPending();
     this.set({ projectId, home, phase: 'switching', messages: [], typing: false, status: null, projectName: null });
     if (!this._client) this.connect();
     else if (this._client.connected && !this._awaitingResume) this.sendSelect();
@@ -163,10 +172,15 @@ export class DragonConnection {
   /** Send the person's message to Dragon; false when no project's conversation is open yet. */
   send(text: string): boolean {
     if (this._state.phase !== 'ready' || !this._client?.connected) return false;
-    this.endStream();
+    const waits = this._inFlight > 0;
+    const id = this.nextId('user');
+    this._inFlight++;
+    if (waits) this._waiting.push(id);
+    else this.endStream();
     this.set({
-      messages: [...this._state.messages, { id: this.nextId('user'), role: 'user', content: text, timestamp: Date.now() }],
+      messages: [...this._state.messages, { id, role: 'user', content: text, timestamp: Date.now(), ...(waits ? { status: 'sending' as const } : {}) }],
       typing: true,
+      ...(waits ? { status: 'Your message waits until Dragon finishes this reply' } : {}),
     });
     this._client.send(JSON.stringify({ type: 'message', message: text }));
     return true;
@@ -214,6 +228,7 @@ export class DragonConnection {
     if (!this._awaitingResume) return;
     this._awaitingResume = false;
     const target = this.target();
+    this.forgetPending();
     if (resumed && target && target === this._serverProject) {
       this.endStream();
       this.set({ phase: 'ready', messages: [], typing: false, status: null }); // the replay that follows rebuilds it
@@ -307,7 +322,7 @@ export class DragonConnection {
         break;
       }
       case 'dragon_status':
-        if (msg.statusType === 'complete' || msg.statusType === 'error') this.set({ status: null });
+        if (msg.statusType === 'complete' || msg.statusType === 'error') this.replyDone();
         break;
       case 'dragon_stream':
         this.appendStream(str(msg.chunk));
@@ -426,6 +441,28 @@ export class DragonConnection {
       ? this._state.messages.map((m) => (m.id === id ? { ...m, content } : m))
       : [...this._state.messages, { id: this.nextId('dragon'), role: 'assistant' as const, content, timestamp: Date.now() }];
     this.set({ messages, typing: false, status: null });
+  }
+
+  /** A request ended: the next waiting message is the one Dragon answers now. */
+  private replyDone(): void {
+    if (this._inFlight > 0) this._inFlight--;
+    const next = this._waiting.shift();
+    this.endStream();
+    if (!next) {
+      this.set({ status: null, ...(this._inFlight === 0 ? { typing: false } : {}) });
+      return;
+    }
+    this.set({
+      messages: this._state.messages.map((m) => (m.id === next ? { ...m, status: undefined } : m)),
+      typing: true,
+      status: this._waiting.length ? 'Your message waits until Dragon finishes this reply' : null,
+    });
+  }
+
+  /** The conversation was replaced (a switch, a resume, a reset): nothing of this one is still waiting here. */
+  private forgetPending(): void {
+    this._inFlight = 0;
+    this._waiting = [];
   }
 
   private endStream(): void {
