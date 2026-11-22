@@ -1,11 +1,13 @@
 /**
  * The workspace's Board tab (TASK-153, FEATURE-026 D16): the project's tasks in fixed status columns — To do,
- * In progress, Blocked·Failed, Done. The agents move the cards; the person does not drag between columns. A failed card
- * has Retry. Nothing pushes task changes to a browser, so the board polls while the page is visible. When its own width
- * is narrow (a phone, or Dragon expanded beside it, TASK-152) the columns become a compact list (container query).
+ * In progress, Blocked·Failed, Done — on Birko's `b-kanban` (TASK-183). The agents move the cards: every column is
+ * locked, so a person drags nothing between them. A failed card has Retry. Nothing pushes task changes to a browser, so
+ * the board polls while the page is visible. When its own width is narrow (a phone, or Dragon expanded beside it,
+ * TASK-152) the columns stack one per row (`stackBelow`) and the cards turn compact.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
+import type { BKanban, KanbanCard, KanbanColumn } from 'birko-web-components/data';
 import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 
@@ -52,6 +54,8 @@ const STATUS_NOTE: Record<string, string> = {
 /** How often the board refreshes while the page is visible. */
 export const BOARD_REFRESH_MS = 5000;
 const ERROR_PREVIEW = 160;
+/** Below this board width the columns stack (b-kanban `stackBelow`). */
+const STACK_BELOW = '44rem';
 
 /** A task's title: the first non-empty line of its description, without Markdown heading or list marks. */
 export function taskTitle(task: string): string {
@@ -69,46 +73,14 @@ export class BoardTab extends KoboldComponent {
   private _timer: ReturnType<typeof setTimeout> | null = null;
   private _retrying = new Set<string>();
   private _retryErrors = new Map<string, string>();
+  private _kanban: BKanban | null = null;
   private _onVisibility = () => { if (document.visibilityState === 'visible') void this.refresh(); };
 
   static get styles() {
     return `
-      :host { display: block; min-width: 0; color: var(--b-text); container-type: inline-size; }
-      .columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--b-space-md, 0.75rem); align-items: start; }
-      .column {
-        min-width: 0; padding: var(--b-space-sm, 0.5rem);
-        background: var(--b-bg-subtle, var(--b-bg)); border: 1px solid var(--b-border); border-radius: var(--b-radius-lg, 0.5rem);
-      }
-      .column-head {
-        display: flex; align-items: center; gap: var(--b-space-xs, 0.25rem);
-        margin: 0 0 var(--b-space-sm, 0.5rem); font-size: var(--b-text-sm, 0.8125rem); font-weight: var(--b-font-weight-bold, 700);
-      }
-      .count { color: var(--b-text-muted); font-weight: normal; }
-      .cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--b-space-sm, 0.5rem); }
-      .card {
-        min-width: 0; padding: var(--b-space-sm, 0.5rem) var(--b-space-md, 0.75rem);
-        background: var(--b-bg-elevated); border: 1px solid var(--b-border); border-radius: var(--b-radius, 0.375rem);
-      }
-      .card.failed { border-left: 3px solid var(--b-color-danger); }
-      .title {
-        margin: 0; font-size: var(--b-text-sm, 0.8125rem); font-weight: var(--b-font-weight-medium, 500); overflow-wrap: anywhere;
-        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-      }
-      .meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--b-space-xs, 0.25rem); margin-top: var(--b-space-xs, 0.25rem); }
-      .agent, .note { font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); }
-      .error { margin: var(--b-space-xs, 0.25rem) 0 0; font-size: var(--b-text-xs, 0.75rem); color: var(--b-color-danger); overflow-wrap: anywhere; }
-      .actions { margin-top: var(--b-space-xs, 0.25rem); }
-      .empty-col { font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); padding: var(--b-space-xs, 0.25rem); }
+      :host { display: block; min-width: 0; color: var(--b-text); }
+      b-kanban { --b-kanban-col-min-width: 0; --b-kanban-col-max-width: none; }
       .message { color: var(--b-text-secondary); }
-      /* Compact list: narrow space (phone, or Dragon expanded beside the board). */
-      @container (max-width: 44rem) {
-        .columns { grid-template-columns: minmax(0, 1fr); gap: var(--b-space-sm, 0.5rem); }
-        .column { padding: var(--b-space-xs, 0.25rem) var(--b-space-sm, 0.5rem); background: none; border: none; border-bottom: 1px solid var(--b-border); border-radius: 0; }
-        .cards { gap: 0; }
-        .card { padding: var(--b-space-xs, 0.25rem) 0; background: none; border: none; border-radius: 0; }
-        .card.failed { border-left: none; }
-        .title { -webkit-line-clamp: 1; }
-      }
     `;
   }
 
@@ -138,8 +110,18 @@ export class BoardTab extends KoboldComponent {
       if (this._state.kind !== 'loaded') this._state = { kind: 'error', message: error instanceof Error ? error.message : String(error) };
     }
     if (!this.isConnected) return;
-    if (JSON.stringify(this._state) !== before) this.update(); // an unchanged board keeps its DOM (focus, hover)
+    if (JSON.stringify(this._state) !== before) this.show(); // an unchanged board keeps its DOM (focus, hover)
     if (document.visibilityState === 'visible') this._timer = setTimeout(() => void this.refresh(), BOARD_REFRESH_MS);
+  }
+
+  /**
+   * Show the current state. While the board stays on screen only its cards are handed over: re-rendering this view
+   * would morph the `b-kanban` element and drop the `stacked` attribute it sets on itself.
+   */
+  private show(): void {
+    const tasks = this._state.kind === 'loaded' && this._state.tasks.length ? this._state.tasks : null;
+    if (tasks && this._kanban?.isConnected) this._kanban.setCards(this.cards(tasks));
+    else this.update();
   }
 
   render() {
@@ -152,45 +134,72 @@ export class BoardTab extends KoboldComponent {
       return `<p class="message"><strong>No tasks yet.</strong> Wyvern breaks the specification into tasks once it is
         approved.</p>`;
     }
-    const byColumn = new Map<ColumnId, TaskView[]>(COLUMNS.map((c) => [c.id, []]));
-    for (const task of state.tasks) byColumn.get(COLUMN_OF[task.status] ?? 'todo')!.push(task);
-    return `<div class="columns">${COLUMNS.map((c) => {
-      const tasks = byColumn.get(c.id)!.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9));
-      return `
-        <section class="column" data-column="${c.id}">
-          <h3 class="column-head">${escapeHtml(c.label)} <span class="count">${tasks.length}</span></h3>
-          ${tasks.length === 0 ? `<div class="empty-col">Nothing here</div>`
-            : `<ul class="cards">${tasks.map((t) => this.renderCard(t)).join('')}</ul>`}
-        </section>`;
-    }).join('')}</div>`;
+    return `<b-kanban empty-text="Nothing here"></b-kanban>`;
   }
 
+  protected onUpdated() {
+    const kanban = this.$('b-kanban') as BKanban | null;
+    if (kanban === this._kanban) return;
+    this._kanban = kanban;
+    if (!kanban || this._state.kind !== 'loaded') return;
+    kanban.setConfig({
+      columns: COLUMNS.map((c): KanbanColumn => ({ id: c.id, label: c.label, locked: true, sortable: false })),
+      cards: this.cards(this._state.tasks),
+      renderCard: (card) => this.renderCard(card.metadata!.task as TaskView),
+      stackBelow: STACK_BELOW,
+    });
+    // Retry is the card's own control: b-kanban starts no drag and fires no card-click for it.
+    kanban.shadowRoot!.addEventListener('click', (e) => {
+      const button = e.composedPath().find((n): n is HTMLElement => n instanceof HTMLElement && n.matches('b-button[data-retry]'));
+      if (button) void this.retry(button.dataset.retry!);
+    });
+  }
+
+  /** The tasks as b-kanban cards, each column in priority order. */
+  private cards(tasks: TaskView[]): KanbanCard[] {
+    return [...tasks]
+      .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9))
+      .map((t, i) => ({
+        id: t.id,
+        columnId: COLUMN_OF[t.status] ?? 'todo',
+        title: taskTitle(t.task),
+        order: i,
+        color: t.status === 'Failed' ? 'var(--b-color-danger)' : undefined,
+        // The card re-renders when any of this changes.
+        metadata: { task: t, retrying: this._retrying.has(t.id), retryError: this._retryErrors.get(t.id) ?? null },
+      }));
+  }
+
+  /**
+   * A card's content. It renders inside b-kanban's shadow root, where this view's stylesheet does not reach, so it is
+   * styled inline. A stacked board shows each title on one line.
+   */
   private renderCard(t: TaskView): string {
     const failed = t.status === 'Failed';
+    const compact = this._kanban?.hasAttribute('stacked') ?? false;
     const error = failed && t.errorMessage
       ? t.errorMessage.length > ERROR_PREVIEW ? `${t.errorMessage.slice(0, ERROR_PREVIEW)}…` : t.errorMessage
       : '';
     const retryError = this._retryErrors.get(t.id);
     const note = STATUS_NOTE[t.status];
+    const small = 'font-size:var(--b-text-xs, 0.75rem);';
+    const muted = `${small} color:var(--b-text-muted);`;
+    const errorStyle = `margin:var(--b-space-xs, 0.25rem) 0 0; ${small} color:var(--b-color-danger-text, var(--b-color-danger)); overflow-wrap:anywhere;`;
+    const title = escapeHtml(taskTitle(t.task));
     return `
-      <li class="card${failed ? ' failed' : ''}" data-task-id="${escapeHtml(t.id)}" data-status="${escapeHtml(t.status)}">
-        <p class="title" title="${escapeHtml(taskTitle(t.task))}">${escapeHtml(taskTitle(t.task))}</p>
-        <div class="meta">
+      <div class="task" data-task-id="${escapeHtml(t.id)}" data-status="${escapeHtml(t.status)}" style="flex:1; min-width:0;">
+        <p class="title" title="${title}" style="margin:0; font-weight:var(--b-font-weight-medium, 500); overflow-wrap:anywhere;
+          display:-webkit-box; -webkit-line-clamp:${compact ? 1 : 2}; -webkit-box-orient:vertical; overflow:hidden;">${title}</p>
+        <div class="meta" style="display:flex; flex-wrap:wrap; align-items:center; gap:var(--b-space-xs, 0.25rem); margin-top:var(--b-space-xs, 0.25rem);">
           <b-badge variant="${PRIORITY_VARIANT[t.priority] ?? 'neutral'}">${escapeHtml(t.priority)}</b-badge>
-          <span class="agent">${escapeHtml(t.assignedAgent || 'no agent yet')}</span>
-          ${note ? `<span class="note">· ${escapeHtml(note)}</span>` : ''}
+          <span class="agent" style="${muted}">${escapeHtml(t.assignedAgent || 'no agent yet')}</span>
+          ${note ? `<span class="note" style="${muted}">· ${escapeHtml(note)}</span>` : ''}
         </div>
-        ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
-        ${retryError ? `<p class="error retry-error">${escapeHtml(retryError)}</p>` : ''}
-        ${failed ? `<div class="actions"><b-button class="retry" size="sm" variant="secondary" data-retry="${escapeHtml(t.id)}"
-          ${this._retrying.has(t.id) ? 'loading' : ''}>Retry</b-button></div>` : ''}
-      </li>`;
-  }
-
-  protected onUpdated() {
-    for (const button of Array.from(this.$$<HTMLElement>('b-button[data-retry]'))) {
-      this.listen(button, 'click', () => void this.retry(button.dataset.retry!));
-    }
+        ${error ? `<p class="error" style="${errorStyle}">${escapeHtml(error)}</p>` : ''}
+        ${retryError ? `<p class="error retry-error" style="${errorStyle}">${escapeHtml(retryError)}</p>` : ''}
+        ${failed ? `<div class="actions" style="margin-top:var(--b-space-xs, 0.25rem);"><b-button class="retry" size="sm" variant="secondary"
+          data-retry="${escapeHtml(t.id)}" ${this._retrying.has(t.id) ? 'loading' : ''}>Retry</b-button></div>` : ''}
+      </div>`;
   }
 
   /** Put a failed task back to To do; the server resets it where Drake works from (TASK-153). */
@@ -198,7 +207,7 @@ export class BoardTab extends KoboldComponent {
     if (this._retrying.has(taskId) || this._state.kind !== 'loaded') return;
     this._retrying.add(taskId);
     this._retryErrors.delete(taskId);
-    this.update();
+    this.show();
     try {
       const response = await createRestClient().post<{ status?: string; error?: string }>(`/tasks/${encodeURIComponent(taskId)}/retry`);
       if (response.ok && this._state.kind === 'loaded') {
@@ -213,7 +222,7 @@ export class BoardTab extends KoboldComponent {
       this._retryErrors.set(taskId, `Retry failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     this._retrying.delete(taskId);
-    if (this.isConnected) this.update();
+    if (this.isConnected) this.show();
   }
 }
 
