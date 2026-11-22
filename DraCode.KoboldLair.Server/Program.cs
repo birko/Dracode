@@ -311,6 +311,7 @@ builder.Services.AddSingleton<CostTrackingService>(sp =>
 
 // Register git service for version control integration
 builder.Services.AddSingleton<GitService>();
+builder.Services.AddSingleton<ProjectStatsService>(); // a project's numbers for the Stats tab (TASK-158)
 
 // Register project management components
 // Configure data storage (SQLite or JSON based on config)
@@ -1098,6 +1099,7 @@ if (jwtRuntimeEnabled)
     apiV1.MapNotificationEndpoints(); // the bell and project badges (TASK-159)
     apiV1.MapNeedsYouEndpoints(); // the homepage's Needs you list and the header pill (TASK-147)
     apiV1.MapGitEndpoints(); // the workspace's Git tab: branches and their diffs (TASK-156)
+    apiV1.MapStatsEndpoints(); // the workspace's Stats tab (TASK-158)
     // Admin /api/v1/providers CRUD (TASK-073) — only in DB mode. Read post-build so test-host config is seen.
     if (!string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration)))
         apiV1.MapProviderEndpoints();

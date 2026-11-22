@@ -74,7 +74,7 @@ test('the Runs tab is in the workspace\'s tabs, after Spec', async ({ page }) =>
   await serve(page, { list: [] });
   await page.goto('/#/projects/p-1/board');
   const tabs = page.locator('#route-outlet kobold-project-workspace b-tabs [role="tab"]');
-  await expect(tabs).toHaveText(['Board', 'Spec', 'Runs', 'Git']);
+  await expect(tabs).toHaveText(['Board', 'Spec', 'Runs', 'Git', 'Stats']);
   await tabs.filter({ hasText: 'Runs' }).click();
   await expect(page).toHaveURL(/#\/projects\/p-1\/runs$/);
   await expect(tab(page)).toContainText('No runs yet');
