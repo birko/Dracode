@@ -2,8 +2,7 @@
 id: TASK-056
 parent: STORY-023
 feature: FEATURE-026
-status: in-progress
-blocked: the human test needs a registered GitHub OAuth app and real GitHub accounts (see Notes)
+status: done
 priority: P1
 assignee: agent
 created: 2026-06-11
@@ -56,8 +55,8 @@ Decisions: FEATURE-026 D5, D8.
 
 ## Human test plan
 
-- [ ] Click "Sign in with GitHub" → complete consent → land on the homepage signed in (also TASK-033's live GitHub-federation check)
-- [ ] **Also verify TASK-034's deferred end-to-end scoping** (moved here when TASK-034 closed on 2026-10-03):
+- [x] Click "Sign in with GitHub" → complete consent → land on the homepage signed in (also TASK-033's live GitHub-federation check)
+- [x] **Also verify TASK-034's deferred end-to-end scoping** (moved here when TASK-034 closed on 2026-10-03):
   - Sign in as user A and create a project.
   - Sign in as user B: B's project list omits A's project, and B's own creates carry B's `sub`.
   - An admin (`ViewAll`) sees both.
@@ -99,7 +98,14 @@ _Not drafted; the work followed the acceptance criteria directly._
   404. With a server-issued token: the menu showed "Test Owner" with Settings and Sign out, the homepage that owner's
   two projects; Sign out cleared the store, closed Dragon's socket, and Back stayed on `#/login`. A token the server
   refused ended the session on `#/login`; so did an expired one. No console errors.
-- **Not yet run — needs the owner:** the GitHub consent itself and TASK-034's two-user scoping. They need a GitHub OAuth
-  app (callback `…/auth/github/callback` on the server, `KOBOLDLAIR_GITHUB_CLIENT_ID`/`_SECRET`,
-  `Authentication:GitHub:Enabled`, `PostLoginRedirectUri` = the client host's URL) and two GitHub
-  accounts, one of them admin (`ViewAll`).
+- **Human test with GitHub, 22 Nov** (the owner, on a throwaway Testing server with an empty scratch folder, the
+  existing "DraCode" OAuth app with a client secret added and its callback set to
+  `http://localhost:57087/auth/github/callback`, one allowed GitHub id): "Sign in with GitHub" came back signed in on
+  the homepage with the owner's name (with diacritics) and no token in the address bar; GitHub showed no consent page,
+  since the account had already authorized the app (for the Copilot provider), and the server logged the user created.
+  The owner created `a-project` (owner `github:1064302`). A second user (a server-issued token for `github:999`, as
+  the owner has one GitHub account) did not see it, got 404 opening it and only its own with `?scope=all`; its
+  `b-project` is owned by `github:999`. With `DefaultRoles` = admin, signing in again listed both. Sign out landed on
+  `#/login`, Back stayed there, and the server shows that session's refresh token revoked. Loopback bypass: a create
+  without a token is owned by `00000000-0000-0000-0000-000000000000`; that caller lists only its own projects plainly
+  and all of them with `?scope=all`, which is what the homepage asks for.

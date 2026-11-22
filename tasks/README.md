@@ -116,7 +116,7 @@ _None_
   - STORY-023 Web UI: app frame, sign-in and project picker — in-progress (1/7)
     - [x] [TASK-072](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-072-mount-ts-shell-in-served-page.md) Mount the TypeScript shell in the served page (P1) · FEATURE-026
     - [x] [TASK-145](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-145-app-frame-projects-homepage.md) App frame and projects homepage (P1) · FEATURE-026 D9 D10 D22
-    - [ ] [TASK-056](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-056-github-sign-in.md) Sign in with GitHub in the web UI (P1) · FEATURE-026 D5 D8
+    - [x] [TASK-056](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-056-github-sign-in.md) Sign in with GitHub in the web UI (P1) · FEATURE-026 D5 D8
     - [ ] [TASK-146](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-146-header-project-picker.md) Header project picker inside a project (P2) · FEATURE-026 D4 D10
     - [ ] [TASK-058](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-058-tab-reorder-workspace-layouts.md) Drag-and-drop tabs + workspace layout save/load (P2) · FEATURE-026 D1 D2 (proposed — parked)
     - [x] [TASK-055](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-055-daemon-status-project-switcher.md) Web header: daemon status indicator + project switcher (P2) · FEATURE-026 — cancelled, superseded by TASK-146 (D4 → D10); daemon status waits on D3
