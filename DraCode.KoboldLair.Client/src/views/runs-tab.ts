@@ -2,8 +2,8 @@
  * The workspace's Runs tab (TASK-155, FEATURE-026 D7/D20): this project's runs, and the user's ad-hoc runs (which belong
  * to no project, so they show beside every project, marked ad-hoc), newest first — mode, status, start time and step
  * progress. Data from `GET /api/v1/runs?projectId=…&adhoc=true`; a project run's task is named from the project's tasks.
- * Runs started over `/kobold` (the CLI) or `POST /api/v1/runs` are listed; the pipeline's own Kobolds are on the Board.
- * The server keeps runs in memory, so a restart empties the list. Polls while the page is visible.
+ * The pipeline's own Kobolds are listed (mode `pipeline`, TASK-184) beside runs started over `/kobold` (the CLI) or
+ * `POST /api/v1/runs`. The server keeps runs in memory, so a restart empties the list. Polls while the page is visible.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -30,6 +30,8 @@ export const RUNS_REFRESH_MS = 5000;
 
 const STATUS_VARIANT: Record<string, string> = { pending: 'neutral', running: 'info', completed: 'success', failed: 'danger' };
 const STATUS_LABEL: Record<string, string> = { pending: 'Pending', running: 'Running', completed: 'Completed', failed: 'Failed' };
+/** Who started a run: the pipeline (a Kobold Drake summoned) or a person, over the CLI or the API. */
+const MODE_LABEL: Record<string, string> = { pipeline: 'Pipeline', project: 'Started by hand' };
 
 type RunsState =
   | { kind: 'loading' }
@@ -118,8 +120,8 @@ export class RunsTab extends KoboldComponent {
     if (state.kind === 'loading') return `<b-spinner></b-spinner>`;
     if (state.kind === 'error') return `<p class="message"><strong>Could not load the runs.</strong> ${escapeHtml(state.message)}</p>`;
     if (state.runs.length === 0) {
-      return `<p class="message"><strong>No runs yet.</strong> Runs started from the CLI or the API show here, with your ad-hoc
-        runs; the server keeps them until it restarts.</p>`;
+      return `<p class="message"><strong>No runs yet.</strong> The agents' runs on this project's tasks show here, with runs
+        started from the CLI or the API and your ad-hoc runs; the server keeps them until it restarts.</p>`;
     }
     return `<ul class="runs">${state.runs.map((r) => this.renderRun(r, state.titles)).join('')}</ul>`;
   }
@@ -139,7 +141,7 @@ export class RunsTab extends KoboldComponent {
         <span class="what" title="${escapeHtml(what)}">${escapeHtml(what)}</span>
         <b-badge class="status" variant="${STATUS_VARIANT[r.status] ?? 'neutral'}">${escapeHtml(STATUS_LABEL[r.status] ?? r.status)}</b-badge>
         <div class="meta">
-          ${adhoc ? `<b-badge class="adhoc" variant="warning">Ad-hoc</b-badge>` : `<b-badge class="mode" variant="neutral">${escapeHtml(r.mode)}</b-badge>`}
+          ${adhoc ? `<b-badge class="adhoc" variant="warning">Ad-hoc</b-badge>` : `<b-badge class="mode" variant="${r.mode === 'pipeline' ? 'info' : 'neutral'}">${escapeHtml(MODE_LABEL[r.mode] ?? r.mode)}</b-badge>`}
           <span class="started">started ${escapeHtml(started(r.startedAt))}</span>
           ${steps}
         </div>

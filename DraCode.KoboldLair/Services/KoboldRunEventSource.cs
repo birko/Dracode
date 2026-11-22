@@ -35,11 +35,23 @@ namespace DraCode.KoboldLair.Services
         public KoboldRunEventSource(int capacity = DefaultCapacity) => _capacity = capacity;
 
         /// <summary>
+        /// Called, synchronously and before delivery, when a run starts that nobody has subscribed to — a Kobold the
+        /// pipeline started rather than a transport (TASK-184). A handler that subscribes to the run then receives this
+        /// <see cref="RunStartedEvent"/> and everything after it. Exceptions are swallowed: publishing never throws.
+        /// </summary>
+        public Action<RunStartedEvent>? RunStartedUnwatched { get; set; }
+
+        /// <summary>
         /// Publishes an event to every current subscriber of its <see cref="KoboldRunEvent.RunId"/>.
         /// Synchronous, never throws, never blocks. Stamps a monotonic <see cref="KoboldRunEvent.Sequence"/>.
         /// </summary>
         public void Publish(KoboldRunEvent evt)
         {
+            if (evt is RunStartedEvent started && RunStartedUnwatched != null && !_runs.ContainsKey(evt.RunId))
+            {
+                try { RunStartedUnwatched(started); } catch { /* a watcher's failure must not break the run */ }
+            }
+
             if (!_runs.TryGetValue(evt.RunId, out var run))
                 return; // no run registered / no subscribers ever attached → drop
 
