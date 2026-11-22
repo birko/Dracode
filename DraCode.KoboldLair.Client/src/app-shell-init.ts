@@ -13,6 +13,7 @@ import { moduleStore, loadModules } from './module-store.js';
 import configService from './services/config.js';
 import { ApiClient } from './services/api-client.js';
 import { createRestClient, createSseClient } from './services/http.js';
+import { startAuth } from './services/auth-session.js';
 
 // Debugging and e2e handle: the token store and the three server clients that read it (TASK-114).
 (window as any).koboldLair = {
@@ -29,6 +30,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Pull host-provided config (serverUrl/authRequired) from GET /api/config BEFORE anything connects, so
   // the .NET host config is the single source of truth for the default backend address. Non-fatal.
   await configService.init();
+
+  // A sign-in redirect's tokens go into the store before the router reads the hash (TASK-056).
+  startAuth();
 
   // Expose shell to window for debugging
   const shell = document.querySelector('#app-shell');

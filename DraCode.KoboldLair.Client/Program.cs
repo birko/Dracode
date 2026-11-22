@@ -40,6 +40,18 @@ app.MapGet("/api/config", () => Results.Json(new
 ServerWebSocketProxy.Map(app, "/dragon", serverUrl);
 ServerWebSocketProxy.Map(app, "/wyvern", serverUrl);
 
+// wwwroot/archive keeps the legacy vanilla-JS pages for reference only; they are never served (TASK-056): they still
+// carry the old token-paste fields, and the TypeScript shell signs in with GitHub.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/archive"))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+    await next();
+});
+
 // Serve static files
 var staticFileOptions = new StaticFileOptions();
 
