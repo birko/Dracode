@@ -68,3 +68,5 @@ _Not drafted; the work followed the acceptance criteria directly._
   its prompt and "Ad-hoc", completed within seconds (its branch and worktree made in the repo). Light and dark at
   1400px and 375px, no horizontal scroll, no console errors. The run finished too fast to be seen as Running; a
   completed ad-hoc run now reads "no plan steps" rather than "no plan steps yet".
+- **Follow-ups filed:** TASK-184 (list the pipeline's own Kobold runs, which never register in `RunRegistry`) and
+  TASK-185 (keep runs across a server restart).

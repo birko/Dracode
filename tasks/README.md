@@ -71,7 +71,7 @@ _None_
     - [x] [TASK-095](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-095-per-project-drake-switch.md) Per-project Drake switch: Drake skips a project whose Drake is off, /kobold project mode still runs it (P1) · FEATURE-017
     - [x] [TASK-100](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-100-project-mode-drake-never-released.md) /kobold project mode never releases its Drake, so the project's background Drake is locked out afterwards (P1) · FEATURE-017
     - [ ] [TASK-041](EPIC-012-backend-consolidation/STORY-015-kobold-endpoint/TASK-041-pathhelper-widening.md) Widen PathHelper for ad-hoc cwds (P2) · FEATURE-017
-  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (4/8)
+  - STORY-016 REST + SSE facade for non-streaming clients — in-progress (4/9)
     - [x] [TASK-042](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-042-api-skeleton-openapi.md) /api/v1 minimal-API skeleton + OpenAPI (P1) · FEATURE-018
     - [x] [TASK-043](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-043-resource-endpoints.md) Project / spec / feature / task / plan REST endpoints (P1) · FEATURE-018
     - [x] [TASK-044](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-044-runs-endpoints.md) Runs endpoints (start + status) (P1) · FEATURE-018
@@ -80,6 +80,7 @@ _None_
     - [ ] [TASK-074](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-074-rest-delete-project-policy.md) REST DELETE /projects — match the Dragon delete policy + clean up files (P2) · FEATURE-018
     - [ ] [TASK-075](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-075-serialize-rest-spec-feature-edits.md) Serialize concurrent REST spec/feature edits (lost-update guard) (P2) · FEATURE-018
     - [ ] [TASK-107](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-107-verify-sse-behind-nginx.md) Verify the run events stream survives behind nginx (P3, human) · FEATURE-018
+    - [ ] [TASK-185](EPIC-012-backend-consolidation/STORY-016-rest-sse-facade/TASK-185-persist-runs.md) Runs survive a server restart (P3) · FEATURE-026
   - STORY-017 OAuth/OIDC authentication and per-caller identity — done (7/7) (done)
     - [x] [TASK-030](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-030-host-oauth-server.md) Host Birko OAuth server endpoints in KoboldLair.Server (P1) · FEATURE-019
     - [x] [TASK-031](EPIC-012-backend-consolidation/STORY-017-oauth-identity/TASK-031-sqlite-oauth-stores.md) SQLite-backed OAuth server stores (P1) · FEATURE-019
@@ -131,11 +132,12 @@ _None_
     - [x] [TASK-150](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-150-workspace-frame-spec.md) Project workspace frame with the read-only spec tab (P1) · FEATURE-026 D11 D19
     - [x] [TASK-151](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-151-dragon-dock.md) Dragon docked in the workspace, following the project (P1) · FEATURE-026 D11 D12
     - [x] [TASK-152](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-152-dragon-focus-resize.md) Dragon widens with focus (P2) · FEATURE-026 D13
-  - STORY-047 Web UI: workspace tabs — board, runs, git, stats — planned (0/7)
+  - STORY-047 Web UI: workspace tabs — board, runs, git, stats — in-progress (4/9)
     - [x] [TASK-153](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-153-board-kanban.md) Board tab: status kanban with Retry (P1) · FEATURE-026 D16
     - [x] [TASK-183](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-183-board-on-b-kanban.md) Board on Birko's b-kanban (P2) · FEATURE-026 D9 D16
     - [x] [TASK-154](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-154-board-priority-lanes.md) Board: priority lanes in To do, drag to reprioritise (P2) · FEATURE-026 D16
     - [x] [TASK-155](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-155-runs-list.md) Runs tab: the project's runs (P2) · FEATURE-026 D7 D20
+    - [ ] [TASK-184](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-184-runs-tab-pipeline-kobolds.md) Runs tab: list the pipeline's own Kobold runs (P2) · FEATURE-026 D7 D20
     - [ ] [TASK-057](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-057-live-run-view.md) Runs tab: live run view (P2) · FEATURE-026 D7 D20
     - [ ] [TASK-156](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-156-git-branches-diff.md) Git tab: feature branches and their diff (P2) · FEATURE-026 D20
     - [ ] [TASK-157](EPIC-013-multi-platform-clients/STORY-047-workspace-tabs/TASK-157-git-merge.md) Git tab: merge a feature branch (P2) · FEATURE-026 D20
