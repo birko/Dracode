@@ -849,9 +849,10 @@ namespace DraCode.KoboldLair.Orchestrators
                         if (_plannerAgent != null && _planService != null)
                         {
                             var kobold = Guid.TryParse(alert.WorkerId, out var workerId) ? _koboldFactory.GetKobold(workerId) : null;
-                            // A parked task whose decision timed out has no live Kobold; its saved plan is revised
+                            // With no live Kobold holding a plan, the saved one is revised: a parked task whose decision
+                            // timed out, a task reopened by orphan recovery, or one reopened after its run ended (TASK-173)
                             var currentPlan = kobold?.ImplementationPlan
-                                ?? (!string.IsNullOrEmpty(alert.TaskId) && IsTaskParked(alert.TaskId)
+                                ?? (!string.IsNullOrEmpty(alert.TaskId)
                                     ? await _planService.LoadPlanAsync(alert.ProjectId, alert.TaskId)
                                     : null);
                             if (currentPlan != null)

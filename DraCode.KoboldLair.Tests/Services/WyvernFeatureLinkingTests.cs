@@ -206,4 +206,27 @@ public class WyvernFeatureLinkingTests : IDisposable
         Drake.ResolveFeatureBranch(new TaskRecord { FeatureId = "nope" }, features).Should().BeNull();
         Drake.ResolveFeatureBranch(new TaskRecord(), features).Should().BeNull();
     }
+
+    [Fact]
+    public async Task A_feature_is_not_offered_for_merging_while_one_of_its_tasks_waits_on_a_review_card()
+    {
+        // FEATURE-031 D4 (TASK-025, pinned by TASK-173): only Done counts, so a task parked on an Approval card holds
+        // the "ready to merge" notice back until the person answers
+        File.WriteAllText(Path.Combine(_dir, "analysis.json"), """
+            {"projectName":"p","areas":[{"name":"backend","tasks":[
+              {"id":"t-1","task":"[api-1] Write the service","featureId":"f-1"},
+              {"id":"t-2","task":"[api-2] Write its client","featureId":"f-1"}]}]}
+            """);
+        var wyvern = NewWyvern(new SequenceProvider());
+        var spec = new Specification { Name = "p", FilePath = _specPath, ProjectFolder = _dir };
+        spec.Features.Add(new Feature { Id = "f-1", Name = "Accounts", Description = "Accounts", Status = FeatureStatus.InProgress, GitBranch = "feature/f-1-accounts" });
+        await wyvern.GetNewFeaturesAsync(spec);
+
+        wyvern.UpdateFeatureStatus(new() { ["t-1"] = TaskStatus.Done, ["t-2"] = TaskStatus.AwaitingHumanDecision })
+            .Should().BeEmpty("a task waiting on a person's review is not finished work");
+        spec.Features[0].Status.Should().Be(FeatureStatus.InProgress);
+
+        wyvern.UpdateFeatureStatus(new() { ["t-1"] = TaskStatus.Done, ["t-2"] = TaskStatus.Done })
+            .Should().Equal([("Accounts", "feature/f-1-accounts")], "once the person approves, the branch is offered");
+    }
 }

@@ -71,7 +71,8 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
   - **ReasoningMonitorService** (45s): Detects stuck loops, stalled progress, repeated errors, budget exhaustion → creates escalation alerts
   - **Escalation routing** (`HandleEscalationAsync`): Routes Kobold escalations to upstream agents:
-    - `WrongApproach` → KoboldPlannerAgent.RevisePlanAsync (preserves completed steps, revises remaining)
+    - `WrongApproach` → KoboldPlannerAgent.RevisePlanAsync (preserves completed steps, revises remaining): a live
+      Kobold's plan, else the task's saved plan (a parked task, orphan recovery, a run already ended; TASK-173)
     - `TaskInfeasible` / `NeedsSplit` / `MissingDependency` → Wyvern.RefineTaskAsync (LLM-driven task refinement)
     - `WrongAgentType` → task reset for reassignment with different agent
   - **Parked tasks** (TASK-019, FEATURE-027): `Drake.ParkTaskAsync` moves a task to `AwaitingHumanDecision` on a

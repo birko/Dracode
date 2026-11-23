@@ -1,5 +1,8 @@
 using Birko.AI;
 using Birko.AI.Models;
+using Birko.AI.Providers;
+using Birko.AI.Tools;
+using DraCode.KoboldLair.Agents;
 using Birko.AI.Orchestration.Models;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Projects;
@@ -243,6 +246,103 @@ public class TaskAcceptanceGateTests : IAsyncLifetime
 
         task.Status.Should().Be(TaskStatus.Unassigned);
         task.AcceptanceAttempts.Should().Be(1, "recovery reopened it for the missing export");
+    }
+
+    /// <summary>A planner that answers a revision with one new step adding what the check found missing.</summary>
+    private sealed class RevisingProvider : ILlmProvider
+    {
+        private int _calls;
+        public int Calls => _calls;
+        public string Name => "scripted";
+        public Action<string, string>? MessageCallback { get; set; }
+
+        public Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Interlocked.Increment(ref _calls) == 1
+                ? new LlmResponse
+                {
+                    StopReason = "tool_use",
+                    Content = new List<ContentBlock>
+                    {
+                        new()
+                        {
+                            Type = "tool_use", Id = "p1", Name = "create_implementation_plan",
+                            Input = new Dictionary<string, object>
+                            {
+                                ["steps"] = System.Text.Json.JsonDocument.Parse(
+                                    """[{"title":"Add refresh(token) to AuthService","description":"The acceptance check found refresh missing","files_to_modify":["src/services/AuthService.ts"]}]""").RootElement.Clone()
+                            }
+                        }
+                    }
+                }
+                : new LlmResponse { StopReason = "end_turn", Content = new List<ContentBlock> { new() { Type = "text", Text = "revised" } } });
+
+        public Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools,
+            string systemPrompt, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    /// <summary>A Drake with a plan store and a scripted planner, its task file under tasks/ so the workspace is found.</summary>
+    private (Drake drake, TaskTracker tracker, KoboldPlanService plans, RevisingProvider planner) NewDrakeWithPlanner()
+    {
+        var projects = new ProjectRepository(_dir);
+        projects.Add(new Project { Id = ProjectId, Name = "accept", OwnerId = "o", Paths = { Output = _dir } });
+        var plans = new KoboldPlanService(_dir, projectRepository: projects, debounceIntervalMs: 0);
+        Directory.CreateDirectory(Path.Combine(_dir, "tasks"));
+        var provider = new RevisingProvider();
+        var planner = new KoboldPlannerAgent(provider, new AgentOptions { WorkingDirectory = _workspace, MaxIterations = 3 });
+        var tracker = new TaskTracker();
+        var drake = new Drake(_kobolds, tracker, Path.Combine(_dir, "tasks", "backend-tasks.md"), "ollama",
+            projectId: ProjectId, planService: plans, plannerAgent: planner, pendingDecisions: _decisions,
+            acceptance: new VerificationConfiguration { TaskAcceptanceEnabled = true });
+        return (drake, tracker, plans, provider);
+    }
+
+    /// <summary>A finished plan: its one step done, as a Kobold leaves it.</summary>
+    private static Task SaveFinishedPlan(KoboldPlanService plans, TaskRecord task) => plans.SavePlanAsync(new KoboldImplementationPlan
+    {
+        ProjectId = ProjectId, TaskId = task.Id, TaskDescription = AuthTask, Status = PlanStatus.Completed, CurrentStepIndex = 1,
+        Steps = [new ImplementationStep { Index = 1, Title = "Write AuthService with login", Status = StepStatus.Completed }]
+    });
+
+    private async Task ShouldBeRevisedForTheUnmetCriterion(KoboldPlanService plans, TaskRecord task, RevisingProvider planner)
+    {
+        planner.Calls.Should().BeGreaterThan(0, "the planner was asked to revise the saved plan");
+        var plan = (await plans.LoadPlanAsync(ProjectId, task.Id))!;
+        plan.Status.Should().Be(PlanStatus.InProgress, "a reopened task must not rerun a finished plan unchanged");
+        plan.Steps.Select(s => (s.Title, s.Status)).Should().Equal(
+            ("Write AuthService with login", StepStatus.Completed),
+            ("Add refresh(token) to AuthService", StepStatus.Pending));
+        plan.CurrentStepIndex.Should().Be(1, "the next run starts at the new step, keeping the finished one");
+    }
+
+    [Fact]
+    public async Task A_task_reopened_by_orphan_recovery_gets_its_saved_plan_revised()
+    {
+        var (drake, tracker, plans, planner) = NewDrakeWithPlanner();
+        var task = Working(tracker, AuthTask);
+        await SaveFinishedPlan(plans, task);
+        MissingRefresh();
+
+        (await drake.RecoverOrphanedTasksAsync()).Should().Be(1);
+
+        task.Status.Should().Be(TaskStatus.Unassigned);
+        await ShouldBeRevisedForTheUnmetCriterion(plans, task, planner);
+    }
+
+    [Fact]
+    public async Task A_task_reopened_after_its_Kobold_has_gone_gets_its_saved_plan_revised()
+    {
+        var (drake, tracker, plans, planner) = NewDrakeWithPlanner();
+        var task = Working(tracker, AuthTask);
+        await SaveFinishedPlan(plans, task);
+        MissingRefresh();
+        var kobold = Finished(task);
+        _kobolds.RemoveKobold(kobold.Id); // its run has ended: the route cannot find it through the factory
+
+        await drake.SyncTaskFromKoboldAsync(kobold);
+
+        task.Status.Should().Be(TaskStatus.Unassigned);
+        await ShouldBeRevisedForTheUnmetCriterion(plans, task, planner);
     }
 
     [Fact]
