@@ -80,8 +80,8 @@ namespace DraCode.KoboldLair.Agents.Tools
             var asked = AskHumanQuestion.TryParse(decision);
             if (asked is not { Options.Length: > 0 })
                 return "free text";
-            var options = string.Join(", ", asked.Options.Select(o => $"\"{o}\""));
-            return asked.AllowFreeText ? $"{options}, or free text" : $"one of {options}";
+            var options = asked.NumberedOptions();
+            return asked.AllowFreeText ? $"{options}, or free text" : $"one of {options} (its text, its start, or its number)";
         }
 
         private async Task<string> AnswerAsync(string? decisionId, string? answer)
