@@ -1,7 +1,7 @@
 ---
 id: STORY-041
 parent: EPIC-019
-status: planned
+status: done
 created: 2026-10-08
 theme: security-tenancy
 ---

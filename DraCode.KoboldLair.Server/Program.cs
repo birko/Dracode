@@ -163,6 +163,8 @@ oauthDataConfig.ProjectsPath =
 var oauthUseSqlite = oauthDataConfig.DefaultBackend == StorageBackend.SqLite;
 var oauthDbPath = oauthUseSqlite ? RepositoryFactory.ResolveSqLitePath(oauthDataConfig) : null;
 builder.Services.AddOAuthServerStores(oauthUseSqlite, oauthDbPath);
+// Every OAuth client's name, for a new key's uniqueness check (TASK-194): read from the same database as the stores
+builder.Services.AddSingleton(sp => new OAuthClientNames(sp.GetRequiredService<IOAuthClientStore>(), oauthDbPath));
 // Who created each service-account key (TASK-162): the OAuth client store cannot be listed. The server's database on the
 // SQLite backend, else in memory, like the OAuth stores; resolved when first used, so a test host's settings are seen.
 builder.Services.AddSingleton(sp =>

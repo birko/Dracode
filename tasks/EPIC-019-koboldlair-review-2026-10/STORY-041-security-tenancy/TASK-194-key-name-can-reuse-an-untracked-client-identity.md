@@ -3,7 +3,7 @@ id: TASK-194
 parent: STORY-041
 feature: null
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 # blocked: <reason> — set by /tasks block, never by hand; status stays as it is; /tasks unblock removes it
 priority: P2
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
@@ -36,11 +36,11 @@ Only servers that registered clients before TASK-162 are affected, and only for 
 
 ## Acceptance criteria
 
-- [ ] A key cannot be created with the name of any existing OAuth client, recorded in `service_keys` or not; a test
+- [x] A key cannot be created with the name of any existing OAuth client, recorded in `service_keys` or not; a test
       registers a client the way an older server did (not recorded) and shows the name is refused, red today
-- [ ] Clients registered before `service_keys` existed get owner rows (backfill on startup, owner = unknown/admin), or
-      the check reads the OAuth client store directly — say which
-- [ ] Existing keys keep working
+- [x] Clients registered before `service_keys` existed get owner rows (backfill on startup, owner = unknown/admin), or
+      the check reads the OAuth client store directly — say which: **the check reads the store directly**
+- [x] Existing keys keep working
 
 ## Out of scope
 
@@ -52,4 +52,23 @@ N/A — the refusal is asserted by the test above.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-194` — leave empty until then._
+1. `OAuthClientNames` (Server/Auth): whether any OAuth client has a name, any case. The SQLite client store refuses
+   predicate reads, so it reads the store's own `oauth_clients` table (`OAuthClientEntity`) from the database the
+   stores were built with; the in-memory store answers the predicate itself.
+2. `POST /api/v1/keys` refuses a name that `service_keys` or the client store holds (409), and fails closed (503, no
+   key) when the check throws.
+3. Test: register a client through `OAuthServer.ClientRegistration` only (as `/register` did before TASK-162), then a
+   key of that name in another case gets 409.
+
+## Notes
+
+- **Read the store, not a backfill.** A backfill would have to invent an owner for each old client (unknown or an
+  admin) just so the name check could see it; reading the store needs no guessed data and also covers a client
+  registered any other way that skips `service_keys`. The old clients still list for nobody, as before.
+- The read loads every client row and compares names in memory; the client table is small (one row per key or app).
+- Test isolation found on the way: the OAuth stores take their database when the host is built, before a test's
+  settings apply, so the keys tests' clients had been accumulating in the shared `projects-test/koboldlair-test.db`
+  across runs. Harmless until this check, which read them as taken names. `KeysEndpointsTests` now registers the
+  stores on its own per-test database. Production is unaffected: there build-time and runtime config are the same.
+- Red without the fix (only the new test failed); 579/579 .NET green with it, repeated runs green; e2e 153 passed, the
+  one failure the known flaky `auth.spec.ts` name test (TASK-189), green on rerun.

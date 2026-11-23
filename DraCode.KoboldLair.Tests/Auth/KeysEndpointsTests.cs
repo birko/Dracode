@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Birko.Security;
+using Birko.Security.OAuth.Server.Stores;
 using DraCode.KoboldLair.Server.Auth;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -55,7 +56,16 @@ public class KeysEndpointsTests : IDisposable
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(config));
-            builder.ConfigureTestServices(services => services.RemoveAll<IHostedService>());
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IHostedService>();
+                // The OAuth stores take their database when the host is built, before this test's settings apply, so
+                // they would share one file across tests and runs; give them this test's database, as the keys have
+                var db = Path.Combine(_dir, "koboldlair.db");
+                Directory.CreateDirectory(_dir);
+                services.AddOAuthServerStores(useSqlite: true, dbPath: db);
+                services.AddSingleton(sp => new OAuthClientNames(sp.GetRequiredService<IOAuthClientStore>(), db));
+            });
         });
     }
 
@@ -163,6 +173,25 @@ public class KeysEndpointsTests : IDisposable
         dup.StatusCode.Should().Be(HttpStatusCode.Conflict, "a key acts as service:<name>, so a second one would share its identity");
         (await Send(client, HttpMethod.Post, "/api/v1/keys", alice, new { name = "has space" })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await Send(client, HttpMethod.Post, "/api/v1/keys", alice, new { name = "" })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task A_key_cannot_take_the_name_of_a_client_registered_before_owners_were_recorded()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var alice = Token(factory, Alice, UserScopes);
+        // The way a server before TASK-162 registered a client: in the OAuth store only, with no service_keys row
+        var name = "legacy-bot-" + Guid.NewGuid().ToString("N")[..8];
+        await factory.Services.GetRequiredService<Birko.Security.OAuth.Server.OAuthServer>().ClientRegistration.RegisterAsync(
+            new Birko.Security.OAuth.Server.Endpoints.ClientRegistration.ClientRegistrationRequest
+            {
+                Name = name, AllowedGrantTypes = ["client_credentials"], AllowedScopes = ["view_own"]
+            });
+
+        var r = await Send(client, HttpMethod.Post, "/api/v1/keys", alice, new { name = name.ToUpperInvariant() });
+        r.StatusCode.Should().Be(HttpStatusCode.Conflict, "the new key would act as that client's service:<name> and see its projects");
+        (await Json(await Send(client, HttpMethod.Get, "/api/v1/keys", alice))).GetArrayLength().Should().Be(0);
     }
 
     [Fact]
