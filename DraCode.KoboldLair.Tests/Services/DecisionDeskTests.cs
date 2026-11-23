@@ -107,6 +107,28 @@ public class DecisionDeskTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_typed_answer_naming_one_option_resolves_to_it_and_one_naming_two_is_refused_with_the_options_numbered()
+    {
+        // FEATURE-028 D9 (TASK-176)
+        var (drake, tracker) = NewDrake();
+        var task = Working(tracker);
+        var asked = await drake.AskHumanAsync(task, Question("Postgres (managed)", "Postgres (self-hosted)", "SQLite"));
+        var desk = Desk(drake);
+
+        var ambiguous = await desk.AnswerAsync(new[] { Mine }, asked.DecisionId!, "postgres");
+        ambiguous.Result.Should().Be(DecisionAnswerResult.InvalidAnswer);
+        ambiguous.Message.Should().Contain("more than one option")
+            .And.Contain("1. \"Postgres (managed)\"").And.Contain("2. \"Postgres (self-hosted)\"").And.Contain("3. \"SQLite\"")
+            .And.Contain("still open");
+        var none = await desk.AnswerAsync(new[] { Mine }, asked.DecisionId!, "MySQL");
+        none.Message.Should().Contain("is not one of the options").And.Contain("3. \"SQLite\"");
+
+        var reply = await desk.AnswerAsync(new[] { Mine }, asked.DecisionId!, "2");
+        reply.Result.Should().Be(DecisionAnswerResult.Resolved);
+        (await _decisions.GetByIdAsync(asked.DecisionId!))!.Resolution.Should().Be("Postgres (self-hosted)", "the option's full text is stored");
+    }
+
+    [Fact]
     public async Task A_second_answer_changes_nothing_and_says_the_decision_is_already_resolved()
     {
         var (drake, tracker) = NewDrake();

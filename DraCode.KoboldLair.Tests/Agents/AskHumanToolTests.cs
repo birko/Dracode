@@ -84,7 +84,7 @@ public class AskHumanToolTests
 
     [Theory]
     [InlineData(" SQLite ", true, "SQLite")]
-    [InlineData("sqlite", false, null)]
+    [InlineData("sqlite", true, "SQLite")]
     [InlineData("MySQL", false, null)]
     [InlineData("", false, null)]
     public void A_choice_answer_must_be_one_of_the_options(string answer, bool accepted, string? stored)
@@ -93,6 +93,66 @@ public class AskHumanToolTests
 
         q.Accepts(answer, out var kept).Should().Be(accepted);
         if (accepted) kept.Should().Be(stored);
+    }
+
+    // FEATURE-028 D9 (TASK-176): an answer naming exactly one option resolves to it, stored as the option's full text
+    [Theory]
+    [InlineData("Slovak", "Slovak (Ahoj, <name>!)")]
+    [InlineData("  slovak  ", "Slovak (Ahoj, <name>!)")]
+    [InlineData("slovak (ahoj", "Slovak (Ahoj, <name>!)")]
+    [InlineData("SLOVAK (AHOJ, <NAME>!)", "Slovak (Ahoj, <name>!)")]
+    [InlineData("2", "Slovak (Ahoj, <name>!)")]
+    [InlineData(" 1 ", "English (Hello, <name>!)")]
+    public void An_answer_naming_one_option_resolves_to_its_full_text(string answer, string stored)
+    {
+        var q = new AskHumanQuestion("Which language?", ["English (Hello, <name>!)", "Slovak (Ahoj, <name>!)"], AllowFreeText: false, Context: null);
+
+        q.Accepts(answer, out var kept).Should().BeTrue();
+        kept.Should().Be(stored);
+    }
+
+    [Theory]
+    [InlineData("Slov")]            // not ending at a word
+    [InlineData("Slovak please")]   // not the start of the option
+    [InlineData("3")]               // no third option
+    [InlineData("0")]
+    public void An_answer_naming_no_option_is_refused(string answer)
+    {
+        var q = new AskHumanQuestion("Which language?", ["English (Hello, <name>!)", "Slovak (Ahoj, <name>!)"], AllowFreeText: false, Context: null);
+
+        q.Accepts(answer, out _).Should().BeFalse();
+        q.Match(answer).Should().Be(new AskHumanQuestion.OptionMatch(null, Ambiguous: false));
+    }
+
+    [Fact]
+    public void An_answer_naming_two_options_is_refused_as_ambiguous()
+    {
+        var q = new AskHumanQuestion("Which build?", ["Release (fast)", "Release (debug symbols)", "Debug"], AllowFreeText: false, Context: null);
+
+        q.Accepts("release", out _).Should().BeFalse();
+        q.Match("release").Should().Be(new AskHumanQuestion.OptionMatch(null, Ambiguous: true));
+        q.Accepts("Debug", out var kept).Should().BeTrue("an option's whole text wins over another option it starts");
+        kept.Should().Be("Debug");
+    }
+
+    [Fact]
+    public void A_label_that_is_a_number_is_matched_as_text_before_as_a_position()
+    {
+        var q = new AskHumanQuestion("How many workers?", ["2", "4", "8"], AllowFreeText: false, Context: null);
+
+        q.Accepts("2", out var kept).Should().BeTrue();
+        kept.Should().Be("2", "the option whose text is \"2\", not the second option");
+    }
+
+    [Fact]
+    public void On_a_free_text_question_a_matching_answer_resolves_and_anything_else_is_kept_as_typed()
+    {
+        var q = new AskHumanQuestion("Which language?", ["English (Hello, <name>!)", "Slovak (Ahoj, <name>!)"], AllowFreeText: true, Context: null);
+
+        q.Accepts("slovak", out var option).Should().BeTrue();
+        option.Should().Be("Slovak (Ahoj, <name>!)");
+        q.Accepts("Slovak, but formal: Dobrý deň", out var typed).Should().BeTrue();
+        typed.Should().Be("Slovak, but formal: Dobrý deň");
     }
 
     [Fact]

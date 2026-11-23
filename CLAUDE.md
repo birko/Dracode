@@ -92,7 +92,9 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     `Source = AskHuman`, and `Drake.AskHumanAsync` parks the task, refused when `IAskHumanPolicy`
     (`DrakeFactory.AskHumanPolicy`, default unrestricted) disallows it or the task's question cap is reached. Unlike an
     escalation, the run stops itself at its next turn boundary rather than at once, so on the enhanced plan path the
-    question and its result end the saved conversation (the basic path saves only the plan). An answer to a question with options must be one of them unless free text is allowed;
+    question and its result end the saved conversation (the basic path saves only the plan). An answer to a question with options must name one of them unless free text is allowed: its text in any case, the
+    start of its text ending at a word, or its number (TASK-176, D9), stored as the option's full text; one naming two is
+    refused as ambiguous, with the options numbered;
     `ResolvePendingDecisionAsync` returns a `DecisionAnswerResult` (`InvalidAnswer` leaves the question open).
   - **Answers on resume** (TASK-022): Drake hands each summoned Kobold its task's answered and timed-out decisions
     (`Kobold.HumanAnswers`, oldest first). The Kobold hears each as a user message written as from a person and opening

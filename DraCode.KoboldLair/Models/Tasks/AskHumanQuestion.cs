@@ -36,9 +36,9 @@ namespace DraCode.KoboldLair.Models.Tasks
         }
 
         /// <summary>
-        /// Whether <paramref name="answer"/> is acceptable (D5): an answer naming an option (ignoring surrounding
-        /// whitespace) is kept as that option; anything else passes verbatim only when free text is allowed, which an
-        /// open question always does. An empty answer is never accepted.
+        /// Whether <paramref name="answer"/> is acceptable (D5): an answer naming one option (<see cref="Match"/>, D9) is
+        /// kept as that option's full text; anything else passes verbatim only when free text is allowed, which an open
+        /// question always does. An empty answer is never accepted.
         /// </summary>
         public bool Accepts(string answer, out string stored)
         {
@@ -46,8 +46,7 @@ namespace DraCode.KoboldLair.Models.Tasks
             if (string.IsNullOrWhiteSpace(answer))
                 return false;
 
-            var option = Options.FirstOrDefault(o => string.Equals(o, answer.Trim(), StringComparison.Ordinal));
-            if (option != null)
+            if (Match(answer).Option is { } option)
             {
                 stored = option;
                 return true;
@@ -55,6 +54,53 @@ namespace DraCode.KoboldLair.Models.Tasks
 
             return AllowFreeText || Options.Length == 0;
         }
+
+        /// <summary>The option an answer names, or none; <see cref="OptionMatch.Ambiguous"/> when it names more than one.</summary>
+        public sealed record OptionMatch(string? Option, bool Ambiguous);
+
+        /// <summary>
+        /// The option a typed answer names (FEATURE-028 D9), tried in this order: its exact text; its whole text in any
+        /// letter case; its number as listed, from 1; the start of its text ending at a word ("Slovak" for
+        /// "Slovak (Ahoj, &lt;name&gt;!)"). An answer that names two options at one step names none, and is ambiguous.
+        /// </summary>
+        public OptionMatch Match(string answer)
+        {
+            var typed = answer.Trim();
+            if (typed.Length == 0 || Options.Length == 0)
+                return new OptionMatch(null, false);
+
+            if (Options.FirstOrDefault(o => o == typed) is { } exact)
+                return new OptionMatch(exact, false);
+
+            var whole = One(Options.Where(o => string.Equals(o.Trim(), typed, StringComparison.OrdinalIgnoreCase)));
+            if (whole != null)
+                return whole;
+
+            if (int.TryParse(typed, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number))
+                return new OptionMatch(number >= 1 && number <= Options.Length ? Options[number - 1] : null, false);
+
+            return One(Options.Where(o => StartsAtWord(o.Trim(), typed))) ?? new OptionMatch(null, false);
+        }
+
+        /// <summary>The options as a person reads them, numbered as <see cref="Match"/> takes a number: 1. "A", 2. "B".</summary>
+        public string NumberedOptions() => string.Join(", ", Options.Select((o, i) => $"{i + 1}. \"{o}\""));
+
+        /// <summary>The single option of <paramref name="candidates"/>, ambiguous for several, null for none.</summary>
+        private static OptionMatch? One(IEnumerable<string> candidates)
+        {
+            var found = candidates.Take(2).ToList();
+            return found.Count switch
+            {
+                0 => null,
+                1 => new OptionMatch(found[0], false),
+                _ => new OptionMatch(null, true)
+            };
+        }
+
+        private static bool StartsAtWord(string option, string typed) =>
+            option.Length > typed.Length
+            && option.StartsWith(typed, StringComparison.OrdinalIgnoreCase)
+            && (!char.IsLetterOrDigit(option[typed.Length]) || !char.IsLetterOrDigit(typed[^1]));
     }
 
     /// <summary>What Drake did with a question: parked the task on decision <paramref name="DecisionId"/>, or refused.</summary>

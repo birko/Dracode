@@ -54,11 +54,19 @@ namespace DraCode.KoboldLair.Services
                     $"Answered \"{PendingDecisionNotification.QuestionText(decision)}\"; the task will resume with your answer.",
                 DecisionAnswerResult.AlreadyResolved =>
                     "This decision was already answered or timed out; nothing changed.",
-                DecisionAnswerResult.InvalidAnswer =>
-                    $"\"{answer}\" is not one of the options: {string.Join(", ", AskHumanQuestion.TryParse(decision)?.Options ?? [])}. " +
-                    "The question is still open.",
+                DecisionAnswerResult.InvalidAnswer => Refusal(decision, answer),
                 _ => $"There is no decision {decisionId} in your projects; nothing changed."
             });
+        }
+
+        /// <summary>Why a typed answer was refused, with the options numbered so the person can answer by number (D9).</summary>
+        private static string Refusal(PendingDecision decision, string answer)
+        {
+            var asked = AskHumanQuestion.TryParse(decision);
+            var options = asked?.NumberedOptions() ?? "";
+            return asked != null && asked.Match(answer).Ambiguous
+                ? $"\"{answer}\" matches more than one option: {options}. Give more of the option's text, or its number. The question is still open."
+                : $"\"{answer}\" is not one of the options: {options}. Answer with an option's text, its start, or its number. The question is still open.";
         }
     }
 }
