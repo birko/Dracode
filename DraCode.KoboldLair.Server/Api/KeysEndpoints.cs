@@ -40,15 +40,28 @@ public static class KeysEndpoints
             return Results.Ok(views);
         });
 
-        api.MapPost("/keys", async (CreateKeyDto dto, ICurrentUser user, ServiceKeyRegistry registry, OAuthServer server) =>
+        api.MapPost("/keys", async (CreateKeyDto dto, ICurrentUser user, ServiceKeyRegistry registry, OAuthClientNames clientNames,
+            OAuthServer server, ILoggerFactory loggers) =>
         {
             var caller = ApiOwnership.CallerId(user);
             if (caller is null) return Results.Forbid();
             var name = (dto.Name ?? "").Trim();
             if (name.Length is 0 or > 100 || name.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
                 return Results.BadRequest(new { error = "A key needs a name of 1-100 characters without spaces, e.g. my-ci-runner." });
-            if (await registry.NameTakenAsync(name))
-                return Results.Conflict(new { error = $"A key named '{name}' already exists. A key acts as service:<name>, so names must be unique." });
+            // Every client's name counts, not only keys recorded here: one registered before owners were recorded would
+            // otherwise lend its service:<name> identity, and its projects, to the new key (TASK-194)
+            bool taken;
+            try
+            {
+                taken = await registry.NameTakenAsync(name) || await clientNames.ExistsAsync(name);
+            }
+            catch (Exception ex)
+            {
+                loggers.CreateLogger("Keys").LogError(ex, "Could not check whether API key name {Name} is taken", name);
+                return Results.Problem("Could not check whether the name is taken; no key was created.", statusCode: 503);
+            }
+            if (taken)
+                return Results.Conflict(new { error = $"A key or client named '{name}' already exists. A key acts as service:<name>, so names must be unique." });
 
             var scopes = KeyPermissions.Where(p => user.Permissions.Contains("*") || user.Permissions.Contains(p)).ToList();
             if (scopes.Count == 0)

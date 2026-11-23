@@ -670,7 +670,7 @@ the default provider, each orchestrator's provider and model, and per-Kobold-typ
 is assigned but not available as "<name> (not available)".
 The API keys tab (TASK-162, `#/settings/keys`) is for every signed-in user: `GET|POST /api/v1/keys`,
 `POST /api/v1/keys/{id}/revoke` (mapped when `Authentication:OAuth:Enabled`). A key is a confidential client_credentials
-OAuth client acting as `service:<name>` (names unique), with view_own, manage_projects and execute_agents narrowed to its
+OAuth client acting as `service:<name>` (names unique across every OAuth client, `/register`'s and older ones included, TASK-194), with view_own, manage_projects and execute_agents narrowed to its
 creator's; its secret is returned once. Owners live in the `service_keys` table (`ServiceKeyRegistry`), as the OAuth
 client store cannot be listed; `/register` records its admin as owner.
 

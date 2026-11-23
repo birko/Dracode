@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-22 22:25. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-22 22:49. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
-| planned      | 9                  | 32                 | —                   |
-| todo         | —                  | —                  | 77                  |
+| planned      | 9                  | 31                 | —                   |
+| todo         | —                  | —                  | 76                  |
 | in-progress  | 7                  | 14                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 3                  | 107                 |
+| done         | 1                  | 4                  | 108                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 45× P2 · 23× P3.
+`todo` by priority: 9× P1 · 44× P2 · 23× P3.
 
 ## In progress now
 
@@ -22,7 +22,7 @@ _None_
 
 ## Tree
 
-> Parents out of step (6): STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-041 planned, 3 of 4 children started → `/tasks pick` of one of its open tasks; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open.
+> Parents out of step (5): STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open.
 
 - **EPIC-001 Token storage & auth providers** — planned (0/2 tasks done)
   - (epic level) — 0/2 done
@@ -228,12 +228,12 @@ _None_
   - STORY-044 Follow Birko framework contract changes — planned (0/1 done)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies
     - ~~[TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule~~
-- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (14/21 tasks done)
-  - STORY-041 Security & tenancy — planned (3/4 done)
+- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (15/21 tasks done)
+  - STORY-041 Security & tenancy — done (4/4 done)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller
     - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing
-    - [ ] [TASK-194](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-194-key-name-can-reuse-an-untracked-client-identity.md) A new API key can take the name, and so the identity, of a client registered before key owners were recorded
+    - [x] [TASK-194](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-194-key-name-can-reuse-an-untracked-client-identity.md) A new API key can take the name, and so the identity, of a client registered before key owners were recorded
   - STORY-042 Correctness & invariants — in-progress (11/16 done)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other
     - [x] [TASK-168](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-168-worktree-removed-with-uncommitted-work.md) A task's worktree is force-removed after its run even when the work was never committed
