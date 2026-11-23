@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-22 22:49. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-23 19:47. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
 | planned      | 9                  | 31                 | —                   |
-| todo         | —                  | —                  | 76                  |
+| todo         | —                  | —                  | 75                  |
 | in-progress  | 7                  | 14                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 4                  | 108                 |
+| done         | 1                  | 4                  | 109                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 44× P2 · 23× P3.
+`todo` by priority: 9× P1 · 43× P2 · 23× P3.
 
 ## In progress now
 
@@ -153,16 +153,16 @@ _None_
     - [ ] [TASK-188](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-188-theme-setting-follows-browser.md) The theme setting is applied, and "Auto" follows the browser's light/dark preference · FEATURE-026
   - STORY-050 Web UI: phone check-and-respond layout — planned (0/1 done)
     - [ ] [TASK-164](EPIC-013-multi-platform-clients/STORY-050-phone-layout/TASK-164-phone-check-and-respond.md) Phone check-and-respond layout · FEATURE-026
-- **EPIC-014 Human-in-the-loop decision gates** — in-progress (6/12 tasks done)
+- **EPIC-014 Human-in-the-loop decision gates** — in-progress (7/12 tasks done)
   - STORY-024 Blocking "AwaitingHumanDecision" escalation tier — in-progress (2/3 done)
     - [x] [TASK-019](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-019-awaiting-human-decision-state.md) AwaitingHumanDecision state + HumanDecisionRequired disposition · FEATURE-027
     - [x] [TASK-020](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-020-drake-parks-routes-to-human.md) Drake parks task & routes decision to human instead of auto-resolving · FEATURE-027
     - [ ] [TASK-167](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-167-pending-decisions-index-and-retention.md) Index the pending_decisions table and stop it growing without bound
-  - STORY-025 Async `ask_human` tool for automatic agents — in-progress (3/7 done)
+  - STORY-025 Async `ask_human` tool for automatic agents — in-progress (4/7 done)
     - [x] [TASK-021](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-021-async-ask-human-tool.md) Implement async `ask_human` tool ⚠ blocked: merge deferred: stacked on task/TASK-020, which waits on its end-to-end check at TASK-024; code complete on task/TASK-021 · FEATURE-028
     - [x] [TASK-022](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-022-deliver-answer-into-context.md) Deliver human answer back into agent context on resume ⚠ blocked: merge deferred: stacked on task/TASK-021 (PR #3), itself stacked on task/TASK-020, which waits on its end-to-end check at TASK-024; code complete on task/TASK-022 · FEATURE-028
     - [x] [TASK-172](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-172-flaky-answers-on-summon-test.md) Find why a summoned Kobold sometimes hears no answers in the full test suite ⚠ blocked: merge deferred: stacked on task/TASK-025 (PR #6), unmerged; code complete on task/TASK-172 · FEATURE-028
-    - [ ] [TASK-175](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-175-answer-reaches-dependent-tasks.md) A task that depends on an answered question asks the person the same question again · FEATURE-028
+    - [x] [TASK-175](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-175-answer-reaches-dependent-tasks.md) A task that depends on an answered question asks the person the same question again · FEATURE-028
     - [ ] [TASK-170](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-170-ask-human-for-wyvern.md) ask_human for the analyzer agent (Wyvern) — needs a project-level wait · FEATURE-028
     - [ ] [TASK-171](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-171-ask-human-run-ending-edge-cases.md) ask_human: runs that end some other way as they ask · FEATURE-028
     - [ ] [TASK-176](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-176-forgiving-choice-answer-match.md) A typed answer that names an option is refused unless it repeats the option's whole text · FEATURE-028

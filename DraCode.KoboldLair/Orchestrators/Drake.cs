@@ -2947,9 +2947,11 @@ namespace DraCode.KoboldLair.Orchestrators
         }
 
         /// <summary>
-        /// The task's answered and timed-out decisions, oldest first, for the Kobold to hear on resume (TASK-022). Empty
-        /// without a store. Null when the store cannot be read: a run without a person's answer would guess or ask again,
-        /// so the caller holds the task for a later cycle instead.
+        /// The task's answered and timed-out decisions, oldest first, for the Kobold to hear on resume (TASK-022), after
+        /// what a person wrote for the tasks it depends on, directly or through others and in any area (TASK-175,
+        /// FEATURE-028 D8), so a dependent never asks a person what they already answered. Empty without a store. Null
+        /// when the store cannot be read: a run without a person's answer would guess or ask again, so the caller holds
+        /// the task for a later cycle instead.
         /// </summary>
         internal async Task<IReadOnlyList<HumanAnswer>?> LoadHumanAnswersAsync(string taskId)
         {
@@ -2957,14 +2959,94 @@ namespace DraCode.KoboldLair.Orchestrators
                 return Array.Empty<HumanAnswer>();
             try
             {
-                var resolved = await _pendingDecisions.GetResolvedForTaskAsync(taskId);
-                return resolved.AsEnumerable().Reverse().Select(HumanAnswer.From).ToList();
+                var inherited = new List<(DateTime At, HumanAnswer Answer)>();
+                foreach (var ancestor in TasksDependedOn(taskId))
+                {
+                    foreach (var decision in await _pendingDecisions.GetResolvedForTaskAsync(ancestor.Id))
+                    {
+                        if (HumanAnswer.CarriesPersonsWords(decision))
+                            inherited.Add((decision.ResolvedAt ?? decision.CreatedAt, HumanAnswer.From(decision, TaskLabel(ancestor))));
+                    }
+                }
+                if (inherited.Count > 0)
+                    _logger?.LogInformation("Task {TaskId} hears {Count} answer(s) a person gave the tasks it depends on: decision(s) {Decisions}",
+                        taskId, inherited.Count, string.Join(", ", inherited.Select(i => i.Answer.DecisionId[..8])));
+                var own = (await _pendingDecisions.GetResolvedForTaskAsync(taskId)).AsEnumerable().Reverse().Select(d => HumanAnswer.From(d));
+                return inherited.OrderBy(i => i.At).Select(i => i.Answer).Concat(own).ToList();
             }
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "Could not read the answered decisions of task {TaskId}; not summoning a Kobold for it", taskId);
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Every task <paramref name="taskId"/> depends on, directly or through others, across the project's areas. A
+        /// dependency names a task by the bracketed id in its text, as the readiness check reads it.
+        /// </summary>
+        private List<TaskRecord> TasksDependedOn(string taskId)
+        {
+            var own = _taskTracker.GetAllTasks();
+            var task = own.FirstOrDefault(t => t.Id == taskId);
+            if (task == null || DependenciesOf(task).Count == 0)
+                return new List<TaskRecord>();
+
+            var all = own.Concat(LoadTasksFromOtherAreas()).ToList();
+            var found = new List<TaskRecord>();
+            var seen = new HashSet<string> { taskId };
+            var pending = new Queue<TaskRecord>([task]);
+            while (pending.Count > 0)
+            {
+                foreach (var dep in DependenciesOf(pending.Dequeue()))
+                {
+                    foreach (var match in all.Where(t => t.Task.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        if (!seen.Add(match.Id))
+                            continue;
+                        found.Add(match);
+                        pending.Enqueue(match);
+                    }
+                }
+            }
+            return found;
+        }
+
+        private static List<string> DependenciesOf(TaskRecord task) =>
+            task.Dependencies.Count > 0 ? task.Dependencies : ParseDependenciesFromDescription(task.Task);
+
+        private static readonly char[] LineBreaks = ['\r', '\n'];
+
+        /// <summary>A task as another task hears it named: its first line, cut short.</summary>
+        private static string TaskLabel(TaskRecord task)
+        {
+            var line = task.Task.Split(LineBreaks, 2)[0].Trim();
+            return line.Length <= 120 ? line : line[..117] + "...";
+        }
+
+        /// <summary>The tasks of the project's other areas, read from their task files; one that cannot be read is skipped.</summary>
+        private List<TaskRecord> LoadTasksFromOtherAreas()
+        {
+            var taskDir = Path.GetDirectoryName(_outputMarkdownPath);
+            var tasks = new List<TaskRecord>();
+            if (string.IsNullOrEmpty(taskDir) || !Directory.Exists(taskDir))
+                return tasks;
+            foreach (var taskFile in Directory.GetFiles(taskDir, "*-tasks.md"))
+            {
+                if (Path.GetFullPath(taskFile) == Path.GetFullPath(_outputMarkdownPath))
+                    continue;
+                try
+                {
+                    var tracker = new TaskTracker();
+                    tracker.LoadFromFile(taskFile);
+                    tasks.AddRange(tracker.GetAllTasks());
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to load tasks from {TaskFile} for the answers its tasks pass on", taskFile);
+                }
+            }
+            return tasks;
         }
 
         /// <summary>Returns a still-parked task to the queue; the automatic route may already have moved it on.</summary>

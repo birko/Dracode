@@ -101,7 +101,10 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     resumes its checkpoint even on the plan's first step. A fresh prompt, and the basic plan path, list every answer. A
     timeout is said as "no answer, timed out", with what the automatic route did (stored on the decision's escalation).
     When the decision store cannot be read, `SummonKoboldAsync` summons nothing and the task waits for a later cycle,
-    rather than run without its answers.
+    rather than run without its answers. A task also hears what a person wrote for every task it depends on, directly
+    or through others and in any area (TASK-175, FEATURE-028 D8): answers, typed escalation instructions, approval
+    remarks and rejection reasons, never timeouts or "handle it automatically", each named as the other task's under
+    its decision's tag. Such an inherited answer never makes a first-step run resume a checkpoint.
   - **Decision cards:** a park raises a `decision_required` project notification and an answer or timeout a
     `decision_resolved` one; the metadata keys and the response schema are `PendingDecisionNotification`'s, the
     contract the Dragon and web clients render and answer (TASK-024, TASK-160). `DecisionDesk` is the person's side
