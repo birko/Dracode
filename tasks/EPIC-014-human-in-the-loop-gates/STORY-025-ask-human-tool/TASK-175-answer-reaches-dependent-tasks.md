@@ -3,7 +3,7 @@ id: TASK-175
 parent: STORY-025
 feature: FEATURE-028
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 # blocked: <reason> — set by /tasks block, never by hand; status stays as it is; /tasks unblock removes it
 priority: P2
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
@@ -15,7 +15,7 @@ blocks: []
 # findings: ids this task remediates — from a review/audit/harvest/drill pass, or from ordinary
 # field use with no pass behind it at all. Prefixes: see /tasks intake
 findings: [FIELD-025]
-pr: null
+pr: 47
 github-issue: null
 jira-key: null
 ---
@@ -41,11 +41,11 @@ asking agent; nothing decided what other tasks in the project see.
 
 ## Acceptance criteria
 
-- [ ] FEATURE-028 has a decision on how a person's answer reaches other tasks (the `proposed` row filed with this task),
+- [x] FEATURE-028 has a decision on how a person's answer reaches other tasks (the `proposed` row filed with this task),
       settled through `/feature decide` before any code changes
-- [ ] Once decided: a test shows a Kobold summoned for a task whose dependency has an answered decision hears that
+- [x] Once decided: a test shows a Kobold summoned for a task whose dependency has an answered decision hears that
       answer, attributed to the person and to the decision, and fails without the change
-- [ ] The full suite passes
+- [x] The full suite passes
 
 ## Out of scope
 
@@ -54,9 +54,37 @@ asking agent; nothing decided what other tasks in the project see.
 
 ## Human test plan
 
-- [ ] Re-run the greeter scenario (a spec with one owner question, split into a question task and a dependent task);
+- [x] Re-run the greeter scenario (a spec with one owner question, split into a question task and a dependent task);
       expected: the person gets one card, and the dependent task uses the answer without asking again.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-175` — leave empty until then._
+Decided first: FEATURE-028 D8, `changed` by the owner 2026-11-23 — every task that depends on the asking task, directly
+or through others; whatever a person wrote is passed on; the dependent hears it named as the other task's.
+
+1. `HumanAnswer` gains `FromTask` (the asking task's first line) and speaks as another task's decision when set;
+   `HumanAnswer.CarriesPersonsWords` says which resolved decisions are passed on: answers, typed escalation
+   instructions, approval remarks and rejection reasons — not timeouts, "handle it automatically", a bare resume or a
+   bare approval.
+2. `Drake.LoadHumanAnswersAsync` walks the task's dependencies (bracketed ids, as the readiness check reads them)
+   through chains and across the project's area task files, and puts what those tasks' decisions pass on ahead of the
+   task's own answers, oldest first, under each decision's own tag; it logs when it passes any on.
+3. `Kobold`: the fresh prompt's header names the tasks it depends on when it holds their answers, and an inherited answer
+   alone no longer makes a first-step run resume a checkpoint (the task never asked).
+4. Tests (`DependentTaskAnswersTests`): same-area direct dependent; a task two steps away in another area; only what a
+   person wrote is passed on.
+
+## Notes
+
+- The tests were red before the change (each dependent heard nothing); 582/582 .NET and 154/154 e2e green after.
+- **Human test, 2026-11-23**, on a throwaway server (scratch database, LAN `finstat` model). Wyvern split the greeter
+  spec as in the original run, over three areas: `greeter-1` asks, `greeter-2` depends on it, `docs-1` (another area)
+  on both, `qa-1` (a third area) on `greeter-2` and `docs-1` only. `greeter-1` called `ask_human` once; its card was
+  answered in the web dock (one card, two options, "Slovak"); all four tasks finished Done with **no second
+  `ask_human` call and no second card**, and `greeter.js` returns "Ahoj, <name>!". Prompts are not stored, so the
+  delivery was confirmed by replaying the run's own task files and decision store through `LoadHumanAnswersAsync`:
+  `greeter-2`, `docs-1` and `qa-1` each hear the Slovak answer once, named as `greeter-1`'s question; `greeter-1` hears
+  it as its own. (In this run `greeter-1` also wrote the answer into a config file, which the model may have read too —
+  hence the replay, and the log line added for future runs.)
+- Seen on the way, already filed: a run that stops itself after `ask_human` logs "reached iteration limit" (TASK-191).
+- FEATURE-028's `status.md` is generated and was already stale; re-run `/feature status FEATURE-028` to refresh it.

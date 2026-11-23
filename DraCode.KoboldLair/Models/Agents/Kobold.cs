@@ -1393,7 +1393,10 @@ You are working on a task that is part of a larger project. Below is the project
         /// </summary>
         private string WithHumanAnswers(string prompt) => HumanAnswers.Count == 0
             ? prompt
-            : $"# Decisions made by a person for this task\n\n{HumanAnswer.Compose(HumanAnswers)}\n\n{prompt}";
+            : (HumanAnswers.Any(a => a.FromTask != null)
+                  ? "# Decisions made by a person for this task and the tasks it depends on"
+                  : "# Decisions made by a person for this task") +
+              $"\n\n{HumanAnswer.Compose(HumanAnswers)}\n\n{prompt}";
 
         /// <summary>Whether a user text message of <paramref name="conversation"/> already carries the answer's tag.</summary>
         private static bool HoldsAnswer(List<Message> conversation, HumanAnswer answer) =>
@@ -1413,7 +1416,8 @@ You are working on a task that is part of a larger project. Below is the project
         private async Task<ConversationCheckpoint?> LoadResumableCheckpointAsync(KoboldPlanService? planService)
         {
             var plan = ImplementationPlan!;
-            if ((plan.CurrentStepIndex == 0 && HumanAnswers.Count == 0) || planService == null || string.IsNullOrEmpty(ProjectId) || !TaskId.HasValue)
+            // An answer passed on from a task this one depends on resumes nothing: this task never asked (TASK-175)
+            if ((plan.CurrentStepIndex == 0 && !HumanAnswers.Any(a => a.FromTask == null)) || planService == null || string.IsNullOrEmpty(ProjectId) || !TaskId.HasValue)
                 return null;
 
             var checkpoint = await planService.LoadConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());

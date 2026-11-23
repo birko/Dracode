@@ -3,7 +3,8 @@ namespace DraCode.KoboldLair.Models.Tasks
     /// <summary>
     /// A resolved decision as the resumed agent hears it (TASK-022, FEATURE-028): a user message written as from a
     /// person, opening with <see cref="Tag"/>. The tag is how a resumed run tells which answers its restored conversation
-    /// already holds, so no "delivered" marker is stored.
+    /// already holds, so no "delivered" marker is stored. <see cref="FromTask"/> names the task that asked when the answer
+    /// reaches a task depending on it (TASK-175, FEATURE-028 D8); the wording then says it was another task's.
     /// </summary>
     public sealed record HumanAnswer(
         string DecisionId,
@@ -13,13 +14,14 @@ namespace DraCode.KoboldLair.Models.Tasks
         string? EscalationSummary,
         string? Answer,
         bool TimedOut,
-        string? AutomaticOutcome)
+        string? AutomaticOutcome,
+        string? FromTask = null)
     {
         public string Tag => TagFor(DecisionId);
 
         public static string TagFor(string decisionId) => $"[Human answer — decision {decisionId}]";
 
-        public static HumanAnswer From(PendingDecision decision)
+        public static HumanAnswer From(PendingDecision decision, string? fromTask = null)
         {
             var timedOut = decision.ResolutionKind == PendingDecisionResolution.TimedOut;
             return new HumanAnswer(
@@ -30,7 +32,27 @@ namespace DraCode.KoboldLair.Models.Tasks
                 decision.Escalation?.Summary,
                 timedOut ? null : decision.Resolution,
                 timedOut,
-                decision.Escalation?.Resolution);
+                decision.Escalation?.Resolution,
+                fromTask);
+        }
+
+        /// <summary>
+        /// Whether a resolved decision carries words a person wrote, and so is passed on to the tasks that depend on the
+        /// task that asked (FEATURE-028 D8): an answer, typed instructions, an approval's remark or a rejection's reason.
+        /// A timeout, "handle it automatically", a bare resume or a bare approval tell another task nothing.
+        /// </summary>
+        public static bool CarriesPersonsWords(PendingDecision decision)
+        {
+            if (decision.ResolutionKind != PendingDecisionResolution.Answered || string.IsNullOrWhiteSpace(decision.Resolution))
+                return false;
+            return decision.Source switch
+            {
+                PendingDecisionSource.Escalation => decision.Resolution is not (PendingDecisionNotification.HandleAutomatically
+                    or PendingDecisionNotification.ResumeWithInstructions),
+                PendingDecisionSource.Approval => !AcceptanceReview.IsApproval(decision.Resolution)
+                    || AcceptanceReview.Note(decision.Resolution).Length > 0,
+                _ => true
+            };
         }
 
         /// <summary>All the wording the agent sees: always as a person, never as a tool.</summary>
@@ -38,6 +60,8 @@ namespace DraCode.KoboldLair.Models.Tasks
 
         private string Body()
         {
+            if (FromTask != null)
+                return OtherTasksBody();
             switch (Source)
             {
                 case PendingDecisionSource.AskHuman:
@@ -70,6 +94,28 @@ namespace DraCode.KoboldLair.Models.Tasks
                     return TimedOut
                         ? $"Nobody answered \"{Question}\" — no answer, timed out."
                         : $"A person answered \"{Question}\". Their answer: {Answer}";
+            }
+        }
+
+        /// <summary>Another task's decision, as the tasks depending on it hear it: only what a person wrote reaches them.</summary>
+        private string OtherTasksBody()
+        {
+            var task = $"another task, \"{FromTask}\"";
+            switch (Source)
+            {
+                case PendingDecisionSource.AskHuman:
+                    return $"A person answered a question asked by {task}, which this task depends on: \"{Question}\". " +
+                           $"Their answer: {Answer}. It holds for this task too; do not ask it again.";
+                case PendingDecisionSource.Escalation:
+                    var escalation = string.IsNullOrWhiteSpace(EscalationSummary) ? EscalationType : $"{EscalationType}: {EscalationSummary}";
+                    return $"A person reviewed an escalation of {task}, which this task depends on ({escalation}). " +
+                           $"Their instructions: {Answer}";
+                case PendingDecisionSource.Approval when AcceptanceReview.IsApproval(Answer):
+                    return $"A person approved the finished work of {task}, which this task depends on. Remark: {AcceptanceReview.Note(Answer)}";
+                case PendingDecisionSource.Approval:
+                    return $"A person rejected the finished work of {task}, which this task depends on: {AcceptanceReview.Note(Answer)}";
+                default:
+                    return $"A person answered \"{Question}\" for {task}, which this task depends on. Their answer: {Answer}";
             }
         }
 
