@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-24 15:12. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-24 16:57. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
 | planned      | 9                  | 31                 | —                   |
-| todo         | —                  | —                  | 68                  |
-| in-progress  | 7                  | 13                 | 0                   |
+| todo         | —                  | —                  | 67                  |
+| in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 5                  | 118                 |
+| done         | 1                  | 6                  | 119                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 41× P2 · 18× P3.
+`todo` by priority: 9× P1 · 41× P2 · 17× P3.
 
 ## In progress now
 
@@ -93,7 +93,7 @@ _None_
   - (epic level) — 2/2 done
     - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko · FEATURE-077
     - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` · FEATURE-021
-- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (25/46 tasks done)
+- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (26/46 tasks done)
   - STORY-019 DraCode.KoboldLair.Cli — single-file binary CLI client — planned (0/5 done)
     - [ ] [TASK-050](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-050-rename-scaffold-publish.md) Rename DraCode → DraCode.KoboldLair.Cli + single-file publish · FEATURE-022
     - [ ] [TASK-051](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-051-daemon-interaction.md) CLI daemon interaction + discovery ⏳ waits on TASK-050, TASK-049 ⚠ blocked: waiting on TASK-050, TASK-049 · FEATURE-022
@@ -145,11 +145,11 @@ _None_
   - STORY-048 Web UI: notifications and decision cards — planned (2/2 done)
     - [x] [TASK-159](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-159-notifications.md) Notifications: header bell and project badges · FEATURE-026
     - [x] [TASK-160](EPIC-013-multi-platform-clients/STORY-048-notifications-decisions/TASK-160-decision-cards.md) Decision cards in Dragon · FEATURE-026
-  - STORY-049 Web UI: settings — in-progress (4/5 done)
+  - STORY-049 Web UI: settings — done (5/5 done)
     - [x] [TASK-161](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-161-settings-providers.md) Settings: providers · FEATURE-026
     - [x] [TASK-162](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-162-settings-api-keys.md) Settings: service-account API keys · FEATURE-026
     - [x] [TASK-192](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-192-settings-models-default-agent-providers.md) Settings: a provider's models, the default provider, and which provider each agent uses · FEATURE-026
-    - [ ] [TASK-163](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-163-settings-budgets.md) Settings: budgets · FEATURE-026
+    - [x] [TASK-163](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-163-settings-budgets.md) Settings: budgets · FEATURE-026
     - [x] [TASK-188](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-188-theme-setting-follows-browser.md) The theme setting is applied, and "Auto" follows the browser's light/dark preference · FEATURE-026
   - STORY-050 Web UI: phone check-and-respond layout — planned (0/1 done)
     - [ ] [TASK-164](EPIC-013-multi-platform-clients/STORY-050-phone-layout/TASK-164-phone-check-and-respond.md) Phone check-and-respond layout · FEATURE-026

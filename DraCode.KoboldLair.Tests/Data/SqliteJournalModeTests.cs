@@ -185,7 +185,7 @@ public class SqliteJournalModeTests : IAsyncLifetime
     {
         Repositories().Select(r => (string)r[0]).Should().Contain(new[]
         {
-            nameof(SqlHistoryRepository), nameof(SqlPendingDecisionRepository), nameof(SqlPlanRepository),
+            nameof(SqlBudgetRepository), nameof(SqlHistoryRepository), nameof(SqlPendingDecisionRepository), nameof(SqlPlanRepository),
             nameof(SqlProjectRepository), nameof(SqlProviderConfigRepository), nameof(SqlTaskRepository),
             nameof(SqlUsageRepository), nameof(SqlUserRepository)
         });

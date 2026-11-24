@@ -21,6 +21,7 @@ const OPTION_VIEWS: Record<string, { tag: string; attrs?: Record<string, string>
   'settings/providers': { tag: 'kobold-settings-view', attrs: { tab: 'providers' } },
   'settings/agents': { tag: 'kobold-settings-view', attrs: { tab: 'agents' } },
   'settings/keys': { tag: 'kobold-settings-view', attrs: { tab: 'keys' } },
+  'settings/budgets': { tag: 'kobold-settings-view', attrs: { tab: 'budgets' } },
 };
 
 /** Screens no module option claims; `#/` is the projects homepage (TASK-145). */

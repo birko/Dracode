@@ -446,6 +446,9 @@ user-settings.json                    # User runtime settings (agent providers)
 
 ### SQLite Database Runs in WAL (TASK-177)
 
+Every store opens `{KoboldLair:ProjectsPath}/{Data:SqLitePath}`: `DataStorageConfig.ProjectsPath` is set from
+`KoboldLair:ProjectsPath` when the options are built (TASK-163), so a store built early gets the same file.
+
 Every store on `koboldlair.db` (the `Sql*Repository` classes, the event store, the OAuth stores) builds its settings
 through `SqliteDatabaseSettings.For(dbPath)`, which returns `SqLiteSettings`, so Birko switches the file to WAL on first
 use. Never pass plain `PasswordSettings`: Birko caches one connector per file and the first store decides the journal
@@ -680,6 +683,8 @@ The Providers tab's "Models" action edits a provider's model list; the Agents ta
 the default provider, each orchestrator's provider and model, and per-Kobold-type overrides
 (`GET /providers/agent-types` lists the types an override can name). It reloads when opened, and lists a provider that
 is assigned but not available as "<name> (not available)".
+The Budgets tab (TASK-163, `#/settings/budgets`, admins) shows each budget beside today's, this month's or the top
+project's spend and saves all four values (see Cost Tracking below).
 The API keys tab (TASK-162, `#/settings/keys`) is for every signed-in user: `GET|POST /api/v1/keys`,
 `POST /api/v1/keys/{id}/revoke` (mapped when `Authentication:OAuth:Enabled`). A key is a confidential client_credentials
 OAuth client acting as `service:<name>` (names unique across every OAuth client, `/register`'s and older ones included, TASK-194), with view_own, manage_projects and execute_agents narrowed to its
@@ -754,6 +759,9 @@ LLM usage tracking with per-call token recording, cost estimation, and budget en
 - **Token Usage Extraction**: All 10 providers now return `TokenUsage` (prompt + completion tokens) in `LlmResponse`
 - **TrackedLlmProvider**: Decorator that wraps any provider with rate limiting + cost tracking
 - **Budget Enforcement**: Blocks LLM calls when daily/monthly/project budgets are exceeded
+- **Budgets set in Settings** (TASK-163): an admin's change (`GET`/`PUT /api/v1/budgets`, `manage_config`) is stored in
+  `budget_settings` and wins over `Budget` here from then on. `BudgetSettingsService` writes it over the live budget
+  object at startup and on each change, so enforcement uses it from the next call
 - **Dragon Tool**: `view_cost_report` with actions: summary, daily, project, budget, rate_limits
 - **Storage**: Usage records persisted to SQLite via `SqlUsageRepository` (same DB as other entities)
 

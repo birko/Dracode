@@ -15,6 +15,8 @@ public static class SettingsEndpoints
         {
             // The /providers routes need manage_config; "*" is every permission
             canManageProviders = user.Permissions.Contains("*") || user.Permissions.Contains(KoboldLairPermissionChecker.ManageConfig),
+            // The /budgets routes need manage_config too (TASK-163)
+            canManageBudgets = user.Permissions.Contains("*") || user.Permissions.Contains(KoboldLairPermissionChecker.ManageConfig),
             // They are mapped only when a provider master key is set (DB-backed provider configuration, TASK-073)
             providersEnabled,
             providersHint = providersEnabled ? null
