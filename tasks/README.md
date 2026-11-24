@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-24 14:01. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-24 14:53. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
 | planned      | 9                  | 31                 | —                   |
-| todo         | —                  | —                  | 70                  |
-| in-progress  | 7                  | 14                 | 0                   |
+| todo         | —                  | —                  | 69                  |
+| in-progress  | 7                  | 13                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 4                  | 116                 |
+| done         | 1                  | 5                  | 117                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 42× P2 · 19× P3.
+`todo` by priority: 9× P1 · 41× P2 · 19× P3.
 
 ## In progress now
 
@@ -93,7 +93,7 @@ _None_
   - (epic level) — 2/2 done
     - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko · FEATURE-077
     - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` · FEATURE-021
-- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (23/46 tasks done)
+- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (24/46 tasks done)
   - STORY-019 DraCode.KoboldLair.Cli — single-file binary CLI client — planned (0/5 done)
     - [ ] [TASK-050](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-050-rename-scaffold-publish.md) Rename DraCode → DraCode.KoboldLair.Cli + single-file publish · FEATURE-022
     - [ ] [TASK-051](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-051-daemon-interaction.md) CLI daemon interaction + discovery ⏳ waits on TASK-050, TASK-049 ⚠ blocked: waiting on TASK-050, TASK-049 · FEATURE-022
@@ -124,9 +124,9 @@ _None_
     - [x] [TASK-146](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-146-header-project-picker.md) Header project picker inside a project · FEATURE-026
     - [ ] [TASK-143](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-143-public-preview-deployments.md) Public preview deployments of projects on subdomains · FEATURE-026
     - [ ] [TASK-144](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-144-phone-push-notifications.md) Phone push notifications when a project needs you · FEATURE-026
-  - STORY-045 Web UI: projects homepage overview — in-progress (2/3 done)
+  - STORY-045 Web UI: projects homepage overview — done (3/3 done)
     - [x] [TASK-147](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-147-needs-you.md) What needs you: homepage list and header pill · FEATURE-026
-    - [ ] [TASK-148](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-148-cross-project-charts.md) Cross-project charts and numbers on the homepage · FEATURE-026
+    - [x] [TASK-148](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-148-cross-project-charts.md) Cross-project charts and numbers on the homepage · FEATURE-026
     - [x] [TASK-149](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-149-home-dragon.md) Home Dragon on the projects homepage · FEATURE-026
   - STORY-046 Web UI: project workspace with Dragon docked — planned (3/3 done)
     - [x] [TASK-150](EPIC-013-multi-platform-clients/STORY-046-project-workspace-dragon/TASK-150-workspace-frame-spec.md) Project workspace frame with the read-only spec tab · FEATURE-026

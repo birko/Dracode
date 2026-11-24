@@ -14,7 +14,7 @@ namespace DraCode.KoboldLair.Server.Services;
 /// rate, the average time a finished task took, its LLM cost by provider and model and day by day, and its spend against
 /// the project budget. Read from the task store, the plans (a task's duration runs from its first step's start, or the
 /// plan's creation, to the plan's completion) and the usage records. The shape takes any set of projects, so the
-/// cross-project stats (TASK-148) can reuse it.
+/// homepage's overview (TASK-148, <see cref="OverviewAsync"/>) shares its pieces.
 /// </summary>
 public sealed class ProjectStatsService(
     IServiceProvider services,
@@ -86,5 +86,68 @@ public sealed class ProjectStatsService(
         return new Stats(projects.Select(p => p.Id).ToList(),
             new TaskStats(tasks.Count, byStatus, byAgent, successRate, durations.Count > 0 ? Math.Round(durations.Average(), 1) : null, durations.Count),
             cost, budgetStats);
+    }
+
+    // The homepage's numbers across the caller's projects (TASK-148)
+    public sealed record ProjectCounts(int Total, int Active);
+    public sealed record OverviewTasks(int Total, Dictionary<string, int> ByStatus, double? SuccessRate, int DoneThisWeek, int FailedThisWeek);
+    public sealed record OverviewCost(double ThisMonthUsd, long ThisMonthTokens, int ThisMonthRequests, double? MonthlyBudgetUsd, List<DayCost> ByDay);
+    public sealed record ProjectTasks(string ProjectId, string Name, int Total, Dictionary<string, int> ByStatus);
+    public sealed record Overview(List<string> ProjectIds, ProjectCounts Projects, OverviewTasks Tasks, OverviewCost Cost, List<ProjectTasks> ByProject);
+
+    /// <summary>Days in <see cref="Overview"/>'s cost by day, today (UTC) included.</summary>
+    public const int OverviewDays = 30;
+
+    /// <summary>
+    /// The homepage's tiles and charts over <paramref name="projects"/>: how many are active (running and not finished),
+    /// tasks by status and per project, the success rate, tasks done and failed in the last 7 days (by the time their
+    /// status last changed), spend this calendar month (UTC) against the monthly budget, and cost for each of the last
+    /// <see cref="OverviewDays"/> days, days with no usage as zeros. No plans are read, so it stays cheap for many projects.
+    /// </summary>
+    public async Task<Overview> OverviewAsync(IReadOnlyList<Project> projects, DateTime utcNow, CancellationToken ct = default)
+    {
+        var taskStore = services.GetService<ITaskRepository>();
+        var usage = services.GetService<SqlUsageRepository>();
+        var statuses = Enum.GetValues<TaskStatus>();
+        Dictionary<string, int> ByStatus(IEnumerable<TaskRecord> tasks) =>
+            statuses.ToDictionary(s => s.ToString(), s => tasks.Count(t => t.Status == s));
+
+        var tasks = new List<TaskRecord>();
+        var usageRecords = new List<Data.Entities.UsageRecordEntity>();
+        var byProject = new List<ProjectTasks>();
+        foreach (var project in projects)
+        {
+            var projectTasks = taskStore != null ? await taskStore.GetByProjectAsync(project.Id) : [];
+            tasks.AddRange(projectTasks);
+            byProject.Add(new ProjectTasks(project.Id, project.Name, projectTasks.Count, ByStatus(projectTasks)));
+            if (usage != null) usageRecords.AddRange(await usage.GetProjectRecordsAsync(project.Id, ct));
+        }
+
+        var byStatus = ByStatus(tasks);
+        var done = byStatus[nameof(TaskStatus.Done)];
+        var failed = byStatus[nameof(TaskStatus.Failed)];
+        var weekAgo = utcNow.AddDays(-7);
+        bool ThisWeek(TaskRecord t, TaskStatus status) => t.Status == status && t.UpdatedAt is { } at && at.ToUniversalTime() >= weekAgo;
+        var overviewTasks = new OverviewTasks(tasks.Count, byStatus,
+            done + failed > 0 ? Math.Round(100.0 * done / (done + failed), 1) : null,
+            tasks.Count(t => ThisWeek(t, TaskStatus.Done)), tasks.Count(t => ThisWeek(t, TaskStatus.Failed)));
+
+        var today = utcNow.Date;
+        var monthStart = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var thisMonth = usageRecords.Where(r => r.RecordedAt.ToUniversalTime() >= monthStart).ToList();
+        var perDay = usageRecords.GroupBy(r => r.RecordedAt.ToUniversalTime().Date).ToDictionary(g => g.Key, g => g.ToList());
+        var byDay = Enumerable.Range(0, OverviewDays)
+            .Select(i => today.AddDays(i - OverviewDays + 1))
+            .Select(day => perDay.TryGetValue(day, out var records)
+                ? new DayCost(day.ToString("yyyy-MM-dd"), records.Count, records.Sum(r => (long)r.TotalTokens), Math.Round(records.Sum(r => r.EstimatedCostUsd), 6))
+                : new DayCost(day.ToString("yyyy-MM-dd"), 0, 0, 0))
+            .ToList();
+        var monthlyBudget = config.Value.CostTracking.Budget.MonthlyBudgetUsd;
+        var cost = new OverviewCost(Math.Round(thisMonth.Sum(r => r.EstimatedCostUsd), 6), thisMonth.Sum(r => (long)r.TotalTokens), thisMonth.Count,
+            monthlyBudget > 0 ? monthlyBudget : null, byDay);
+
+        var active = projects.Count(p => p.ExecutionState == ProjectExecutionState.Running
+            && p.Status is not (ProjectStatus.Verified or ProjectStatus.Completed or ProjectStatus.Failed));
+        return new Overview(projects.Select(p => p.Id).ToList(), new ProjectCounts(projects.Count, active), overviewTasks, cost, byProject);
     }
 }
