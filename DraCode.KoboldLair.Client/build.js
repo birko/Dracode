@@ -1,6 +1,6 @@
 import { build } from 'esbuild';
 import { createHash } from 'crypto';
-import { readFileSync, existsSync, mkdirSync, copyFileSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, copyFileSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -78,6 +78,26 @@ await build({
   alias: aliases,
   loader: { '.ts': 'ts', '.css': 'text' },
 });
+
+// The theme boot script (TASK-188), run by index.html's <head> before anything renders, so a browser that prefers dark
+// never sees the light theme first. Written from Birko.Web.Shell's own themeBootScript with the prefix and default the
+// shell uses (src/theme-settings.ts), so the two cannot drift.
+const boot = await build({
+  stdin: {
+    contents: `export { themeBootScript } from '${BIRKO_SRC}/Birko.Web.Shell/src/shell/theme-boot.ts';
+      export { THEME_STORAGE_PREFIX, DEFAULT_THEME } from './src/theme-settings.ts';`,
+    resolveDir: __dirname,
+    loader: 'ts',
+  },
+  bundle: true,
+  format: 'esm',
+  platform: 'neutral',
+  write: false,
+});
+const theme = await import(`data:text/javascript;base64,${Buffer.from(boot.outputFiles[0].text).toString('base64')}`);
+writeFileSync('wwwroot/dist/theme-boot.js',
+  `${theme.themeBootScript({ prefix: theme.THEME_STORAGE_PREFIX, defaultTheme: theme.DEFAULT_THEME })}
+`);
 
 // Generate content hash
 const appHash = createHash('md5')
