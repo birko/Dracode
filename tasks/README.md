@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-24 12:49. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-24 14:01. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
 | planned      | 9                  | 31                 | —                   |
-| todo         | —                  | —                  | 71                  |
+| todo         | —                  | —                  | 70                  |
 | in-progress  | 7                  | 14                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 4                  | 115                 |
+| done         | 1                  | 4                  | 116                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 42× P2 · 20× P3.
+`todo` by priority: 9× P1 · 42× P2 · 19× P3.
 
 ## In progress now
 
@@ -228,13 +228,13 @@ _None_
   - STORY-044 Follow Birko framework contract changes — planned (0/1 done)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies
     - ~~[TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule~~
-- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (18/23 tasks done)
+- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (19/23 tasks done)
   - STORY-041 Security & tenancy — done (4/4 done)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller
     - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing
     - [x] [TASK-194](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-194-key-name-can-reuse-an-untracked-client-identity.md) A new API key can take the name, and so the identity, of a client registered before key owners were recorded
-  - STORY-042 Correctness & invariants — in-progress (14/18 done)
+  - STORY-042 Correctness & invariants — in-progress (15/18 done)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other
     - [x] [TASK-168](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-168-worktree-removed-with-uncommitted-work.md) A task's worktree is force-removed after its run even when the work was never committed
     - [x] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping
@@ -249,7 +249,7 @@ _None_
     - [x] [TASK-195](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-195-planner-result-shared-across-runs.md) Two planners running at once can take each other's plans
     - [ ] [TASK-181](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-181-dragon-request-queue-dispose-throws.md) DragonRequestQueue.Dispose throws when it stops its workers
     - [x] [TASK-182](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-182-finished-task-escalated-as-stalled.md) A finished task is escalated as "progress stalled" and its plan revised after it is Done
-    - [ ] [TASK-189](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-189-flaky-auth-spec-config-route.md) An e2e auth test fails about one run in six: its config route is still fetching when the page closes
+    - [x] [TASK-189](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-189-flaky-auth-spec-config-route.md) An e2e auth test fails about one run in six: its config route is still fetching when the page closes
     - [ ] [TASK-191](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-191-cancelled-run-logged-as-iteration-limit.md) A run stopped by a shutdown is logged as having reached its iteration limit
     - [ ] [TASK-193](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-193-usage-records-name-provider-class.md) Usage records and rate limits name the provider class, not the configured provider
     - [x] [TASK-196](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-196-retry-in-completed-project-never-runs.md) A retried task of a Completed project is never run

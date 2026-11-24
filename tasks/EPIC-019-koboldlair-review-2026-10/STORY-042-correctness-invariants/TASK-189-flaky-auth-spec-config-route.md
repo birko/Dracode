@@ -3,7 +3,7 @@ id: TASK-189
 parent: STORY-042
 feature: null
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 # blocked: <reason> — set by /tasks block, never by hand; status stays as it is; /tasks unblock removes it
 priority: P3
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
@@ -40,10 +40,10 @@ throws when the page closes, and Playwright fails the test. Other specs that use
 
 ## Acceptance criteria
 
-- [ ] The `/api/config` handler in `auth.spec.ts` no longer fails a test when the page closes during its fetch (e.g.
+- [x] The `/api/config` handler in `auth.spec.ts` no longer fails a test when the page closes during its fetch (e.g.
       `page.unrouteAll({ behavior: 'ignoreErrors' })` at the end, or the handler tolerating a closed page)
-- [ ] `npx playwright test auth.spec.ts --repeat-each=20` passes with no failure
-- [ ] The full e2e suite stays green
+- [x] `npx playwright test auth.spec.ts --repeat-each=20` passes with no failure
+- [x] The full e2e suite stays green
 
 ## Out of scope
 
@@ -55,4 +55,15 @@ N/A — a test-harness fix, proven by the repeated run above.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-189` — leave empty until then._
+1. Red first: `npx playwright test auth.spec.ts --repeat-each=20` on a warm client host failed 4 of 20 runs of "the
+   user name from the token is shown as text", each time with "Target page, context or browser has been closed" in
+   the `/api/config` handler.
+2. `auth.spec.ts` gets a `test.afterEach` that calls `page.unrouteAll({ behavior: 'ignoreErrors' })`, the fix
+   Playwright's error suggests: the routes are dropped before the page closes, and a handler still forwarding is
+   ignored rather than failing the test. It covers every test that uses `serve()`, not only the one seen failing.
+
+## Notes
+
+- After the fix: 160 of 160 passed with `--repeat-each=20` (each of the 8 tests 20 times). The full e2e suite: 154
+  passed.
+- No other spec forwards a route with `route.fetch()`, so the race exists only here.
