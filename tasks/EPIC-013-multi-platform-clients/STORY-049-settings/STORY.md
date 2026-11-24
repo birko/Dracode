@@ -1,7 +1,7 @@
 ---
 id: STORY-049
 parent: EPIC-013
-status: in-progress
+status: done
 created: 2026-11-16
 ---
 

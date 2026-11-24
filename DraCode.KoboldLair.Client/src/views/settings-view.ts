@@ -2,7 +2,7 @@
  * Settings (TASK-161, FEATURE-026 D20), at `#/settings`: tabs for what the signed-in user may set, from
  * `GET /api/v1/settings/capabilities`. Providers (admins with `manage_config`) is the Shell list page over
  * `/api/v1/providers`; when the server keeps no provider configuration in its database the tab says how to turn it
- * on. API keys (TASK-162) and budgets (TASK-163) join as tabs of their own. The earlier settings view (on `/wyvern`
+ * on. API keys (TASK-162) and Budgets (TASK-163, admins: `canManageBudgets`) are tabs of their own. The earlier settings view (on `/wyvern`
  * commands, with a General tab that saved nothing) is gone.
  */
 
@@ -14,10 +14,14 @@ import { getToken } from '../auth-store.js';
 import './providers-page.js';
 import type { AgentProvidersTab } from './agent-providers-tab.js';
 import './agent-providers-tab.js';
+import type { BudgetsTab } from './budgets-tab.js';
+import './budgets-tab.js';
 import './api-keys-page.js';
 
 export interface SettingsCapabilities {
   canManageProviders: boolean;
+  /** Settings → Budgets (TASK-163): manage_config, as for providers. */
+  canManageBudgets?: boolean;
   providersEnabled: boolean;
   providersHint: string | null;
   /** Service-account API keys (TASK-162): any signed-in user, when the server's OAuth is on. */
@@ -89,6 +93,7 @@ export class SettingsView extends KoboldComponent {
             : `<div class="message providers-off"><strong>Provider management is off on this server.</strong>${escapeHtml(s.caps.providersHint ?? '')}</div>`}</div>` : ''}
           ${admin && s.caps.providersEnabled ? '<div slot="agents" class="panel"><kobold-agent-providers></kobold-agent-providers></div>' : ''}
           ${keys}
+          ${s.caps.canManageBudgets ? '<div slot="budgets" class="panel"><kobold-budgets-tab></kobold-budgets-tab></div>' : ''}
         </b-tabs>`;
       }
     }
@@ -104,11 +109,14 @@ export class SettingsView extends KoboldComponent {
     // Which provider each agent uses (TASK-192): only where the providers live in the database
     if (caps.canManageProviders && caps.providersEnabled) list.push({ id: 'agents', label: 'Agents' });
     list.push({ id: 'keys', label: 'API keys' }); // every signed-in user (TASK-162)
+    if (caps.canManageBudgets) list.push({ id: 'budgets', label: 'Budgets' }); // admins (TASK-163)
     const wanted = this.getAttribute('tab');
     tabs.setTabs(list, list.some((t) => t.id === wanted) ? wanted! : list[0].id);
     // The Agents tab reloads when it is opened: a provider added or changed on the Providers tab must be choosable there
     this.listen<CustomEvent<{ tab: string }>>(tabs, 'tab-change', (e) => {
       if (e.detail.tab === 'agents') void this.$<AgentProvidersTab>('kobold-agent-providers')?.refresh();
+      // and the spend beside the budgets moves on
+      if (e.detail.tab === 'budgets') void this.$<BudgetsTab>('kobold-budgets-tab')?.refresh();
     });
   }
 }

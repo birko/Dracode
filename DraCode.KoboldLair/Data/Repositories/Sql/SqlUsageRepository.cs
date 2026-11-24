@@ -123,6 +123,17 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             return records.Sum(r => r.EstimatedCostUsd);
         }
 
+        /// <summary>Each project's spend, all time, as the project budget counts it (TASK-163). Records with no project are left out.</summary>
+        public async Task<Dictionary<string, double>> GetSpendByProjectAsync(CancellationToken ct = default)
+        {
+            var records = await _repository.ReadAsync(
+                filter: e => e.ProjectId != null,
+                orderBy: null, limit: null, offset: null, ct: ct);
+            return records.Where(r => !string.IsNullOrEmpty(r.ProjectId))
+                .GroupBy(r => r.ProjectId!)
+                .ToDictionary(g => g.Key, g => g.Sum(r => r.EstimatedCostUsd));
+        }
+
         /// <summary>A project's usage records, all time, for its stats (TASK-158).</summary>
         public async Task<List<KoboldLairUsageRecord>> GetProjectRecordsAsync(string projectId, CancellationToken ct = default)
         {

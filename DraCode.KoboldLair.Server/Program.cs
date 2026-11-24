@@ -310,9 +310,25 @@ builder.Services.AddSingleton<SqlUsageRepository>(sp =>
     return null!;
 });
 
+// Budgets an admin set in Settings (TASK-163): stored on SQLite (null otherwise), written over appsettings' at startup
+builder.Services.AddSingleton<SqlBudgetRepository>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    if (dataConfig.DefaultBackend != StorageBackend.SqLite) return null!;
+    var repo = new SqlBudgetRepository(RepositoryFactory.ResolveSqLitePath(dataConfig),
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlBudgetRepository>());
+    repo.InitializeAsync().GetAwaiter().GetResult();
+    return repo;
+});
+builder.Services.AddSingleton(sp => new BudgetSettingsService(
+    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>(),
+    sp.GetService<SqlBudgetRepository>(), sp.GetService<SqlUsageRepository>(), sp.GetService<IProjectRepository>()));
+
 // Register cost tracking service
 builder.Services.AddSingleton<CostTrackingService>(sp =>
 {
+    // The stored budgets go over appsettings' before the first check (TASK-163)
+    sp.GetRequiredService<BudgetSettingsService>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var logger = sp.GetRequiredService<ILogger<CostTrackingService>>();
     var usageRepo = sp.GetService<SqlUsageRepository>();
@@ -327,6 +343,11 @@ builder.Services.AddSingleton<ProjectStatsService>(); // a project's numbers for
 // Configure data storage (SQLite or JSON based on config)
 builder.Services.Configure<DataStorageConfig>(
     builder.Configuration.GetSection("KoboldLair:Data"));
+// The database lives under KoboldLair:ProjectsPath for every store, however early it is built (TASK-163). The factories
+// below used to set it only as they ran, so a store built before them opened ./projects/ instead.
+builder.Services.AddOptions<DataStorageConfig>()
+    .PostConfigure<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>((data, kobold) =>
+        data.ProjectsPath = kobold.Value.ProjectsPath ?? "./projects");
 
 builder.Services.AddSingleton<ProjectRepository>(sp =>
 {
@@ -850,6 +871,9 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 
 var app = builder.Build();
 
+// Stored budgets in force from the start, for the stats and get_metrics too, not only from the first LLM call (TASK-163)
+app.Services.GetRequiredService<BudgetSettingsService>();
+
 // Auto-migrate JSON → SQLite on first startup when SQLite backend is enabled
 using (var scope = app.Services.CreateScope())
 {
@@ -1061,6 +1085,7 @@ if (jwtRuntimeEnabled)
     apiV1.MapNeedsYouEndpoints(); // the homepage's Needs you list and the header pill (TASK-147)
     apiV1.MapGitEndpoints(); // the workspace's Git tab: branches and their diffs (TASK-156)
     apiV1.MapStatsEndpoints(); // the workspace's Stats tab (TASK-158)
+    apiV1.MapBudgetEndpoints(); // Settings → Budgets (TASK-163)
     // Admin /api/v1/providers CRUD (TASK-073) — only in DB mode. Read post-build so test-host config is seen.
     var providersEnabled = !string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration));
     if (providersEnabled)
