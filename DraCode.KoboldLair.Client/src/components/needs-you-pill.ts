@@ -1,7 +1,7 @@
 /**
  * The header's "N other projects need you" pill (TASK-147, FEATURE-026 D10): inside a project, the number of the
  * user's other projects with something waiting (`needsYouStore`), leading back to the homepage's list. Hidden at zero,
- * outside a project, and signed out.
+ * outside a project, and signed out; a phone has none (TASK-164: its Projects tab lists what needs you).
  */
 
 import { define } from 'birko-web-core';
@@ -34,8 +34,6 @@ export class NeedsYouPill extends KoboldComponent {
       }
       a:hover { filter: brightness(0.97); }
       a:focus-visible { outline: none; box-shadow: var(--b-focus-ring); }
-      .short { display: none; }
-      @media (max-width: 56rem) { .long { display: none; } .short { display: inline; } }
     `;
   }
 
@@ -67,8 +65,7 @@ export class NeedsYouPill extends KoboldComponent {
     const others = new Set(this._state.items.filter((i) => i.projectId !== this._project).map((i) => i.projectId)).size;
     if (others === 0) return '';
     const long = others === 1 ? '1 other project needs you' : `${others} other projects need you`;
-    // On a phone the header has no room for words: a flag and the count, the words in the tooltip and for screen readers.
-    return `<a href="#/" title="${long}" aria-label="${long}"><span class="long">${long}</span><span class="short" aria-hidden="true">⚑ ${others}</span></a>`;
+    return `<a href="#/" title="${long}" aria-label="${long}"><span>${long}</span></a>`;
   }
 }
 

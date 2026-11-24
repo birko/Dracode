@@ -7,7 +7,8 @@
  * starting projects. A project it registers reloads the cards. Under the title, `b-stat` tiles over the caller's
  * projects, and below the cards two `b-chart` charts (TASK-148, FEATURE-026 D18), from `GET /api/v1/stats`: active
  * projects, tasks done this week, success rate, spend this month; cost over the last 30 days and tasks by status per
- * project. Numbers that fail to load say so there and leave the cards alone.
+ * project. Numbers that fail to load say so there and leave the cards alone. On a tablet the home Dragon opens as an
+ * overlay, and a phone shows none: Dragon is the tab bar's own tab (TASK-164, D22).
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -21,6 +22,9 @@ import { needsYouStore, type NeedsYouItem } from '../stores/needs-you-store.js';
 import { dragonConnection } from '../services/dragon-connection.js';
 import { money } from './stats-tab.js';
 import './dragon-dock.js';
+import type { DragonDock } from './dragon-dock.js';
+import { onLayoutModeChange } from '../services/layout-mode.js';
+import { applyDockOverlay, DOCK_CLOSE_HTML, dockOverlayStyles, dragonToggleHtml, wireDockOverlay } from '../services/dock-overlay.js';
 
 export interface ProjectTaskCounts {
   total: number;
@@ -114,6 +118,9 @@ export class HomeView extends KoboldComponent {
   private _unsubscribe: (() => void) | null = null;
   private _unsubscribeNeeds: (() => void) | null = null;
   private _unsubscribeProjects: (() => void) | null = null;
+  private _unsubscribeLayout: (() => void) | null = null;
+  /** The tablet's Dragon overlay is open. */
+  private _overlayOpen = false;
 
   static get styles() {
     return `
@@ -123,10 +130,6 @@ export class HomeView extends KoboldComponent {
       }
       .main { min-width: 0; }
       .dock { position: sticky; top: 0; min-width: 0; height: calc(100vh - 7rem); min-height: 24rem; }
-      @media (max-width: 56rem) {
-        .home { grid-template-columns: minmax(0, 1fr); }
-        .dock { position: static; height: 28rem; min-height: 0; }
-      }
       h1 { margin: 0 0 var(--b-space-lg, 1rem); font-size: var(--b-text-2xl, 1.5rem); color: var(--b-text); }
       .grid {
         display: grid;
@@ -198,6 +201,7 @@ export class HomeView extends KoboldComponent {
       .panel b-chart { display: block; min-width: 0; }
       .note { margin: var(--b-space-xs, 0.25rem) 0 0; font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); }
       .overview-error { margin: 0 0 var(--b-space-xl, 1.5rem); font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text-secondary); }
+      ${dockOverlayStyles('.home')}
     `;
   }
 
@@ -208,9 +212,14 @@ export class HomeView extends KoboldComponent {
     this._unsubscribeNeeds = null;
     this._unsubscribeProjects?.();
     this._unsubscribeProjects = null;
+    this._unsubscribeLayout?.();
+    this._unsubscribeLayout = null;
   }
 
   protected async onMount() {
+    this._unsubscribeLayout = onLayoutModeChange((mode) => {
+      if (mode !== 'tablet' && this._overlayOpen) this.setOverlay(false);
+    });
     // Each card's unread notifications (TASK-159), from the same store as the header bell
     this._unsubscribe = notificationStore.subscribe(() => {
       this._unread = notificationStore.unreadByProject();
@@ -262,9 +271,10 @@ export class HomeView extends KoboldComponent {
 
   render() {
     // The dock is left alone by re-renders (data-morph="skip"), so its chat survives the cards reloading
-    return `<div class="home">
+    return `<div class="home${this._overlayOpen ? ' overlay-open' : ''}">
       <div class="main"><h1>Projects</h1>${this.renderBody()}</div>
-      <aside class="dock" aria-label="Dragon" data-morph="skip"><kobold-dragon-dock></kobold-dragon-dock></aside>
+      ${dragonToggleHtml(this._overlayOpen)}
+      <aside class="dock" aria-label="Dragon" data-morph="skip">${DOCK_CLOSE_HTML}<kobold-dragon-dock></kobold-dragon-dock></aside>
     </div>`;
   }
 
@@ -328,7 +338,15 @@ export class HomeView extends KoboldComponent {
     </section>`;
   }
 
+  private setOverlay(open: boolean): void {
+    this._overlayOpen = open;
+    const home = this.$('.home') as HTMLElement | null;
+    if (home) applyDockOverlay(home, open, () => void (this.$('kobold-dragon-dock') as DragonDock | null)?.focusInput());
+  }
+
   protected onUpdated() {
+    const home = this.$('.home') as HTMLElement | null;
+    if (home) wireDockOverlay(this.listen.bind(this), home, () => this._overlayOpen, (open) => this.setOverlay(open));
     if (this._overview.kind !== 'loaded') return;
     const overview = this._overview.overview;
     const byDay = this.$('.by-day-chart') as (BChart & { klDrawn?: Overview }) | null;

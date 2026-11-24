@@ -72,7 +72,8 @@ export class DragonDock extends KoboldComponent {
       .pin[aria-pressed="true"] { color: var(--b-color-primary); border-color: var(--b-color-primary); }
       .pin:focus-visible { outline: none; box-shadow: var(--b-focus-ring); }
       /* Below the breakpoint the dock sits under the tabs at full width: nothing to widen. */
-      @media (max-width: 56rem) { .pin { display: none; } }
+      /* The pin widens a docked Dragon: only a desktop docks it (TASK-164) */
+      @media (max-width: 1279.98px) { .pin { display: none; } }
       .conn.offline { color: var(--b-color-warning); }
       b-chat { flex: 1; min-height: 0; }
       .decision-count[hidden] { display: none; }

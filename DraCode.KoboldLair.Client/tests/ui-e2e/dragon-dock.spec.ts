@@ -225,8 +225,9 @@ test('markup in a Dragon reply cannot run script or carry handlers', async ({ pa
   expect(await page.evaluate(() => (window as any).__pwned)).toBeUndefined();
 });
 
+// `#/dragon` is the phone's Dragon tab since TASK-164 (phone.spec.ts); the old screen's other routes stay gone.
 test.describe('the old Dragon screen is gone', () => {
-  for (const route of ['#/dragon', '#/dragon/specifications']) {
+  for (const route of ['#/dragon/specifications']) {
     test(`${route} shows the not-found view`, async ({ page }) => {
       await page.goto(`/${route}`);
       await expect(page.locator('#route-outlet kobold-not-found-view')).toHaveCount(1);
@@ -234,21 +235,20 @@ test.describe('the old Dragon screen is gone', () => {
   }
 });
 
-test('below the breakpoint Dragon sits under the tabs, with no horizontal scroll', async ({ page }) => {
+test('on a phone the workspace has no dock: the Dragon tab carries the project\'s conversation, with no horizontal scroll', async ({ page }) => {
+  // TASK-164 (D22): below 900px Dragon is a tab of its own rather than a dock under the tabs.
   await page.setViewportSize({ width: 375, height: 800 });
   await open(page);
-  await expect(bubbles(page, 'user')).toHaveText(['Build a shop']);
+  await expect(page.locator('#route-outlet kobold-project-workspace aside.dock')).toBeHidden();
+  await expect(page.locator('kobold-lair-shell nav.phone-tabs [data-surface="board"]')).not.toHaveAttribute('aria-disabled', 'true');
 
+  await page.locator('kobold-lair-shell nav.phone-tabs [data-surface="dragon"]').click();
+  await expect(bubbles(page, 'user')).toHaveText(['Build a shop']);
   const layout = await page.evaluate(() => {
-    const ws = document.querySelector('#route-outlet kobold-project-workspace')!.shadowRoot!;
     const content = document.querySelector('kobold-lair-shell')!.shadowRoot!.querySelector('.app-content') as HTMLElement;
-    return {
-      dockBelow: ws.querySelector('.dock')!.getBoundingClientRect().top >= ws.querySelector('.main')!.getBoundingClientRect().bottom,
-      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      content: content.scrollWidth - content.clientWidth,
-    };
+    return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, content: content.scrollWidth - content.clientWidth };
   });
-  expect(layout).toEqual({ dockBelow: true, page: 0, content: 0 });
+  expect(layout).toEqual({ page: 0, content: 0 });
 });
 
 test('a message sent while Dragon is still answering waits its turn, marked, and is answered next', async ({ page }) => {

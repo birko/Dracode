@@ -95,14 +95,15 @@ test('on the homepage there is no picker, and it appears once a project is opene
   await expect(picker(page).locator('b-select')).toHaveCount(0);
 });
 
-test('below the breakpoint the header with the picker has no horizontal scroll', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 800 });
+test('at the narrowest tablet width the header with the picker has no horizontal scroll', async ({ page }) => {
+  // A phone has no picker since TASK-164 (Projects is its own tab); the narrowest window that shows one is 900px.
+  await page.setViewportSize({ width: 900, height: 800 });
   await serve(page);
   await page.goto('/#/projects/p-3/spec');
   await expect(box(page)).toHaveValue('Príťahy tracker');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBe(0);
   const pickerBox = await picker(page).boundingBox();
-  expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(375);
+  expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(900);
   expect(pickerBox!.width).toBeGreaterThan(80); // still wide enough to read a name
 });

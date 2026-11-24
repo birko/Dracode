@@ -113,16 +113,16 @@ test('after a reload the homepage asks for the home conversation again', async (
   expect(dragon.sent('select_home').length).toBe(2);
 });
 
-test('at phone width the dock sits under the cards with no horizontal scroll', async ({ page }) => {
+test('at phone width the homepage shows no dock; the Dragon tab is the home conversation, with no horizontal scroll', async ({ page }) => {
+  // TASK-164 (D22): below 900px Dragon is the tab bar's own tab; before any project it is the home Dragon.
   await page.setViewportSize({ width: 375, height: 800 });
   await open(page, [SHOP]);
-  await expect(bubbles(page, 'user')).toHaveText(['I want a shop']);
+  await expect(home(page).locator('.project-card')).toHaveCount(1);
+  await expect(dock(page)).toBeHidden();
 
-  const layout = await page.evaluate(() => {
-    const view = document.querySelector('#route-outlet kobold-home-view')!.shadowRoot!;
-    const r = (sel: string) => view.querySelector(sel)!.getBoundingClientRect();
-    return { cardsBottom: r('.project-card').bottom, dockTop: r('kobold-dragon-dock').top, scroll: document.documentElement.scrollWidth > window.innerWidth };
-  });
-  expect(layout.dockTop).toBeGreaterThanOrEqual(layout.cardsBottom);
-  expect(layout.scroll).toBe(false);
+  await page.locator('kobold-lair-shell nav.phone-tabs [data-surface="dragon"]').click();
+  const pageDock = page.locator('#route-outlet kobold-dragon-page kobold-dragon-dock');
+  await expect(pageDock.locator('b-chat .message.user .bubble')).toHaveText(['I want a shop']);
+  expect(await pageDock.getAttribute('project-id')).toBeNull();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });

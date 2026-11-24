@@ -1,7 +1,7 @@
 ---
 id: STORY-050
 parent: EPIC-013
-status: planned
+status: done
 created: 2026-11-16
 ---
 

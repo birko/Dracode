@@ -3,7 +3,8 @@
  * `GET /api/v1/settings/capabilities`. Providers (admins with `manage_config`) is the Shell list page over
  * `/api/v1/providers`; when the server keeps no provider configuration in its database the tab says how to turn it
  * on. API keys (TASK-162) and Budgets (TASK-163, admins: `canManageBudgets`) are tabs of their own. The earlier settings view (on `/wyvern`
- * commands, with a General tab that saved nothing) is gone.
+ * commands, with a General tab that saved nothing) is gone. A phone is not offered Settings (TASK-164, D21): a link here
+ * says they are on a computer.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -11,6 +12,7 @@ import type { BTabs } from 'birko-web-components/layout';
 import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 import { getToken } from '../auth-store.js';
+import { isPhone, onLayoutModeChange } from '../services/layout-mode.js';
 import './providers-page.js';
 import type { AgentProvidersTab } from './agent-providers-tab.js';
 import './agent-providers-tab.js';
@@ -52,7 +54,15 @@ export class SettingsView extends KoboldComponent {
     `;
   }
 
+  private _unsubscribeLayout: (() => void) | null = null;
+
+  protected onUnmount() {
+    this._unsubscribeLayout?.();
+    this._unsubscribeLayout = null;
+  }
+
   protected async onMount() {
+    this._unsubscribeLayout = onLayoutModeChange(() => this.update());
     if (!getToken()) {
       this._state = { kind: 'signed-out' };
       this.update();
@@ -70,6 +80,10 @@ export class SettingsView extends KoboldComponent {
   }
 
   render() {
+    if (isPhone()) {
+      return `<h1>Settings</h1><div class="message desktop-only"><strong>Settings are on a computer.</strong>Providers,
+        agents, budgets and API keys are set in the full layout; on a phone you can check projects and answer Dragon.</div>`;
+    }
     return `<h1>Settings</h1>${this.renderBody()}`;
   }
 

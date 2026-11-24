@@ -2,8 +2,13 @@
  * Project workspace frame (TASK-150, FEATURE-026 D11): a project opens at `#/projects/{id}/{tab}` with its tabs in the
  * centre, in D11's order. A tab is listed once its screen exists: Board (TASK-153), Spec (TASK-150), Runs (TASK-155), Git (TASK-156) and Stats (TASK-158). An unknown or not-owned project (the API
  * answers 404 for both) and an unknown tab show the not-found view. Dragon is docked on the right and follows the
- * project (TASK-151); below the breakpoint it sits under the tabs. Dragon widens with focus (TASK-152, D13): ~360px,
- * ~60% of the width while focus is inside it (a click, or the shortcut) or while pinned; no timers.
+ * project (TASK-151). Dragon widens with focus (TASK-152, D13): ~360px, ~60% of the width while focus is inside it (a
+ * click, or the shortcut) or while pinned; no timers.
+ *
+ * By window width (TASK-164, D21/D22): on a tablet Dragon opens as an overlay over the page (`dock-overlay.ts`); on a
+ * phone there is no dock (Dragon is the tab bar's own tab), Git is not offered and a link to it says it is on a
+ * computer, and the other tabs are read only. Opening a project makes it the one the phone's Board and Dragon tabs
+ * follow.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -19,6 +24,8 @@ import './stats-tab.js';
 import './dragon-dock.js';
 import type { DragonDock } from './dragon-dock.js';
 import { DRAGON_PIN_EVENT, DRAGON_SHORTCUT, isDragonPinned } from '../services/dock-layout.js';
+import { layoutMode, onLayoutModeChange, rememberProject, type LayoutMode } from '../services/layout-mode.js';
+import { applyDockOverlay, DOCK_CLOSE_HTML, dockOverlayStyles, dragonToggleHtml, wireDockOverlay } from '../services/dock-overlay.js';
 
 /** The workspace tabs whose screens exist, in display order: id, label and the element that renders it. */
 export const WORKSPACE_TABS: readonly { id: string; label: string; tag: string }[] = [
@@ -30,6 +37,9 @@ export const WORKSPACE_TABS: readonly { id: string; label: string; tag: string }
 ];
 
 export const DEFAULT_TAB = WORKSPACE_TABS[0].id;
+
+/** Tabs a phone does not offer (D21: Git stays on a computer). */
+const DESKTOP_ONLY_TABS = new Set(['git']);
 
 type WorkspaceState =
   | { kind: 'loading' }
@@ -43,10 +53,15 @@ export class ProjectWorkspace extends KoboldComponent {
   /** Focus is inside the dock. */
   private _dockFocused = false;
   private _pinned = isDragonPinned();
+  private _mode: LayoutMode = layoutMode();
+  /** The tablet's Dragon overlay is open. */
+  private _overlayOpen = false;
+  private _unsubscribeLayout: (() => void) | null = null;
   private readonly _onKey = (e: KeyboardEvent) => {
-    if (!DRAGON_SHORTCUT.matches(e) || this._state.kind !== 'loaded') return;
+    if (!DRAGON_SHORTCUT.matches(e) || this._state.kind !== 'loaded' || this._mode === 'phone') return;
     e.preventDefault();
-    this.focusDragon();
+    if (this._mode === 'tablet') this.setOverlay(true);
+    else this.focusDragon();
   };
 
   static get styles() {
@@ -64,10 +79,6 @@ export class ProjectWorkspace extends KoboldComponent {
         height: calc(100vh - 7rem); min-height: 24rem;
       }
       .dock:focus { outline: none; }
-      @media (max-width: 56rem) {
-        .workspace, .workspace.expanded { grid-template-columns: minmax(0, 1fr); }
-        .dock { position: static; height: 28rem; min-height: 0; }
-      }
       .project-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--b-space-sm, 0.5rem); margin-bottom: var(--b-space-md, 0.75rem); min-width: 0; }
       .back { color: var(--b-color-primary); font-size: var(--b-text-sm, 0.8125rem); }
       .project-title {
@@ -82,6 +93,8 @@ export class ProjectWorkspace extends KoboldComponent {
         color: var(--b-text-secondary);
       }
       .message strong { display: block; margin-bottom: var(--b-space-xs, 0.25rem); color: var(--b-text); }
+      .desktop-only a { color: var(--b-color-primary); }
+      ${dockOverlayStyles('.workspace')}
     `;
   }
 
@@ -91,10 +104,16 @@ export class ProjectWorkspace extends KoboldComponent {
 
   protected onUnmount() {
     document.removeEventListener('keydown', this._onKey);
+    this._unsubscribeLayout?.();
   }
 
   protected async onMount() {
     document.addEventListener('keydown', this._onKey);
+    this._unsubscribeLayout = onLayoutModeChange((mode) => {
+      this._mode = mode;
+      if (mode !== 'tablet') this._overlayOpen = false;
+      this.update();
+    });
     const id = this.attr('project-id');
     if (!id || !this.tab) {
       this._state = { kind: 'not-found' };
@@ -112,7 +131,10 @@ export class ProjectWorkspace extends KoboldComponent {
         this._state = { kind: 'error', message: error instanceof Error ? error.message : String(error) };
       }
     }
-    if (this._state.kind === 'loaded') document.title = `${this._state.project.name} - KoboldLair`;
+    if (this._state.kind === 'loaded') {
+      document.title = `${this._state.project.name} - KoboldLair`;
+      rememberProject({ id: this._state.project.id, name: this._state.project.name });
+    }
     this.update();
   }
 
@@ -132,7 +154,7 @@ export class ProjectWorkspace extends KoboldComponent {
         const { project } = state;
         const active = this.tab!;
         return `
-          <div class="workspace${this.expanded ? ' expanded' : ''}">
+          <div class="workspace${this.expanded ? ' expanded' : ''}${this._overlayOpen ? ' overlay-open' : ''}">
           <div class="main">
           <div class="project-head">
             <a class="back" href="#/">← Projects</a>
@@ -142,15 +164,31 @@ export class ProjectWorkspace extends KoboldComponent {
               <b-badge variant="neutral">${escapeHtml(project.executionState)}</b-badge>
             </div>
           </div>
-          <b-tabs active="${active.id}">
+          ${this.offered(active.id)
+            ? `<b-tabs active="${active.id}">
             <div slot="${active.id}"><${active.tag} project-id="${escapeHtml(project.id)}"></${active.tag}></div>
-          </b-tabs>
+          </b-tabs>`
+            : `<div class="message desktop-only"><strong>${escapeHtml(active.label)} is on a computer.</strong>On a phone a
+            project offers its board, specification, runs and numbers.
+            <a href="#/projects/${encodeURIComponent(project.id)}/${DEFAULT_TAB}">Open the board</a></div>`}
           </div>
-          <aside class="dock" aria-label="Dragon" tabindex="-1" aria-keyshortcuts="${DRAGON_SHORTCUT.label}"><kobold-dragon-dock project-id="${escapeHtml(project.id)}"></kobold-dragon-dock></aside>
+          ${dragonToggleHtml(this._overlayOpen)}
+          <aside class="dock" aria-label="Dragon" tabindex="-1" aria-keyshortcuts="${DRAGON_SHORTCUT.label}">${DOCK_CLOSE_HTML}<kobold-dragon-dock project-id="${escapeHtml(project.id)}"></kobold-dragon-dock></aside>
           </div>
         `;
       }
     }
+  }
+
+  /** Whether this window offers the tab: a phone leaves out Git. */
+  private offered(tabId: string): boolean {
+    return this._mode !== 'phone' || !DESKTOP_ONLY_TABS.has(tabId);
+  }
+
+  private setOverlay(open: boolean): void {
+    this._overlayOpen = open;
+    const workspace = this.$('.workspace') as HTMLElement | null;
+    if (workspace) applyDockOverlay(workspace, open, () => this.focusDragon());
   }
 
   private get expanded(): boolean {
@@ -168,6 +206,8 @@ export class ProjectWorkspace extends KoboldComponent {
   }
 
   protected onUpdated() {
+    const workspace = this.$('.workspace') as HTMLElement | null;
+    if (workspace) wireDockOverlay(this.listen.bind(this), workspace, () => this._overlayOpen, (open) => this.setOverlay(open));
     const dock = this.$('.dock') as HTMLElement | null;
     if (dock) {
       // A click anywhere in the dock focuses at least the dock (tabindex -1), so clicking in widens it.
@@ -188,7 +228,7 @@ export class ProjectWorkspace extends KoboldComponent {
     }
     const tabs = this.$('b-tabs') as (HTMLElement & { setTabs(t: { id: string; label: string }[], a?: string): void }) | null;
     if (!tabs) return;
-    tabs.setTabs(WORKSPACE_TABS.map(({ id, label }) => ({ id, label })), this.attr('tab') ?? DEFAULT_TAB);
+    tabs.setTabs(WORKSPACE_TABS.filter((t) => this.offered(t.id)).map(({ id, label }) => ({ id, label })), this.attr('tab') ?? DEFAULT_TAB);
     this.listen(tabs, 'tab-change', (e: Event) => {
       const next = (e as CustomEvent<{ tab?: string }>).detail?.tab;
       const id = this.attr('project-id');

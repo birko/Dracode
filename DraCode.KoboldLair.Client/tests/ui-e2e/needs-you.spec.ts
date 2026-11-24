@@ -144,7 +144,8 @@ test('item text is shown as text', async ({ page }) => {
   expect(await page.evaluate(() => (window as any).__pwned)).toBeUndefined();
 });
 
-test('below the breakpoint the list and the pill fit without horizontal scroll', async ({ page }) => {
+test('the list fits a phone, and the pill the narrowest tablet, without horizontal scroll', async ({ page }) => {
+  // A phone's header has no pill since TASK-164: its Projects tab lists what needs you. The pill shows from 900px.
   await page.setViewportSize({ width: 375, height: 800 });
   await page.routeWebSocket(/\/dragon(\?|$)/, () => {});
   await serve(page, { list: ITEMS() });
@@ -153,8 +154,11 @@ test('below the breakpoint the list and the pill fit without horizontal scroll',
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(await overflow()).toBe(0);
 
+  await expect(pill(page)).toBeHidden();
+
+  await page.setViewportSize({ width: 900, height: 800 });
   await page.goto('/#/projects/p-1/spec');
-  await expect(pillText(page)).toHaveText('⚑ 2'); // the short form on a phone
+  await expect(pillText(page)).toHaveText('2 other projects need you');
   await expect(pill(page)).toHaveAttribute('aria-label', '2 other projects need you');
   const [pillBox, bellBox] = [await pill(page).boundingBox(), await page.locator('kobold-lair-shell kobold-notification-bell').boundingBox()];
   expect(pillBox!.x + pillBox!.width).toBeLessThanOrEqual(bellBox!.x); // nothing drawn over the pill

@@ -137,9 +137,17 @@ test('markup in a notification is shown as text', async ({ page }) => {
   expect(await page.evaluate(() => (window as any).__pwned)).toBeUndefined();
 });
 
-test('at phone width the open menu stays on screen, with no horizontal scroll', async ({ page }) => {
+test('at phone width the bell gives way to the Notifications tab, whose list wraps with no horizontal scroll', async ({ page }) => {
+  // TASK-164 (D21): below 900px the notifications are a tab of their own; the bell's menu is checked at 900px.
   await page.setViewportSize({ width: 375, height: 800 });
   await serve(page, [...NOTES(), { ...NOTES()[1], id: 'n-9', message: 'A very long notification message '.repeat(8) }]);
+  await page.goto('/#/');
+  await expect(bell(page)).toBeHidden();
+  await page.locator('kobold-lair-shell nav.phone-tabs [data-surface="notifications"]').click();
+  await expect(page.locator('#route-outlet kobold-notifications-page .notification')).toHaveCount(5);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+
+  await page.setViewportSize({ width: 900, height: 800 });
   await page.goto('/#/');
   await bellButton(page).click();
   await expect(rows(page)).toHaveCount(5);
@@ -149,6 +157,6 @@ test('at phone width the open menu stays on screen, with no horizontal scroll', 
     return { left: Math.round(r.left), right: Math.round(r.right) };
   });
   expect(box.left).toBeGreaterThanOrEqual(0);
-  expect(box.right).toBeLessThanOrEqual(375);
+  expect(box.right).toBeLessThanOrEqual(900);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
 });
