@@ -174,7 +174,8 @@ Returns: Guidance on remaining budget, escalation status, and next steps.";
                     if (recentReflections.Count >= stallCount)
                     {
                         var progressValues = recentReflections.Select(r => r.ProgressPercent).ToList();
-                        var isStalled = progressValues.Last() <= progressValues.First();
+                        // Flat at 100% is a finished step, not a stuck one (TASK-182)
+                        var isStalled = progressValues.Last() <= progressValues.First() && progressValues.Last() < 100;
                         if (isStalled)
                         {
                             shouldEscalate = true;

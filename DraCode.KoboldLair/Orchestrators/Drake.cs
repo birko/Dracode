@@ -829,8 +829,43 @@ namespace DraCode.KoboldLair.Orchestrators
         /// Handles an escalation alert from a Kobold or the ReasoningMonitor.
         /// Routes to the appropriate upstream agent based on escalation type.
         /// </summary>
+        private static KoboldImplementationPlan CopyOfPlan(KoboldImplementationPlan plan) =>
+            System.Text.Json.JsonSerializer.Deserialize<KoboldImplementationPlan>(System.Text.Json.JsonSerializer.Serialize(plan))!;
+
+        /// <summary>Carries a revision made on a copy (<see cref="CopyOfPlan"/>) into the live plan.</summary>
+        private static void ApplyRevision(KoboldImplementationPlan live, KoboldImplementationPlan revised)
+        {
+            live.Steps = revised.Steps;
+            live.CurrentStepIndex = revised.CurrentStepIndex;
+            live.Status = revised.Status;
+            live.ErrorMessage = revised.ErrorMessage;
+            live.ExecutionLog = revised.ExecutionLog;
+            live.UpdatedAt = revised.UpdatedAt;
+        }
+
+        private bool EscalatedTaskIsDone(EscalationAlert alert) =>
+            !string.IsNullOrEmpty(alert.TaskId) && _taskTracker.GetTaskById(alert.TaskId)?.Status == TaskStatus.Done;
+
+        /// <summary>Closes an escalation nothing acted on: logged, with no plan change and no notification.</summary>
+        private void DropEscalation(EscalationAlert alert, string why)
+        {
+            alert.Status = EscalationStatus.Resolved;
+            alert.Resolution = $"Dropped: {why}";
+            alert.ResolvedAt = DateTime.UtcNow;
+            _logger?.LogInformation("Dropped escalation {AlertId} ({Type}) for task {TaskId}: {Why}",
+                alert.Id[..8], alert.Type, alert.TaskId?[..Math.Min(8, alert.TaskId.Length)], why);
+        }
+
         public async Task HandleEscalationAsync(EscalationAlert alert, EscalationDisposition? disposition = null)
         {
+            // A run's last reflections can escalate after its task finished: nothing is left to act on, so neither the
+            // plan nor the person is troubled with it (TASK-182)
+            if (EscalatedTaskIsDone(alert))
+            {
+                DropEscalation(alert, "the task was already Done");
+                return;
+            }
+
             if (await TryRouteToHumanAsync(alert, disposition))
                 return;
 
@@ -858,15 +893,25 @@ namespace DraCode.KoboldLair.Orchestrators
                                     : null);
                             if (currentPlan != null)
                             {
+                                // The planner revises a copy: a revision dropped below leaves the live plan untouched
                                 var revisedPlan = await _plannerAgent.RevisePlanAsync(
-                                    currentPlan,
+                                    CopyOfPlan(currentPlan),
                                     alert.ReflectionHistory,
                                     alert);
+                                // The run went on during the revision and finished the task: the revision would
+                                // replace the plan of finished work, so it is dropped with the escalation (TASK-182)
+                                if (EscalatedTaskIsDone(alert))
+                                {
+                                    DropEscalation(alert, "the task finished while its plan was being revised");
+                                    return;
+                                }
                                 if (revisedPlan != null)
                                 {
+                                    // In place: a running Kobold's plan tools hold the live plan object
+                                    ApplyRevision(currentPlan, revisedPlan);
                                     if (kobold != null)
-                                        kobold.ImplementationPlan = revisedPlan;
-                                    await _planService.SavePlanDebouncedAsync(revisedPlan);
+                                        kobold.ImplementationPlan = currentPlan;
+                                    await _planService.SavePlanDebouncedAsync(currentPlan);
                                     resolution = $"Plan revised with {revisedPlan.Steps.Count(s => s.Status == StepStatus.Pending)} new/revised steps";
                                 }
                                 else
