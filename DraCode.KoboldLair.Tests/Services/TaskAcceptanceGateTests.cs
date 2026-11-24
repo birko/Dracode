@@ -253,12 +253,17 @@ public class TaskAcceptanceGateTests : IAsyncLifetime
     {
         private int _calls;
         public int Calls => _calls;
+        /// <summary>Runs as the planner's first model call starts: what happens while a revision is under way.</summary>
+        public Action? DuringRevision { get; set; }
         public string Name => "scripted";
         public Action<string, string>? MessageCallback { get; set; }
 
         public Task<LlmResponse> SendMessageAsync(List<Message> messages, List<Tool> tools, string systemPrompt,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(Interlocked.Increment(ref _calls) == 1
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _calls) == 1)
+                DuringRevision?.Invoke();
+            return Task.FromResult(_calls == 1
                 ? new LlmResponse
                 {
                     StopReason = "tool_use",
@@ -276,13 +281,15 @@ public class TaskAcceptanceGateTests : IAsyncLifetime
                     }
                 }
                 : new LlmResponse { StopReason = "end_turn", Content = new List<ContentBlock> { new() { Type = "text", Text = "revised" } } });
+        }
 
         public Task<LlmStreamingResponse> SendMessageStreamingAsync(List<Message> messages, List<Tool> tools,
             string systemPrompt, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     /// <summary>A Drake with a plan store and a scripted planner, its task file under tasks/ so the workspace is found.</summary>
-    private (Drake drake, TaskTracker tracker, KoboldPlanService plans, RevisingProvider planner) NewDrakeWithPlanner()
+    private (Drake drake, TaskTracker tracker, KoboldPlanService plans, RevisingProvider planner) NewDrakeWithPlanner(
+        Action<string, EscalationAlert, string>? onEscalationNotify = null)
     {
         var projects = new ProjectRepository(_dir);
         projects.Add(new Project { Id = ProjectId, Name = "accept", OwnerId = "o", Paths = { Output = _dir } });
@@ -293,7 +300,7 @@ public class TaskAcceptanceGateTests : IAsyncLifetime
         var tracker = new TaskTracker();
         var drake = new Drake(_kobolds, tracker, Path.Combine(_dir, "tasks", "backend-tasks.md"), "ollama",
             projectId: ProjectId, planService: plans, plannerAgent: planner, pendingDecisions: _decisions,
-            acceptance: new VerificationConfiguration { TaskAcceptanceEnabled = true });
+            acceptance: new VerificationConfiguration { TaskAcceptanceEnabled = true }, onEscalationNotify: onEscalationNotify);
         return (drake, tracker, plans, provider);
     }
 
@@ -356,5 +363,52 @@ public class TaskAcceptanceGateTests : IAsyncLifetime
         await later.ReconcilePendingDecisionsAsync();
 
         task.Status.Should().Be(TaskStatus.Done, "an approval is not a rerun");
+    }
+
+    [Fact]
+    public async Task An_escalation_for_a_task_already_Done_is_dropped_without_a_plan_revision_or_a_notification()
+    {
+        // TASK-182: a run's last reflections can escalate after the task finished
+        var notified = new List<EscalationAlert>();
+        var (drake, tracker, plans, planner) = NewDrakeWithPlanner((_, alert, _) => notified.Add(alert));
+        var task = tracker.AddTask(AuthTask);
+        tracker.UpdateTask(task, TaskStatus.Done, "typescript");
+        await SaveFinishedPlan(plans, task);
+
+        await drake.HandleEscalationAsync(new EscalationAlert
+        {
+            ProjectId = ProjectId, TaskId = task.Id, Type = EscalationType.WrongApproach,
+            Summary = "Progress stalled: last 3 reflections show no advancement (100→100→100%)"
+        });
+
+        planner.Calls.Should().Be(0, "a finished task's plan is not revised");
+        notified.Should().BeEmpty("the person is not told about an escalation nothing acted on");
+        (await plans.LoadPlanAsync(ProjectId, task.Id))!.Status.Should().Be(PlanStatus.Completed);
+        task.Status.Should().Be(TaskStatus.Done);
+    }
+
+    [Fact]
+    public async Task A_task_that_finishes_while_its_plan_is_revised_keeps_its_plan_and_raises_no_notification()
+    {
+        // TASK-182, seen in the human test: the escalation came while the task ran, the Kobold finished during the
+        // revision, and the revision then replaced the finished plan and told the person
+        var notified = new List<EscalationAlert>();
+        var (drake, tracker, plans, planner) = NewDrakeWithPlanner((_, alert, _) => notified.Add(alert));
+        var task = tracker.AddTask(AuthTask);
+        tracker.UpdateTask(task, TaskStatus.Working, "typescript");
+        await SaveFinishedPlan(plans, task);
+        planner.DuringRevision = () => tracker.UpdateTask(task, TaskStatus.Done, "typescript");
+
+        await drake.HandleEscalationAsync(new EscalationAlert
+        {
+            ProjectId = ProjectId, TaskId = task.Id, Type = EscalationType.WrongApproach,
+            Summary = "Progress stalled: last 3 reflections show no advancement (97→80→85%)"
+        });
+
+        planner.Calls.Should().BeGreaterThan(0, "the task was still running when the escalation came");
+        var plan = (await plans.LoadPlanAsync(ProjectId, task.Id))!;
+        plan.Status.Should().Be(PlanStatus.Completed, "the revision is dropped: the plan matches what was built");
+        plan.Steps.Should().OnlyContain(s => s.Status == StepStatus.Completed);
+        notified.Should().BeEmpty();
     }
 }

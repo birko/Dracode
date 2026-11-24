@@ -3,7 +3,7 @@ id: TASK-182
 parent: STORY-042
 feature: null
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 # blocked: <reason> — set by /tasks block, never by hand; status stays as it is; /tasks unblock removes it
 priority: P3
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
@@ -40,15 +40,43 @@ Two things look wrong:
 
 ## Acceptance criteria
 
-- [ ] Reflections flat at 100% do not raise a stall escalation (a test that fails today)
-- [ ] An escalation for a task that is Done when Drake handles it is dropped (logged), with no plan revision and no
+- [x] Reflections flat at 100% do not raise a stall escalation (a test that fails today)
+- [x] An escalation for a task that is Done when Drake handles it is dropped (logged), with no plan revision and no
       notification (a test that fails today)
 
 ## Human test plan
 
-- [ ] Retry a failed task whose plan is nearly finished on a throwaway server: it completes with no escalation in the log
+- [x] Retry a failed task whose plan is nearly finished on a throwaway server: it completes with no escalation in the log
       and no escalation notification
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-182` — leave empty until then._
+1. Red first:
+   - `ReflectionStallTests`: flat at 100% raises no stall; flat at 60% still does.
+   - `TaskAcceptanceGateTests`: an escalation for a Done task revises nothing and notifies nobody.
+   - `TaskAcceptanceGateTests`: a task that becomes Done while its plan is being revised (the scripted planner marks
+     it Done on its first call) keeps its finished plan, and nobody is notified. This case came from the human test.
+2. `ReflectionTool`: a stall needs the last progress below 100.
+3. `Drake.HandleEscalationAsync`:
+   - An escalation for a Done task is dropped (`DropEscalation`: resolved, logged, no notification).
+   - The same check runs again when the planner returns from a WrongApproach revision.
+   - The planner now revises a copy (`CopyOfPlan`). A kept revision is applied to the live plan in place
+     (`ApplyRevision`), because a running Kobold's plan tools hold that object. `RevisePlanAsync` rewrites the plan it
+     is given, so before this a dropped revision would still have changed the live plan.
+
+## Notes
+
+- Human test on a throwaway server (copy of the TASK-175 `greeter175` project, LAN `finstat` model). `qa-1` was set
+  Failed with its last plan step reopened, then retried through `POST /api/v1/tasks/{id}/retry`:
+  - Before the fix it reproduced the incident's other half. The reflections went 97→80→85, a real stall below 100.
+    The revision returned after the task was Done, replaced the finished plan ("Plan revised with 8 new/revised
+    steps") and notified the person. That run led to the second check and to revising a copy.
+  - After the fix, on a fresh copy, the reflections went 97→75→90. The revision returned while the task still ran, so
+    it was applied correctly and its notification is legitimate. The Kobold then worked the revised 14-step plan to
+    Done. This confirms a kept revision still reaches the running Kobold. The race did not recur; the new test pins it.
+  - The plan's "no escalation in the log" depends on the model, which stalled below 100% both times. Flat at 100% was
+    not reproduced live; `ReflectionStallTests` pins it.
+- Found while setting up the test: retrying a task of a project marked Completed resets the task, but no Drake
+  runs it, because `DrakeExecutionService` only takes Analyzed and InProgress projects. The project had to be set
+  back to InProgress by hand. Filed as TASK-196.
+- Full .NET suite: 611 passed. The e2e suite was not run: nothing the web client reaches changed.
