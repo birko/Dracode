@@ -3,7 +3,7 @@ id: TASK-195
 parent: STORY-042
 feature: null
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 # blocked: <reason> — set by /tasks block, never by hand; status stays as it is; /tasks unblock removes it
 priority: P2
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
@@ -35,10 +35,10 @@ another's plan — a task then runs steps written for a different task. Nothing 
 
 ## Acceptance criteria
 
-- [ ] A plan the model submits reaches only the planner run that asked for it: the result is held per run (e.g. on the
+- [x] A plan the model submits reaches only the planner run that asked for it: the result is held per run (e.g. on the
       tool instance the planner registers, or returned from its run), never in process-wide state
-- [ ] A test runs two planners at once with different scripted plans and shows each gets its own, red today
-- [ ] The full suite passes
+- [x] A test runs two planners at once with different scripted plans and shows each gets its own, red today
+- [x] The full suite passes
 
 ## Out of scope
 
@@ -50,4 +50,20 @@ N/A — the isolation is shown by the concurrent test.
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-195` — leave empty until then._
+1. Red first: `PlannerRunIsolationTests` runs one shared `KoboldPlannerAgent` twice at once with a scripted provider
+   that holds run A's closing turn until run B has submitted its plan. Two cases: two new plans, and a WrongApproach
+   revision beside a new plan. Both failed before the fix, with run A reading B's plan ("Write B.cs").
+2. `CreateImplementationPlanTool`: dropped the static `_lastPlan`, its lock, and `GetLastPlan` / `ClearLastPlan`.
+   `Capture()` opens a `PlanCapture` held in an `AsyncLocal`, which flows with the run's awaits into the tool call.
+   The tool writes the plan to the current capture.
+3. `KoboldPlannerAgent.CreatePlanAsync` / `RevisePlanAsync` each open their own capture (`using var capture`) and read
+   `capture.Plan` after the run.
+4. `docs/Kobold-Planner-Agent.md` describes the per-run result.
+
+## Notes
+
+- Holding the plan on the tool instance would not have been enough. `DrakeFactory` creates one planner per Drake, and
+  that Drake's Kobolds (up to `maxParallel`) call it at the same time, so the runs share the agent and its tools.
+  The agent's run loop itself keeps its conversation local, so the plan was the only shared state.
+- A tool call outside any capture stores nothing. Only the planner opens one.
+- Full .NET suite: 601 passed. The e2e suite was not run: nothing the web client reaches changed.
