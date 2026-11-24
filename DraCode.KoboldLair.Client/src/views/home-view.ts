@@ -4,10 +4,14 @@
  * lets an admin see every project and is ignored for anyone else). A card opens the project's workspace (TASK-150).
  * Above the cards, "Needs you" (TASK-147) lists what waits on the user, grouped by project, each item opening it.
  * Beside them (below, on a narrow screen) the home Dragon (TASK-149): the user's own conversation with no project, for
- * starting projects. A project it registers reloads the cards.
+ * starting projects. A project it registers reloads the cards. Under the title, `b-stat` tiles over the caller's
+ * projects, and below the cards two `b-chart` charts (TASK-148, FEATURE-026 D18), from `GET /api/v1/stats`: active
+ * projects, tasks done this week, success rate, spend this month; cost over the last 30 days and tasks by status per
+ * project. Numbers that fail to load say so there and leave the cards alone.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
+import type { BChart } from 'birko-web-components/data';
 import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 import { getToken } from '../auth-store.js';
@@ -15,6 +19,7 @@ import { DEFAULT_TAB } from './project-workspace.js';
 import { notificationStore } from '../stores/notification-store.js';
 import { needsYouStore, type NeedsYouItem } from '../stores/needs-you-store.js';
 import { dragonConnection } from '../services/dragon-connection.js';
+import { money } from './stats-tab.js';
 import './dragon-dock.js';
 
 export interface ProjectTaskCounts {
@@ -34,6 +39,29 @@ export interface ProjectSummary {
   /** Null when the server has no task store. */
   tasks: ProjectTaskCounts | null;
 }
+
+/** `GET /api/v1/stats`: the homepage's numbers across the caller's projects (TASK-148). */
+export interface Overview {
+  projects: { total: number; active: number };
+  tasks: { total: number; byStatus: Record<string, number>; successRate: number | null; doneThisWeek: number; failedThisWeek: number };
+  cost: {
+    thisMonthUsd: number; thisMonthTokens: number; thisMonthRequests: number; monthlyBudgetUsd: number | null;
+    byDay: Array<{ date: string; requests: number; tokens: number; costUsd: number }>;
+  };
+  byProject: Array<{ projectId: string; name: string; total: number; byStatus: Record<string, number> }>;
+}
+
+type OverviewState = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'loaded'; overview: Overview };
+
+/** The per-project chart's stacks: task statuses grouped as a person reads them, each with its colour. */
+const STATUS_GROUPS: Array<{ id: string; label: string; statuses: string[]; color: string }> = [
+  { id: 'done', label: 'Done', statuses: ['Done'], color: 'var(--b-color-success)' },
+  { id: 'working', label: 'Working', statuses: ['Working', 'NotInitialized'], color: 'var(--b-color-primary)' },
+  { id: 'waiting', label: 'Waiting on you', statuses: ['AwaitingHumanDecision'], color: 'var(--b-color-warning)' },
+  { id: 'todo', label: 'To do', statuses: ['Unassigned'], color: 'var(--b-text-muted)' },
+  { id: 'blocked', label: 'Blocked', statuses: ['BlockedByFailure'], color: 'var(--b-text-secondary)' },
+  { id: 'failed', label: 'Failed', statuses: ['Failed'], color: 'var(--b-color-danger)' },
+];
 
 type HomeState =
   | { kind: 'loading' }
@@ -80,6 +108,9 @@ export class HomeView extends KoboldComponent {
   private _state: HomeState = { kind: 'loading' };
   private _unread = new Map<string, number>();
   private _needsYou: NeedsYouItem[] = [];
+  private _overview: OverviewState = { kind: 'loading' };
+  /** The overview the charts were last given, so a re-render for a notification does not redraw them. */
+  private _charted: Overview | null = null;
   private _unsubscribe: (() => void) | null = null;
   private _unsubscribeNeeds: (() => void) | null = null;
   private _unsubscribeProjects: (() => void) | null = null;
@@ -149,6 +180,24 @@ export class HomeView extends KoboldComponent {
       .needs-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .needs-when { flex-shrink: 0; font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); }
       .all-clear { margin: 0; font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text-muted); }
+      .tiles {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); gap: var(--b-space-sm, 0.5rem);
+        margin: 0 0 var(--b-space-xl, 1.5rem);
+      }
+      .tiles b-stat { min-width: 0; }
+      .charts {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--b-space-lg, 1rem);
+        margin-top: var(--b-space-xl, 1.5rem);
+      }
+      @media (max-width: 70rem) { .charts { grid-template-columns: minmax(0, 1fr); } }
+      .panel {
+        min-width: 0; padding: var(--b-space-sm, 0.5rem) var(--b-space-md, 0.75rem);
+        background: var(--b-bg-elevated); border: 1px solid var(--b-border); border-radius: var(--b-radius-lg, 0.5rem);
+      }
+      .panel h3 { margin: 0 0 var(--b-space-sm, 0.5rem); font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text-secondary); }
+      .panel b-chart { display: block; min-width: 0; }
+      .note { margin: var(--b-space-xs, 0.25rem) 0 0; font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); }
+      .overview-error { margin: 0 0 var(--b-space-xl, 1.5rem); font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text-secondary); }
     `;
   }
 
@@ -195,6 +244,20 @@ export class HomeView extends KoboldComponent {
       this._state = { kind: 'error', message: error instanceof Error ? error.message : String(error) };
     }
     this.update();
+    if (this._state.kind === 'loaded' && this._state.projects.length > 0) await this.loadOverview();
+  }
+
+  /** The numbers over the same projects the cards show (`scope=all`, which only an admin's call widens). */
+  private async loadOverview(): Promise<void> {
+    try {
+      const response = await createRestClient().get<Overview>('/stats', { scope: 'all' });
+      this._overview = response.ok && response.data
+        ? { kind: 'loaded', overview: response.data }
+        : { kind: 'error', message: `The server answered ${response.status}.` };
+    } catch (error) {
+      this._overview = { kind: 'error', message: error instanceof Error ? error.message : String(error) };
+    }
+    if (this.isConnected) this.update();
   }
 
   render() {
@@ -219,8 +282,79 @@ export class HomeView extends KoboldComponent {
         return state.projects.length === 0
           ? `<div class="message"><strong>No projects yet.</strong>A project starts as a conversation with Dragon, which
               writes its specification; the agents take it from there.</div>`
-          : `${this.renderNeedsYou()}<div class="grid">${state.projects.map((p) => this.renderCard(p)).join('')}</div>`;
+          : `${this.renderTiles()}${this.renderNeedsYou()}<div class="grid">${state.projects.map((p) => this.renderCard(p)).join('')}</div>${this.renderCharts()}`;
     }
+  }
+
+  /** Tokens rather than dollars: calls were recorded in the 30 days but no price is set, so a cost chart is flat. */
+  private static unpriced(overview: Overview): boolean {
+    return overview.cost.byDay.some((d) => d.requests > 0) && overview.cost.byDay.every((d) => d.costUsd === 0);
+  }
+
+  private renderTiles(): string {
+    const o = this._overview;
+    if (o.kind === 'loading') return '';
+    if (o.kind === 'error') {
+      return `<p class="overview overview-error"><strong>Could not load the numbers.</strong> ${escapeHtml(o.message)}</p>`;
+    }
+    const { projects, tasks, cost } = o.overview;
+    const finished = (tasks.byStatus.Done ?? 0) + (tasks.byStatus.Failed ?? 0);
+    const quiet = 'trend="flat" sentiment="neutral"';
+    return `<section class="overview tiles" aria-label="Your numbers">
+      <b-stat class="active" label="Active projects" value="${projects.active}" delta="of ${projects.total}" ${quiet}></b-stat>
+      <b-stat class="done-week" label="Tasks done this week" value="${tasks.doneThisWeek}"
+        ${tasks.failedThisWeek ? `delta="${tasks.failedThisWeek} failed" trend="flat" sentiment="negative"` : ''}></b-stat>
+      <b-stat class="success" label="Success rate" value="${tasks.successRate === null ? '—' : `${tasks.successRate}%`}"
+        ${tasks.successRate === null ? '' : `delta="${finished} finished" ${quiet}`}></b-stat>
+      <b-stat class="spend" label="Spent this month" value="${escapeHtml(money(cost.thisMonthUsd))}"
+        ${cost.monthlyBudgetUsd ? `delta="of ${escapeHtml(money(cost.monthlyBudgetUsd))} budget" ${quiet}` : ''}></b-stat>
+    </section>`;
+  }
+
+  private renderCharts(): string {
+    if (this._overview.kind !== 'loaded') return '';
+    const overview = this._overview.overview;
+    const tokens = HomeView.unpriced(overview);
+    const usage = overview.cost.byDay.some((d) => d.requests > 0);
+    const dayNote = !usage
+      ? `<p class="note">No LLM usage in the last 30 days.</p>`
+      : tokens ? `<p class="note">Calls were recorded but cost $0: prices are set in <code>CostTracking.Pricing</code>.</p>` : '';
+    const taskNote = overview.tasks.total === 0 ? `<p class="note">No tasks yet.</p>` : '';
+    return `<section class="overview charts" aria-label="Charts">
+      <div class="panel by-day"><h3>${tokens ? 'Tokens' : 'Cost'}, last 30 days</h3>
+        <b-chart class="by-day-chart" type="bar" height="200"></b-chart>${dayNote}</div>
+      <div class="panel by-project"><h3>Tasks by status per project</h3>
+        <b-chart class="by-project-chart" type="bar" height="200"></b-chart>${taskNote}</div>
+    </section>`;
+  }
+
+  protected onUpdated() {
+    if (this._overview.kind !== 'loaded') return;
+    const overview = this._overview.overview;
+    const byDay = this.$('.by-day-chart') as (BChart & { klDrawn?: Overview }) | null;
+    const byProject = this.$('.by-project-chart') as BChart | null;
+    // A re-render for a notification keeps the same chart elements: leave what they already show
+    if (!byDay || !byProject || byDay.klDrawn === overview) return;
+    byDay.klDrawn = overview;
+
+    const tokens = HomeView.unpriced(overview);
+    byDay.setData({
+      labels: overview.cost.byDay.map((d) => d.date.slice(5)),
+      series: [tokens
+        ? { id: 'tokens', label: 'Tokens', data: overview.cost.byDay.map((d) => ({ y: d.tokens, label: d.tokens.toLocaleString() })) }
+        : { id: 'cost', label: 'Cost (USD)', data: overview.cost.byDay.map((d) => ({ y: d.costUsd, label: money(d.costUsd) })) }],
+    });
+    // Only the groups some project has: an empty stack adds a legend entry that says nothing
+    const count = (p: Overview['byProject'][number], g: (typeof STATUS_GROUPS)[number]) =>
+      g.statuses.reduce((n, s) => n + (p.byStatus[s] ?? 0), 0);
+    const present = STATUS_GROUPS.filter((g) => overview.byProject.some((p) => count(p, g) > 0));
+    byProject.setData({
+      labels: overview.byProject.map((p) => p.name),
+      series: (present.length ? present : STATUS_GROUPS.slice(0, 1)).map((g) => ({
+        id: g.id, label: g.label, color: g.color, data: overview.byProject.map((p) => ({ y: count(p, g) })),
+      })),
+    });
+    byProject.setOptions({ stacked: true });
   }
 
   /** Needs you (TASK-147): grouped by project, the project with the newest item first, each item newest first. */
