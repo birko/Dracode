@@ -14,6 +14,8 @@ import './views/home-view.js';
 import './views/settings-view.js';
 import './views/login-view.js';
 import './views/not-found-view.js';
+import './views/dragon-page.js';
+import './views/notifications-page.js';
 import { DEFAULT_TAB } from './views/project-workspace.js';
 
 /** The element (and attributes) each module option opens, keyed `moduleId/optionId`. */
@@ -24,10 +26,12 @@ const OPTION_VIEWS: Record<string, { tag: string; attrs?: Record<string, string>
   'settings/budgets': { tag: 'kobold-settings-view', attrs: { tab: 'budgets' } },
 };
 
-/** Screens no module option claims; `#/` is the projects homepage (TASK-145). */
-const EXTRA_VIEWS: Record<string, { tag: string; attrs?: Record<string, string> }> = {
+/** Screens no module option claims; `#/` is the projects homepage (TASK-145); Dragon and the notifications full screen are the phone's tabs (TASK-164). */
+const EXTRA_VIEWS: Record<string, { tag: string; attrs?: Record<string, string>; title?: string }> = {
   '/': { tag: 'kobold-home-view' },
   '/settings': { tag: 'kobold-settings-view' },
+  '/dragon': { tag: 'kobold-dragon-page', title: 'Dragon' },
+  '/notifications': { tag: 'kobold-notifications-page', title: 'Notifications' },
 };
 
 const authGuard = createAuthGuard(authStore, '/login');
@@ -75,7 +79,7 @@ export function buildRoutes(modules: ModuleManifest[]): Route[] {
 
   for (const [path, target] of Object.entries(EXTRA_VIEWS)) {
     if (routes.some((r) => r.path === path)) continue; // a module option already claims it
-    routes.push({ path, component: view(target.tag, target.attrs), guard: protectedGuard });
+    routes.push({ path, component: view(target.tag, target.attrs, target.title), guard: protectedGuard });
   }
 
   // A project's workspace (TASK-150): #/projects/{id}/{tab}; #/projects/{id} opens its first tab.

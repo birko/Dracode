@@ -5,6 +5,7 @@
  * or keyboard, sets its priority, and a refused change puts it back with the reason. A failed card has Retry. Nothing
  * pushes task changes to a browser, so the board polls while the page is visible. When its own width is narrow (a
  * phone, or Dragon expanded beside it, TASK-152) the columns stack one per row (`stackBelow`) and the cards turn compact.
+ * On a phone (TASK-164, D21) the board is read only: the whole board is locked and failed cards have no Retry.
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -12,6 +13,7 @@ import type { BKanban, KanbanCard, KanbanColumn } from 'birko-web-components/dat
 import { KoboldComponent } from '../components/kobold-component.js';
 import { createRestClient } from '../services/http.js';
 import { needsYouStore } from '../stores/needs-you-store.js';
+import { isPhone, onLayoutModeChange } from '../services/layout-mode.js';
 
 export interface TaskView {
   id: string;
@@ -95,6 +97,9 @@ export class BoardTab extends KoboldComponent {
   /** Priorities being saved, by task id: the card stays in its new lane while a refresh still has the old one. */
   private _priorityChanges = new Map<string, string>();
   private _moveError: string | null = null;
+  /** A phone shows the board read only. */
+  private _readOnly = isPhone();
+  private _unsubscribeLayout: (() => void) | null = null;
   private _onVisibility = () => { if (document.visibilityState === 'visible') void this.refresh(); };
 
   static get styles() {
@@ -104,16 +109,24 @@ export class BoardTab extends KoboldComponent {
       .message { color: var(--b-text-secondary); }
       .move-error { margin: 0 0 var(--b-space-sm, 0.5rem); color: var(--b-color-danger-text, var(--b-color-danger)); font-size: var(--b-text-sm, 0.8125rem); }
       .move-error[hidden] { display: none; }
+      .read-only-note { margin: 0 0 var(--b-space-sm, 0.5rem); color: var(--b-text-secondary); font-size: var(--b-text-sm, 0.8125rem); }
     `;
   }
 
   protected onMount() {
     document.addEventListener('visibilitychange', this._onVisibility);
+    this._unsubscribeLayout = onLayoutModeChange(() => {
+      if (this._readOnly === isPhone()) return;
+      this._readOnly = isPhone();
+      this.update();
+      if (this._kanban) this.configure(this._kanban);
+    });
     void this.refresh();
   }
 
   protected onUnmount() {
     document.removeEventListener('visibilitychange', this._onVisibility);
+    this._unsubscribeLayout?.();
     if (this._timer) clearTimeout(this._timer);
     this._timer = null;
   }
@@ -158,7 +171,10 @@ export class BoardTab extends KoboldComponent {
         approved.</p>`;
     }
     // The error line is always rendered, so b-kanban keeps its place and is never rebuilt by a re-render.
-    return `<p class="move-error" role="alert"${this._moveError ? '' : ' hidden'}>${escapeHtml(this._moveError ?? '')}</p>
+    const note = this._readOnly
+      ? `<p class="read-only-note">Read only here. Reprioritising and Retry are on a computer.</p>`
+      : '';
+    return `${note}<p class="move-error" role="alert"${this._moveError ? '' : ' hidden'}>${escapeHtml(this._moveError ?? '')}</p>
       <b-kanban empty-text="Nothing here"></b-kanban>`;
   }
 
@@ -167,6 +183,19 @@ export class BoardTab extends KoboldComponent {
     if (kanban === this._kanban) return;
     this._kanban = kanban;
     if (!kanban || this._state.kind !== 'loaded') return;
+    this.configure(kanban);
+    // Only To do takes a person's moves, and only between its lanes: every other column is locked.
+    kanban.addEventListener('card-move', (e) => void this.moved((e as CustomEvent<CardMove>).detail));
+    // Retry is the card's own control: b-kanban starts no drag and fires no card-click for it.
+    kanban.shadowRoot!.addEventListener('click', (e) => {
+      const button = e.composedPath().find((n): n is HTMLElement => n instanceof HTMLElement && n.matches('b-button[data-retry]'));
+      if (button) void this.retry(button.dataset.retry!);
+    });
+  }
+
+  /** The board's columns and cards; on a phone the whole board is locked. */
+  private configure(kanban: BKanban): void {
+    if (this._state.kind !== 'loaded') return;
     kanban.setConfig({
       columns: COLUMNS.map((c): KanbanColumn => c.id === 'todo'
         ? { id: c.id, label: c.label, lanes: LANES, defaultLane: 'normal', sortable: false }
@@ -175,13 +204,7 @@ export class BoardTab extends KoboldComponent {
       renderCard: (card) => this.renderCard(card.metadata!.task as TaskView),
       stackBelow: STACK_BELOW,
       maxNestingDepth: 0,
-    });
-    // Only To do takes a person's moves, and only between its lanes: every other column is locked.
-    kanban.addEventListener('card-move', (e) => void this.moved((e as CustomEvent<CardMove>).detail));
-    // Retry is the card's own control: b-kanban starts no drag and fires no card-click for it.
-    kanban.shadowRoot!.addEventListener('click', (e) => {
-      const button = e.composedPath().find((n): n is HTMLElement => n instanceof HTMLElement && n.matches('b-button[data-retry]'));
-      if (button) void this.retry(button.dataset.retry!);
+      locked: this._readOnly,
     });
   }
 
@@ -232,7 +255,7 @@ export class BoardTab extends KoboldComponent {
         </div>
         ${error ? `<p class="error" style="${errorStyle}">${escapeHtml(error)}</p>` : ''}
         ${retryError ? `<p class="error retry-error" style="${errorStyle}">${escapeHtml(retryError)}</p>` : ''}
-        ${failed ? `<div class="actions" style="margin-top:var(--b-space-xs, 0.25rem);"><b-button class="retry" size="sm" variant="secondary"
+        ${failed && !this._readOnly ? `<div class="actions" style="margin-top:var(--b-space-xs, 0.25rem);"><b-button class="retry" size="sm" variant="secondary"
           data-retry="${escapeHtml(t.id)}" ${this._retrying.has(t.id) ? 'loading' : ''}>Retry</b-button></div>` : ''}
       </div>`;
   }

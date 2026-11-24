@@ -15,7 +15,7 @@ const LISTED = 20;
 const MESSAGE_PREVIEW = 140;
 const NONE = '__none';
 
-function when(iso: string): string {
+export function when(iso: string): string {
   const t = Date.parse(iso);
   if (!t) return '';
   const minutes = Math.round((Date.now() - t) / 60000);

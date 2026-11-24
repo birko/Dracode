@@ -672,6 +672,21 @@ the page is visible, and refreshes at once when a decision card in the dock is a
 (TASK-147) gathers what waits on the caller across their projects — open decisions, failed and blocked tasks, unread
 `feature_branch_ready` notifications — for the homepage's "Needs you" list and the header pill.
 
+### Phone and tablet layouts (TASK-164)
+
+The web client picks a layout by window width (`services/layout-mode.ts`).
+
+- **Phone (below 900px):** a bottom tab bar (Projects, Board, Dragon, Notifications), drawn by the shell's footer on
+  Birko's `Surface` model.
+  - Board and Dragon follow the last project opened in the tab (`rememberProject`).
+  - Dragon is `#/dragon` and the notifications `#/notifications`, both full screen.
+  - The workspace keeps Board, Spec, Runs and Stats, read only: `b-kanban` is locked and there is no Retry. Git, Settings
+    and API keys are not offered.
+- **Tablet (900–1279px):** the desktop layout, with Dragon as an overlay over the page (`services/dock-overlay.ts`).
+- **Desktop (1280px and wider):** Dragon docked.
+
+Anything new that is desktop-only should check `layoutMode()` and re-render on `onLayoutModeChange`.
+
 ### Settings → Providers, Agents and API keys (TASK-161, TASK-192, TASK-162)
 
 `#/settings` shows what `GET /api/v1/settings/capabilities` allows: admins (`manage_config`) get a Providers tab, a Birko

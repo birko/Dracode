@@ -113,16 +113,21 @@ test('"Keep expanded" holds Dragon wide when focus leaves, and is remembered aft
   await expectNarrow(page);
 });
 
-test('below the breakpoint Dragon sits under the tabs at full width: focus changes nothing and there is no pin', async ({ page }) => {
+test('on a phone Dragon\'s tab is full width: focus changes nothing and there is no pin', async ({ page }) => {
+  // TASK-164 (D22): below 900px Dragon is the tab bar's own tab, not a dock that widens.
   await page.setViewportSize({ width: 375, height: 800 });
   await serve(page);
   await page.goto('/#/projects/p-1/spec');
+  await expect(workspace(page).locator('.project-title')).toHaveText('Shop');
+  await page.locator('kobold-lair-shell nav.phone-tabs [data-surface="dragon"]').click();
   await expect(input(page)).toBeEnabled();
 
-  const full = await areaWidth(page);
-  expect(Math.abs((await width(page)) - full)).toBeLessThan(2);
+  const pageWidth = () => page.locator('#route-outlet kobold-dragon-page').evaluate((el) => Math.round(el.getBoundingClientRect().width));
+  const dockWidth = () => dock(page).evaluate((el) => Math.round(el.getBoundingClientRect().width));
+  const full = await pageWidth();
+  expect(Math.abs((await dockWidth()) - full)).toBeLessThan(2);
   await input(page).click();
-  expect(Math.abs((await width(page)) - full)).toBeLessThan(2);
+  expect(Math.abs((await dockWidth()) - full)).toBeLessThan(2);
   await expect(pin(page)).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
 });
