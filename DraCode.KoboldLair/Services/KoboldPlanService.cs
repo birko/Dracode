@@ -275,7 +275,8 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
-        /// Saves a plan to disk (both JSON and Markdown)
+        /// Saves a plan to disk (both JSON and Markdown). A parallel batch's copy (<see cref="KoboldImplementationPlan.BatchSteps"/>)
+        /// is merged into the stored plan instead (<see cref="SaveBatchCopyAsync"/>).
         /// </summary>
         public async Task SavePlanAsync(KoboldImplementationPlan plan)
         {
@@ -283,6 +284,72 @@ namespace DraCode.KoboldLair.Services
             {
                 throw new ArgumentException("Plan must have ProjectId and TaskId set");
             }
+
+            if (plan.BatchSteps != null)
+            {
+                await SaveBatchCopyAsync(plan);
+                return;
+            }
+
+            await SaveWholePlanAsync(plan);
+        }
+
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> _batchSaveLocks = new();
+
+        /// <summary>
+        /// Saves a parallel batch's copy of a plan by merging it into the stored plan (TASK-171, FEATURE-028 D10): the
+        /// copy's own steps, the log entries the stored plan lacks, its step assignments, and a failure. The batches of
+        /// a task each hold a copy loaded before any of them ran, so writing a copy whole would drop what its siblings
+        /// saved meanwhile — their finished steps and a question's log entry.
+        /// </summary>
+        private async Task SaveBatchCopyAsync(KoboldImplementationPlan copy)
+        {
+            var gate = _batchSaveLocks.GetOrAdd(GetPlanKey(copy.ProjectId!, copy.TaskId!), _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync();
+            try
+            {
+                var stored = await LoadPlanAsync(copy.ProjectId!, copy.TaskId!);
+                if (stored == null || stored.Steps.Count != copy.Steps.Count)
+                {
+                    await SaveWholePlanAsync(copy);
+                    return;
+                }
+
+                foreach (var i in copy.BatchSteps!.Where(i => i >= 0 && i < stored.Steps.Count))
+                    stored.Steps[i] = copy.Steps[i];
+
+                var known = stored.ExecutionLog.Select(e => (e.Timestamp, e.Message)).ToHashSet();
+                stored.ExecutionLog = stored.ExecutionLog
+                    .Concat(copy.ExecutionLog.Where(e => !known.Contains((e.Timestamp, e.Message))))
+                    .OrderBy(e => e.Timestamp)
+                    .ToList();
+
+                foreach (var (worker, steps) in copy.AssignedStepIndices)
+                    stored.AssignedStepIndices[worker] = steps;
+
+                if (copy.Status == PlanStatus.Failed)
+                {
+                    stored.Status = PlanStatus.Failed;
+                    stored.ErrorMessage = copy.ErrorMessage;
+                }
+                else if (stored.Status is not (PlanStatus.Completed or PlanStatus.Failed))
+                {
+                    stored.Status = copy.Status;
+                }
+
+                var next = stored.Steps.FindIndex(s => s.Status is not (StepStatus.Completed or StepStatus.Skipped or StepStatus.Failed));
+                stored.CurrentStepIndex = next < 0 ? stored.Steps.Count : next;
+
+                await SaveWholePlanAsync(stored);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        private async Task SaveWholePlanAsync(KoboldImplementationPlan plan)
+        {
 
             // Immediate atomic write to SQLite (no debounce, no race)
             if (_planRepository != null)
@@ -657,6 +724,7 @@ namespace DraCode.KoboldLair.Services
                     TaskId = plan.TaskId,
                     ProjectId = plan.ProjectId,
                     StepIndex = plan.CurrentStepIndex,
+                    BatchSteps = plan.BatchSteps?.ToList(),
                     SavedAt = DateTime.UtcNow,
                     Messages = trimmedConversation.Select(m => new CheckpointMessage
                     {
@@ -779,6 +847,13 @@ namespace DraCode.KoboldLair.Services
             if (string.IsNullOrEmpty(plan.ProjectId) || string.IsNullOrEmpty(plan.TaskId))
             {
                 throw new ArgumentException("Plan must have ProjectId and TaskId set");
+            }
+
+            // A queue keeps only the latest plan it was handed, which for parallel batches is one sibling's copy
+            if (plan.BatchSteps != null)
+            {
+                await SavePlanAsync(plan);
+                return;
             }
 
             var planKey = GetPlanKey(plan.ProjectId, plan.TaskId);

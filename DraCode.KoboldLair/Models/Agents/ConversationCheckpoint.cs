@@ -25,6 +25,12 @@ namespace DraCode.KoboldLair.Models.Agents
         public int StepIndex { get; set; }
 
         /// <summary>
+        /// The steps of the parallel batch whose run saved it (0-based); null for a run of the whole plan. Only a run
+        /// working the same steps resumes from it (TASK-171, FEATURE-028 D10).
+        /// </summary>
+        public List<int>? BatchSteps { get; set; }
+
+        /// <summary>
         /// When the checkpoint was saved
         /// </summary>
         public DateTime SavedAt { get; set; } = DateTime.UtcNow;

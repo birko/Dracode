@@ -231,6 +231,15 @@ namespace DraCode.KoboldLair.Models.Agents
         internal bool StopAfterToolTurn { get; set; }
 
         /// <summary>
+        /// Set by Drake: whether the task waits on a person. A parallel batch whose sibling asked stops at its own next
+        /// turn boundary when this turns true (TASK-171, FEATURE-028 D10).
+        /// </summary>
+        public Func<bool>? IsTaskParked { get; set; }
+
+        /// <summary>The run stops for a person: this run asked, or the task was parked while it ran.</summary>
+        internal bool WaitsOnPerson => StopAfterToolTurn || IsTaskParked?.Invoke() == true;
+
+        /// <summary>
         /// Inject the reflection prompt every this many iterations of one step (0 = never). It was
         /// <c>AgentOptions.CheckpointInterval</c> until Birko TASK-527 removed that option (nothing in Birko read it);
         /// the default 3 is the value it always had here.
@@ -993,6 +1002,13 @@ You are working on a task that is part of a larger project. Below is the project
                     Agent.Hooks = null;
                 }
 
+                // A question asked on the last iteration: parked like any question, never finished (TASK-171, D11)
+                if (WaitsOnPerson)
+                {
+                    await SaveStateOnShutdownAsync(planService, conversation: null);
+                    return messages;
+                }
+
                 // Check if execution encountered errors
                 var planExecutionError = ExtractErrorFromMessages(messages);
                 if (planExecutionError != null)
@@ -1144,6 +1160,9 @@ You are working on a task that is part of a larger project. Below is the project
             StartedAt = DateTime.UtcNow;
             PublishRunEvent(new RunStartedEvent());
 
+            // A parallel batch's copy of the plan saves by merging its own steps into the stored plan (TASK-171, D10)
+            ImplementationPlan.BatchSteps = IsParallelMode() ? _assignedStepIndices!.ToList() : null;
+
             // Plan tools carry this run's context, so parallel Kobolds never share it (TASK-120)
             Agent.AddTool(new UpdatePlanStepTool(
                 ImplementationPlan,
@@ -1193,6 +1212,18 @@ You are working on a task that is part of a larger project. Below is the project
                     Id.ToString()[..8], perStepBudget, totalSteps, effectiveMaxIterations);
 
                 var messages = await RunPlanStepsAsync(fullTaskPrompt, effectiveMaxIterations, planService, cancellationToken);
+
+                // Stopped for a person: the plan and the conversation are saved, and the run is neither finished nor
+                // failed, whatever its last turn did to the plan (TASK-171, D10, D11)
+                if (WaitsOnPerson)
+                {
+                    _logger?.LogInformation(
+                        "Kobold {KoboldId} stopped: its task waits on a person ({Completed}/{Total} steps done)",
+                        Id.ToString()[..8], ImplementationPlan.CompletedStepsCount, ImplementationPlan.Steps.Count);
+                    if (planService != null && !string.IsNullOrEmpty(ProjectId))
+                        await planService.FlushPlanAsync(ProjectId, ImplementationPlan.TaskId);
+                    return messages;
+                }
 
                 // Check if execution encountered errors
                 var enhancedExecutionError = ExtractErrorFromMessages(messages);
@@ -1322,7 +1353,8 @@ You are working on a task that is part of a larger project. Below is the project
             cancellationToken = runStop.Token;
 
             var hooks = new RunHooks(this, planService, detectSteps: true) { StopRun = runStop.Cancel };
-            if (hooks.CurrentStepIndex >= plan.Steps.Count && hooks.CurrentStepIndex > 0)
+            // A position just past the last step is a finished plan, resumed to hear an answer: it is never restarted (D11)
+            if (hooks.CurrentStepIndex > plan.Steps.Count)
             {
                 _logger?.LogWarning(
                     "Kobold {KoboldId}: Resume step index {StepIndex} exceeds plan size {PlanSize}. Resetting to step 0.",
@@ -1342,10 +1374,12 @@ You are working on a task that is part of a larger project. Below is the project
                 {
                     var restored = KoboldPlanService.RestoreConversation(checkpoint);
                     var undelivered = HumanAnswers.Where(a => !HoldsAnswer(restored, a)).ToList();
+                    var continueFrom = resumeStepIndex >= plan.Steps.Count
+                        ? $"Every step of the plan is done. If the answer changes anything you did, change it; then finish. Do NOT redo completed steps."
+                        : $"Continue from step {resumeStepIndex + 1} of {plan.Steps.Count}. Do NOT redo already-completed steps.";
                     var resumeMessage = undelivered.Count > 0
                         ? HumanAnswer.Compose(undelivered) + "\n\n" +
-                          "Your task was paused for a person's decision. " +
-                          $"Continue from step {resumeStepIndex + 1} of {plan.Steps.Count}. Do NOT redo already-completed steps."
+                          "Your task was paused for a person's decision. " + continueFrom
                         : $"You were previously working on this task and completed steps up to step {checkpoint.StepIndex + 1}. " +
                           $"The server was restarted. Continue from step {resumeStepIndex + 1} of {plan.Steps.Count}. " +
                           "Do NOT redo already-completed steps.";
@@ -1372,6 +1406,13 @@ You are working on a task that is part of a larger project. Below is the project
 
             if (result.Outcome == AgentRunOutcome.MaxIterationsReached)
                 await hooks.CompleteAsync(result.Conversation);
+
+            // A question asked on the run's last iteration reached no turn boundary: save as the stop would (D11)
+            if (WaitsOnPerson)
+            {
+                await SaveStateOnShutdownAsync(planService, result.Conversation);
+                return result.Conversation;
+            }
 
             // A resumed run that failed before finishing a step was most likely failed BY the checkpoint (e.g. a message
             // format the provider rejects): delete it so the next retry starts the step fresh.
@@ -1421,7 +1462,15 @@ You are working on a task that is part of a larger project. Below is the project
                 return null;
 
             var checkpoint = await planService.LoadConversationCheckpointAsync(ProjectId, TaskId.Value.ToString());
-            if (checkpoint == null || checkpoint.StepIndex < plan.Steps.Count)
+            if (checkpoint == null)
+                return null;
+
+            // A parallel batch's conversation is resumed only by a batch working the same steps (TASK-171, D10)
+            if (!(checkpoint.BatchSteps ?? []).SequenceEqual(plan.BatchSteps ?? []))
+                return null;
+
+            // Just past the last step is a finished plan whose last turn asked a person (D11)
+            if (checkpoint.StepIndex <= plan.Steps.Count)
                 return checkpoint;
 
             _logger?.LogWarning(
@@ -1432,21 +1481,27 @@ You are working on a task that is part of a larger project. Below is the project
         }
 
         /// <summary>
-        /// Saves what a shutdown-cancelled run needs to resume: the plan, and the conversation checkpoint when one is given.
+        /// Saves what a stopped run needs to resume: the plan, and the conversation checkpoint when one is given. A
+        /// parallel batch saves the conversation only when it asked, as the task has one checkpoint (TASK-171, D10).
         /// </summary>
         private async Task SaveStateOnShutdownAsync(KoboldPlanService? planService, List<Message>? conversation)
         {
             var plan = ImplementationPlan;
+            var forPerson = WaitsOnPerson;
             _logger?.LogInformation(
-                "Graceful shutdown requested for Kobold {KoboldId} at step {StepIndex}/{TotalSteps}",
+                forPerson
+                    ? "Kobold {KoboldId} stopped for a person's decision at step {StepIndex}/{TotalSteps}"
+                    : "Graceful shutdown requested for Kobold {KoboldId} at step {StepIndex}/{TotalSteps}",
                 Id.ToString()[..8], (plan?.CurrentStepIndex ?? 0) + 1, plan?.Steps.Count ?? 0);
 
             if (plan == null || planService == null || string.IsNullOrEmpty(ProjectId))
                 return;
 
-            plan.AddLogEntry($"Graceful shutdown at step {plan.CurrentStepIndex + 1}");
+            plan.AddLogEntry(forPerson
+                ? $"Stopped for a person's decision at step {plan.CurrentStepIndex + 1}"
+                : $"Graceful shutdown at step {plan.CurrentStepIndex + 1}");
             await planService.SavePlanDebouncedAsync(plan);
-            if (conversation != null)
+            if (conversation != null && (plan.BatchSteps == null || StopAfterToolTurn))
                 await planService.SaveConversationCheckpointAsync(plan, conversation);
         }
 
