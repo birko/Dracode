@@ -63,12 +63,21 @@ Decisions: FEATURE-026 D21, FEATURE-026 D22.
     visible; ✕ closed it.
   - **Throwaway setup:** the TASK-163 test's $0.25 daily budget first refused Dragon there, as it should, and was set
     back to none through `PUT /api/v1/budgets` before the run.
+- **Real phone** (Mi A2 Lite, Android 10, Chrome, a 320px-wide viewport), driven over Chrome's DevTools socket with
+  `adb reverse` for 57087 and 57088:
+  - Projects, the read-only board, Stats, Dragon and Notifications all worked, with no horizontal scroll and no page
+    errors. Auto followed the phone's dark mode.
+  - Dragon answered "Is anything waiting on me in this project?" about greeter175.
+  - It found one defect, fixed after the merge: the Dragon page was 2px taller than the space between the header and
+    the tab bar, so the page scrolled. Its height now also takes off the two 1px borders and the bottom safe area.
+- The e2e suite is not sealed from a live server on 57087: with the throwaway server running, two home-dragon tests
+  failed, and with it stopped all 176 pass. Run the suite with no server on 57087.
 - Full e2e suite 176 passed (one fewer: `#/dragon` is a route again); full .NET suite 632 passed (no server change).
   `tsc --noEmit` reports the same 32 errors as before, all in Birko.Web's sources.
 
 ## Human test plan
 
-- [x] On a phone (emulated iPhone 13; a real device is still the user's check) against a local server: check a project's progress, answer Dragon, open a notification
+- [x] On a phone (emulated iPhone 13, then a real Android phone, 2026-11-24) against a local server: check a project's progress, answer Dragon, open a notification
 - [x] On a tablet (emulated iPad Mini landscape): Dragon opens over the board and closes again
 
 ## Implementation plan

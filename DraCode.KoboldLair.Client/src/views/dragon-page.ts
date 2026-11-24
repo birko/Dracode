@@ -14,8 +14,10 @@ export class DragonPage extends KoboldComponent {
     return `
       :host {
         display: flex; flex-direction: column; min-width: 0;
-        /* The shell's content area, less its padding: the dock fills what the header and tab bar leave */
-        height: calc(100dvh - var(--b-header-height, 3rem) - 3.25rem - 2 * var(--b-space-lg, 1rem));
+        /* The shell's content area, less its padding: the dock fills what the header and tab bar leave (each with its
+           1px border, the tab bar with the bottom safe area); a real phone scrolled by those 2px otherwise */
+        height: calc(100dvh - var(--b-header-height, 3rem) - 3.25rem - 2px - env(safe-area-inset-bottom, 0px)
+          - 2 * var(--b-space-lg, 1rem));
         min-height: 20rem;
       }
       .context { margin: 0 0 var(--b-space-sm, 0.5rem); font-size: var(--b-text-sm, 0.8125rem); color: var(--b-text-secondary); }
