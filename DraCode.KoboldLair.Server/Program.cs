@@ -320,6 +320,16 @@ builder.Services.AddSingleton<SqlBudgetRepository>(sp =>
     repo.InitializeAsync().GetAwaiter().GetResult();
     return repo;
 });
+// Each person's workspace layouts (TASK-058): stored on SQLite, none otherwise (the endpoints then save nothing)
+builder.Services.AddSingleton<SqlLayoutRepository>(sp =>
+{
+    var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
+    if (dataConfig.DefaultBackend != StorageBackend.SqLite) return null!;
+    var repo = new SqlLayoutRepository(RepositoryFactory.ResolveSqLitePath(dataConfig),
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlLayoutRepository>());
+    repo.InitializeAsync().GetAwaiter().GetResult();
+    return repo;
+});
 builder.Services.AddSingleton(sp => new BudgetSettingsService(
     sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>(),
     sp.GetService<SqlBudgetRepository>(), sp.GetService<SqlUsageRepository>(), sp.GetService<IProjectRepository>()));
@@ -1086,6 +1096,7 @@ if (jwtRuntimeEnabled)
     apiV1.MapGitEndpoints(); // the workspace's Git tab: branches and their diffs (TASK-156)
     apiV1.MapStatsEndpoints(); // the workspace's Stats tab (TASK-158)
     apiV1.MapBudgetEndpoints(); // Settings → Budgets (TASK-163)
+    apiV1.MapLayoutEndpoints(); // Workspace layouts (TASK-058)
     // Admin /api/v1/providers CRUD (TASK-073) — only in DB mode. Read post-build so test-host config is seen.
     var providersEnabled = !string.IsNullOrWhiteSpace(ResolveProviderMasterKey(app.Configuration));
     if (providersEnabled)

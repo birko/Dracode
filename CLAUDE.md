@@ -687,6 +687,24 @@ The web client picks a layout by window width (`services/layout-mode.ts`).
 
 Anything new that is desktop-only should check `layoutMode()` and re-render on `onLayoutModeChange`.
 
+### Workspace layouts (TASK-058)
+
+Each person's own, across all their projects, keyed by their subject (`view_own`):
+
+- **Server:** `GET`/`PUT /api/v1/layouts/current`, `GET /api/v1/layouts`, `PUT`/`DELETE /api/v1/layouts/{name}`, in
+  `user_layouts` (`SqlLayoutRepository`). The layout is the client's JSON object, at most 16 KB; up to 50 named per
+  person. 409 without SQLite.
+- **Client store:** `stores/layout-store.ts` reads the current layout once per page and saves changes after 400 ms.
+  Its shape is Birko's `LayoutState` plus `openTab` and `dragonPinned`; the Dragon pin lives there (localStorage is the
+  fallback).
+- **Workspace:** a `b-split-panel` (collapses below 1280px). Its divider sets Dragon's width at rest, kept as Dragon's
+  own width; focus or the pin still widen Dragon to ~60% (no divider meanwhile).
+  - The tabs are `b-tabs reorderable`; the keyboard moves the open tab.
+  - The Layouts menu saves, loads and deletes named layouts. A phone shows the saved tab order without reordering or
+    the menu.
+- **Animation:** the ~150 ms widening needs Birko.Web's `--b-split-transition` on b-split-panel, which was asked for
+  and is not there yet. The workspace already sets it.
+
 ### Settings → Providers, Agents and API keys (TASK-161, TASK-192, TASK-162)
 
 `#/settings` shows what `GET /api/v1/settings/capabilities` allows: admins (`manage_config`) get a Providers tab, a Birko

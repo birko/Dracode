@@ -83,9 +83,11 @@ test('nothing changes on a timer: Dragon stays wide while focus stays in it', as
 });
 
 test('the width change takes ~150 ms, and is instant with reduced motion', async ({ page }) => {
+  // Since TASK-058 the columns are b-split-panel's, which animates them with --b-split-transition (asked of Birko.Web);
+  // the workspace sets it.
   await open(page);
-  const transition = () => workspace(page).locator('.workspace').evaluate((el) => getComputedStyle(el).transitionDuration);
-  expect(await transition()).toBe('0.15s');
+  const transition = () => workspace(page).locator('.workspace').evaluate((el) => getComputedStyle(el).getPropertyValue('--b-split-transition').trim());
+  expect(await transition()).toBe('150ms ease');
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   expect(await transition()).toBe('0s');

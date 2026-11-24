@@ -1,10 +1,12 @@
 /**
- * How the docked Dragon is laid out (TASK-152, FEATURE-026 D13): the "Keep expanded" pin, remembered per signed-in user
- * in this browser's localStorage, and the keyboard shortcut that puts focus in Dragon. Storage that cannot be read
- * (a private window, blocked site data) reads as unpinned.
+ * How the docked Dragon is laid out (TASK-152, FEATURE-026 D13): the "Keep expanded" pin and the keyboard shortcut that
+ * puts focus in Dragon. The pin is part of the person's current workspace layout on the server (TASK-058), so it
+ * follows them to another browser; this browser's localStorage keeps it too, for before the layout is read or where
+ * the server keeps none. Storage that cannot be read (a private window, blocked site data) reads as unpinned.
  */
 
 import { authStore } from '../auth-store.js';
+import { layoutStore } from '../stores/layout-store.js';
 
 const PIN_KEY = 'koboldlair.dragon-pinned';
 
@@ -13,8 +15,10 @@ function pinKey(): string {
   return userId ? `${PIN_KEY}:${userId}` : PIN_KEY;
 }
 
-/** Whether the user pinned Dragon expanded. */
+/** Whether the user pinned Dragon expanded: their layout's pin, else this browser's. */
 export function isDragonPinned(): boolean {
+  const pinned = layoutStore.current.dragonPinned;
+  if (typeof pinned === 'boolean') return pinned;
   try {
     return localStorage.getItem(pinKey()) === '1';
   } catch {
@@ -23,6 +27,7 @@ export function isDragonPinned(): boolean {
 }
 
 export function setDragonPinned(pinned: boolean): void {
+  layoutStore.update({ dragonPinned: pinned });
   try {
     if (pinned) localStorage.setItem(pinKey(), '1');
     else localStorage.removeItem(pinKey());
