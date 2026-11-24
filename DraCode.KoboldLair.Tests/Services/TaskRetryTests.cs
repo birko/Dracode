@@ -22,6 +22,7 @@ public class TaskRetryTests : IAsyncLifetime
     private string _dir = null!;
     private SqlTaskRepository _tasks = null!;
     private DrakeFactory _drakes = null!;
+    private SqlProjectRepository _projects = null!;
 
     public async Task InitializeAsync()
     {
@@ -30,6 +31,7 @@ public class TaskRetryTests : IAsyncLifetime
         var db = Path.Combine(_dir, "koboldlair.db");
         var projects = new SqlProjectRepository(db);
         await projects.InitializeAsync();
+        _projects = projects;
         _tasks = new SqlTaskRepository(db);
         await _tasks.InitializeAsync();
 
@@ -148,5 +150,58 @@ public class TaskRetryTests : IAsyncLifetime
 
         outcome.Should().Be(TaskRetryOutcome.Retried);
         (await _tasks.GetByIdAsync(id))!.Status.Should().Be(TaskStatus.Unassigned);
+    }
+
+    // --- a retry in a project already past InProgress (TASK-196) ----------------------------------
+
+    private Project StoredProject(string file, ProjectStatus status)
+    {
+        var project = ProjectWith(file);
+        project.OwnerId = "o";
+        project.Status = status;
+        _projects.Add(project);
+        return project;
+    }
+
+    [Theory]
+    [InlineData(ProjectStatus.Completed)]
+    [InlineData(ProjectStatus.AwaitingVerification)]
+    [InlineData(ProjectStatus.Verified)]
+    [InlineData(ProjectStatus.Failed)]
+    public async Task A_retry_in_a_project_past_InProgress_reopens_the_project_so_Drake_runs_the_task(ProjectStatus status)
+    {
+        var (file, failedId, _) = await SeedTaskFile();
+        var project = StoredProject(file, status);
+
+        var retry = await _drakes.RetryFailedTaskAsync(project, failedId);
+
+        retry.Outcome.Should().Be(TaskRetryOutcome.Retried);
+        retry.ReopenedFrom.Should().Be(status, "the caller tells the person the project was reopened");
+        _projects.GetById(ProjectId)!.Status.Should().Be(ProjectStatus.InProgress, "Drake only runs InProgress projects' tasks");
+    }
+
+    [Fact]
+    public async Task A_retry_in_a_project_still_in_progress_leaves_the_project_alone()
+    {
+        var (file, failedId, _) = await SeedTaskFile();
+        var project = StoredProject(file, ProjectStatus.InProgress);
+
+        var retry = await _drakes.RetryFailedTaskAsync(project, failedId);
+
+        retry.ReopenedFrom.Should().BeNull();
+        _projects.GetById(ProjectId)!.Status.Should().Be(ProjectStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task A_retry_that_changes_nothing_does_not_reopen_the_project()
+    {
+        var (file, _, doneId) = await SeedTaskFile();
+        var project = StoredProject(file, ProjectStatus.Completed);
+
+        var retry = await _drakes.RetryFailedTaskAsync(project, doneId);
+
+        retry.Outcome.Should().Be(TaskRetryOutcome.NotFailed);
+        retry.ReopenedFrom.Should().BeNull();
+        _projects.GetById(ProjectId)!.Status.Should().Be(ProjectStatus.Completed);
     }
 }
