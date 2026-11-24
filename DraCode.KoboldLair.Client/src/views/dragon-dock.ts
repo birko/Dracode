@@ -298,10 +298,15 @@ export class DragonDock extends KoboldComponent {
   }
 
   private togglePin(): void {
-    this._pinned = !this._pinned;
-    setDragonPinned(this._pinned);
-    this.$('.pin')?.setAttribute('aria-pressed', String(this._pinned));
-    this.dispatchEvent(new CustomEvent(DRAGON_PIN_EVENT, { detail: { pinned: this._pinned }, bubbles: true, composed: true }));
+    this.setPinned(!this._pinned);
+  }
+
+  /** Pin or unpin, as the button does: saved, shown, and announced to the workspace (a loaded layout uses it, TASK-058). */
+  setPinned(pinned: boolean): void {
+    this._pinned = pinned;
+    setDragonPinned(pinned);
+    this.$('.pin')?.setAttribute('aria-pressed', String(pinned));
+    this.dispatchEvent(new CustomEvent(DRAGON_PIN_EVENT, { detail: { pinned }, bubbles: true, composed: true }));
   }
 
   private chat(): BChat | null {

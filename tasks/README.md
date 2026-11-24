@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-24 19:22. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-24 21:07. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
 | planned      | 9                  | 30                 | —                   |
-| todo         | —                  | —                  | 66                  |
+| todo         | —                  | —                  | 65                  |
 | in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 7                  | 120                 |
+| done         | 1                  | 7                  | 121                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 40× P2 · 17× P3.
+`todo` by priority: 9× P1 · 39× P2 · 17× P3.
 
 ## In progress now
 
@@ -93,7 +93,7 @@ _None_
   - (epic level) — 2/2 done
     - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko · FEATURE-077
     - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` · FEATURE-021
-- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (27/46 tasks done)
+- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (28/46 tasks done)
   - STORY-019 DraCode.KoboldLair.Cli — single-file binary CLI client — planned (0/5 done)
     - [ ] [TASK-050](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-050-rename-scaffold-publish.md) Rename DraCode → DraCode.KoboldLair.Cli + single-file publish · FEATURE-022
     - [ ] [TASK-051](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-051-daemon-interaction.md) CLI daemon interaction + discovery ⏳ waits on TASK-050, TASK-049 ⚠ blocked: waiting on TASK-050, TASK-049 · FEATURE-022
@@ -114,13 +114,13 @@ _None_
     - [ ] [TASK-064](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-064-sync-async-client.md) Python SDK sync + async client ⏳ waits on TASK-063 ⚠ blocked: waiting on TASK-063 · FEATURE-025
     - [ ] [TASK-065](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-065-sse-streaming.md) Python SDK run streaming (SSE + polling fallback) ⏳ waits on TASK-064 ⚠ blocked: waiting on TASK-064 · FEATURE-025
     - [ ] [TASK-066](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-066-pypi-publish-drift-guard.md) Python SDK PyPI publish + schema-drift guard ⏳ waits on TASK-063 ⚠ blocked: waiting on TASK-063 · FEATURE-025
-  - STORY-023 Web UI: app frame, sign-in and project picker — in-progress (4/7 done)
+  - STORY-023 Web UI: app frame, sign-in and project picker — in-progress (5/7 done)
     - [x] [TASK-056](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-056-github-sign-in.md) Sign in with GitHub in the web UI · FEATURE-026
     - [x] [TASK-072](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-072-mount-ts-shell-in-served-page.md) Mount the TypeScript shell in the served page · FEATURE-026
     - ~~[TASK-142](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-142-wire-views-to-the-server.md) Wire the web client's views to the server; they show mock data~~ · FEATURE-026
     - [x] [TASK-145](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-145-app-frame-projects-homepage.md) App frame and projects homepage · FEATURE-026
     - ~~[TASK-055](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-055-daemon-status-project-switcher.md) Web header: daemon status indicator + project switcher~~ · FEATURE-026
-    - [ ] [TASK-058](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-058-tab-reorder-workspace-layouts.md) Drag-and-drop tabs + workspace layout save/load · FEATURE-026
+    - [x] [TASK-058](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-058-tab-reorder-workspace-layouts.md) Drag-and-drop tabs + workspace layout save/load · FEATURE-026
     - [x] [TASK-146](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-146-header-project-picker.md) Header project picker inside a project · FEATURE-026
     - [ ] [TASK-143](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-143-public-preview-deployments.md) Public preview deployments of projects on subdomains · FEATURE-026
     - [ ] [TASK-144](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-144-phone-push-notifications.md) Phone push notifications when a project needs you · FEATURE-026
