@@ -8,7 +8,7 @@ assignee: ai
 created: 2026-06-11
 depends-on: [TASK-034]
 blocks: []
-pr: null
+pr: 60
 github-issue: null
 jira-key: null
 ---
