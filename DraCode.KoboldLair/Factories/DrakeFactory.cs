@@ -518,7 +518,35 @@ namespace DraCode.KoboldLair.Factories
         /// only in the task store. A Drake's tracker and its task file are what Drake works from; resetting just the
         /// store row, as the REST retry once did, left the task Failed for Drake, which saved Failed back over it.
         /// </summary>
-        public async Task<(TaskRetryOutcome Outcome, TaskStatus? Status)> RetryFailedTaskAsync(Models.Projects.Project project, string taskId)
+        public async Task<TaskRetry> RetryFailedTaskAsync(Models.Projects.Project project, string taskId)
+        {
+            var retry = await ResetFailedTaskAsync(project, taskId);
+            return retry.Outcome == TaskRetryOutcome.Retried
+                ? retry with { ReopenedFrom = ReopenFinishedProject(project.Id) }
+                : retry;
+        }
+
+        /// <summary>
+        /// Puts a project whose tasks were all finished (AwaitingVerification, Verified, Completed or Failed) back to
+        /// InProgress, so Drake runs a task retried in it (TASK-196): Drake only works Analyzed and InProgress projects.
+        /// When the task is done the project goes through verification again. Returns the status it was reopened from,
+        /// or null when it was still being worked or is unknown.
+        /// </summary>
+        public Models.Projects.ProjectStatus? ReopenFinishedProject(string projectId)
+        {
+            var stored = _projectRepository?.GetById(projectId);
+            if (stored is not { Status: Models.Projects.ProjectStatus.AwaitingVerification or Models.Projects.ProjectStatus.Verified
+                    or Models.Projects.ProjectStatus.Completed or Models.Projects.ProjectStatus.Failed })
+                return null;
+
+            var was = stored.Status;
+            stored.Status = Models.Projects.ProjectStatus.InProgress;
+            _projectRepository!.Update(stored);
+            _loggerFactory?.CreateLogger<DrakeFactory>().LogInformation("Project {ProjectId} reopened from {Status} to InProgress for a retried task", projectId, was);
+            return was;
+        }
+
+        private async Task<TaskRetry> ResetFailedTaskAsync(Models.Projects.Project project, string taskId)
         {
             foreach (var (drake, _) in GetDrakesForProject(project.Id))
             {
@@ -526,13 +554,13 @@ namespace DraCode.KoboldLair.Factories
                 if (task == null)
                     continue;
                 if (task.Status != TaskStatus.Failed)
-                    return (TaskRetryOutcome.NotFailed, task.Status);
+                    return new TaskRetry(TaskRetryOutcome.NotFailed, task.Status);
                 drake.UpdateTask(task, TaskStatus.Unassigned); // clears the error and queues the file save
                 var kobold = drake.GetKoboldForTask(taskId);
                 if (kobold != null)
                     drake.UnsummonKobold(kobold.Id);
                 await drake.UpdateTasksFileAsync();
-                return (TaskRetryOutcome.Retried, TaskStatus.Unassigned);
+                return new TaskRetry(TaskRetryOutcome.Retried, TaskStatus.Unassigned);
             }
 
             foreach (var filePath in project.Paths.TaskFiles.Values)
@@ -543,7 +571,7 @@ namespace DraCode.KoboldLair.Factories
                 if (task == null)
                     continue;
                 if (task.Status != TaskStatus.Failed)
-                    return (TaskRetryOutcome.NotFailed, task.Status);
+                    return new TaskRetry(TaskRetryOutcome.NotFailed, task.Status);
                 // Attached after loading, so the load adds no rows and only this change reaches the store.
                 tracker.Repository = _taskRepository;
                 tracker.ProjectId = project.Id;
@@ -556,17 +584,17 @@ namespace DraCode.KoboldLair.Factories
                     await _taskRepository.ClearErrorAsync(taskId);
                     await _taskRepository.SetStatusAsync(taskId, TaskStatus.Unassigned);
                 }
-                return (TaskRetryOutcome.Retried, TaskStatus.Unassigned);
+                return new TaskRetry(TaskRetryOutcome.Retried, TaskStatus.Unassigned);
             }
 
             var row = _taskRepository == null ? null : await _taskRepository.GetByIdAsync(taskId);
             if (row == null || row.ProjectId != project.Id)
-                return (TaskRetryOutcome.NotFound, null);
+                return new TaskRetry(TaskRetryOutcome.NotFound, null);
             if (row.Status != TaskStatus.Failed)
-                return (TaskRetryOutcome.NotFailed, row.Status);
+                return new TaskRetry(TaskRetryOutcome.NotFailed, row.Status);
             await _taskRepository!.ClearErrorAsync(taskId);
             await _taskRepository.SetStatusAsync(taskId, TaskStatus.Unassigned);
-            return (TaskRetryOutcome.Retried, TaskStatus.Unassigned);
+            return new TaskRetry(TaskRetryOutcome.Retried, TaskStatus.Unassigned);
         }
 
         /// <summary>

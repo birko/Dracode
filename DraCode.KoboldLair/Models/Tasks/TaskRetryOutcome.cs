@@ -10,4 +10,17 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// <summary>No Drake, task file or store row of the project holds the task.</summary>
         NotFound
     }
+
+    /// <summary>
+    /// A retry's result: what became of the task, its status when it was not retried, and the status its project was
+    /// reopened from, or null when the project was still being worked (TASK-196).
+    /// </summary>
+    public sealed record TaskRetry(TaskRetryOutcome Outcome, TaskStatus? Status, Projects.ProjectStatus? ReopenedFrom = null)
+    {
+        public void Deconstruct(out TaskRetryOutcome outcome, out TaskStatus? status)
+        {
+            outcome = Outcome;
+            status = Status;
+        }
+    }
 }

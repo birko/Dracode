@@ -1,5 +1,6 @@
 ﻿using Birko.AI.Tools;
 using DraCode.KoboldLair.Factories;
+using DraCode.KoboldLair.Models.Projects;
 using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Services;
 using System.Text.Json;
@@ -194,12 +195,13 @@ Examples:
             var shortId = taskId[..Math.Min(8, taskId.Length)];
             foreach (var project in _projectService.GetAllProjects())
             {
-                var (outcome, status) = await _drakeFactory.RetryFailedTaskAsync(project, taskId);
+                var retry = await _drakeFactory.RetryFailedTaskAsync(project, taskId);
+                var (outcome, status) = retry;
                 switch (outcome)
                 {
                     case TaskRetryOutcome.Retried:
                         return $"✅ Task {shortId} has been reset to Unassigned status and will be retried.\n" +
-                               $"Project: {project.Name}";
+                               $"Project: {project.Name}" + Reopened(retry.ReopenedFrom);
                     case TaskRetryOutcome.NotFailed:
                         return $"⚠️ Task {shortId} is not in Failed status (current: {status})";
                 }
@@ -287,7 +289,13 @@ Examples:
                 ? "Tasks will be picked up when Drake starts."
                 : "Tasks will be retried on the next Drake execution cycle.";
 
-            return $"✅ Reset {retriedCount} failed task(s) to Unassigned status in project {project.Name}.\n{suffix}";
+            return $"✅ Reset {retriedCount} failed task(s) to Unassigned status in project {project.Name}.\n{suffix}" +
+                   Reopened(_drakeFactory.ReopenFinishedProject(project.Id));
         }
+
+        /// <summary>Says that the retry reopened a finished project (TASK-196), or nothing.</summary>
+        private static string Reopened(ProjectStatus? from) => from == null
+            ? ""
+            : $"\nThe project was {from} and is back In progress, so its tasks run again; it is verified again when they finish.";
     }
 }

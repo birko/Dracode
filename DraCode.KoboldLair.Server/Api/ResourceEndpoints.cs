@@ -253,10 +253,15 @@ public static class ResourceEndpoints
                 var project = projects.GetProject(task.ProjectId);
                 if (project is null)
                     return Results.NotFound();
-                var (outcome, status) = await drakes.RetryFailedTaskAsync(project, id);
+                var retry = await drakes.RetryFailedTaskAsync(project, id);
+                var (outcome, status) = retry;
                 return outcome switch
                 {
-                    TaskRetryOutcome.Retried => Results.Ok(new { id, status = TaskStatus.Unassigned.ToString() }),
+                    // projectReopenedFrom: the finished status the project was put back to InProgress from (TASK-196)
+                    TaskRetryOutcome.Retried => Results.Ok(new
+                    {
+                        id, status = TaskStatus.Unassigned.ToString(), projectReopenedFrom = retry.ReopenedFrom?.ToString()
+                    }),
                     TaskRetryOutcome.NotFailed => Results.BadRequest(new { error = $"task is {status}; only Failed tasks can be retried" }),
                     _ => Results.NotFound()
                 };
