@@ -7,12 +7,31 @@ namespace DraCode.KoboldLair.Agents.Tools
 {
     /// <summary>
     /// Tool for creating a structured implementation plan for a task.
-    /// Used by KoboldPlannerAgent to generate plans before execution.
+    /// Used by KoboldPlannerAgent to generate plans before execution. A submitted plan goes to the planner run that
+    /// opened the current <see cref="Capture"/> (TASK-195): one planner serves a Drake's Kobolds in parallel, so the
+    /// result is held per run, never on the tool or in process-wide state.
     /// </summary>
     public class CreateImplementationPlanTool : Tool
     {
-        private static KoboldImplementationPlan? _lastPlan;
-        private static readonly object _lock = new();
+        /// <summary>The plan one planner run received; null until the model submits one.</summary>
+        public sealed class PlanCapture : IDisposable
+        {
+            private readonly PlanCapture? _outer;
+
+            internal PlanCapture(PlanCapture? outer) => _outer = outer;
+
+            public KoboldImplementationPlan? Plan { get; internal set; }
+
+            public void Dispose() => _current.Value = _outer;
+        }
+
+        private static readonly AsyncLocal<PlanCapture?> _current = new();
+
+        /// <summary>
+        /// Starts collecting the plan for the calling run. It flows with the run's awaits into the tool call, and a run
+        /// started at the same time gets its own.
+        /// </summary>
+        public static PlanCapture Capture() => _current.Value = new PlanCapture(_current.Value);
 
         public override string Name => "create_implementation_plan";
 
@@ -102,11 +121,8 @@ Returns: Confirmation of the created plan with summary.";
                     Steps = steps
                 };
 
-                // Store for retrieval
-                lock (_lock)
-                {
-                    _lastPlan = plan;
-                }
+                if (_current.Value is { } capture)
+                    capture.Plan = plan;
 
                 // Build summary
                 var totalFiles = steps.Sum(s => s.FilesToCreate.Count + s.FilesToModify.Count);
@@ -224,28 +240,6 @@ The plan is ready for execution. Each step will be processed in order.");
                 }
             }
             return result;
-        }
-
-        /// <summary>
-        /// Gets the last created plan (for retrieval by the planner agent)
-        /// </summary>
-        public static KoboldImplementationPlan? GetLastPlan()
-        {
-            lock (_lock)
-            {
-                return _lastPlan;
-            }
-        }
-
-        /// <summary>
-        /// Clears the last plan
-        /// </summary>
-        public static void ClearLastPlan()
-        {
-            lock (_lock)
-            {
-                _lastPlan = null;
-            }
         }
     }
 }

@@ -161,8 +161,8 @@ After analyzing the task, use the create_implementation_plan tool to output your
             List<string>? taskDependencies = null,
             int maxIterations = 5)
         {
-            // Clear any previous plan
-            CreateImplementationPlanTool.ClearLastPlan();
+            // This run's plan, apart from any other run of this planner (TASK-195)
+            using var capture = CreateImplementationPlanTool.Capture();
 
             // Build specification context for the prompt
             var specificationContext = BuildSpecificationContext(specification, featureId, featureName, featureDescription);
@@ -174,7 +174,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
             await RunAsync(prompt, maxIterations);
 
             // Retrieve the generated plan
-            var plan = CreateImplementationPlanTool.GetLastPlan();
+            var plan = capture.Plan;
 
             if (plan == null)
             {
@@ -690,7 +690,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
             EscalationAlert escalation,
             string? additionalContext = null)
         {
-            CreateImplementationPlanTool.ClearLastPlan();
+            using var capture = CreateImplementationPlanTool.Capture();
 
             var prompt = new System.Text.StringBuilder();
             prompt.AppendLine("# Plan Revision Required");
@@ -765,7 +765,7 @@ After analyzing the task, use the create_implementation_plan tool to output your
 
             await RunAsync(prompt.ToString(), Options.MaxIterations > 0 ? Options.MaxIterations : 5);
 
-            var revisedPlan = CreateImplementationPlanTool.GetLastPlan();
+            var revisedPlan = capture.Plan;
             if (revisedPlan == null)
             {
                 return existingPlan; // Return original if revision fails

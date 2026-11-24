@@ -92,8 +92,9 @@ Tool that captures and structures the implementation plan.
 
 **Output:**
 - Confirmation message with step count
-- Plan stored in static `_lastPlan` for Drake to retrieve
-- Thread-safe with lock mechanism
+- The plan goes to the planner run that asked for it: each `CreatePlanAsync` / `RevisePlanAsync` opens its own
+  `CreateImplementationPlanTool.Capture()`, which flows with the run's awaits, so runs of one planner in parallel never
+  see each other's plans (TASK-195)
 
 ### 3. KoboldImplementationPlan (`Models/Agents/KoboldImplementationPlan.cs`)
 
