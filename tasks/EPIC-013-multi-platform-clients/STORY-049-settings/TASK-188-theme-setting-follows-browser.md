@@ -3,7 +3,7 @@ id: TASK-188
 parent: STORY-049
 feature: FEATURE-026
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 # blocked: <reason> — set by /tasks block, never by hand; status stays as it is; /tasks unblock removes it
 priority: P3
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
@@ -45,11 +45,15 @@ gives what Auto resolved to and `theme-change` carries `{ theme, applied }`; `th
 
 ## Acceptance criteria
 
-- [ ] On sign-in / load, the saved `appearance.theme` is applied through the shell's `setTheme`; changing it in Settings
-      applies at once
-- [ ] `auto` follows the browser's `prefers-color-scheme`, including a change while the page is open (e2e with
+Rescoped with the owner 2026-11-24: there is no Settings → Theme value any more (TASK-161 removed the General tab
+that saved `appearance.theme`), so the header's theme menu, kept per browser, is the one control.
+
+- [x] A user who has chosen no theme starts on Auto (`defaultTheme`), and a dark browser gets the dark theme before the
+      app's script runs, so there is no light flash
+- [x] `auto` follows the browser's `prefers-color-scheme`, including a change while the page is open (e2e with
       `page.emulateMedia({ colorScheme })`)
-- [ ] The header's theme menu and the Settings value agree (choosing one updates the other)
+- [x] A theme chosen in the header's menu sticks whatever the browser says, also after a reload; choosing Auto follows
+      the browser again
 
 ## Out of scope
 
@@ -57,9 +61,29 @@ gives what Auto resolved to and `theme-change` carries `{ theme, applied }`; `th
 
 ## Human test plan
 
-- [ ] Set Settings → Theme to Auto, switch the OS between light and dark: the UI follows without a reload; set Dark: it
-      stays dark whatever the OS says
+- [x] Set the header's theme menu to Auto, switch the OS between light and dark: the UI follows without a reload; set
+      Dark: it stays dark whatever the OS says
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-188` — leave empty until then._
+1. Red first, `tests/ui-e2e/theme.spec.ts`:
+   - With `app.js` blocked, a dark browser's page still has `data-theme="dark"` (only the boot script can set it).
+   - A new user is on Auto and follows the browser both ways while the page is open.
+   - Dark from the header menu stays dark under a light browser and after a reload, and choosing Auto follows the
+     browser again.
+2. `src/theme-settings.ts` holds the storage prefix (`app`, the shell's default, so a saved choice is kept) and the
+   starting theme (`auto`). `KoboldLairAppShell` returns them from `storagePrefix` and `defaultTheme`.
+3. `build.js` writes `wwwroot/dist/theme-boot.js` from Birko.Web.Shell's own `themeBootScript`, with those two values.
+   It bundles the function and the settings with esbuild and calls them at build time, so the shell and the script
+   cannot drift. `index.html` runs the script first in `<head>`.
+
+## Notes
+
+- The theme stays per browser (localStorage), as the shell keeps it. That suits Auto, which follows that browser
+  anyway. Saving it per user on the server was offered and not chosen.
+- Human test by the owner, 2026-11-24, with the real OS setting: Auto showed in the menu, switching Windows between light
+  and dark was followed without a reload, and Dark stayed dark under a light OS.
+- Screenshots at first load: a dark browser opens dark and a light one opens light, both with Auto ticked in the menu
+  (Auto, Light, Dark, Neon, Finstat).
+- Full e2e suite: 162 passed. `tsc --noEmit` reports the same 32 errors as before, all in Birko.Web's sources. No .NET
+  change.

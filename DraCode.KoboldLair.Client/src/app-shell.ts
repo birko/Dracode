@@ -13,6 +13,7 @@ import { signOut } from './services/auth-session.js';
 import './components/notification-bell.js';
 import './components/project-picker.js';
 import './components/needs-you-pill.js';
+import { DEFAULT_THEME, THEME_STORAGE_PREFIX } from './theme-settings.js';
 
 registerThemes([BUILTIN_THEMES.light, BUILTIN_THEMES.dark, BUILTIN_THEMES.neon, BUILTIN_THEMES.finstat]);
 
@@ -27,6 +28,16 @@ const SHELL_TEXT: Record<string, string> = {
 class KoboldLairAppShell extends BCoreAppShell {
   protected get brandName() {
     return 'KoboldLair';
+  }
+
+  /** Where the header's theme menu keeps the choice; the boot script in index.html reads the same key (TASK-188). */
+  protected get storagePrefix() {
+    return THEME_STORAGE_PREFIX;
+  }
+
+  /** A user who has chosen no theme starts on Auto: light or dark as the browser prefers, followed live (TASK-188). */
+  protected get defaultTheme() {
+    return DEFAULT_THEME;
   }
 
   /** The signed-in user's name, as plain text (the shell escapes it since Birko.Web v0.4.23); none when signed out. */
