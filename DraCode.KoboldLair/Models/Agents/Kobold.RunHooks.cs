@@ -47,6 +47,9 @@ namespace DraCode.KoboldLair.Models.Agents
 
             private bool CanSaveCheckpoint => _planService != null && !string.IsNullOrEmpty(_kobold.ProjectId);
 
+            // A task has one conversation checkpoint: a parallel batch keeps it only when it asks (TASK-171, D10)
+            private bool CanSaveConversation => CanSaveCheckpoint && Plan.BatchSteps == null;
+
             /// <summary>
             /// The conversation up to the start of the last iteration, before any message that iteration added — always
             /// ending in a user turn, so it can be checkpointed and resumed even when the run was cancelled part-way through
@@ -59,20 +62,23 @@ namespace DraCode.KoboldLair.Models.Agents
             {
                 _conversation = context.Conversation;
 
-                if (_detectSteps && await FinishToolTurnAsync(context.Conversation))
-                {
-                    context.Stop("all plan steps complete");
-                    return;
-                }
+                var planDone = _detectSteps && await FinishToolTurnAsync(context.Conversation);
 
                 // Recorded before this iteration adds anything; Agent throws on cancellation right after this hook.
                 _consistentLength = context.Conversation.Count;
 
-                // A question parked the task: stop before the next model call, so the turn that asked ends the
-                // conversation the enhanced path saves (TASK-021)
-                if (_kobold.StopAfterToolTurn)
+                // A question parked the task, this run's or a parallel sibling's: stop before the next model call, so
+                // the turn that asked ends the conversation the enhanced path saves (TASK-021). It wins over the plan's
+                // end, so the run that asked is resumed with the answer rather than finished (TASK-171, D10, D11).
+                if (_kobold.WaitsOnPerson)
                 {
                     StopRun?.Invoke();
+                    return;
+                }
+
+                if (planDone)
+                {
+                    context.Stop("all plan steps complete");
                     return;
                 }
 
@@ -156,7 +162,7 @@ namespace DraCode.KoboldLair.Models.Agents
                 if (_checkpointPending)
                 {
                     _checkpointPending = false;
-                    if (CanSaveCheckpoint)
+                    if (CanSaveConversation)
                         await _planService!.SaveConversationCheckpointAsync(Plan, conversation.ToList());
                 }
 

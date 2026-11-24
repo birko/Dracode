@@ -29,5 +29,13 @@ namespace DraCode.KoboldLair.Models.Agents
 
         /// <summary>The parts of the specification relevant to this task, condensed to its scope.</summary>
         public string? SpecificationContext { get; set; }
+
+        /// <summary>
+        /// Set on a parallel batch Kobold's copy of the plan (0-based step positions): the steps this copy owns. Saving
+        /// such a copy merges those steps and its new log entries into the stored plan rather than writing the copy over
+        /// it (TASK-171, FEATURE-028 D10). Never stored.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public IReadOnlyList<int>? BatchSteps { get; set; }
     }
 }

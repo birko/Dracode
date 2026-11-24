@@ -469,4 +469,139 @@ public class KoboldRunHooksTests : IDisposable
 
         Json(provider.Requests[0]).Should().Contain("decision dec-1]").And.Contain("Their answer: postgres");
     }
+
+    // --- a question as the run ends some other way (TASK-171, FEATURE-028 D10, D11) ---------------
+
+    private static LlmResponse AskAndCompleteStep(string id, int step) => new()
+    {
+        StopReason = "tool_use",
+        Content = new List<ContentBlock>
+        {
+            new() { Type = "tool_use", Id = id, Name = "ask_human",
+                Input = new Dictionary<string, object> { ["question"] = "Which database?", ["options"] = new[] { "sqlite", "postgres" } } },
+            new() { Type = "tool_use", Id = $"done-{id}", Name = "update_plan_step",
+                Input = new Dictionary<string, object> { ["step_index"] = step, ["status"] = "completed" } }
+        }
+    };
+
+    private static async Task<(KoboldImplementationPlan Plan, Guid TaskId)> SavedOneStepPlan(KoboldPlanService plans)
+    {
+        var taskId = Guid.NewGuid();
+        var plan = new KoboldImplementationPlan
+        {
+            ProjectId = AnswerProject, TaskId = taskId.ToString(), TaskDescription = "work the plan",
+            Steps = [Step(1, "never-1.txt")]
+        };
+        await plans.SavePlanAsync(plan);
+        return (plan, taskId);
+    }
+
+    [Fact]
+    public async Task A_question_in_the_turn_that_finishes_the_plan_stops_the_run_as_parked_and_the_finished_plan_resumes()
+    {
+        var plans = PlanService();
+        var (plan, taskId) = await SavedOneStepPlan(plans);
+        var asking = new ScriptedProvider((call, _) => Task.FromResult(call == 1 ? AskAndCompleteStep("ask-1", 1) : EndTurn));
+        var (first, _) = PlannedKobold(asking, plan, taskId);
+
+        await first.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 10);
+
+        asking.Requests.Should().HaveCount(1);
+        first.Status.Should().Be(KoboldStatus.Working, "the task waits on a person, so the run is not Done");
+        var stored = (await plans.LoadPlanAsync(AnswerProject, taskId.ToString()))!;
+        stored.Status.Should().NotBe(PlanStatus.Completed, "the question wins over the plan's end");
+        stored.Steps[0].Status.Should().Be(StepStatus.Completed, "the step finished in that turn stays finished");
+
+        var resumed = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (second, _) = PlannedKobold(resumed, stored, taskId, Answered("dec-1", "Which database?", "postgres"));
+        await second.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 10);
+
+        var request = Json(resumed.Requests[0]);
+        request.Should().Contain("ask-1", "the run resumes the conversation that asked").And.Contain("postgres");
+        second.ImplementationPlan!.Steps[0].Status.Should().Be(StepStatus.Completed, "a finished plan is not restarted from step 1");
+        second.ImplementationPlan.CurrentStepIndex.Should().Be(1);
+        second.Status.Should().Be(KoboldStatus.Done, "with every step done and the answer heard, the run finishes");
+    }
+
+    [Fact]
+    public async Task A_question_on_the_runs_last_iteration_saves_the_conversation_that_asked()
+    {
+        var plans = PlanService();
+        var (plan, taskId) = await SavedOneStepPlan(plans);
+        var asking = new ScriptedProvider((call, _) => Task.FromResult(call == 1 ? Ask("ask-1", "Which database?", "sqlite", "postgres") : EndTurn));
+        var (first, _) = PlannedKobold(asking, plan, taskId);
+        first.Agent.Options.MaxIterationsPerStep = 1;
+
+        await first.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 1);
+
+        asking.Requests.Should().HaveCount(1, "the question used the run's only iteration");
+        first.Status.Should().Be(KoboldStatus.Working);
+        var checkpoint = await plans.LoadConversationCheckpointAsync(AnswerProject, taskId.ToString());
+        checkpoint.Should().NotBeNull("the conversation ending in the question is saved, as for any question");
+        System.Text.Json.JsonSerializer.Serialize(checkpoint!.Messages).Should().Contain("ask-1");
+    }
+
+    [Fact]
+    public async Task A_run_stops_at_its_turn_boundary_once_another_Kobold_parked_its_task()
+    {
+        var parked = false;
+        var provider = new ScriptedProvider((call, _) =>
+        {
+            parked = true; // a sibling asked while this model call ran
+            return Task.FromResult(call <= 2 ? Touch() : EndTurn);
+        });
+        var (kobold, _, touch) = CreateKobold(provider, Step(1, "never-1.txt"));
+        kobold.IsTaskParked = () => parked;
+
+        await kobold.StartWorkingWithPlanEnhancedAsync(planService: null, maxIterations: 10);
+
+        provider.Requests.Should().HaveCount(1, "the turn in flight finishes, and no further model call is made");
+        touch.Tokens.Should().HaveCount(1);
+        kobold.Status.Should().Be(KoboldStatus.Working);
+        kobold.HasError.Should().BeFalse("stopping for a person is not a failure");
+    }
+
+    [Fact]
+    public async Task In_parallel_batches_the_asker_keeps_its_log_entry_and_checkpoint_and_the_sibling_its_finished_step()
+    {
+        var plans = PlanService();
+        var (_, taskId) = await SavedPlan(plans);
+        // Each batch loads its own copy, as Drake does, before either runs
+        var askerCopy = (await plans.LoadPlanAsync(AnswerProject, taskId.ToString()))!;
+        var siblingCopy = (await plans.LoadPlanAsync(AnswerProject, taskId.ToString()))!;
+
+        var asking = new ScriptedProvider((call, _) => Task.FromResult(call == 1 ? Ask("ask-1", "Which database?", "sqlite", "postgres") : EndTurn));
+        var (asker, _) = PlannedKobold(asking, askerCopy, taskId);
+        asker.SetAssignedStepIndices([1]);
+        await asker.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 10);
+
+        ScriptedProvider? working = null;
+        working = new ScriptedProvider((call, _) => Task.FromResult(call == 1 ? CompleteStep(1) : Touch()));
+        var (sibling, _) = PlannedKobold(working, siblingCopy, taskId);
+        sibling.SetAssignedStepIndices([0]);
+        sibling.IsTaskParked = () => working!.Requests.Count >= 1;
+        await sibling.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 10);
+
+        working.Requests.Should().HaveCount(1, "the sibling stops at its turn boundary once the task is parked");
+        var stored = (await plans.LoadPlanAsync(AnswerProject, taskId.ToString()))!;
+        stored.Steps[0].Status.Should().Be(StepStatus.Completed, "the sibling's finished step is kept");
+        stored.ExecutionLog.Should().Contain(e => e.Message.Contains("ask_human"), "the asker's log entry is kept");
+        var checkpoint = (await plans.LoadConversationCheckpointAsync(AnswerProject, taskId.ToString()))!;
+        System.Text.Json.JsonSerializer.Serialize(checkpoint.Messages).Should().Contain("ask-1", "only the asker keeps the checkpoint");
+        checkpoint.BatchSteps.Should().Equal(1);
+
+        var answer = Answered("dec-1", "Which database?", "postgres");
+        var otherBatch = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (other, _) = PlannedKobold(otherBatch, (await plans.LoadPlanAsync(AnswerProject, taskId.ToString()))!, taskId, answer);
+        other.SetAssignedStepIndices([0]);
+        await other.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 1);
+        Json(otherBatch.Requests[0]).Should().NotContain("ask-1", "a batch working other steps starts fresh, with the answer")
+            .And.Contain("postgres");
+
+        var askersBatch = new ScriptedProvider((_, _) => Task.FromResult(EndTurn));
+        var (again, _) = PlannedKobold(askersBatch, (await plans.LoadPlanAsync(AnswerProject, taskId.ToString()))!, taskId, answer);
+        again.SetAssignedStepIndices([1]);
+        await again.StartWorkingWithPlanEnhancedAsync(plans, maxIterations: 1);
+        Json(askersBatch.Requests[0]).Should().Contain("ask-1", "the asking batch resumes the conversation that asked");
+    }
 }

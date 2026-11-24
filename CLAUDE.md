@@ -97,6 +97,12 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     start of its text ending at a word, or its number (TASK-176, D9), stored as the option's full text; one naming two is
     refused as ambiguous, with the options numbered;
     `ResolvePendingDecisionAsync` returns a `DecisionAnswerResult` (`InvalidAnswer` leaves the question open).
+    A question wins over the run's end (TASK-171, D11): asked in the turn that finishes the plan or on the last
+    iteration, the run still stops as parked (Kobold Working, plan not Completed, conversation saved), and a finished
+    plan resumes past its last step rather than from step 1. In parallel mode (D10) every batch Kobold stops at its turn
+    boundary once the task is parked (`Kobold.IsTaskParked`), no further group starts, a batch's plan copy
+    (`BatchSteps`) saves by merging its own steps and log entries into the stored plan, and only the asking batch keeps
+    the checkpoint, resumed only by a batch with the same steps.
   - **Answers on resume** (TASK-022): Drake hands each summoned Kobold its task's answered and timed-out decisions
     (`Kobold.HumanAnswers`, oldest first). The Kobold hears each as a user message written as from a person and opening
     with `[Human answer — decision <id>]`, never as a tool result. A run resumed from its checkpoint gets only answers

@@ -809,6 +809,7 @@ namespace DraCode.KoboldLair.Orchestrators
             };
 
             kobold.OnAskHuman = (question, _) => AskHumanAsync(task, question);
+            kobold.IsTaskParked = () => IsTaskParked(task.Id);
             kobold.HumanAnswers = humanAnswers;
 
             // Track provider for circuit breaker and retry logic
@@ -2118,6 +2119,12 @@ namespace DraCode.KoboldLair.Orchestrators
                         $"  Task ID: {task.Id.ToString()[..8]}\n" +
                         $"  Task: {taskPreview}");
                 }
+                else if (IsTaskParked(task.Id))
+                {
+                    messageCallback?.Invoke("info",
+                        $"⏸️ Kobold {kobold.Id.ToString()[..8]} stopped: its task waits on a person's decision\n" +
+                        $"  Task ID: {task.Id.ToString()[..8]}");
+                }
                 else if (kobold.Status == KoboldStatus.Working && kobold.ImplementationPlan != null)
                 {
                     var completedCount = kobold.ImplementationPlan.CompletedStepsCount;
@@ -2182,7 +2189,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <param name="messageCallback">Callback for progress messages</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>All messages from parallel execution, or null if setup failed</returns>
-        private async Task<List<Message>?> ExecuteTaskParallelAsync(
+        internal async Task<List<Message>?> ExecuteTaskParallelAsync(
             TaskRecord task,
             KoboldImplementationPlan plan,
             Birko.AI.Orchestration.Services.StepDependencyAnalyzer analyzer,
@@ -2223,20 +2230,36 @@ namespace DraCode.KoboldLair.Orchestrators
 
                 foreach (var batch in stepBatches)
                 {
-                    await semaphore.WaitAsync(cancellationToken);
+                    // A run stopped meanwhile (a park cancelled it, or a shutdown) starts no further batch, and that
+                    // is not a failure; a question parks without cancelling, so the park itself is checked (D10)
+                    try
+                    {
+                        await semaphore.WaitAsync(cancellationToken);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    if (IsTaskParked(task.Id))
+                    {
+                        semaphore.Release();
+                        break;
+                    }
                     koboldTasks.Add(Task.Run(async () =>
                     {
                         try
                         {
-                            return await ExecuteStepBatchAsync(
-                                task, batch, agentType, maxIterations, provider,
-                                messageCallback, cancellationToken);
+                            return StepBatchRunner != null
+                                ? await StepBatchRunner(task, batch, cancellationToken)
+                                : await ExecuteStepBatchAsync(
+                                    task, batch, agentType, maxIterations, provider,
+                                    messageCallback, cancellationToken);
                         }
                         finally
                         {
                             semaphore.Release();
                         }
-                    }, cancellationToken));
+                    }));
                 }
 
                 // Wait for all batches in this group to complete
@@ -2256,10 +2279,10 @@ namespace DraCode.KoboldLair.Orchestrators
                     }
                 }
 
-                // Reload plan to get updated step statuses
-                if (_planService != null && !string.IsNullOrEmpty(plan.ProjectId) && !string.IsNullOrEmpty(plan.PlanFilename))
+                // Reload the plan the batches merged their steps into
+                if (_planService != null && !string.IsNullOrEmpty(plan.ProjectId) && !string.IsNullOrEmpty(plan.TaskId))
                 {
-                    plan = await _planService.LoadPlanAsync(plan.PlanFilename!, plan.ProjectId!) ?? plan;
+                    plan = await _planService.LoadPlanAsync(plan.ProjectId!, plan.TaskId) ?? plan;
                 }
 
                 // If any step failed, skip remaining groups
@@ -2268,10 +2291,22 @@ namespace DraCode.KoboldLair.Orchestrators
                     messageCallback?.Invoke("error", "Group failed - stopping parallel execution");
                     break;
                 }
+
+                // The task waits on a person, or its run was stopped: no further group starts (TASK-171, D10)
+                if (IsTaskParked(task.Id) || cancellationToken.IsCancellationRequested)
+                {
+                    messageCallback?.Invoke("info", IsTaskParked(task.Id)
+                        ? "⏸️ Task waits on a person's decision - parallel execution stopped"
+                        : "⏹️ Run stopped - parallel execution ended");
+                    break;
+                }
             }
 
             return allMessages;
         }
+
+        /// <summary>Tests only: runs a parallel batch in place of summoning a Kobold for it.</summary>
+        internal Func<TaskRecord, List<ImplementationStep>, CancellationToken, Task<(List<Message> messages, Kobold kobold)?>>? StepBatchRunner { get; set; }
 
         /// <summary>
         /// Phase 4: Splits steps into batches for parallel execution.
