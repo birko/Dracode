@@ -56,6 +56,10 @@ const signedIn = (page: Page, token: string, refreshToken = 'r1') => page.addIni
   }
 }, [token, refreshToken]);
 
+// A test can end while serve()'s /api/config handler is still forwarding the request; closing the page then makes
+// that handler throw and fails a test that passed (TASK-189). Drop the routes first and ignore what they are doing.
+test.afterEach(({ page }) => page.unrouteAll({ behavior: 'ignoreErrors' }));
+
 const store = (page: Page, key: string) => page.evaluate((k) => (window as any).koboldLair.auth.store.get(k), key);
 const userMenu = (page: Page) => page.locator('kobold-lair-shell [data-header-slot="user-menu"]');
 const outlet = (page: Page, tag: string) => page.locator(`#route-outlet ${tag}`);
