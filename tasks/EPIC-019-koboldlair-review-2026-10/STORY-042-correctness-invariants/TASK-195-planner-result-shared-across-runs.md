@@ -15,7 +15,7 @@ blocks: []
 # findings: ids this task remediates — from a review/audit/harvest/drill pass, or from ordinary
 # field use with no pass behind it at all. Prefixes: see /tasks intake
 findings: [FIELD-041]
-pr: null
+pr: 50
 github-issue: null
 jira-key: null
 ---
