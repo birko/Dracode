@@ -33,6 +33,8 @@ namespace DraCode.KoboldLair.Server.Services
         private readonly int _maxConcurrentRequests;
         private readonly TimeSpan _requestTimeout;
         private bool _disposed;
+        /// <summary>Set first in <see cref="Dispose"/>: from then on nothing is sent on a request's socket (TASK-181).</summary>
+        private volatile bool _stopping;
 
         // Statistics
         private long _totalRequestsProcessed;
@@ -190,6 +192,18 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task ProcessRequestsWorkerAsync(CancellationToken shutdownToken)
         {
+            try
+            {
+                await ProcessRequestsAsync(shutdownToken);
+            }
+            catch (OperationCanceledException) when (shutdownToken.IsCancellationRequested)
+            {
+                // Dispose stopped the queue: the worker ends, it does not fail (TASK-181)
+            }
+        }
+
+        private async Task ProcessRequestsAsync(CancellationToken shutdownToken)
+        {
             await foreach (var request in _requestChannel.Reader.ReadAllAsync(shutdownToken))
             {
                 // Check if request was already cancelled
@@ -235,7 +249,13 @@ namespace DraCode.KoboldLair.Server.Services
                     var timeoutTask = Task.Delay(_requestTimeout, shutdownToken);
                     var completedTask = await Task.WhenAny(processingTask, timeoutTask);
 
-                    if (completedTask == timeoutTask)
+                    if (completedTask == timeoutTask && shutdownToken.IsCancellationRequested)
+                    {
+                        // The queue is being disposed. A running answer cannot be stopped, so it finishes on its own
+                        // and sends nothing (_stopping); the worker does not wait it out.
+                        _ = processingTask.ContinueWith(t => _ = t.Exception, TaskScheduler.Default);
+                    }
+                    else if (completedTask == timeoutTask)
                     {
                         _logger.LogWarning("Request timeout: {RequestId} after {Timeout}s",
                             request.RequestId, _requestTimeout.TotalSeconds);
@@ -446,6 +466,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task SendStatusAsync(DragonRequest request, string statusType, string message)
         {
+            if (_stopping) return;
             try
             {
                 if (request.WebSocket.State != WebSocketState.Open)
@@ -481,6 +502,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task SendResponseAsync(DragonRequest request, string response, bool isStreamed)
         {
+            if (_stopping) return;
             try
             {
                 if (request.WebSocket.State != WebSocketState.Open)
@@ -525,6 +547,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// </summary>
         private async Task SendErrorAsync(DragonRequest request, string errorType, string errorMessage)
         {
+            if (_stopping) return;
             try
             {
                 if (request.WebSocket.State != WebSocketState.Open)
@@ -563,24 +586,30 @@ namespace DraCode.KoboldLair.Server.Services
             }
         }
 
+        /// <summary>
+        /// Stops the workers without throwing (TASK-181). Waiting requests are cancelled; a running answer cannot be
+        /// stopped, so it is left to finish and sends nothing on its socket.
+        /// </summary>
         public void Dispose()
         {
-            if (!_disposed)
+            if (_disposed)
+                return;
+            _disposed = true;
+            _stopping = true;
+
+            // Cancel every request still waiting or running
+            foreach (var request in _pending.Values)
             {
-                _shutdownCts.Cancel();
-                _processingTask.Wait(TimeSpan.FromSeconds(5));
-                _shutdownCts.Dispose();
-                _concurrencyLimiter.Dispose();
-
-                // Cancel every request still waiting or running
-                foreach (var request in _pending.Values)
-                {
-                    try { request.CancellationTokenSource.Cancel(); }
-                    catch (ObjectDisposedException) { }
-                }
-
-                _disposed = true;
+                try { request.CancellationTokenSource.Cancel(); }
+                catch (ObjectDisposedException) { }
             }
+
+            _shutdownCts.Cancel();
+            // The workers end quietly; a worker still inside a request's finally may yet release the limiter, so it is
+            // disposed only once they all have ended
+            if (_processingTask.Wait(TimeSpan.FromSeconds(5)))
+                _concurrencyLimiter.Dispose();
+            _shutdownCts.Dispose();
         }
     }
 

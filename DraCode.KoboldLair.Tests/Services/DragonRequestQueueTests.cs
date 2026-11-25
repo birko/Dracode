@@ -96,7 +96,6 @@ public class DragonRequestQueueTests
         }
     }
 
-    /// <summary>A queue left running: its Dispose throws as it stops the workers (TASK-181).</summary>
     private static DragonRequestQueue NewQueue() => new(NullLogger.Instance);
 
     private static DragonRequest Request(string sessionId, string message, DragonAgent dragon, WebSocket socket) => new()
@@ -174,5 +173,39 @@ public class DragonRequestQueueTests
         (await queue.WaitForSessionIdleAsync("s-1", TimeSpan.FromSeconds(10))).Should().BeTrue();
         socket.Replies().Should().Equal("reply to first");
         provider.UserTurnsPerCall.Should().HaveCount(1);
+    }
+
+    // --- Dispose (TASK-181) -------------------------------------------------------------------------
+
+    [Fact]
+    public void Disposing_an_idle_queue_stops_its_workers_without_throwing()
+    {
+        var queue = NewQueue();
+
+        var dispose = () => queue.Dispose();
+
+        dispose.Should().NotThrow();
+        dispose.Should().NotThrow("a second Dispose does nothing");
+    }
+
+    [Fact]
+    public async Task Disposing_with_a_request_running_does_not_throw_and_its_reply_is_not_sent_afterwards()
+    {
+        var provider = new SlowProvider(TimeSpan.FromMilliseconds(800));
+        var dragon = new DragonAgent(provider, new AgentOptions { Verbose = false });
+        var socket = new RecordingSocket();
+        var queue = NewQueue();
+        await queue.EnqueueAsync(Request("s-1", "first", dragon, socket));
+        await WaitUntil(() => provider.UserTurnsPerCall.Count == 1);
+        var sentBefore = socket.Sent.Count;
+
+        var started = DateTime.UtcNow;
+        var dispose = () => queue.Dispose();
+
+        dispose.Should().NotThrow();
+        (DateTime.UtcNow - started).Should().BeLessThan(TimeSpan.FromSeconds(2), "shutdown does not wait out a running answer");
+        await Task.Delay(1500); // the model call ends after the queue is gone
+        socket.Replies().Should().BeEmpty("nothing is sent on a socket after its queue was disposed");
+        lock (socket.Sent) socket.Sent.Count.Should().Be(sentBefore);
     }
 }

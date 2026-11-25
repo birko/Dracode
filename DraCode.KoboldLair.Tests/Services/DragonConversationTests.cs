@@ -45,11 +45,7 @@ public class DragonConversationTests
     {
         public DragonRequestQueue Queue { get; } = new(NullLogger.Instance);
 
-        public void Dispose()
-        {
-            try { Queue.Dispose(); }
-            catch (AggregateException) { }
-        }
+        public void Dispose() => Queue.Dispose();
     }
 
     private static DragonRequest Request(string sessionId, DragonAgent dragon, WebSocket socket) => new()
