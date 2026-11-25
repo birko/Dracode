@@ -80,9 +80,9 @@ Q10–Q20 are the 2026-11-25 grill on the question hierarchy.
 | Q4 | Are the checks the developer-tool instructions run as-is, or purpose-built agents? | decision | — | resolved — purpose-built KoboldLair agents (D10, D17) | — |
 | Q5 | May people edit the rendered task files directly? | decision | Q1 | resolved — no; changes go through the UI and Dragon (D16) | — |
 | Q6 | Does a single generic tool run the lifecycle instructions inside the pipeline? | decision | Q4 | resolved — no (D17) | — |
-| Q7 | How many verify-gate retries before a task escalates? | decision | Q3 | open | — |
-| Q8 | Does every check run on every task, or are checks chosen by task type? | decision | Q4 | open | — |
-| Q9 | Are the current per-area task lists kept alongside the new layout during migration? | decision | Q1 | open | — |
+| Q7 | How many verify-gate retries before a task escalates? | decision | Q3 | resolved → D29 | — |
+| Q8 | Does every check run on every task, or are checks chosen by task type? | decision | Q4 | resolved → D30 | — |
+| Q9 | Are the current per-area task lists kept alongside the new layout during migration? | decision | Q1 | resolved → D31 | — |
 | Q10 | Who answers a question at each level, and from what? | decision | — | resolved → D18 | — |
 | Q11 | Does Dragon answer questions itself? | decision | Q10 | resolved → D19 | — |
 | Q12 | Can the person see, and overturn, an answer an agent gave? | decision | Q10 | resolved → D21 | — |
