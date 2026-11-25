@@ -104,7 +104,13 @@ namespace DraCode.KoboldLair.Models.Tasks
     }
 
     /// <summary>What Drake did with a question: parked the task on decision <paramref name="DecisionId"/>, or refused.</summary>
-    public sealed record AskHumanOutcome(bool Parked, string? DecisionId, string? Refusal);
+    /// <param name="Answer">
+    /// An agent's answer on the way up the question chain (TASK-202): the question never reached a person, the task was
+    /// not parked, and the asker continues with it at once.
+    /// </param>
+    /// <param name="AnsweredBy">The level that gave <paramref name="Answer"/>.</param>
+    public sealed record AskHumanOutcome(bool Parked, string? DecisionId, string? Refusal, string? Answer = null,
+        QuestionLevel? AnsweredBy = null);
 
     /// <summary>
     /// How much Kobolds of a project may ask (FEATURE-028; enforcement and configuration are TASK-023's). Until then

@@ -288,7 +288,10 @@ namespace DraCode.KoboldLair.Factories
                 OnDecisionRequired,
                 OnDecisionResolved,
                 _koboldLairConfig.Verification
-            );
+            )
+            {
+                QuestionChain = Chain
+            };
 
             // Lock only for dictionary insertion, with race condition check
             lock (_lock)

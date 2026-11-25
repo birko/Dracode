@@ -52,7 +52,7 @@ namespace DraCode.KoboldLair.Agents.Tools
         public override string Name => "ask_human";
 
         public override string Description => @"Ask a person a question when a real ambiguity blocks correct work and guessing would likely be wrong.
-Your task pauses until the person answers; the answer arrives when the work resumes. Make this the LAST tool call of your turn: nothing after it is worth doing before the answer.
+The question goes up the hierarchy first: your supervisor, the project's overseer or Dragon may answer it at once, and then you continue with that answer. Only if none of them can does it reach a person; then your task pauses until the person answers, and the answer arrives when the work resumes. Make this the LAST tool call of your turn: nothing after it is worth doing before the answer.
 Ask only what the specification, the plan and the code cannot tell you. If the question is refused, decide yourself, record the assumption with reflect, and continue.
 
 Parameters:
@@ -61,7 +61,7 @@ Parameters:
 - allow_free_text (optional): whether an answer other than an option is accepted (default: true without options, false with them)
 - context (optional): why you are asking — what you found and what each answer would change
 
-Returns: whether the question was sent (and the task paused) or refused.";
+Returns: the answer when an agent above you gave it, or whether the question was sent to a person (and the task paused) or refused.";
 
         public override object? InputSchema => new
         {
@@ -104,8 +104,13 @@ Returns: whether the question was sent (and the task paused) or refused.";
 
             _plan.AddLogEntry(outcome.Parked
                 ? $"→ decision {outcome.DecisionId}, task parked"
-                : $"→ not asked: {outcome.Refusal}");
+                : outcome.Answer != null
+                    ? OneLine($"→ answered by the {outcome.AnsweredBy} level (decision {outcome.DecisionId}): {outcome.Answer}")
+                    : $"→ not asked: {outcome.Refusal}");
             await SavePlanAsync();
+
+            if (outcome.Answer != null)
+                return $"Answered (decision {outcome.DecisionId}) by the {LevelName(outcome.AnsweredBy)}, who could settle it: {outcome.Answer}. Continue with this answer.";
 
             if (!outcome.Parked)
                 return $"Not asked: {outcome.Refusal}. Decide yourself, record the assumption with reflect, and continue.";
@@ -136,6 +141,14 @@ Returns: whether the question was sent (and the task paused) or refused.";
                 return $"keep the context under {MaxContextLength} characters.";
             return null;
         }
+
+        private static string LevelName(QuestionLevel? level) => level switch
+        {
+            QuestionLevel.Supervisor => "supervisor (Drake)",
+            QuestionLevel.Overseer => "project's overseer (Wyvern)",
+            QuestionLevel.Dragon => "Dragon",
+            _ => "agent above you"
+        };
 
         /// <summary>The plan log is a markdown list: one entry, one line.</summary>
         private static string OneLine(string text) =>
