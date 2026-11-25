@@ -1,6 +1,6 @@
 ---
 id: FEATURE-078
-generated: 2026-11-25 11:58
+generated: 2026-11-25 12:24
 ---
 
 # Project lifecycle discipline inside the KoboldLair pipeline — Status
@@ -21,9 +21,33 @@ generated: 2026-11-25 11:58
 
 ## Build progress
 
-0 / 1 task done.
+0 / 25 tasks done.
 
 - TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — todo
+- TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — todo
+- TASK-202 A Kobold's ask_human goes through the chain — todo
+- TASK-203 Drake answers a Kobold's question from what its level owns, or passes it up — todo
+- TASK-204 Wyvern becomes the project's overseer: several turns, read-only tools — todo
+- TASK-205 Wyvern answers a question from the specification, its analysis and the decisions, or passes it up — todo
+- TASK-206 Dragon answers only from recorded decisions and the specification, otherwise asks the person to define it — todo
+- TASK-207 What the person defines is written into the specification as a new version — todo
+- TASK-208 An answer an agent gives is recorded as a decision the person can see and overturn — todo
+- TASK-209 Questions reach the person in rounds of at most five, each with a recommended answer — todo
+- TASK-210 Task states use the lifecycle vocabulary — todo
+- TASK-211 The lifecycle layer is switched on per project — todo
+- TASK-212 The plan is rendered in the standard lifecycle layout, read-only — todo
+- TASK-213 A new project gets the full lifecycle layer; an imported one gets what it is missing — todo
+- TASK-214 Dragon's interview records a decision ledger per feature — todo
+- TASK-215 Wyrm records the project's conventions, vocabulary and hard-to-reverse choices — todo
+- TASK-216 Merging a feature updates the project changelog — todo
+- TASK-217 The acceptance check runs checker agents on every task, cheapest first — todo
+- TASK-218 A checker confirms a task built what was asked — todo
+- TASK-219 A checker confirms a task follows the project's conventions — todo
+- TASK-220 A checker finds stale or redundant comments — todo
+- TASK-221 A checker looks for correctness problems — todo
+- TASK-222 Checker findings go back to the worker, twice at most, then escalate — todo
+- TASK-223 Repeated failures and monitor alerts become tracked fix tasks, worked by impact — todo
+- TASK-224 A scheduled CI check opens an issue when a mirrored lifecycle skill changes — todo
 
 ## What can be tested now
 
@@ -35,4 +59,4 @@ none yet
 
 ## Next step
 
-1 task to do.
+25 tasks to do.
