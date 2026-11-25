@@ -191,7 +191,7 @@ _None_
   - STORY-033 Persist structured decision & reasoning records — planned (0/0 done)
   - STORY-034 Codify and enforce the deliverable-vs-working-state boundary — planned (0/0 done)
   - (epic level) — 0/1 done
-    - [ ] [TASK-200](EPIC-016-db-backed-agent-state/TASK-200-stores-work-on-any-database.md) Stores work on any database: SQLite for tests, PostgreSQL for production
+    - [ ] [TASK-200](EPIC-016-db-backed-agent-state/TASK-200-stores-work-on-any-database.md) Stores work on any database: SQLite for tests, PostgreSQL for production ⏳ waits on Birko.Framework/TASK-988
 - **EPIC-017 Generalized agent consensus** — planned (0/0 tasks done)
   - STORY-035 Reusable ConsensusService abstraction — planned (0/0 done)
   - STORY-036 Diverse-panel consensus (heterogeneous agents) — planned (0/0 done)

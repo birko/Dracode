@@ -9,7 +9,7 @@ priority: P2
 assignee: agent
 created: 2026-11-25
 # depends-on: task or story ids this task waits for — see the tasks skill's slicing.md § Where the edges live
-depends-on: []
+depends-on: [Birko.Framework/TASK-988]
 blocks: []
 # findings: ids this task remediates — from a review/audit/harvest/drill pass, or from ordinary
 # field use with no pass behind it at all. Prefixes: see /tasks intake
@@ -58,7 +58,7 @@ has to work whichever database is configured.
 - **JSON backend → dropped.** A database is required; the 14 test hosts on `JsonFile` move to a temporary SQLite file.
 - **Existing data → no migration.** SQLite is only for testing; production starts fresh on PostgreSQL.
 - **Store creation → a provider-neutral store factory in Birko** (one interface, the provider picked from configuration);
-  DraCode's stores depend only on it. Requested from `birko-framework-44` on 2026-11-25; this task waits on it.
+  DraCode's stores depend only on it. Filed as Birko TASK-988 (2026-11-25, not started; its own open questions: where it lives, connection string or `SqlSettings`, the four per-provider factories); this task waits on it.
 - **Schema → Birko's `CreateSchemaAsync` and `EnsureColumns`,** already provider-neutral (in the shared SQL connector),
   on both databases. No migrations framework until a change needs more than added columns.
 - **PostgreSQL tests → Birko's live-test convention:** they run when `BIRKO_PG_HOST` (user, password, port) is set,
