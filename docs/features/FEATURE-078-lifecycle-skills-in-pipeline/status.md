@@ -21,12 +21,12 @@ generated: 2026-11-25 13:05
 
 ## Build progress
 
-3 / 25 tasks done.
+4 / 25 tasks done.
 
 - TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — done
 - TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — done
 - TASK-202 A Kobold's ask_human goes through the chain — done
-- TASK-203 Drake answers a Kobold's question from what its level owns, or passes it up — todo
+- TASK-203 Drake answers a Kobold's question from what its level owns, or passes it up — done
 - TASK-204 Wyvern becomes the project's overseer: several turns, read-only tools — todo
 - TASK-205 Wyvern answers a question from the specification, its analysis and the decisions, or passes it up — todo
 - TASK-206 Dragon answers only from recorded decisions and the specification, otherwise asks the person to define it — todo
@@ -51,7 +51,7 @@ generated: 2026-11-25 13:05
 
 ## What can be tested now
 
-Ready to test: TASK-170, TASK-202. No manual test: TASK-201.
+Ready to test: TASK-170, TASK-202, TASK-203. No manual test: TASK-201.
 
 ## Prototype
 
@@ -59,4 +59,4 @@ none yet
 
 ## Next step
 
-22 tasks to do.
+21 tasks to do.
