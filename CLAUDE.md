@@ -82,7 +82,12 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     Overseer), and an answer given on the way is stored answered with no card. Every project, no switch. A Kobold's
     `ask_human` climbs it from the Worker (TASK-202, `Drake.QuestionChain`): one no level answers parks the task as
     before; one a level answers is stored answered and returned to the Kobold at once (`AskHumanOutcome.Answer`), with no
-    park and no card. The per-task question cap counts both
+    park and no card. The per-task question cap counts both. **Drake answers** at the Supervisor level (TASK-203,
+    `SupervisorLevel`): only from `Drake.SupervisorSourcesAsync` (the task's title plus its full description and the
+    constraints read from the project's `analysis.json` / `wyrm-recommendation.json`, its saved plan, and earlier answers
+    for it and the tasks it depends on). A repeated question is answered from the record without a model; otherwise a
+    tool-less `SupervisorAnswerAgent` (the Kobold planner's model, tracked as `drake-supervisor`) must quote the settling
+    line, and its answer is dropped unless the quote is in the sources and the answer is acceptable for the question
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts

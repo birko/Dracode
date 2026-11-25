@@ -724,17 +724,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 _specificationPath);
 
             // Pass combined project constraints to Kobold for constraint-aware planning
-            var combinedConstraints = new List<string>();
-            if (_wyrmRecommendation?.Constraints?.Any() == true)
-                combinedConstraints.AddRange(_wyrmRecommendation.Constraints);
-            if (_wyvern?.Analysis?.Constraints?.Any() == true)
-                combinedConstraints.AddRange(_wyvern.Analysis.Constraints.Where(c => !combinedConstraints.Contains(c)));
-            if (_wyrmRecommendation?.OutOfScope?.Any() == true)
-                combinedConstraints.AddRange(_wyrmRecommendation.OutOfScope.Select(o => $"OUT OF SCOPE: {o}"));
-            if (_wyvern?.Analysis?.OutOfScope?.Any() == true)
-                combinedConstraints.AddRange(_wyvern.Analysis.OutOfScope
-                    .Where(o => !combinedConstraints.Any(c => c.EndsWith(o)))
-                    .Select(o => $"OUT OF SCOPE: {o}"));
+            var combinedConstraints = CombinedConstraints();
             if (combinedConstraints.Any())
                 kobold.SetProjectConstraints(combinedConstraints);
 
@@ -3066,6 +3056,103 @@ namespace DraCode.KoboldLair.Orchestrators
         /// when the store cannot be read: a run without a person's answer would guess or ask again, so the caller holds
         /// the task for a later cycle instead.
         /// </summary>
+        /// <summary>The project's constraints and exclusions, from Wyrm's recommendation and Wyvern's analysis, without repeats.</summary>
+        private List<string> CombinedConstraints()
+        {
+            var combined = new List<string>();
+            if (_wyrmRecommendation?.Constraints?.Any() == true)
+                combined.AddRange(_wyrmRecommendation.Constraints);
+            if (_wyvern?.Analysis?.Constraints?.Any() == true)
+                combined.AddRange(_wyvern.Analysis.Constraints.Where(c => !combined.Contains(c)));
+            if (_wyrmRecommendation?.OutOfScope?.Any() == true)
+                combined.AddRange(_wyrmRecommendation.OutOfScope.Select(o => $"OUT OF SCOPE: {o}"));
+            if (_wyvern?.Analysis?.OutOfScope?.Any() == true)
+                combined.AddRange(_wyvern.Analysis.OutOfScope
+                    .Where(o => !combined.Any(c => c.EndsWith(o)))
+                    .Select(o => $"OUT OF SCOPE: {o}"));
+            return combined;
+        }
+
+        /// <summary>
+        /// What this Drake owns for a task, as the supervisor answers a worker's question from it (TASK-203, FEATURE-078
+        /// D18): the task's description, its plan, the project's constraints, and the answers it and the tasks it depends on
+        /// already have. Null when this Drake does not hold the task, or its answers cannot be read.
+        /// </summary>
+        public async Task<Services.SupervisorSources?> SupervisorSourcesAsync(string taskId)
+        {
+            var task = _taskTracker.GetTaskById(taskId);
+            if (task == null)
+                return null;
+            var answers = await LoadHumanAnswersAsync(taskId);
+            if (answers == null)
+                return null;
+
+            string? plan = null;
+            if (_planService != null)
+            {
+                try
+                {
+                    var saved = await _planService.LoadPlanAsync(_projectId ?? task.ProjectId ?? "", taskId);
+                    if (saved?.Steps.Count > 0)
+                        plan = string.Join(Environment.NewLine, saved.Steps.Select(s =>
+                            $"{s.Index}. {s.Title}" + (string.IsNullOrWhiteSpace(s.Description) ? "" : $" — {s.Description}")));
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Could not read the plan of task {TaskId} for the supervisor", taskId);
+                }
+            }
+
+            var (description, analysisConstraints) = AnalysisFacts(task);
+            var constraints = CombinedConstraints();
+            constraints.AddRange(analysisConstraints.Where(c => !constraints.Contains(c)));
+            var taskText = description == null ? task.Task : $"{task.Task}{Environment.NewLine}{description}";
+
+            return new Services.SupervisorSources(taskText, plan, constraints,
+                answers.Where(a => !a.TimedOut && !string.IsNullOrWhiteSpace(a.Answer)).Select(a => (a.Question, a.Answer!)).ToList());
+        }
+
+        /// <summary>
+        /// The task's full description and the project's constraints as Wyvern and Wyrm saved them in the project folder
+        /// (<c>analysis.json</c>, <c>wyrm-recommendation.json</c>, beside <c>tasks/</c>): the task record keeps only the
+        /// task's title, and this Drake is not always given the Wyvern in memory. The task is found by the
+        /// <c>[area-n]</c> id its title starts with. Unreadable files give nothing.
+        /// </summary>
+        private (string? Description, List<string> Constraints) AnalysisFacts(TaskRecord task)
+        {
+            var constraints = new List<string>();
+            string? description = null;
+            var folder = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(_outputMarkdownPath)));
+            if (folder == null)
+                return (null, constraints);
+            var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            try
+            {
+                var analysisPath = Path.Combine(folder, "analysis.json");
+                if (File.Exists(analysisPath)
+                    && System.Text.Json.JsonSerializer.Deserialize<WyvernAnalysis>(File.ReadAllText(analysisPath), options) is { } analysis)
+                {
+                    var id = System.Text.RegularExpressions.Regex.Match(task.Task, @"^\[([^\]]+)\]").Groups[1].Value;
+                    if (id.Length > 0)
+                        description = analysis.Areas.SelectMany(a => a.Tasks).FirstOrDefault(t => t.Id == id)?.Description;
+                    constraints.AddRange(analysis.Constraints);
+                    constraints.AddRange(analysis.OutOfScope.Select(o => $"OUT OF SCOPE: {o}"));
+                }
+                var wyrmPath = Path.Combine(folder, "wyrm-recommendation.json");
+                if (File.Exists(wyrmPath)
+                    && System.Text.Json.JsonSerializer.Deserialize<WyrmRecommendation>(File.ReadAllText(wyrmPath), options) is { } wyrm)
+                {
+                    constraints.AddRange(wyrm.Constraints.Where(c => !constraints.Contains(c)));
+                    constraints.AddRange(wyrm.OutOfScope.Select(o => $"OUT OF SCOPE: {o}").Where(c => !constraints.Contains(c)));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
+            {
+                _logger?.LogWarning(ex, "Could not read the analysis for task {TaskId}'s supervisor sources", task.Id);
+            }
+            return (description, constraints);
+        }
+
         internal async Task<IReadOnlyList<HumanAnswer>?> LoadHumanAnswersAsync(string taskId)
         {
             if (_pendingDecisions == null)

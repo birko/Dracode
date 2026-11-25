@@ -535,6 +535,19 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     // registered here as FEATURE-078's tasks add them
     factory.Chain = new DraCode.KoboldLair.Services.QuestionChain(
         sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.QuestionChain>());
+    // Drake answers a worker's question from the task, its plan, the constraints and earlier answers (TASK-203), with
+    // the model the Kobold planner uses; its calls are tracked like every agent's
+    var supervisorProviders = sp.GetRequiredService<ProviderConfigurationService>();
+    factory.Chain.Register(new DraCode.KoboldLair.Services.SupervisorLevel(
+        (projectId, taskId) => factory.GetDrakesByProject(projectId).FirstOrDefault(d => d.HoldsTask(taskId)),
+        projectId =>
+        {
+            var (type, config, _) = supervisorProviders.GetProviderSettingsForAgent("kobold");
+            return DraCode.KoboldLair.Agents.KoboldLairAgentFactory.CreateLlmProvider(type, config, "drake-supervisor",
+                sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>(),
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger("SupervisorLevel"), projectId);
+        },
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.SupervisorLevel>()));
 
     // Wire escalation notifications to Dragon client
     factory.OnEscalation = (projectName, alert, resolution) =>
