@@ -1,13 +1,13 @@
 ---
 id: TASK-170
-parent: STORY-025
+parent: STORY-051
 feature: FEATURE-078
 status: todo
 priority: P3
 assignee: agent
 created: 2026-11-16
 depends-on: [TASK-021]
-blocks: []
+blocks: [TASK-204]
 findings: []
 pr: null
 github-issue: null

@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-25 11:41. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-25 12:24. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
-| planned      | 9                  | 30                 | —                   |
-| todo         | —                  | —                  | 62                  |
+| planned      | 10                 | 34                 | —                   |
+| todo         | —                  | —                  | 86                  |
 | in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
 | done         | 1                  | 7                  | 128                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 40× P2 · 13× P3.
+`todo` by priority: 9× P1 · 52× P2 · 25× P3.
 
 ## In progress now
 
@@ -22,7 +22,7 @@ _None_
 
 ## Tree
 
-> Parents out of step (7): STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-042 in-progress, every child closed → `/tasks close STORY-042`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open.
+> Parents out of step (8): STORY-025 in-progress, every child closed → `/tasks close STORY-025`, or keep it open; STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-042 in-progress, every child closed → `/tasks close STORY-042`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open.
 
 - **EPIC-001 Token storage & auth providers** — planned (0/2 tasks done)
   - (epic level) — 0/2 done
@@ -156,17 +156,16 @@ _None_
     - [x] [TASK-188](EPIC-013-multi-platform-clients/STORY-049-settings/TASK-188-theme-setting-follows-browser.md) The theme setting is applied, and "Auto" follows the browser's light/dark preference · FEATURE-026
   - STORY-050 Web UI: phone check-and-respond layout — done (1/1 done)
     - [x] [TASK-164](EPIC-013-multi-platform-clients/STORY-050-phone-layout/TASK-164-phone-check-and-respond.md) Phone check-and-respond layout · FEATURE-026
-- **EPIC-014 Human-in-the-loop decision gates** — in-progress (9/12 tasks done)
+- **EPIC-014 Human-in-the-loop decision gates** — in-progress (9/11 tasks done)
   - STORY-024 Blocking "AwaitingHumanDecision" escalation tier — in-progress (2/3 done)
     - [x] [TASK-019](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-019-awaiting-human-decision-state.md) AwaitingHumanDecision state + HumanDecisionRequired disposition · FEATURE-027
     - [x] [TASK-020](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-020-drake-parks-routes-to-human.md) Drake parks task & routes decision to human instead of auto-resolving · FEATURE-027
     - [ ] [TASK-167](EPIC-014-human-in-the-loop-gates/STORY-024-blocking-decision-tier/TASK-167-pending-decisions-index-and-retention.md) Index the pending_decisions table and stop it growing without bound
-  - STORY-025 Async `ask_human` tool for automatic agents — in-progress (6/7 done)
+  - STORY-025 Async `ask_human` tool for automatic agents — in-progress (6/6 done)
     - [x] [TASK-021](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-021-async-ask-human-tool.md) Implement async `ask_human` tool ⚠ blocked: merge deferred: stacked on task/TASK-020, which waits on its end-to-end check at TASK-024; code complete on task/TASK-021 · FEATURE-028
     - [x] [TASK-022](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-022-deliver-answer-into-context.md) Deliver human answer back into agent context on resume ⚠ blocked: merge deferred: stacked on task/TASK-021 (PR #3), itself stacked on task/TASK-020, which waits on its end-to-end check at TASK-024; code complete on task/TASK-022 · FEATURE-028
     - [x] [TASK-172](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-172-flaky-answers-on-summon-test.md) Find why a summoned Kobold sometimes hears no answers in the full test suite ⚠ blocked: merge deferred: stacked on task/TASK-025 (PR #6), unmerged; code complete on task/TASK-172 · FEATURE-028
     - [x] [TASK-175](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-175-answer-reaches-dependent-tasks.md) A task that depends on an answered question asks the person the same question again · FEATURE-028
-    - [ ] [TASK-170](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-170-ask-human-for-wyvern.md) ask_human for the analyzer agent (Wyvern) — needs a project-level wait · FEATURE-078
     - [x] [TASK-171](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-171-ask-human-run-ending-edge-cases.md) ask_human: runs that end some other way as they ask · FEATURE-028
     - [x] [TASK-176](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-176-forgiving-choice-answer-match.md) A typed answer that names an option is refused unless it repeats the option's whole text · FEATURE-028
   - STORY-026 Policy-driven decision gates (per-project) — planned (0/1 done)
@@ -260,6 +259,36 @@ _None_
     - [x] [TASK-196](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-196-retry-in-completed-project-never-runs.md) A retried task of a Completed project is never run
   - STORY-043 Reuse & dead code — planned (1/1 done)
     - [x] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation
+- **EPIC-020 Project lifecycle in KoboldLair** — planned (0/25 tasks done)
+  - STORY-051 Questions climb the agent hierarchy — planned (0/10 done)
+    - [ ] [TASK-201](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-201-a-question-climbs-the-agent-hierarchy-one-way-and.md) A question climbs the agent hierarchy one way, and its answer returns down the same path · FEATURE-078
+    - [ ] [TASK-202](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-202-a-kobold-s-ask-human-goes-through-the-chain.md) A Kobold's ask_human goes through the chain ⏳ waits on TASK-201 · FEATURE-078
+    - [ ] [TASK-203](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-203-drake-answers-a-kobold-s-question-from-what-its-le.md) Drake answers a Kobold's question from what its level owns, or passes it up ⏳ waits on TASK-201 · FEATURE-078
+    - [ ] [TASK-204](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-204-wyvern-becomes-the-project-s-overseer-several-turn.md) Wyvern becomes the project's overseer: several turns, read-only tools ⏳ waits on TASK-170 · FEATURE-078
+    - [ ] [TASK-205](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-205-wyvern-answers-a-question-from-the-specification-i.md) Wyvern answers a question from the specification, its analysis and the decisions, or passes it up ⏳ waits on TASK-201, TASK-204 · FEATURE-078
+    - [ ] [TASK-206](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-206-dragon-answers-only-from-recorded-decisions-and-th.md) Dragon answers only from recorded decisions and the specification, otherwise asks the person to define it ⏳ waits on TASK-201 · FEATURE-078
+    - [ ] [TASK-207](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-207-what-the-person-defines-is-written-into-the-specif.md) What the person defines is written into the specification as a new version ⏳ waits on TASK-206 · FEATURE-078
+    - [ ] [TASK-208](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-208-an-answer-an-agent-gives-is-recorded-as-a-decision.md) An answer an agent gives is recorded as a decision the person can see and overturn ⏳ waits on TASK-201 · FEATURE-078
+    - [ ] [TASK-209](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-209-questions-reach-the-person-in-rounds-of-at-most-fi.md) Questions reach the person in rounds of at most five, each with a recommended answer ⏳ waits on TASK-201 · FEATURE-078
+    - [ ] [TASK-170](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-170-ask-human-for-wyvern.md) ask_human for the analyzer agent (Wyvern) — needs a project-level wait · FEATURE-078
+  - STORY-052 Lifecycle layer and records — planned (0/7 done)
+    - [ ] [TASK-210](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-210-task-states-use-the-lifecycle-vocabulary.md) Task states use the lifecycle vocabulary · FEATURE-078
+    - [ ] [TASK-211](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-211-the-lifecycle-layer-is-switched-on-per-project.md) The lifecycle layer is switched on per project · FEATURE-078
+    - [ ] [TASK-212](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-212-the-plan-is-rendered-in-the-standard-lifecycle-lay.md) The plan is rendered in the standard lifecycle layout, read-only ⏳ waits on TASK-210, TASK-211 · FEATURE-078
+    - [ ] [TASK-213](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-213-a-new-project-gets-the-full-lifecycle-layer-an-imp.md) A new project gets the full lifecycle layer; an imported one gets what it is missing ⏳ waits on TASK-211, TASK-212 · FEATURE-078
+    - [ ] [TASK-214](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-214-dragon-s-interview-records-a-decision-ledger-per-f.md) Dragon's interview records a decision ledger per feature ⏳ waits on TASK-211 · FEATURE-078
+    - [ ] [TASK-215](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-215-wyrm-records-the-project-s-conventions-vocabulary.md) Wyrm records the project's conventions, vocabulary and hard-to-reverse choices ⏳ waits on TASK-211 · FEATURE-078
+    - [ ] [TASK-216](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-216-merging-a-feature-updates-the-project-changelog.md) Merging a feature updates the project changelog ⏳ waits on TASK-211 · FEATURE-078
+  - STORY-053 Verify gate and self-healing — planned (0/7 done)
+    - [ ] [TASK-217](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-217-the-acceptance-check-runs-checker-agents-on-every.md) The acceptance check runs checker agents on every task, cheapest first · FEATURE-078
+    - [ ] [TASK-218](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-218-a-checker-confirms-a-task-built-what-was-asked.md) A checker confirms a task built what was asked ⏳ waits on TASK-217 · FEATURE-078
+    - [ ] [TASK-222](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-222-checker-findings-go-back-to-the-worker-twice-at-mo.md) Checker findings go back to the worker, twice at most, then escalate ⏳ waits on TASK-217 · FEATURE-078
+    - [ ] [TASK-219](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-219-a-checker-confirms-a-task-follows-the-project-s-co.md) A checker confirms a task follows the project's conventions ⏳ waits on TASK-217, TASK-215 · FEATURE-078
+    - [ ] [TASK-220](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-220-a-checker-finds-stale-or-redundant-comments.md) A checker finds stale or redundant comments ⏳ waits on TASK-217 · FEATURE-078
+    - [ ] [TASK-221](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-221-a-checker-looks-for-correctness-problems.md) A checker looks for correctness problems ⏳ waits on TASK-217 · FEATURE-078
+    - [ ] [TASK-223](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-223-repeated-failures-and-monitor-alerts-become-tracke.md) Repeated failures and monitor alerts become tracked fix tasks, worked by impact · FEATURE-078
+  - STORY-054 Following the lifecycle skills — planned (0/1 done)
+    - [ ] [TASK-224](EPIC-020-project-lifecycle-in-koboldlair/STORY-054-following-the-skills/TASK-224-a-scheduled-ci-check-opens-an-issue-when-a-mirrore.md) A scheduled CI check opens an issue when a mirrored lifecycle skill changes · FEATURE-078
 
 ## Loose tasks
 
