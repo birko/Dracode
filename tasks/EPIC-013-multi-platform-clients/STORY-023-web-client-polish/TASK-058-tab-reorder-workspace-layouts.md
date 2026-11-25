@@ -36,6 +36,7 @@ The polish items reclaimed from the deleted EPIC-003. Drag-and-drop tab reorderi
 
 - The `users` table itself (TASK-034)
 - Other polish items (TASK-055/056/057)
+- Deferred to TASK-197 — dragging the divider leaves a gap beside Dragon until the drop (found 2026-11-24)
 
 ## Human test plan
 

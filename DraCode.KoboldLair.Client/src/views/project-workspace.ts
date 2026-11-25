@@ -350,12 +350,16 @@ export class ProjectWorkspace extends KoboldComponent {
    * the gap), so Dragon keeps its width when the window changes.
    */
   private resized(split: BSplitPanel): void {
-    const master = parseFloat(split.sizes.master);
+    // Birko.Web 0.5.3 resizes the fixed-length column, so the panel reports Dragon's own width (`detail` in px); an
+    // older one reports the tabs' width (`master` in px) and Dragon has what is left.
+    const { master, detail } = split.sizes;
     const grid = split.shadowRoot?.querySelector('.split');
-    if (!Number.isFinite(master) || !grid) return;
+    if (!grid) return;
     const total = split.getBoundingClientRect().width;
     const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
-    const width = Math.round(Math.min(Math.max(total - master - gap, MIN_DRAGON_PX), Math.max(MIN_DRAGON_PX, total - gap - MIN_TABS_PX)));
+    const dragon = /px$/.test(detail) ? parseFloat(detail) : /px$/.test(master) ? total - parseFloat(master) - gap : NaN;
+    if (!Number.isFinite(dragon)) return;
+    const width = Math.round(Math.min(Math.max(dragon, MIN_DRAGON_PX), Math.max(MIN_DRAGON_PX, total - gap - MIN_TABS_PX)));
     const rest: SplitSizes = { master: '1fr', detail: `${width}px` };
     layoutStore.update({ splits: { [WORKSPACE_KEY]: rest } });
     split.sizes = rest;

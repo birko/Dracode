@@ -11,8 +11,8 @@ created: 2026-05-31
 
 | ID | Decision | State | Rationale | Date | By | → Tasks |
 |----|----------|-------|-----------|------|----|---------|
-| D1 | Drag-and-drop tab reordering in the project workspace view | proposed | Reclaimed polish item from the retired EPIC-003 backlog | — | — | — |
-| D2 | Saveable named workspace layouts (open panels, splitter sizes, active tabs) persisted to the user profile on the server | proposed | Lets users keep and restore their preferred workspace arrangement | — | — | — |
+| D1 | Drag-and-drop tab reordering in the project workspace view | approved | Tab order is each person's own, across their projects; not on a phone | 2026-11-24 | owner | TASK-058 |
+| D2 | Saveable named workspace layouts (open panels, splitter sizes, active tabs) persisted to the user profile on the server | approved | Per person, from a Layouts menu; a divider sets Dragon's width at rest and focus or the pin still widen it (a mix of prototypes A and B) | 2026-11-24 | owner | TASK-058, TASK-197, TASK-198 |
 | D3 | Daemon status indicator in the header (green/red, click for details) | proposed | New affordance exposed by the multi-platform rework | — | — | — |
 | D4 | Project switcher in the header that preserves chat scroll position across switches | changed | Now D10: a project picker in the header inside a project, the projects homepage as home; scroll preservation not discussed | 2026-11-12 | owner | TASK-146 |
 | D5 | OAuth login button replacing the token-paste field | approved | Sign-in is GitHub through Birko.Framework (D8) | 2026-11-12 | owner | TASK-056 |
@@ -62,3 +62,6 @@ Only `approved` and `changed` generate tasks.
 - 2026-11-16 — D20 (approved) decomposed → TASK-155, TASK-057, TASK-156, TASK-157, TASK-161, TASK-163
 - 2026-11-16 — D21 (approved) decomposed → TASK-164
 - 2026-11-16 — D22 (approved) decomposed → TASK-145, TASK-164
+- 2026-11-24 — D1, D2 approved with the owner when TASK-058 was picked (prototypes on the layout canvas); built in TASK-058 (PR #60)
+- 2026-11-24 — D2 — TASK-197 spawned from TASK-058 (dragging the divider leaves a gap beside Dragon until the drop)
+- 2026-11-25 — D2 — TASK-198 split from TASK-197 (the divider stopping at the minimums while dragged; waits on Birko TASK-981)

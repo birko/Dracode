@@ -1,6 +1,6 @@
 ---
 id: FEATURE-026
-generated: 2026-11-16 08:59
+generated: 2026-11-24 22:32
 ---
 
 # DraCode.KoboldLair.Client — UI polish reclaimed from EPIC-003 — Status
@@ -13,20 +13,20 @@ generated: 2026-11-16 08:59
 
 | State | Count |
 |-------|-------|
-| ✅ approved | 18 |
+| ✅ approved | 20 |
 | ✏️ changed | 1 |
 | ⏸️ deferred | 2 |
 | ❌ removed | 0 |
-| 💭 proposed (undecided) | 3 |
+| 💭 proposed (undecided) | 1 |
 
 ## Build progress
 
-4 / 29 tasks done.
+33 / 37 tasks done.
 
 - TASK-055 Web header: daemon status indicator + project switcher — cancelled
-- TASK-056 Sign in with GitHub in the web UI — todo
-- TASK-057 Runs tab: live run view — todo
-- TASK-058 Drag-and-drop tabs + workspace layout save/load — todo
+- TASK-056 Sign in with GitHub in the web UI — done
+- TASK-057 Runs tab: live run view — done
+- TASK-058 Drag-and-drop tabs + workspace layout save/load — done
 - TASK-072 Mount the TypeScript shell in the served page — done
 - TASK-112 Toasts show nothing and the settings tabs never render — both use Birko.Web components wrongly — done
 - TASK-113 Use the Birko.Web router with module routes and an auth guard; drop the hand-rolled router — done
@@ -36,30 +36,38 @@ generated: 2026-11-16 08:59
 - TASK-142 Wire the web client's views to the server; they show mock data — cancelled
 - TASK-143 Public preview deployments of projects on subdomains — todo
 - TASK-144 Phone push notifications when a project needs you — todo
-- TASK-145 App frame and projects homepage — todo
-- TASK-146 Header project picker inside a project — todo
-- TASK-147 What needs you: homepage list and header pill — todo
-- TASK-148 Cross-project charts and numbers on the homepage — todo
-- TASK-149 Home Dragon on the projects homepage — todo
-- TASK-150 Project workspace frame with the read-only spec tab — todo
-- TASK-151 Dragon docked in the workspace, following the project — todo
-- TASK-152 Dragon widens with focus — todo
-- TASK-153 Board tab: status kanban with Retry — todo
-- TASK-154 Board: priority lanes in To do, drag to reprioritise — todo
-- TASK-155 Runs tab: the project's runs — todo
-- TASK-156 Git tab: feature branches and their diff — todo
-- TASK-157 Git tab: merge a feature branch — todo
-- TASK-158 Stats tab: per-project numbers — todo
-- TASK-159 Notifications: header bell and project badges — todo
-- TASK-160 Decision cards in Dragon — todo
-- TASK-161 Settings: providers — todo
-- TASK-162 Settings: service-account API keys — todo
-- TASK-163 Settings: budgets — todo
-- TASK-164 Phone check-and-respond layout — todo
+- TASK-145 App frame and projects homepage — done
+- TASK-146 Header project picker inside a project — done
+- TASK-147 What needs you: homepage list and header pill — done
+- TASK-148 Cross-project charts and numbers on the homepage — done
+- TASK-149 Home Dragon on the projects homepage — done
+- TASK-150 Project workspace frame with the read-only spec tab — done
+- TASK-151 Dragon docked in the workspace, following the project — done
+- TASK-152 Dragon widens with focus — done
+- TASK-153 Board tab: status kanban with Retry — done
+- TASK-154 Board: priority lanes in To do, drag to reprioritise — done
+- TASK-155 Runs tab: the project's runs — done
+- TASK-156 Git tab: feature branches and their diff — done
+- TASK-157 Git tab: merge a feature branch — done
+- TASK-158 Stats tab: per-project numbers — done
+- TASK-159 Notifications: header bell and project badges — done
+- TASK-160 Decision cards in Dragon — done
+- TASK-161 Settings: providers — done
+- TASK-162 Settings: service-account API keys — done
+- TASK-163 Settings: budgets — done
+- TASK-164 Phone check-and-respond layout — done
+- TASK-183 Board on Birko's b-kanban — done
+- TASK-184 Runs tab: list the pipeline's own Kobold runs — done
+- TASK-185 Runs survive a server restart — todo
+- TASK-188 status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled — done
+- TASK-190 status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled — done
+- TASK-192 status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled — done
+- TASK-197 status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled — done
+- TASK-198 status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled — todo
 
 ## What can be tested now
 
-Ready to test: TASK-072, TASK-112. No manual test: TASK-113, TASK-114.
+Nothing waits for a test: each done task's human test is recorded in its notes.
 
 ## Prototype
 
@@ -67,4 +75,4 @@ Ready to test: TASK-072, TASK-112. No manual test: TASK-113, TASK-114.
 
 ## Next step
 
-25 tasks to do.
+4 tasks to do: TASK-143, TASK-144, TASK-185, TASK-198. TASK-143 needs a grill first; TASK-144 is deferred; TASK-198 waits on Birko TASK-981.
