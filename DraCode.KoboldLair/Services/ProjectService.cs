@@ -3,6 +3,7 @@ using DraCode.KoboldLair.Factories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Configuration;
 using DraCode.KoboldLair.Models.Projects;
+using DraCode.KoboldLair.Models.Tasks;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Data.Repositories.Sql;
 using DraCode.KoboldLair.Orchestrators;
@@ -352,6 +353,13 @@ namespace DraCode.KoboldLair.Services
         /// Only sets status to Analyzed if Wyrm is enabled and all areas have tasks assigned.
         /// If some areas fail, they are stored as pending areas for reprocessing on subsequent runs.
         /// </summary>
+        /// <summary>
+        /// Whether the project's analysis waits on a person: one of the analyzer's questions is still open (TASK-170). The
+        /// analysis service leaves such a project until it is answered.
+        /// </summary>
+        public Task<bool> AnalysisWaitsOnPersonAsync(string projectId) =>
+            _drakeFactory?.ProjectWaitsOnPersonAsync(projectId) ?? Task.FromResult(false);
+
         public async Task<WyvernAnalysis> AnalyzeProjectAsync(string projectId)
         {
             var project = _repository.GetById(projectId);
@@ -405,8 +413,42 @@ namespace DraCode.KoboldLair.Services
                         }
                     }
 
+                    // The analyzer's questions (TASK-170, FEATURE-078 D26): one round per analysis, counted from the last
+                    // finished one, so a changed specification asks afresh. An open round holds the analysis; an
+                    // answered one is passed in, and that analysis may not ask again.
+                    var round = _drakeFactory == null
+                        ? (IReadOnlyList<PendingDecision>)Array.Empty<PendingDecision>()
+                        : await _drakeFactory.ProjectQuestionsAsync(project.Id, project.Timestamps.AnalyzedAt ?? DateTime.MinValue);
+                    if (round.Any(d => !d.IsResolved))
+                    {
+                        _logger.LogInformation("⏸️ Analysis of {ProjectName} waits on a person's answer", project.Name);
+                        return wyvern.Analysis ?? new WyvernAnalysis { ProjectName = project.Name };
+                    }
+                    var answers = round
+                        .Select(d => (PendingDecisionNotification.QuestionText(d),
+                            d.ResolutionKind == PendingDecisionResolution.TimedOut ? "(no answer — decide yourself)" : d.Resolution ?? ""))
+                        .ToList();
+                    var mayAsk = round.Count == 0 && _drakeFactory?.CanAskForProject(project.Id) == true;
+
                     // Run full analysis with optional Wyrm recommendations
-                    analysis = await wyvern.AnalyzeProjectAsync(await LoadSpecificationForAnalysisAsync(project), wyrmRecommendation);
+                    var specification = await LoadSpecificationForAnalysisAsync(project);
+                    analysis = await wyvern.AnalyzeProjectAsync(specification, wyrmRecommendation, answers, mayAsk);
+
+                    if (analysis.Questions.Count > 0)
+                    {
+                        var asked = await _drakeFactory!.AskProjectQuestionsAsync(project.Id, analysis.Questions.Select(q =>
+                            new AskHumanQuestion(q.Question, q.Options.ToArray(), q.AllowFreeText ?? q.Options.Count == 0, q.Context)));
+                        if (asked.Count > 0)
+                        {
+                            _logger.LogInformation("❓ Analysis of {ProjectName} asks {Count} question(s); it waits for the answers",
+                                project.Name, asked.Count);
+                            project.Timestamps.LastProcessedAt = DateTime.UtcNow;
+                            _repository.Update(project);
+                            return analysis;
+                        }
+                        // Asking failed after all: plan without asking
+                        analysis = await wyvern.AnalyzeProjectAsync(specification, wyrmRecommendation, answers, mayAsk: false);
+                    }
 
                     // Save analysis report (simplified name - project folder provides context)
                     var analysisReportPath = Path.Combine(project.Paths.Output, "analysis.md");

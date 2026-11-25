@@ -360,6 +360,74 @@ namespace DraCode.KoboldLair.Factories
         }
 
         /// <summary>
+        /// The analyzer's questions for a project (TASK-170, FEATURE-078 D26), asked since <paramref name="since"/>: decisions
+        /// on the whole project, with no task. Empty without a decision store.
+        /// </summary>
+        public async Task<IReadOnlyList<PendingDecision>> ProjectQuestionsAsync(string projectId, DateTime since) =>
+            _pendingDecisions == null
+                ? Array.Empty<PendingDecision>()
+                : await _pendingDecisions.GetProjectLevelAsync(projectId, since);
+
+        /// <summary>Whether the project's analysis waits on a person: one of its project-level questions is still open.</summary>
+        public async Task<bool> ProjectWaitsOnPersonAsync(string projectId) =>
+            _pendingDecisions != null
+            && (await _pendingDecisions.GetUnresolvedForProjectAsync(projectId)).Any(d => d.TaskId.Length == 0);
+
+        /// <summary>
+        /// Whether the analyzer may ask a person for this project: a decision store exists and the ask policy allows it
+        /// (a policy that fails allows, as for a Kobold's <c>ask_human</c>).
+        /// </summary>
+        public bool CanAskForProject(string projectId)
+        {
+            if (_pendingDecisions == null)
+                return false;
+            try
+            {
+                return (AskHumanPolicy ?? UnrestrictedAskHumanPolicy.Instance).For(projectId).Allow;
+            }
+            catch (Exception ex)
+            {
+                _loggerFactory?.CreateLogger<DrakeFactory>().LogWarning(ex, "Ask-human policy failed for {ProjectId}; allowing", projectId);
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Stores the analyzer's questions as decisions on the whole project (an empty task id, <see cref="PendingDecisionSource.AskHuman"/>,
+        /// no timeout) and raises a card for each (TASK-170). The project's analysis then waits until every one is answered.
+        /// Returns the stored decisions; none when asking is not possible here.
+        /// </summary>
+        public async Task<IReadOnlyList<PendingDecision>> AskProjectQuestionsAsync(string projectId, IEnumerable<AskHumanQuestion> questions)
+        {
+            if (!CanAskForProject(projectId))
+                return Array.Empty<PendingDecision>();
+            var projectName = _projectRepository?.GetById(projectId)?.Name ?? projectId;
+            var asked = new List<PendingDecision>();
+            foreach (var question in questions)
+            {
+                var decision = new PendingDecision
+                {
+                    ProjectId = projectId,
+                    TaskId = "",
+                    Disposition = EscalationDisposition.HumanDecisionRequired,
+                    Source = PendingDecisionSource.AskHuman,
+                    Question = question.ToJson()
+                };
+                await _pendingDecisions!.CreateAsync(decision);
+                asked.Add(decision);
+                try
+                {
+                    OnDecisionRequired?.Invoke(projectName, decision);
+                }
+                catch (Exception ex)
+                {
+                    _loggerFactory?.CreateLogger<DrakeFactory>().LogWarning(ex, "Decision notification failed for {DecisionId}", decision.Id);
+                }
+            }
+            return asked;
+        }
+
+        /// <summary>
         /// Answers a pending decision through whichever of the project's Drakes holds its task. With none alive, the
         /// answer is stored and the Drake applies it when it next starts: its reconcile runs the escalation's automatic
         /// route for "Handle it automatically" and unparks the task. Returns what became of the answer, as

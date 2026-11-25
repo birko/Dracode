@@ -84,20 +84,10 @@ Returns: whether the question was sent (and the task paused) or refused.";
             var allowFreeText = ReadBool(arguments, "allow_free_text") ?? options.Length == 0;
             var context = ReadString(arguments, "context")?.Trim();
 
-            if (string.IsNullOrEmpty(text))
-                return "Error: question is required.";
-            if (options.Length == 0 && !allowFreeText)
-                return "Error: a question with no options must allow free text.";
-            if (options.Distinct(StringComparer.Ordinal).Count() != options.Length)
-                return "Error: the options must be distinct.";
-            if (text.Length > MaxQuestionLength)
-                return $"Error: keep the question under {MaxQuestionLength} characters.";
-            if (options.Length > MaxOptions || options.Any(o => o.Length > MaxOptionLength))
-                return $"Error: offer at most {MaxOptions} options of up to {MaxOptionLength} characters each.";
-            if (context?.Length > MaxContextLength)
-                return $"Error: keep the context under {MaxContextLength} characters.";
+            if (Problem(text, options, allowFreeText, context) is { } problem)
+                return $"Error: {problem}";
 
-            var question = new AskHumanQuestion(text, options, allowFreeText, string.IsNullOrEmpty(context) ? null : context);
+            var question = new AskHumanQuestion(text!, options, allowFreeText, string.IsNullOrEmpty(context) ? null : context);
             _plan.AddLogEntry(OneLine($"ask_human: \"{text}\"" + (options.Length > 0 ? $" [{string.Join(" | ", options)}]" : "")
                 + (question.Context != null ? $" — {question.Context}" : "")));
 
@@ -124,6 +114,27 @@ Returns: whether the question was sent (and the task paused) or refused.";
             _logger?.LogInformation("Kobold {KoboldId} asked a person (decision {DecisionId}) for task {TaskId}",
                 _koboldId.ToString()[..8], outcome.DecisionId, _taskId);
             return $"Question sent (decision {outcome.DecisionId}). Your task is paused until a person answers; this run ends after this turn.";
+        }
+
+        /// <summary>
+        /// What is wrong with a question a person would be asked, or null when it can be asked: the checks every asker
+        /// shares, the Kobold's tool and the analyzer's questions (TASK-170) alike. Options are expected trimmed.
+        /// </summary>
+        public static string? Problem(string? text, string[] options, bool allowFreeText, string? context)
+        {
+            if (string.IsNullOrEmpty(text))
+                return "question is required.";
+            if (options.Length == 0 && !allowFreeText)
+                return "a question with no options must allow free text.";
+            if (options.Distinct(StringComparer.Ordinal).Count() != options.Length)
+                return "the options must be distinct.";
+            if (text.Length > MaxQuestionLength)
+                return $"keep the question under {MaxQuestionLength} characters.";
+            if (options.Length > MaxOptions || options.Any(o => o.Length > MaxOptionLength))
+                return $"offer at most {MaxOptions} options of up to {MaxOptionLength} characters each.";
+            if (context?.Length > MaxContextLength)
+                return $"keep the context under {MaxContextLength} characters.";
+            return null;
         }
 
         /// <summary>The plan log is a markdown list: one entry, one line.</summary>
