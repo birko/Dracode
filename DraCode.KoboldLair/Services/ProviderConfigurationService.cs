@@ -194,6 +194,12 @@ namespace DraCode.KoboldLair.Services
         }
 
         /// <summary>
+        /// The key under which every provider config this service returns carries the provider's configured name (e.g.
+        /// "lan2"), as opposed to its factory type ("vllm"), so usage records and rate limits can name it (TASK-193).
+        /// </summary>
+        public const string ConfiguredNameKey = "koboldlair.providerName";
+
+        /// <summary>
         /// Gets the provider configuration and agent options for a specific Kobold agent type.
         /// Resolution precedence:
         /// 1. KoboldAgentTypeSettings[agentType] (if matching entry exists)
@@ -219,6 +225,8 @@ namespace DraCode.KoboldLair.Services
                 config["model"] = modelOverride ?? providerConfig.DefaultModel;
 
                 ApplyApiKey(providerConfig, config);
+
+                config[ConfiguredNameKey] = providerConfig.Name;
 
                 var options = new AgentOptions
                 {
@@ -246,6 +254,7 @@ namespace DraCode.KoboldLair.Services
                 var config = new Dictionary<string, string>(providerConfig.Configuration);
                 config["model"] = providerConfig.DefaultModel;
                 ApplyApiKey(providerConfig, config);
+                config[ConfiguredNameKey] = providerConfig.Name;
 
                 var options = new AgentOptions { WorkingDirectory = workingDirectory ?? "./workspace", Verbose = false };
                 return (providerConfig.Type, config, options);
@@ -327,6 +336,8 @@ namespace DraCode.KoboldLair.Services
                 config["model"] = modelOverride ?? providerConfig.DefaultModel;
 
                 ApplyApiKey(providerConfig, config);
+
+                config[ConfiguredNameKey] = providerConfig.Name;
 
                 var options = new AgentOptions
                 {

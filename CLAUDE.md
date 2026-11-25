@@ -797,7 +797,11 @@ LLM usage tracking with per-call token recording, cost estimation, and budget en
 ```
 
 - **Token Usage Extraction**: All 10 providers now return `TokenUsage` (prompt + completion tokens) in `LlmResponse`
-- **TrackedLlmProvider**: Decorator that wraps any provider with rate limiting + cost tracking
+- **TrackedLlmProvider**: Decorator that wraps any provider with rate limiting + cost tracking. Usage records, pricing
+  and rate limits key on the provider's configured name (`finstat`, `lan2`), not the client's "vLLM (model)": every
+  config `ProviderConfigurationService` returns carries it under `ConfiguredNameKey`, and `KoboldLairAgentFactory` sets
+  it as `ProviderName` (TASK-193). Name `RateLimiting.ProviderLimits[].Provider` and `CostTracking.Pricing[].Provider`
+  by that name. Records made before that keep the old name
 - **Budget Enforcement**: Blocks LLM calls when daily/monthly/project budgets are exceeded
 - **Budgets set in Settings** (TASK-163): an admin's change (`GET`/`PUT /api/v1/budgets`, `manage_config`) is stored in
   `budget_settings` and wins over `Budget` here from then on. `BudgetSettingsService` writes it over the live budget
