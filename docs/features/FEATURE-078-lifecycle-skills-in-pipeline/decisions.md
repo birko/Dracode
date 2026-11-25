@@ -28,6 +28,17 @@ created: 2026-10-03
 | D15 | Every acceptance criterion or specification scenario produces matching test work, cheapest test layer first | proposed | — | — | — | — |
 | D16 | Humans may edit the rendered task files directly and the system imports those edits back | proposed | — | — | — | — |
 | D17 | A single generic tool runs the developer lifecycle instructions as-is inside the pipeline, instead of purpose-built agents | proposed | — | — | — | — |
+| D18 | Questions climb the hierarchy — worker → supervisor (Drake) → overseer (Wyvern) → Dragon → person — and each level answers only from what it owns: the supervisor from the task, its plan, the project's constraints and earlier answers; the overseer from the specification, its analysis and the decision ledger; anything else goes up | proposed | — | — | — | — |
+| D19 | Dragon answers only from recorded decisions and the specification's own text, never from its own judgement; when the specification does not cover something, Dragon asks the person to define it | proposed | — | — | — | — |
+| D20 | What the person defines is written into the specification as a new version, so the next question about it is answered from the specification | proposed | — | — | — | — |
+| D21 | Every answer an agent gives instead of the person is recorded as a decision (who answered, and why), shown to the person for information, and can be overturned, which reopens the work it affected | proposed | — | — | — | — |
+| D22 | Questions reach the person in rounds of at most five, each with a recommended answer and its one-line reason | proposed | — | — | — | — |
+| D23 | A worker's question for a person goes through the chain instead of straight to the person; its task waits, as it does today, while the question climbs | proposed | — | — | — | — |
+| D24 | A question only moves up, each level gets it once, and the person is the end of the line; the answer travels back down the same path to the agent that asked | proposed | — | — | — | — |
+| D25 | Wyvern becomes the project's overseer: an agent that works over several turns with read-only access to the specification, its analysis, the decision ledger, the task lists and the workspace, called both to analyze the project and to answer questions at its level | proposed | — | — | — | — |
+| D26 | First slice: the analyzer can ask questions — at most three in one round, listed in its analysis; the project's analysis waits while one is open (the open question itself holds it, no new project state), with no time limit; once answered, the analysis runs again with the answers. Its questions go to the person until the chain exists, then through Dragon's level | proposed | — | — | — | TASK-170 |
+| D27 | The question chain works in every project, not only those with the lifecycle layer switched on (D5) | proposed | — | — | — | — |
+| D28 | A scheduled check in DraCode's GitHub CI compares the lifecycle skills KoboldLair mirrors — listed with the skills version each was last reviewed against — with the skills' latest version, and opens or updates one issue when a mirrored skill changed | proposed | — | — | — | — |
 
 _`Date` and `By` stay `—` until `/feature decide` stamps a verdict — they record **when/who decided**, not when the row was created (creation is in the History log)._
 
@@ -40,3 +51,4 @@ Only `approved` and `changed` rows generate tasks at `/feature decompose`. No ro
 > Append-only. Every state change gets a dated line with the reason — this is the "why it changed", not just the current value.
 
 - 2026-10-03 — feature created; decisions seeded as `proposed` from the design discussion and a short grill. The owner's stated direction during the grill: database is the source of truth and humans never edit tasks by hand (D3 over D16), opt-in per project (D5), gate failures go back to the worker (D9), checks as purpose-built agents (D10 over D17). D16 and D17 are recorded so they can be stamped `removed` at `/feature decide`.
+- 2026-11-25 — D18–D28 added as `proposed` from a grill with the owner on how questions climb the agent hierarchy, Wyvern as the project's overseer, the analyzer's own questions (TASK-170, re-homed here from FEATURE-028 D7) as the first slice, and a CI check that follows changes to the mirrored skills. The owner's answers are the proposed rows; stamping is `/feature decide`.

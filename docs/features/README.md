@@ -53,7 +53,7 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 | [FEATURE-025](FEATURE-025-python-sdk/idea.md) | Python SDK | idea | EPIC-013 |
 | [FEATURE-026](FEATURE-026-web-client-polish/idea.md) | Web client UI polish | building | EPIC-013 |
 | [FEATURE-027](FEATURE-027-blocking-decision-tier/idea.md) | Blocking AwaitingHumanDecision tier | building | EPIC-014 |
-| [FEATURE-028](FEATURE-028-ask-human-tool/idea.md) | Async ask-human tool | building | EPIC-014 |
+| [FEATURE-028](FEATURE-028-ask-human-tool/idea.md) | Async ask-human tool | review | EPIC-014 |
 | [FEATURE-029](FEATURE-029-decision-gate-policy/idea.md) | Policy-driven decision gates | idea | EPIC-014 |
 | [FEATURE-030](FEATURE-030-answerable-notifications/idea.md) | Answerable decisions in Dragon | building | EPIC-014 |
 | [FEATURE-031](FEATURE-031-end-to-end-task-verification/idea.md) | End-to-end task acceptance verification | building | EPIC-015 |
@@ -66,7 +66,7 @@ Run `/feature <verb>` to advance a feature; run bare `/feature` for the live com
 | [FEATURE-038](FEATURE-038-reusable-consensus-mechanism/idea.md) | Reusable ConsensusService abstraction | idea | EPIC-017 |
 | [FEATURE-039](FEATURE-039-diverse-panel-consensus/idea.md) | Diverse-panel consensus | idea | EPIC-017 |
 | [FEATURE-040](FEATURE-040-retrofit-voting-integrations/idea.md) | Retrofit voting integrations | idea | EPIC-017 |
-| [FEATURE-078](FEATURE-078-lifecycle-skills-in-pipeline/idea.md) | Project lifecycle discipline in the KoboldLair pipeline | idea | — (17 proposed, 0/0 tasks, prototype pending) |
+| [FEATURE-078](FEATURE-078-lifecycle-skills-in-pipeline/idea.md) | Project lifecycle discipline in the KoboldLair pipeline | idea | — (28 proposed, 0/1 tasks, prototype pending) |
 
 ## Shipped (backfilled from `docs/CHANGELOG.md`)
 

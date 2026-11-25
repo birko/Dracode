@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-11-25 11:11. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-25 11:41. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -166,7 +166,7 @@ _None_
     - [x] [TASK-022](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-022-deliver-answer-into-context.md) Deliver human answer back into agent context on resume ⚠ blocked: merge deferred: stacked on task/TASK-021 (PR #3), itself stacked on task/TASK-020, which waits on its end-to-end check at TASK-024; code complete on task/TASK-022 · FEATURE-028
     - [x] [TASK-172](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-172-flaky-answers-on-summon-test.md) Find why a summoned Kobold sometimes hears no answers in the full test suite ⚠ blocked: merge deferred: stacked on task/TASK-025 (PR #6), unmerged; code complete on task/TASK-172 · FEATURE-028
     - [x] [TASK-175](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-175-answer-reaches-dependent-tasks.md) A task that depends on an answered question asks the person the same question again · FEATURE-028
-    - [ ] [TASK-170](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-170-ask-human-for-wyvern.md) ask_human for the analyzer agent (Wyvern) — needs a project-level wait · FEATURE-028
+    - [ ] [TASK-170](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-170-ask-human-for-wyvern.md) ask_human for the analyzer agent (Wyvern) — needs a project-level wait · FEATURE-078
     - [x] [TASK-171](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-171-ask-human-run-ending-edge-cases.md) ask_human: runs that end some other way as they ask · FEATURE-028
     - [x] [TASK-176](EPIC-014-human-in-the-loop-gates/STORY-025-ask-human-tool/TASK-176-forgiving-choice-answer-match.md) A typed answer that names an option is refused unless it repeats the option's whole text · FEATURE-028
   - STORY-026 Policy-driven decision gates (per-project) — planned (0/1 done)

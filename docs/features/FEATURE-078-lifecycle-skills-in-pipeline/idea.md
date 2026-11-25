@@ -56,20 +56,48 @@ itself, wired into the stages that already exist:
    show the roadmap and flag when plan and work drift apart.
 5. **Self-healing.** Repeated failures and monitor alerts are filed as tracked fix tasks and
    worked through by impact.
+6. **Questions climb the hierarchy** (added 2026-11-25). An agent that cannot decide something
+   asks the agent above it — a worker asks its supervisor (Drake), the supervisor asks the
+   project's overseer (Wyvern), the overseer asks Dragon — and each answers only from what its
+   level owns. Only what nobody on the way can answer reaches the person, in short rounds with a
+   recommended answer each. Every answer an agent gives is recorded as a decision the person can
+   see and overturn; what the person defines goes into the specification. Wyvern grows from a
+   one-shot analyzer into the project's overseer that can look things up. This replaces today's
+   path, where a worker's question goes straight to the person, and works in every project.
+7. **Following the source.** These disciplines copy DraCode's own lifecycle skills. A scheduled
+   check notices when a skill that KoboldLair mirrors changes, so KoboldLair can follow it.
 
 ## Open questions distilled from the grill
 
-- Where does the truth about tasks live? → Database only; files are a read-only rendering,
-  humans never edit tasks by hand — everything goes through the UI and Dragon (D3, D16).
-- Always on, or per project? → Opt-in per project; on for new projects, off for existing ones
-  until adopted (D5).
-- What happens when the verify gate finds problems? → Back to the worker with the findings;
-  escalate after a limit (D9).
-- How are the checks built — reuse the developer-tool instructions as-is, or purpose-built
-  agents? → Purpose-built KoboldLair agents (D10, D17).
-- Still open: how many gate retries before escalation; whether every check runs on every task
-  or is chosen by task type; whether the current per-area task lists are kept alongside the new
-  layout during migration.
+Q1–Q6 carry over the 2026-10-03 grill (answered then, before this table existed); Q7–Q9 are what it left open.
+Q10–Q20 are the 2026-11-25 grill on the question hierarchy.
+
+| id | question | type | blocked-by | state | claimed-by |
+|----|----------|------|------------|-------|------------|
+| Q1 | Where does the truth about tasks live? | decision | — | resolved — database only; files are a read-only rendering, and every change goes through the UI and Dragon (D3, D16) | — |
+| Q2 | Is the lifecycle layer always on, or switched on per project? | decision | — | resolved — per project: on for new projects, off for existing ones until adopted (D5) | — |
+| Q3 | What happens when the verify gate finds problems? | decision | — | resolved — back to the worker with the findings, escalated after a limit (D9) | — |
+| Q4 | Are the checks the developer-tool instructions run as-is, or purpose-built agents? | decision | — | resolved — purpose-built KoboldLair agents (D10, D17) | — |
+| Q5 | May people edit the rendered task files directly? | decision | Q1 | resolved — no; changes go through the UI and Dragon (D16) | — |
+| Q6 | Does a single generic tool run the lifecycle instructions inside the pipeline? | decision | Q4 | resolved — no (D17) | — |
+| Q7 | How many verify-gate retries before a task escalates? | decision | Q3 | open | — |
+| Q8 | Does every check run on every task, or are checks chosen by task type? | decision | Q4 | open | — |
+| Q9 | Are the current per-area task lists kept alongside the new layout during migration? | decision | Q1 | open | — |
+| Q10 | Who answers a question at each level, and from what? | decision | — | resolved → D18 | — |
+| Q11 | Does Dragon answer questions itself? | decision | Q10 | resolved → D19 | — |
+| Q12 | Can the person see, and overturn, an answer an agent gave? | decision | Q10 | resolved → D21 | — |
+| Q13 | How do questions reach the person? | decision | — | resolved → D22 | — |
+| Q14 | Does a worker's ask-a-person question go through the chain instead of straight to the person? | decision | Q10 | resolved → D23 | — |
+| Q15 | Does DraCode notice when a lifecycle skill that KoboldLair mirrors changes? | decision | — | resolved → D28 | — |
+| Q16 | Does a definition the person gives go into the specification? | decision | Q11 | resolved → D20 | — |
+| Q17 | Does Wyvern become a multi-turn overseer that can look things up? | decision | Q10 | resolved → D25 | — |
+| Q18 | What stops a question bouncing between levels? | decision | Q10 | resolved → D24 | — |
+| Q19 | How does the analyzer's own question (TASK-170) fit as the first slice? | decision | Q17 | resolved → D26 | — |
+| Q20 | Does the question chain follow the per-project switch (D5), or work in every project? | decision | Q2, Q14 | resolved → D27 | — |
+
+Fog:
+
+- How the chain shows in the web UI and in Dragon while a question is with an agent, not yet with the person.
 
 ## Out of scope (initial)
 
