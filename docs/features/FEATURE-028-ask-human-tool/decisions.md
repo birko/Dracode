@@ -41,3 +41,4 @@ Only `approved` and `changed` generate tasks.
 - 2026-11-23 — D9 proposed → changed (owner): any letter case, the start of one option at a word, or its number; the same on free-text questions
 - 2026-11-24 — D10 added as changed (owner): a question in parallel mode stops every batch at its turn boundary; batches merge into one plan; only the asker keeps the checkpoint
 - 2026-11-24 — D11 added as changed (owner): a question asked on the run's last step or iteration stops the run as parked; the finished plan resumes, never restarts
+- 2026-11-25 — D7 re-homed to FEATURE-078 D26 (owner): the analyzer's questions become the first slice of the question hierarchy (questions climb worker → supervisor → overseer → Dragon → person); TASK-170 moves with it. D7's row stays here for the audit trail.
