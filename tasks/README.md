@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-11-25 07:00. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-25 08:44. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,7 +11,7 @@ _Generated 2026-11-25 07:00. Run `/tasks triage` to refresh. **Do not hand-edit*
 | in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 7                  | 123                 |
+| done         | 1                  | 7                  | 124                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
 `todo` by priority: 9× P1 · 39× P2 · 17× P3.
@@ -93,7 +93,7 @@ _None_
   - (epic level) — 2/2 done
     - [x] [TASK-071](EPIC-012-backend-consolidation/TASK-071-unify-framework-source-compilation.md) Unify Birko framework source compilation into DraCode.Birko · FEATURE-077
     - [x] [TASK-018](EPIC-012-backend-consolidation/TASK-018-remove-sync-tool-execute.md) Remove sync `Tool.Execute()` overloads — keep only `ExecuteAsync` · FEATURE-021
-- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (30/48 tasks done)
+- **EPIC-013 Multi-platform clients on the unified backend** — in-progress (30/49 tasks done)
   - STORY-019 DraCode.KoboldLair.Cli — single-file binary CLI client — planned (0/5 done)
     - [ ] [TASK-050](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-050-rename-scaffold-publish.md) Rename DraCode → DraCode.KoboldLair.Cli + single-file publish · FEATURE-022
     - [ ] [TASK-051](EPIC-013-multi-platform-clients/STORY-019-cli-client/TASK-051-daemon-interaction.md) CLI daemon interaction + discovery ⏳ waits on TASK-050, TASK-049 ⚠ blocked: waiting on TASK-050, TASK-049 · FEATURE-022
@@ -114,7 +114,7 @@ _None_
     - [ ] [TASK-064](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-064-sync-async-client.md) Python SDK sync + async client ⏳ waits on TASK-063 ⚠ blocked: waiting on TASK-063 · FEATURE-025
     - [ ] [TASK-065](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-065-sse-streaming.md) Python SDK run streaming (SSE + polling fallback) ⏳ waits on TASK-064 ⚠ blocked: waiting on TASK-064 · FEATURE-025
     - [ ] [TASK-066](EPIC-013-multi-platform-clients/STORY-022-python-sdk/TASK-066-pypi-publish-drift-guard.md) Python SDK PyPI publish + schema-drift guard ⏳ waits on TASK-063 ⚠ blocked: waiting on TASK-063 · FEATURE-025
-  - STORY-023 Web UI: app frame, sign-in and project picker — in-progress (7/9 done)
+  - STORY-023 Web UI: app frame, sign-in and project picker — in-progress (7/10 done)
     - [x] [TASK-056](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-056-github-sign-in.md) Sign in with GitHub in the web UI · FEATURE-026
     - [x] [TASK-072](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-072-mount-ts-shell-in-served-page.md) Mount the TypeScript shell in the served page · FEATURE-026
     - ~~[TASK-142](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-142-wire-views-to-the-server.md) Wire the web client's views to the server; they show mock data~~ · FEATURE-026
@@ -126,6 +126,7 @@ _None_
     - [ ] [TASK-143](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-143-public-preview-deployments.md) Public preview deployments of projects on subdomains · FEATURE-026
     - [ ] [TASK-144](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-144-phone-push-notifications.md) Phone push notifications when a project needs you · FEATURE-026
     - [x] [TASK-198](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-198-use-split-panel-column-minimums.md) The workspace divider stops at the tabs' and Dragon's minimums while it is dragged · FEATURE-026
+    - [ ] [TASK-199](EPIC-013-multi-platform-clients/STORY-023-web-client-polish/TASK-199-phone-tab-focus-ring-inside-the-tab.md) The phone tab bar's focus ring sits inside the tab again ⏳ waits on Birko.Web/TASK-986 · FEATURE-026
   - STORY-045 Web UI: projects homepage overview — done (3/3 done)
     - [x] [TASK-147](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-147-needs-you.md) What needs you: homepage list and header pill · FEATURE-026
     - [x] [TASK-148](EPIC-013-multi-platform-clients/STORY-045-projects-homepage/TASK-148-cross-project-charts.md) Cross-project charts and numbers on the homepage · FEATURE-026
@@ -230,13 +231,13 @@ _None_
   - STORY-044 Follow Birko framework contract changes — planned (0/1 done)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies
     - ~~[TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule~~
-- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (19/23 tasks done)
+- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (20/23 tasks done)
   - STORY-041 Security & tenancy — done (4/4 done)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller
     - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing
     - [x] [TASK-194](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-194-key-name-can-reuse-an-untracked-client-identity.md) A new API key can take the name, and so the identity, of a client registered before key owners were recorded
-  - STORY-042 Correctness & invariants — in-progress (15/18 done)
+  - STORY-042 Correctness & invariants — in-progress (16/18 done)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other
     - [x] [TASK-168](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-168-worktree-removed-with-uncommitted-work.md) A task's worktree is force-removed after its run even when the work was never committed
     - [x] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping
@@ -253,7 +254,7 @@ _None_
     - [x] [TASK-182](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-182-finished-task-escalated-as-stalled.md) A finished task is escalated as "progress stalled" and its plan revised after it is Done
     - [x] [TASK-189](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-189-flaky-auth-spec-config-route.md) An e2e auth test fails about one run in six: its config route is still fetching when the page closes
     - [ ] [TASK-191](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-191-cancelled-run-logged-as-iteration-limit.md) A run stopped by a shutdown is logged as having reached its iteration limit
-    - [ ] [TASK-193](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-193-usage-records-name-provider-class.md) Usage records and rate limits name the provider class, not the configured provider
+    - [x] [TASK-193](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-193-usage-records-name-provider-class.md) Usage records and rate limits name the provider class, not the configured provider
     - [x] [TASK-196](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-196-retry-in-completed-project-never-runs.md) A retried task of a Completed project is never run
   - STORY-043 Reuse & dead code — planned (0/1 done)
     - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation

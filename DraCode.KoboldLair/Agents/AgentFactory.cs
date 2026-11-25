@@ -4,6 +4,7 @@ using Birko.AI.Factories;
 using Birko.AI.Providers;
 using Birko.AI.Resilience.Services;
 using DraCode.KoboldLair.Models.Configuration;
+using DraCode.KoboldLair.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DraCode.KoboldLair.Agents
@@ -76,7 +77,8 @@ namespace DraCode.KoboldLair.Agents
                 var trackedProvider = new TrackedLlmProvider(baseProvider, rateLimiter, costTracker, logger)
                 {
                     AgentType = agentType,
-                    ProjectId = projectId
+                    ProjectId = projectId,
+                    ProviderName = ConfiguredName(config)
                 };
                 return AgentFactory.Create(trackedProvider, options, agentType);
             }
@@ -103,12 +105,22 @@ namespace DraCode.KoboldLair.Agents
                 return new TrackedLlmProvider(baseProvider, rateLimiter, costTracker, logger)
                 {
                     AgentType = agentType,
-                    ProjectId = projectId
+                    ProjectId = projectId,
+                    ProviderName = ConfiguredName(config)
                 };
             }
 
             return baseProvider;
         }
+
+        /// <summary>
+        /// The provider's configured name (e.g. "lan2") from a config <see cref="ProviderConfigurationService"/> built,
+        /// so usage records and rate limits name it rather than the client's "vLLM (model)" (TASK-193). Null for a
+        /// config without one: the tracked provider then keys on the client's name, as before.
+        /// </summary>
+        private static string? ConfiguredName(Dictionary<string, string>? config) =>
+            config != null && config.TryGetValue(ProviderConfigurationService.ConfiguredNameKey, out var name)
+                && !string.IsNullOrWhiteSpace(name) ? name : null;
 
         /// <summary>
         /// Creates a base LLM provider using LlmProviderFactory.
