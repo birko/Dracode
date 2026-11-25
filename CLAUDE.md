@@ -79,7 +79,10 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     level answers reaches the person as a decision whose `Path` (`PathJson` column) records the levels it climbed.
     `DrakeFactory.ResolvePendingDecisionAsync` sends the answer back down that path (`OnAnsweredAsync`). No level is
     registered yet, so every question still reaches the person; the analyzer's questions go through it (from the
-    Overseer), and an answer given on the way is stored answered with no card. Every project, no switch
+    Overseer), and an answer given on the way is stored answered with no card. Every project, no switch. A Kobold's
+    `ask_human` climbs it from the Worker (TASK-202, `Drake.QuestionChain`): one no level answers parks the task as
+    before; one a level answers is stored answered and returned to the Kobold at once (`AskHumanOutcome.Answer`), with no
+    park and no card. The per-task question cap counts both
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts

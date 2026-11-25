@@ -44,6 +44,18 @@ public class AskHumanToolTests
     }
 
     [Fact]
+    public async Task A_question_an_agent_above_answers_returns_the_answer_and_does_not_stop_the_run()
+    {
+        var tool = Tool(new AskHumanOutcome(false, "dec-2", null, "SQLite", QuestionLevel.Supervisor));
+
+        var result = await tool.ExecuteAsync(".", Args("""{"question":"Which database?","options":["SQLite","Postgres"]}"""));
+
+        result.Should().StartWith("Answered").And.Contain("supervisor").And.Contain("SQLite").And.Contain("Continue");
+        _stops.Should().Be(0, "nobody is waited on");
+        _plan.ExecutionLog.Select(e => e.Message).Should().Contain(m => m.Contains("answered by the Supervisor level") && m.Contains("SQLite"));
+    }
+
+    [Fact]
     public async Task A_refused_question_tells_the_agent_to_decide_and_does_not_stop_the_run()
     {
         var tool = Tool(new AskHumanOutcome(false, null, "the question limit for this task is reached"));

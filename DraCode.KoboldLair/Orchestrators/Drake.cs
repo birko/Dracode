@@ -2878,6 +2878,12 @@ namespace DraCode.KoboldLair.Orchestrators
         /// cap (every question it ever asked counts), there is no decision store, or the task is already parked. A
         /// failing policy is read as allow, no cap. A question has no timeout until TASK-023 supplies one.
         /// </summary>
+        /// <summary>
+        /// The question chain a Kobold's <c>ask_human</c> climbs before it reaches a person (TASK-202, FEATURE-078 D23); the
+        /// factory hands each Drake its own. With no level registered, every question reaches the person.
+        /// </summary>
+        public QuestionChain QuestionChain { get; set; } = new();
+
         public async Task<AskHumanOutcome> AskHumanAsync(TaskRecord task, AskHumanQuestion question)
         {
             if (_pendingDecisions == null)
@@ -2900,12 +2906,36 @@ namespace DraCode.KoboldLair.Orchestrators
                 && await _pendingDecisions.CountForTaskAsync(task.Id, PendingDecisionSource.AskHuman) >= cap)
                 return new AskHumanOutcome(false, null, $"the question limit for this task ({cap}) is reached");
 
+            if (IsTaskParked(task.Id))
+                return new AskHumanOutcome(false, null, "the task is already waiting on a person");
+
+            // The question climbs the hierarchy first (TASK-202, D23); only one no level answers parks the task for a person
+            var projectId = _projectId ?? task.ProjectId ?? "";
+            var chainQuestion = new ChainQuestion(projectId, task.Id, QuestionLevel.Worker, question);
+            var outcome = await QuestionChain.AskAsync(chainQuestion);
             var decision = new PendingDecision
             {
                 Disposition = EscalationDisposition.HumanDecisionRequired,
                 Source = PendingDecisionSource.AskHuman,
-                Question = question.ToJson()
+                Question = question.ToJson(),
+                Path = outcome.Path.ToList()
             };
+
+            if (!outcome.ReachesPerson)
+            {
+                // Answered on the way: recorded answered, the task keeps running, and the levels below the answerer hear it
+                decision.ProjectId = projectId;
+                decision.TaskId = task.Id;
+                decision.Resolution = outcome.Answer!.Answer;
+                decision.ResolutionKind = PendingDecisionResolution.Answered;
+                decision.ResolvedAt = DateTime.UtcNow;
+                await _pendingDecisions.CreateAsync(decision);
+                await QuestionChain.DeliverAnswerAsync(chainQuestion, outcome.Path, decision.Resolution, outcome.AnsweredBy);
+                _logger?.LogInformation("ask_human for task {TaskId} answered by the {Level} level: {Reason}",
+                    task.Id, outcome.AnsweredBy, outcome.Answer.Reason);
+                return new AskHumanOutcome(false, decision.Id, null, decision.Resolution, outcome.AnsweredBy);
+            }
+
             return await ParkTaskAsync(task, decision, cancelRun: false)
                 ? new AskHumanOutcome(true, decision.Id, null)
                 : new AskHumanOutcome(false, null, "the task is already waiting on a person");
