@@ -2148,38 +2148,10 @@ namespace DraCode.KoboldLair.Orchestrators
                 }
 
                 // Check Kobold's final state
-                if (kobold.IsSuccess)
-                {
-                    messageCallback?.Invoke("success",
-                        $"✓ Kobold {kobold.Id.ToString()[..8]} completed task successfully\n" +
-                        $"  Project: {projectInfo}\n" +
-                        $"  Task ID: {task.Id.ToString()[..8]}\n" +
-                        $"  Task: {taskPreview}");
-                }
-                else if (kobold.HasError)
-                {
-                    messageCallback?.Invoke("error",
-                        $"✗ Kobold {kobold.Id.ToString()[..8]} failed: {kobold.ErrorMessage}\n" +
-                        $"  Project: {projectInfo}\n" +
-                        $"  Task ID: {task.Id.ToString()[..8]}\n" +
-                        $"  Task: {taskPreview}");
-                }
-                else if (IsTaskParked(task.Id))
-                {
-                    messageCallback?.Invoke("info",
-                        $"⏸️ Kobold {kobold.Id.ToString()[..8]} stopped: its task waits on a person's decision\n" +
-                        $"  Task ID: {task.Id.ToString()[..8]}");
-                }
-                else if (kobold.Status == KoboldStatus.Working && kobold.ImplementationPlan != null)
-                {
-                    var completedCount = kobold.ImplementationPlan.CompletedStepsCount;
-                    var totalCount = kobold.ImplementationPlan.Steps.Count;
-                    messageCallback?.Invoke("warning",
-                        $"⚠ Kobold {kobold.Id.ToString()[..8]} reached iteration limit - work incomplete ({completedCount}/{totalCount} steps done)\n" +
-                        $"  Project: {projectInfo}\n" +
-                        $"  Task ID: {task.Id.ToString()[..8]}\n" +
-                        $"  Task: {taskPreview}");
-                }
+                var ending = RunEndMessage(kobold, task.Id, projectInfo, taskPreview, IsTaskParked(task.Id),
+                    cancellationToken.IsCancellationRequested);
+                if (ending is { } end)
+                    messageCallback?.Invoke(end.Level, end.Text);
             }
             catch (Exception ex)
             {
@@ -2937,6 +2909,36 @@ namespace DraCode.KoboldLair.Orchestrators
             return await ParkTaskAsync(task, decision, cancelRun: false)
                 ? new AskHumanOutcome(true, decision.Id, null)
                 : new AskHumanOutcome(false, null, "the task is already waiting on a person");
+        }
+
+        /// <summary>
+        /// The message a sequential run's end is reported with (level, text), or null for none: done, failed, parked,
+        /// or ended with steps left. A run whose token was cancelled stopped for that reason (a shutdown), not at its
+        /// iteration limit (TASK-191).
+        /// </summary>
+        internal static (string Level, string Text)? RunEndMessage(Kobold kobold, string taskId, string projectInfo,
+            string taskPreview, bool parked, bool cancelled)
+        {
+            var koboldId = kobold.Id.ToString()[..8];
+            var shortTaskId = taskId[..Math.Min(8, taskId.Length)];
+            var details = $"  Project: {projectInfo}\n  Task ID: {shortTaskId}\n  Task: {taskPreview}";
+            if (kobold.IsSuccess)
+                return ("success", $"✓ Kobold {koboldId} completed task successfully\n{details}");
+            if (kobold.HasError)
+                return ("error", $"✗ Kobold {koboldId} failed: {kobold.ErrorMessage}\n{details}");
+            if (parked)
+                return ("info", $"⏸️ Kobold {koboldId} stopped: its task waits on a person's decision\n  Task ID: {shortTaskId}");
+            if (kobold.Status == KoboldStatus.Working && kobold.ImplementationPlan != null)
+            {
+                var plan = kobold.ImplementationPlan;
+                // Only the caller cancels a run that is not parked (parking is the other canceller): the server stopping
+                if (cancelled)
+                    return ("info",
+                        $"⏹ Kobold {koboldId} stopped: the server is shutting down - work incomplete ({plan.CompletedStepsCount}/{plan.Steps.Count} steps done); its plan is saved and the task resumes on the next run\n{details}");
+                return ("warning",
+                    $"⚠ Kobold {koboldId} reached iteration limit - work incomplete ({plan.CompletedStepsCount}/{plan.Steps.Count} steps done)\n{details}");
+            }
+            return null;
         }
 
         internal void CancelRun(string taskId)

@@ -223,6 +223,51 @@ public class KoboldRunHooksTests : IDisposable
         agent.Hooks.Should().BeNull();
     }
 
+    // --- how the run's end is reported (TASK-191) ------------------------------------------------------
+
+    private static (string Level, string Text)? Ending(Kobold kobold, bool cancelled) =>
+        DraCode.KoboldLair.Orchestrators.Drake.RunEndMessage(kobold, "task-191", "proj", "work the plan", parked: false,
+            cancelled: cancelled);
+
+    [Fact]
+    public async Task A_run_stopped_by_a_shutdown_is_reported_as_stopped_not_as_its_iteration_limit()
+    {
+        using var cts = new CancellationTokenSource();
+        var provider = new ScriptedProvider(async (call, token) =>
+        {
+            if (call == 1) return Touch();
+            cts.Cancel(); // the server stops while a model call is in flight
+            await Task.Delay(Timeout.Infinite, token);
+            return EndTurn;
+        });
+        var (kobold, _, _) = CreateKobold(provider, Step(1, "never.txt"), Step(2, "nor.txt"));
+
+        await kobold.StartWorkingWithPlanEnhancedAsync(planService: null, maxIterations: 10, cancellationToken: cts.Token)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        var ending = Ending(kobold, cancelled: cts.IsCancellationRequested);
+        ending.Should().NotBeNull();
+        ending!.Value.Text.Should().NotContain("iteration limit");
+        ending.Value.Text.Should().Contain("stopped").And.Contain("shutting down").And.Contain("0/2 steps done");
+        ending.Value.Level.Should().Be("info", "a shutdown is expected, not a warning about the task");
+    }
+
+    [Fact]
+    public async Task A_run_that_used_up_its_iterations_still_reports_the_iteration_limit()
+    {
+        var provider = new ScriptedProvider((_, _) => Task.FromResult(Touch()));
+        var (kobold, _, _) = CreateKobold(provider, Step(1, "never.txt"), Step(2, "nor.txt"));
+
+        await kobold.StartWorkingWithPlanEnhancedAsync(planService: null, maxIterations: 2, cancellationToken: CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        kobold.Status.Should().Be(KoboldStatus.Working);
+        var ending = Ending(kobold, cancelled: false);
+        ending.Should().NotBeNull();
+        ending!.Value.Level.Should().Be("warning");
+        ending.Value.Text.Should().Contain("reached iteration limit").And.Contain("0/2 steps done");
+    }
+
     // --- ask_human (TASK-021) ---------------------------------------------------------------------
 
     private static LlmResponse AskThenTouch() => new()
