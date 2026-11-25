@@ -72,6 +72,14 @@ const menu = (page: Page) => workspace(page).locator('b-dropdown-menu.layouts');
 const menuItem = (page: Page, text: string | RegExp) => menu(page).locator('.item', { hasText: text });
 const dragonInput = (page: Page) => workspace(page).locator('kobold-dragon-dock b-chat textarea');
 const lastCurrent = (server: Server) => [...server.puts].reverse().find((p) => p.path === 'current')?.body;
+/** Dragon's stored width in px: Birko.Web stores rem (Birko TASK-981), the workspace's own corrections px. */
+async function storedDragon(page: Page, server: Server): Promise<number | null> {
+  const split = lastCurrent(server)?.splits?.workspace;
+  if (!split || split.master !== '1fr') return null;
+  const rootPx = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+  const match = /^([\d.]+)(px|rem)$/.exec(split.detail);
+  return match ? Math.round(parseFloat(match[1]) * (match[2] === 'rem' ? rootPx : 1)) : null;
+}
 
 async function open(page: Page, tab = 'spec') {
   await page.goto(`/#/projects/p-1/${tab}`);
@@ -104,13 +112,14 @@ test.describe('on a desktop', () => {
     expect(await dockWidth(page)).toBe(360);
 
     await divider(page).focus();
-    await page.keyboard.press('Shift+ArrowLeft'); // the tabs' side 64px narrower, Dragon 64px wider
-    await expect.poll(() => dockWidth(page)).toBe(424);
-    await expect.poll(() => lastCurrent(server)?.splits?.workspace).toEqual({ master: '1fr', detail: '424px' });
+    await page.keyboard.press('Shift+ArrowLeft'); // Dragon 4rem wider
+    const wider = 360 + 4 * (await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)));
+    await expect.poll(() => dockWidth(page)).toBe(wider);
+    await expect.poll(() => storedDragon(page, server)).toBe(wider);
 
     await page.reload();
     await expect(dragonInput(page)).toBeEnabled();
-    expect(await dockWidth(page)).toBe(424);
+    expect(await dockWidth(page)).toBe(wider);
   });
 
   // TASK-197: Dragon fills the space right of the divider during a mouse drag, keeps the width the drag left (after a
@@ -147,26 +156,46 @@ test.describe('on a desktop', () => {
     }));
     await page.mouse.up();
     expect(await after).toEqual([dragged]);
-    await expect.poll(() => lastCurrent(server)?.splits?.workspace).toEqual({ master: '1fr', detail: `${dragged}px` });
+    await expect.poll(() => storedDragon(page, server)).toBe(dragged);
 
     await page.reload();
     await expect(dragonInput(page)).toBeEnabled();
     expect(await dockWidth(page)).toBe(dragged);
   });
 
-  test('a drag past the tabs\' minimum ends with the tabs at 320px', async ({ page }) => {
-    const server = await serve(page);
-    await open(page);
-    const box = (await divider(page).boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + 100);
-    await page.mouse.down();
-    await page.mouse.move(box.x - 2000, box.y + 100, { steps: 5 });
-    await page.mouse.up();
-    const max = Math.round((await areaWidth(page)) - 320 - (await workspace(page).locator('b-split-panel').evaluate((el) =>
-      parseFloat(getComputedStyle(el.shadowRoot!.querySelector('.split')!).columnGap) || 0)));
-    await expect.poll(() => dockWidth(page)).toBe(max);
-    await expect.poll(() => lastCurrent(server)?.splits?.workspace).toEqual({ master: '1fr', detail: `${max}px` });
-  });
+  // TASK-198: the panel's own minimums (Birko TASK-981) stop the drag at the tabs' 320px and Dragon's 280px, so nothing
+  // moves after the drop.
+  for (const [label, dx, column, min] of [['the tabs\' 320px', -2000, '.main', 320], ['Dragon\'s 280px', 2000, 'aside.dock', 280]] as const) {
+    test(`a drag past ${label} stops there while dragged, and nothing moves after the drop`, async ({ page }) => {
+      const server = await serve(page);
+      await open(page);
+      const width = () => workspace(page).locator(column).evaluate((el) => Math.round(el.getBoundingClientRect().width));
+      const box = (await divider(page).boundingBox())!;
+      const x0 = box.x + box.width / 2;
+      const y = box.y + 100;
+      await page.mouse.move(x0, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 5; i++) {
+        await page.mouse.move(x0 + (dx * i) / 5, y);
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+        expect(await width()).toBeGreaterThanOrEqual(min);
+      }
+      expect(await width()).toBe(min);
+      const dragon = await dockWidth(page);
+      const after = workspace(page).locator('aside.dock').evaluate((el) => new Promise<number[]>((resolve) => {
+        const seen: number[] = [];
+        const t0 = performance.now();
+        const tick = () => {
+          seen.push(Math.round(el.getBoundingClientRect().width));
+          if (performance.now() - t0 < 400) requestAnimationFrame(tick); else resolve([...new Set(seen)]);
+        };
+        requestAnimationFrame(tick);
+      }));
+      await page.mouse.up();
+      expect(await after).toEqual([dragon]);
+      await expect.poll(() => storedDragon(page, server)).toBe(dragon);
+    });
+  }
 
   test('focus still widens Dragon to ~60% and gives back the width you set; no divider while it is wide', async ({ page }) => {
     await serve(page, { current: { splits: { workspace: { master: '1fr', detail: '480px' } } } });
