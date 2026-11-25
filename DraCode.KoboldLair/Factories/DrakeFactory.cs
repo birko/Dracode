@@ -69,6 +69,12 @@ namespace DraCode.KoboldLair.Factories
         /// </summary>
         public QuestionChain Chain { get; set; } = new();
 
+        /// <summary>
+        /// The project's Wyvern for each Drake this factory creates (TASK-225); <see cref="ProjectService"/> sets it. Null
+        /// leaves Drakes without one, as tests that build a factory alone do.
+        /// </summary>
+        public Func<string, Orchestrators.Wyvern?>? WyvernForProject { get; set; }
+
         /// <summary>Raised when a task parks on a decision a person must answer. Parameters: projectName, decision.</summary>
         public Action<string, PendingDecision>? OnDecisionRequired { get; set; }
 
@@ -292,6 +298,11 @@ namespace DraCode.KoboldLair.Factories
             {
                 QuestionChain = Chain
             };
+
+            // The project's Wyvern, with its saved analysis and Wyrm's recommendation (TASK-225): Kobolds' constraints and
+            // structure, escalation refinement and feature status all read it through the Drake
+            if (!string.IsNullOrEmpty(projectId) && WyvernForProject?.Invoke(projectId) is { } wyvern)
+                drake.SetWyvern(wyvern);
 
             // Lock only for dictionary insertion, with race condition check
             lock (_lock)

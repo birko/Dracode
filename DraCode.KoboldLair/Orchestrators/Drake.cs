@@ -237,14 +237,14 @@ namespace DraCode.KoboldLair.Orchestrators
         public void SetWyvern(Wyvern wyvern)
         {
             _wyvern = wyvern;
-            // Also load Wyrm recommendations when Wyvern is set
-            _ = LoadWyrmRecommendationsAsync();
+            // Also load Wyrm recommendations when Wyvern is set, before it returns: a Kobold summoned next reads them
+            LoadWyrmRecommendations();
         }
 
         /// <summary>
         /// Loads Wyrm recommendations from the project folder (GAP 5 FIX)
         /// </summary>
-        private async Task LoadWyrmRecommendationsAsync()
+        private void LoadWyrmRecommendations()
         {
             if (string.IsNullOrEmpty(_specificationPath))
                 return;
@@ -263,7 +263,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     return;
                 }
 
-                var json = await File.ReadAllTextAsync(wyrmPath);
+                var json = File.ReadAllText(wyrmPath);
                 _wyrmRecommendation = System.Text.Json.JsonSerializer.Deserialize<WyrmRecommendation>(json,
                     new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -726,7 +726,11 @@ namespace DraCode.KoboldLair.Orchestrators
             // Pass combined project constraints to Kobold for constraint-aware planning
             var combinedConstraints = CombinedConstraints();
             if (combinedConstraints.Any())
+            {
                 kobold.SetProjectConstraints(combinedConstraints);
+                _logger?.LogInformation("Kobold {KoboldId} gets {Count} project constraint(s) for task {TaskId}",
+                    kobold.Id.ToString()[..8], combinedConstraints.Count, task.Id[..Math.Min(8, task.Id.Length)]);
+            }
 
             // Add dependency context if task has dependencies
 
@@ -3122,6 +3126,17 @@ namespace DraCode.KoboldLair.Orchestrators
         {
             var constraints = new List<string>();
             string? description = null;
+            var id = System.Text.RegularExpressions.Regex.Match(task.Task, @"^\[([^\]]+)\]").Groups[1].Value;
+
+            // The project's Wyvern, when the factory gave this Drake one (TASK-225), already holds the analysis; its
+            // constraints come through CombinedConstraints, so only the description is taken here
+            if (_wyvern?.Analysis is { } loaded)
+            {
+                if (id.Length > 0)
+                    description = loaded.Areas.SelectMany(a => a.Tasks).FirstOrDefault(t => t.Id == id)?.Description;
+                return (description, constraints);
+            }
+
             var folder = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(_outputMarkdownPath)));
             if (folder == null)
                 return (null, constraints);
@@ -3132,7 +3147,6 @@ namespace DraCode.KoboldLair.Orchestrators
                 if (File.Exists(analysisPath)
                     && System.Text.Json.JsonSerializer.Deserialize<WyvernAnalysis>(File.ReadAllText(analysisPath), options) is { } analysis)
                 {
-                    var id = System.Text.RegularExpressions.Regex.Match(task.Task, @"^\[([^\]]+)\]").Groups[1].Value;
                     if (id.Length > 0)
                         description = analysis.Areas.SelectMany(a => a.Tasks).FirstOrDefault(t => t.Id == id)?.Description;
                     constraints.AddRange(analysis.Constraints);
