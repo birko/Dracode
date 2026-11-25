@@ -60,6 +60,14 @@ const WIDE_SIZES: SplitSizes = { master: '1fr', detail: '60%' };
 const MIN_DRAGON_PX = 280;
 const MIN_TABS_PX = 320;
 
+/** A panel width as px: `px`, or `rem`/`em` at the root font size; null for anything else (`1fr`). */
+function toPx(length: string): number | null {
+  const match = /^(-?[\d.]+)(px|rem|em)$/.exec(length.trim());
+  if (!match) return null;
+  const value = parseFloat(match[1]);
+  return match[2] === 'px' ? value : value * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+}
+
 /** A saved layout in a word or two for the menu: the tab it opens on, Dragon's width, the pin. */
 function summary(layout: WorkspaceLayout): string {
   const parts: string[] = [];
@@ -212,6 +220,7 @@ export class ProjectWorkspace extends KoboldComponent {
         return `
           <b-split-panel class="workspace${this.expanded ? ' expanded' : ''}${this._overlayOpen ? ' overlay-open' : ''}"
             layout-key="${WORKSPACE_KEY}" collapse-at="1279.98px" resize-label="Resize Dragon"
+            master-min="${MIN_TABS_PX}px" detail-min="${MIN_DRAGON_PX}px"
             master-width="${this.sizes.master}" detail-width="${this.sizes.detail}"${this.dividerOffered ? ' resizable' : ''}>
           <div class="main" slot="master">
           <div class="project-head">
@@ -350,17 +359,21 @@ export class ProjectWorkspace extends KoboldComponent {
    * the gap), so Dragon keeps its width when the window changes.
    */
   private resized(split: BSplitPanel): void {
-    // Birko.Web 0.5.3 resizes the fixed-length column, so the panel reports Dragon's own width (`detail` in px); an
-    // older one reports the tabs' width (`master` in px) and Dragon has what is left.
+    // Birko.Web 0.5.3 resizes the fixed-length column, so the panel reports Dragon's own width (`detail`, in rem since
+    // Birko TASK-981); an older one reports the tabs' width (`master` in px) and Dragon has what is left.
     const { master, detail } = split.sizes;
     const grid = split.shadowRoot?.querySelector('.split');
     if (!grid) return;
     const total = split.getBoundingClientRect().width;
     const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
-    const dragon = /px$/.test(detail) ? parseFloat(detail) : /px$/.test(master) ? total - parseFloat(master) - gap : NaN;
+    const detailPx = toPx(detail);
+    const masterPx = toPx(master);
+    const dragon = detailPx ?? (masterPx === null ? NaN : total - masterPx - gap);
     if (!Number.isFinite(dragon)) return;
-    const width = Math.round(Math.min(Math.max(dragon, MIN_DRAGON_PX), Math.max(MIN_DRAGON_PX, total - gap - MIN_TABS_PX)));
-    const rest: SplitSizes = { master: '1fr', detail: `${width}px` };
+    const width = Math.min(Math.max(dragon, MIN_DRAGON_PX), Math.max(MIN_DRAGON_PX, total - gap - MIN_TABS_PX));
+    // The panel's own minimums (TASK-198) keep a drag within these, so its width is kept as it gave it; a width outside
+    // them (an older panel, or a stored width a narrower window cannot fit) is corrected in px.
+    const rest: SplitSizes = { master: '1fr', detail: detailPx !== null && Math.abs(width - detailPx) < 0.5 ? detail : `${Math.round(width)}px` };
     layoutStore.update({ splits: { [WORKSPACE_KEY]: rest } });
     split.sizes = rest;
   }

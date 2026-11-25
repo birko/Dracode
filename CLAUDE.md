@@ -702,11 +702,13 @@ Each person's own, across all their projects, keyed by their subject (`view_own`
   - The tabs are `b-tabs reorderable`; the keyboard moves the open tab.
   - The Layouts menu saves, loads and deletes named layouts. A phone shows the saved tab order without reordering or
     the menu.
-- **Divider (TASK-197):** since Birko.Web 0.5.3 the panel resizes its fixed-length column, so a drag moves Dragon's
-  own width and `split-resize` reports it as `detail` px. `resized()` reads that, and still reads an older panel's
-  `master` px, then clamps it (Dragon at least 280px, the tabs 320px).
-  - The live drag clamps only to Birko's 120px. A drop past a minimum therefore corrects with an animation, until
-    Birko TASK-981's `master-min` / `detail-min` arrive.
+- **Divider (TASK-197, TASK-198):** since Birko.Web 0.5.3 the panel resizes its fixed-length column, so a drag moves
+  Dragon's own width, and `split-resize` reports it as `detail` in rem (2 decimals).
+  - `resized()` converts rem or px at the root font size (`toPx`) and still reads an older panel's `master` px. It
+    keeps the panel's value as stored, and corrects in px only a width outside the minimums (a stored width a
+    narrower window cannot fit).
+  - The panel's `master-min="320px"` / `detail-min="280px"` stop the drag and the keys there, so nothing moves after
+    a drop. A stored layout's width may be rem or px.
 - **Animation:** the ~150 ms widening is b-split-panel's `--b-split-transition` (Birko.Web 0.5.3), which the workspace
   sets. A pointer drag is never animated, and reduced motion turns it off.
 
