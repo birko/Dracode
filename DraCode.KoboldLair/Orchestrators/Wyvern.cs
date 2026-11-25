@@ -3,6 +3,7 @@ using System.Text.Json;
 using Birko.AI;
 using Birko.AI.Agents;
 using DraCode.KoboldLair.Agents;
+using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Data.Repositories;
 using DraCode.KoboldLair.Models.Agents;
 using DraCode.KoboldLair.Models.Projects;
@@ -568,7 +569,14 @@ Respond with ONLY valid JSON (no markdown, no explanations):
         /// </summary>
         /// <param name="specification">Optional specification to analyze</param>
         /// <param name="wyrmRecommendation">Optional Wyrm pre-analysis recommendations to guide Wyvern</param>
-        public async Task<WyvernAnalysis> AnalyzeProjectAsync(Specification? specification = null, WyrmRecommendation? wyrmRecommendation = null)
+        /// <param name="answers">A person's answers to this analysis's earlier questions, which the prompt carries (TASK-170).</param>
+        /// <param name="mayAsk">
+        /// Whether the reply may ask a person instead of planning (TASK-170, FEATURE-078 D26). An analysis that asks returns its
+        /// <see cref="WyvernAnalysis.Questions"/> and no tasks, and leaves <see cref="Analysis"/> as it was; questions in a reply
+        /// that may not ask are dropped.
+        /// </param>
+        public async Task<WyvernAnalysis> AnalyzeProjectAsync(Specification? specification = null, WyrmRecommendation? wyrmRecommendation = null,
+            IReadOnlyList<(string Question, string Answer)>? answers = null, bool mayAsk = false)
         {
             if (specification != null)
             {
@@ -669,10 +677,19 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 prompt += "Use these recommendations as guidance for your analysis, but feel free to adjust based on the full specification.\n\n";
             }
 
+            if (answers is { Count: > 0 })
+            {
+                prompt += "\n\n## A person's answers to your earlier questions (use them; do not ask again):\n\n";
+                foreach (var (question, answer) in answers)
+                {
+                    prompt += $"- Q: {question}\n  A: {answer}\n";
+                }
+            }
+
             string analysisJson;
             try
             {
-                analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(prompt);
+                analysisJson = await _analyzerAgent.AnalyzeSpecificationAsync(prompt, mayAsk);
             }
             catch (InvalidOperationException ex)
             {
@@ -682,12 +699,18 @@ Respond with ONLY valid JSON (no markdown, no explanations):
 
             try
             {
-                _analysis = JsonSerializer.Deserialize<WyvernAnalysis>(analysisJson, _jsonOptions);
+                var parsed = JsonSerializer.Deserialize<WyvernAnalysis>(analysisJson, _jsonOptions)
+                    ?? throw new InvalidOperationException("Failed to parse Wyvern analysis");
 
-                if (_analysis == null)
+                parsed.Questions = mayAsk ? Askable(parsed.Questions) : new List<WyvernQuestion>();
+                if (parsed.Questions.Count > 0)
                 {
-                    throw new InvalidOperationException("Failed to parse Wyvern analysis");
+                    _logger?.LogInformation("❓ Wyvern asks {Count} question(s) for project {ProjectName} instead of planning",
+                        parsed.Questions.Count, _projectName);
+                    return parsed;
                 }
+
+                _analysis = parsed;
 
                 // A reply that parses but carries no tasks is not "nothing to do" — it is a reply we could not use
                 if (_analysis.Areas.All(a => a.Tasks.Count == 0))
@@ -776,6 +799,30 @@ Respond with ONLY valid JSON (no markdown, no explanations):
             {
                 throw new InvalidOperationException($"Failed to parse Wyvern analysis JSON: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// The questions a reply may put to a person: each one that passes <c>ask_human</c>'s checks, up to
+        /// <see cref="WyvernAnalysis.MaxQuestions"/> (TASK-170). One that fails a check is dropped and logged.
+        /// </summary>
+        private List<WyvernQuestion> Askable(List<WyvernQuestion>? questions)
+        {
+            var askable = new List<WyvernQuestion>();
+            foreach (var q in questions ?? new List<WyvernQuestion>())
+            {
+                var options = (q.Options ?? new List<string>()).Select(o => o.Trim()).Where(o => o.Length > 0).ToList();
+                var allowFreeText = q.AllowFreeText ?? options.Count == 0;
+                var text = q.Question?.Trim();
+                if (AskHumanTool.Problem(text, options.ToArray(), allowFreeText, q.Context?.Trim()) is { } problem)
+                {
+                    _logger?.LogWarning("Wyvern question dropped ({Problem}): {Question}", problem, text);
+                    continue;
+                }
+                askable.Add(new WyvernQuestion { Question = text!, Options = options, AllowFreeText = allowFreeText, Context = q.Context?.Trim() });
+                if (askable.Count == WyvernAnalysis.MaxQuestions)
+                    break;
+            }
+            return askable;
         }
 
         private void LogUnusableReply(string reason)

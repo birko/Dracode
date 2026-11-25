@@ -1,6 +1,6 @@
 ---
 id: FEATURE-078
-generated: 2026-11-25 12:24
+generated: 2026-11-25 13:05
 ---
 
 # Project lifecycle discipline inside the KoboldLair pipeline — Status
@@ -21,9 +21,9 @@ generated: 2026-11-25 12:24
 
 ## Build progress
 
-0 / 25 tasks done.
+1 / 25 tasks done.
 
-- TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — todo
+- TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — done
 - TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — todo
 - TASK-202 A Kobold's ask_human goes through the chain — todo
 - TASK-203 Drake answers a Kobold's question from what its level owns, or passes it up — todo
@@ -51,7 +51,7 @@ generated: 2026-11-25 12:24
 
 ## What can be tested now
 
-Nothing to test yet.
+Ready to test: TASK-170.
 
 ## Prototype
 
@@ -59,4 +59,4 @@ none yet
 
 ## Next step
 
-25 tasks to do.
+24 tasks to do.

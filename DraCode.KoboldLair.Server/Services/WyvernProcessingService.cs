@@ -53,10 +53,10 @@ namespace DraCode.KoboldLair.Server.Services
                 _logger.LogDebug("Skipping project {ProjectName} - execution state: {State}", project.Name, project.ExecutionState);
             }
 
-            var projectsNeedingAnalysis = wyrmAssigned
+            var projectsNeedingAnalysis = await WithoutOpenQuestionsAsync(wyrmAssigned
                 .Where(p => p.ExecutionState == ProjectExecutionState.Running)
                 .Where(p => _projectService.IsAgentEnabled(p.Id, "wyvern"))
-                .ToList();
+                .ToList());
 
             var skippedAnalysis = wyrmAssigned
                 .Where(p => p.ExecutionState == ProjectExecutionState.Running)
@@ -225,5 +225,22 @@ namespace DraCode.KoboldLair.Server.Services
                 project.Name, reanalysisDuration.TotalMilliseconds.ToString("F0"), analysis.TotalTasks);
         }
 
+
+        /// <summary>
+        /// Leaves out each project whose analysis waits on a person's answer (TASK-170): its open question holds it, read
+        /// from the decision store, so the wait survives a restart.
+        /// </summary>
+        private async Task<List<Project>> WithoutOpenQuestionsAsync(List<Project> projects)
+        {
+            var ready = new List<Project>();
+            foreach (var project in projects)
+            {
+                if (await _projectService.AnalysisWaitsOnPersonAsync(project.Id))
+                    _logger.LogDebug("Skipping project {ProjectName} - its analysis waits on a person's answer", project.Name);
+                else
+                    ready.Add(project);
+            }
+            return ready;
+        }
     }
 }

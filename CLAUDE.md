@@ -66,6 +66,13 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
   - **Rich task descriptions**: Task descriptions must include acceptance criteria, target files, and public API signatures
   - **Task granularity guidelines**: Avoids shared dump files, splits large integration tasks
   - **WyvernProcessingService** (60s): Monitors WyrmAssigned projects, runs detailed analysis, transitions to Analyzed
+  - **Questions** (TASK-170, FEATURE-078 D26): an analysis that may ask (a decision store exists and `IAskHumanPolicy`
+    allows it) can return up to three `questions` (the `ask_human` shape) and no tasks. `DrakeFactory.AskProjectQuestionsAsync`
+    stores them as decisions on the whole project (empty `TaskId`, `AskHuman`, no timeout) and raises their cards; the
+    service skips the project while one is open (`ProjectService.AnalysisWaitsOnPersonAsync`, read from the store, so a
+    restart changes nothing). An answer goes through `DrakeFactory`'s store fallback (no Drake holds the task-less
+    decision); the next analysis gets the answers in its prompt and may not ask again. One round per analysis, counted
+    from `AnalyzedAt`, so a changed specification asks afresh
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts

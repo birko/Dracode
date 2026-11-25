@@ -64,6 +64,9 @@ namespace DraCode.KoboldLair.Factories
         /// <param name="wyrmProvider">Optional override for Wyrm provider</param>
         /// <param name="wyrmModel">Optional override for Wyrm model</param>
         /// <param name="projectId">Optional project identifier for resource limiting</param>
+        /// <summary>Tests only: the analyzer's model for every Wyvern this factory creates, instead of a configured provider.</summary>
+        internal Func<Birko.AI.Providers.ILlmProvider>? AnalyzerProviderOverride { get; set; }
+
         public Wyvern CreateWyvern(
             string projectName,
             string specificationPath,
@@ -120,8 +123,10 @@ namespace DraCode.KoboldLair.Factories
                     }
                 }
 
-                var analyzerAgent = (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, _koboldLairConfig, wyvernOptions, wyvernConfig, "wyvern",
-                    _rateLimiter, _costTracker, _loggerFactory?.CreateLogger<TrackedLlmProvider>(), projectId);
+                var analyzerAgent = AnalyzerProviderOverride is { } scripted
+                    ? new WyvernAgent(scripted(), wyvernOptions)
+                    : (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, _koboldLairConfig, wyvernOptions, wyvernConfig, "wyvern",
+                        _rateLimiter, _costTracker, _loggerFactory?.CreateLogger<TrackedLlmProvider>(), projectId);
 
                 var logger = _loggerFactory?.CreateLogger<Wyvern>();
 

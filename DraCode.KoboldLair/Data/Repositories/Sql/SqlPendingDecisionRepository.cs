@@ -103,6 +103,18 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             return entities.Select(ToModel).ToList();
         }
 
+        /// <summary>
+        /// The project's own decisions, those asked for the whole project rather than one task (an empty task id; the
+        /// analyzer's questions, TASK-170), created at or after <paramref name="since"/>, oldest first.
+        /// </summary>
+        public async Task<List<PendingDecision>> GetProjectLevelAsync(string projectId, DateTime since)
+        {
+            var entities = await _repository.ReadAsync(
+                filter: e => e.ProjectId == projectId && e.TaskId == "" && e.CreatedAt >= since,
+                orderBy: null, limit: null, offset: null);
+            return entities.Select(ToModel).OrderBy(d => d.CreatedAt).ToList();
+        }
+
         public async Task<List<PendingDecision>> GetExpiredAsync(DateTime now)
         {
             var entities = await _repository.ReadAsync(

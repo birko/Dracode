@@ -51,7 +51,10 @@ namespace DraCode.KoboldLair.Services
             return new Reply(decisionId, result, result switch
             {
                 DecisionAnswerResult.Resolved =>
-                    $"Answered \"{PendingDecisionNotification.QuestionText(decision)}\"; the task will resume with your answer.",
+                    $"Answered \"{PendingDecisionNotification.QuestionText(decision)}\"; " +
+                    (decision.TaskId.Length == 0
+                        ? "the project's analysis will resume with your answer."
+                        : "the task will resume with your answer."),
                 DecisionAnswerResult.AlreadyResolved =>
                     "This decision was already answered or timed out; nothing changed.",
                 DecisionAnswerResult.InvalidAnswer => Refusal(decision, answer),

@@ -2,6 +2,7 @@ using Birko.AI;
 using Birko.AI.Agents;
 using Birko.AI.Providers;
 using Birko.AI.Tools;
+using DraCode.KoboldLair.Models.Agents;
 
 namespace DraCode.KoboldLair.Agents
 {
@@ -114,8 +115,21 @@ The output JSON schema is supplied in your user message. Respond with PURE JSON 
       /// </summary>
       /// <param name="specificationContent">Content of the specification file</param>
       /// <returns>JSON string with organized tasks</returns>
-      public async Task<string> AnalyzeSpecificationAsync(string specificationContent)
+      /// <param name="mayAsk">Whether the reply may carry questions for a person instead of tasks (TASK-170).</param>
+      public async Task<string> AnalyzeSpecificationAsync(string specificationContent, bool mayAsk = false)
       {
+         var questionsField = mayAsk
+            ? @"  ""questions"": [{ ""question"": ""What the specification leaves open"", ""options"": [""a choice"", ""another""], ""allowFreeText"": true, ""context"": ""why the task breakdown depends on it"" }],
+"
+            : "";
+         var questionsRule = mayAsk
+            ? $@"
+
+## QUESTIONS (optional):
+Only when the specification leaves open a choice that changes the task breakdown, and you cannot settle it from the
+specification: put at most {WyvernAnalysis.MaxQuestions} questions in ""questions"" and return ""areas"" empty. A person answers them and
+you run again with the answers. Otherwise leave ""questions"" out and return the tasks; never ask what you can decide."
+            : "";
          var prompt = $@"Analyze this specification and return your task breakdown as JSON.
 
 ## SPECIFICATION:
@@ -126,7 +140,7 @@ The output JSON schema is supplied in your user message. Respond with PURE JSON 
 
 {{
   ""projectName"": ""ProjectName"",
-  ""constraints"": [""every explicit restriction from the spec, e.g. 'No external runtime dependencies'""],
+{questionsField}  ""constraints"": [""every explicit restriction from the spec, e.g. 'No external runtime dependencies'""],
   ""outOfScope"": [""features explicitly excluded or marked as future work""],
   ""structure"": {{
     ""namingConventions"": {{
@@ -174,7 +188,7 @@ The output JSON schema is supplied in your user message. Respond with PURE JSON 
   ""estimatedComplexity"": ""low|medium|high""
 }}
 
-Response must be pure JSON — starts with {{, ends with }}, no other text.";
+Response must be pure JSON — starts with {{, ends with }}, no other text.{questionsRule}";
 
          var messages = await RunAsync(prompt, maxIterations: 1);
 
