@@ -21,10 +21,10 @@ generated: 2026-11-25 13:05
 
 ## Build progress
 
-1 / 25 tasks done.
+2 / 25 tasks done.
 
 - TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — done
-- TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — todo
+- TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — done
 - TASK-202 A Kobold's ask_human goes through the chain — todo
 - TASK-203 Drake answers a Kobold's question from what its level owns, or passes it up — todo
 - TASK-204 Wyvern becomes the project's overseer: several turns, read-only tools — todo
@@ -59,4 +59,4 @@ none yet
 
 ## Next step
 
-24 tasks to do.
+23 tasks to do.

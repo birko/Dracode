@@ -3,7 +3,7 @@ id: TASK-201
 parent: STORY-051
 feature: FEATURE-078
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 priority: P2
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
 assignee: agent
@@ -34,11 +34,11 @@ Decisions: FEATURE-078 D18, D24, D27.
 
 ## Acceptance criteria
 
-- [ ] A question records each level it has passed; a level that already had it never gets it again, and it never moves down
-- [ ] With no level answering, a question reaches the person exactly as `ask_human`'s does today (card, Needs you, Dragon), and its answer reaches the asker
-- [ ] The answer returns along the recorded path, so every level that passed it sees the answer
-- [ ] The path survives a server restart (stored with the decision)
-- [ ] Works in every project; no per-project switch
+- [x] A question records each level it has passed; a level that already had it never gets it again, and it never moves down
+- [x] With no level answering, a question reaches the person exactly as `ask_human`'s does today (card, Needs you, Dragon), and its answer reaches the asker
+- [x] The answer returns along the recorded path, so every level that passed it sees the answer
+- [x] The path survives a server restart (stored with the decision)
+- [x] Works in every project; no per-project switch
 
 ## Out of scope
 
@@ -50,4 +50,27 @@ N/A — the routing is asserted by tests; the person-facing behaviour is unchang
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-201` — leave empty until then._
+Planned at pick (2026-11-25):
+
+1. `QuestionLevel` (Worker, Supervisor, Overseer, Dragon, Person; stored numbers) and `QuestionChain` with
+   `IQuestionLevel`: a question climbs from the level above its asker, the first level that answers stops it, a level
+   with nothing registered or one that fails passes it on, and the person is the end; `DeliverAnswerAsync` takes the
+   answer back down the levels below the answerer, nearest first.
+2. `PendingDecision.Path`, stored as `PathJson` (the repository adds the column to an older table at startup).
+3. `DrakeFactory.Chain`. The analyzer's questions (TASK-170) are the chain's first users: they climb from the Overseer;
+   one answered on the way is stored answered with no card, so the analysis re-runs with it on the next cycle. A
+   person's answer goes back down the stored path from `ResolvePendingDecisionAsync`.
+4. Kobold's `ask_human` stays as it is; routing it is TASK-202.
+
+## Notes
+
+- **Red, after the fact** (code first again): with the routing in `DrakeFactory` replaced by a straight-to-person
+  outcome and no delivery, the three chain tests in `WyvernQuestionsTests` failed; `QuestionChainTests` (10) are new
+  with the type. Full .NET suite 673 passed; no client change.
+- **Upgrade, seen live:** starting the throwaway server on the TASK-170 database logged "Added missing column
+  pending_decisions.PathJson (TEXT)"; its two older decisions kept a null path and read as off the chain.
+- No level is registered in the server yet, so the person sees no change; each level comes with its own task
+  (TASK-203, 205, 206).
+- A round answered entirely on the way re-runs the analysis on the next service cycle, not at once.
+- `EventStoreMigrationTests.Two_writers_changing_one_specification_at_once_both_land_on_distinct_versions` failed once
+  in one full run and passed alone and in the next full run: a concurrency flake, unrelated, not filed yet.

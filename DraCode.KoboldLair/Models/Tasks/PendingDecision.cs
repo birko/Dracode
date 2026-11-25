@@ -32,6 +32,13 @@ namespace DraCode.KoboldLair.Models.Tasks
         public DateTime? ResolvedAt { get; set; }
 
         public bool IsResolved => ResolutionKind is not null;
+
+        /// <summary>
+        /// The levels the question climbed before it reached the person (TASK-201, FEATURE-078 D24), in order and ending
+        /// with <see cref="QuestionLevel.Person"/>; the answer goes back down the same way. Empty for a decision that never
+        /// went through the chain (an escalation, an approval, or one stored before the chain).
+        /// </summary>
+        public List<QuestionLevel> Path { get; set; } = new();
     }
 
     // Stored as numbers on the pending decision, so the values are pinned. Never renumber.
