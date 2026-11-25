@@ -3,7 +3,7 @@ id: TASK-199
 parent: STORY-023
 feature: FEATURE-026
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 priority: P3
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
 assignee: agent
@@ -38,9 +38,9 @@ shared focus ring.
 
 ## Acceptance criteria
 
-- [ ] `.phone-tab:focus-visible` uses `var(--b-focus-ring-inset)`, with no hand-written shadow.
-- [ ] Focused with the keyboard at phone width, the whole ring (line and glow) is inside the tab in every theme.
-- [ ] Nothing else in the client puts `inset` in front of `var(--b-focus-ring)`.
+- [x] `.phone-tab:focus-visible` uses `var(--b-focus-ring-inset)`, with no hand-written shadow.
+- [x] Focused with the keyboard at phone width, the whole ring (line and glow) is inside the tab in every theme.
+- [x] Nothing else in the client puts `inset` in front of `var(--b-focus-ring)`.
 
 ## Out of scope
 
@@ -48,5 +48,25 @@ shared focus ring.
 
 ## Human test plan
 
-- [ ] At phone width on a throwaway server, Tab through the bottom bar in light and dark themes: each focused tab shows
+- [x] At phone width on a throwaway server, Tab through the bottom bar in light and dark themes: each focused tab shows
       its ring inside it, nothing on the neighbours.
+
+## Implementation plan
+
+Picked 2026-11-25, after Birko built TASK-986 on a branch (Birko.Web task/TASK-986, 8bc8eb4, to be v0.5.4):
+
+1. Red first, `phone.spec.ts`: a tab focused from the keyboard must have a ring of more than one shadow, each one
+   inset. Built against Birko's branch it failed on the glow (`rgba(37, 99, 235, 0.5) 0px 0px 4px 1px`, not inset).
+2. `.phone-tab:focus-visible` in `app-shell.ts` uses `var(--b-focus-ring-inset)`.
+3. No other rule in `src/` puts `inset` in front of `var(--b-focus-ring)`.
+
+## Notes
+
+- **Needs Birko.Web v0.5.4** (Birko TASK-986, main 30eef30, pushed). Against an older Birko.Web the token is
+  undefined and the tab draws no ring at all.
+- Full e2e suite 188 passed, built against Birko's branch (`BIRKO_SRC=C:/Source/Birko/Web-TASK-986`) and again
+  against Birko.Web main 30eef30 (v0.5.4). No .NET change.
+- **Human test** (throwaway server, 390 px wide, keyboard Tab, light and dark): Projects, Dragon and Notifications each
+  draw the 1px line and the glow inside the tab (Board is disabled with no project, so Tab skips it). Comparing
+  pixels, no other tab changes while one is focused. No page errors. The result went to `birko-framework-44` as Birko
+  TASK-986's own human test.

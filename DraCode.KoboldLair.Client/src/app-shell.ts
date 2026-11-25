@@ -174,7 +174,7 @@ class KoboldLairAppShell extends BCoreAppShell {
         }
         .phone-tab[aria-current="page"] { color: var(--b-color-primary); font-weight: var(--b-font-weight-bold, 700); }
         .phone-tab[aria-disabled="true"] { color: var(--b-text-muted); opacity: 0.6; }
-        .phone-tab:focus-visible { outline: none; box-shadow: inset var(--b-focus-ring); }
+        .phone-tab:focus-visible { outline: none; box-shadow: var(--b-focus-ring-inset); }
         .phone-tab .count {
           min-width: 1.1rem; height: 1.1rem; padding: 0 0.25rem; box-sizing: border-box; border-radius: 999px;
           background: var(--b-color-danger); color: var(--b-text-on-danger, #fff);
