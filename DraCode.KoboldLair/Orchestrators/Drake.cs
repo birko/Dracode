@@ -3759,7 +3759,7 @@ namespace DraCode.KoboldLair.Orchestrators
                     {
                         // Bug A residual fix — if WAL says Done but the task has no CommitSha,
                         // the original execution crashed between WAL-append and commit completion.
-                        // Demote to Failed so FailureRecoveryService re-runs the task instead of
+                        // Demote to Failed so FailureRecoveryJob re-runs the task instead of
                         // accepting an unverified Done that may have never committed to git.
                         if (newStatus == TaskStatus.Done && string.IsNullOrEmpty(task.CommitSha))
                         {

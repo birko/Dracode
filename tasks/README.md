@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-11-25 10:04. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-25 10:34. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,10 +11,10 @@ _Generated 2026-11-25 10:04. Run `/tasks triage` to refresh. **Do not hand-edit*
 | in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 7                  | 127                 |
+| done         | 1                  | 7                  | 128                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 39× P2 · 14× P3.
+`todo` by priority: 9× P1 · 40× P2 · 13× P3.
 
 ## In progress now
 
@@ -22,7 +22,7 @@ _None_
 
 ## Tree
 
-> Parents out of step (6): STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-042 in-progress, every child closed → `/tasks close STORY-042`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open.
+> Parents out of step (7): STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-042 in-progress, every child closed → `/tasks close STORY-042`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open.
 
 - **EPIC-001 Token storage & auth providers** — planned (0/2 tasks done)
   - (epic level) — 0/2 done
@@ -184,12 +184,14 @@ _None_
     - [ ] [TASK-027](EPIC-015-self-reasoning-depth/STORY-030-budget-aware-reflection/TASK-027-budget-aware-reflection.md) Surface real token/cost spend into reflect tool & monitor · FEATURE-033
   - STORY-031 Cross-step coherence re-plan check — planned (0/1 done)
     - [ ] [TASK-028](EPIC-015-self-reasoning-depth/STORY-031-cross-step-replan-check/TASK-028-cross-step-coherence-check.md) Lightweight re-plan check when a step is revised/failed · FEATURE-034
-- **EPIC-016 Database-backed agent working state** — in-progress (2/2 tasks done)
+- **EPIC-016 Database-backed agent working state** — in-progress (2/3 tasks done)
   - STORY-032 Migrate remaining file-based working artifacts to the database — in-progress (2/2 done)
     - [x] [TASK-094](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-094-remove-project-configs-json.md) Remove project-configs.json — the database is the only store for per-project agent settings
     - [x] [TASK-096](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-096-remove-dead-project-config-client.md) Remove the dead project-config-client.js (calls /api/project-configs routes nothing serves)
   - STORY-033 Persist structured decision & reasoning records — planned (0/0 done)
   - STORY-034 Codify and enforce the deliverable-vs-working-state boundary — planned (0/0 done)
+  - (epic level) — 0/1 done
+    - [ ] [TASK-200](EPIC-016-db-backed-agent-state/TASK-200-stores-work-on-any-database.md) Stores work on any database: SQLite for tests, PostgreSQL for production
 - **EPIC-017 Generalized agent consensus** — planned (0/0 tasks done)
   - STORY-035 Reusable ConsensusService abstraction — planned (0/0 done)
   - STORY-036 Diverse-panel consensus (heterogeneous agents) — planned (0/0 done)
@@ -231,7 +233,7 @@ _None_
   - STORY-044 Follow Birko framework contract changes — planned (0/1 done)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies
     - ~~[TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule~~
-- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (22/23 tasks done)
+- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (23/23 tasks done)
   - STORY-041 Security & tenancy — done (4/4 done)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller
@@ -256,8 +258,8 @@ _None_
     - [x] [TASK-191](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-191-cancelled-run-logged-as-iteration-limit.md) A run stopped by a shutdown is logged as having reached its iteration limit
     - [x] [TASK-193](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-193-usage-records-name-provider-class.md) Usage records and rate limits name the provider class, not the configured provider
     - [x] [TASK-196](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-196-retry-in-completed-project-never-runs.md) A retried task of a Completed project is never run
-  - STORY-043 Reuse & dead code — planned (0/1 done)
-    - [ ] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation
+  - STORY-043 Reuse & dead code — planned (1/1 done)
+    - [x] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation
 
 ## Loose tasks
 

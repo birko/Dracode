@@ -536,7 +536,7 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     factory.OnEscalation = (projectName, alert, resolution) =>
     {
         notificationService.Notify(projectName, "escalation",
-            $"[{alert.Type}] Task {alert.TaskId?[..8]}: {alert.Summary}. Action: {resolution}",
+            $"[{alert.Type}] Task {DraCode.KoboldLair.Server.Helpers.LogFormatHelper.ShortId(alert.TaskId)}: {alert.Summary}. Action: {resolution}",
             new Dictionary<string, string>
             {
                 ["taskId"] = alert.TaskId ?? "",

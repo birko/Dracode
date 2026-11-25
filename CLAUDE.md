@@ -949,7 +949,7 @@ dotnet run --project DraCode.AppHost
 - **Plan save debounce race** → `SqlPlanRepository` writes immediately on every `SavePlanAsync`; file debounce kept only for human-readable output.
 - **Dragon history race** → `SqlHistoryRepository` with `SemaphoreSlim`-serialized writes.
 - **Escalation persistence gap** → `ReflectionTool` now awaits `SavePlanAsync` (immediate, not debounced) before invoking the escalation callback.
-- **Circuit breaker state lost** → `CircuitBreakerEntity` table; `ProviderCircuitBreaker.InitializePersistenceAsync()` rehydrates on startup.
+- **Circuit breaker state lost** → still open: the breaker keeps its state in memory (the unused `CircuitBreakerEntity` was removed in TASK-123); persisting it through Birko.AI.Resilience's stores is TASK-128.
 
 ### Git/Worktree Issues — resolved
 - **Stale worktrees on restart** → `GitService.PruneStaleWorktreesAsync()` invoked from `Program.cs` startup, iterates all projects.

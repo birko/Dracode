@@ -1,5 +1,7 @@
 using Birko.AI.Resilience.Stores;
+using System.Linq.Expressions;
 using Birko.Data.SQL.Repositories;
+using Birko.Data.SQL.SqLite.Stores;
 using Birko.Data.Stores;
 using DraCode.KoboldLair.Data.Entities;
 using Microsoft.Extensions.Logging;
@@ -15,14 +17,36 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     public class SqlUsageRepository : IUsageRepository
     {
         private readonly AsyncSqLiteModelRepository<KoboldLairUsageRecord> _repository;
+        /// <summary>The repository's own store, for <c>AggregateAsync</c>: the repository does not expose it (TASK-123).</summary>
+        private readonly AsyncSQLiteStore<KoboldLairUsageRecord> _store;
         private readonly ILogger _logger;
+
+        private const string Requests = "requests", Tokens = "tokens", Cost = "cost";
+
+        /// <summary>Each total these reports use: the number of calls, their tokens and their cost.</summary>
+        private static readonly IReadOnlyList<AggregateField> Totals =
+        [
+            new(AggregateFunction.Count, nameof(KoboldLairUsageRecord.Guid), Requests),
+            new(AggregateFunction.Sum, nameof(KoboldLairUsageRecord.TotalTokens), Tokens),
+            new(AggregateFunction.Sum, nameof(KoboldLairUsageRecord.EstimatedCostUsd), Cost)
+        ];
 
         public SqlUsageRepository(string dbPath, ILogger logger)
         {
             _logger = logger;
-            _repository = new AsyncSqLiteModelRepository<KoboldLairUsageRecord>();
+            _store = new AsyncSQLiteStore<KoboldLairUsageRecord>();
+            _repository = new AsyncSqLiteModelRepository<KoboldLairUsageRecord>(_store);
             _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
         }
+
+        /// <summary>Totals computed in the database (SQL <c>GROUP BY</c>), not over every record read into memory (TASK-123).</summary>
+        private Task<IReadOnlyList<AggregateResult>> AggregateAsync(Expression<Func<KoboldLairUsageRecord, bool>> filter,
+            IReadOnlyList<string> groupBy, CancellationToken ct) =>
+            _store.AggregateAsync(new AggregateQuery<KoboldLairUsageRecord> { Filter = filter, GroupByFields = groupBy, Aggregates = Totals }, ct);
+
+        private static int RequestsOf(AggregateResult row) => (int)row.GetValue<long>(Requests);
+        private static int TokensOf(AggregateResult row) => (int)row.GetValue<long>(Tokens);
+        private static double CostOf(AggregateResult row) => row.GetValue<double>(Cost);
 
         public async Task InitializeAsync()
         {
@@ -71,18 +95,15 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// </summary>
         public async Task<List<ProviderUsageSummary>> GetUsageByProviderAsync(DateTime from, DateTime to, CancellationToken ct = default)
         {
-            var records = await _repository.ReadAsync(
-                filter: e => e.RecordedAt >= from && e.RecordedAt <= to,
-                orderBy: null, limit: null, offset: null, ct: ct);
-
-            return records
-                .GroupBy(r => r.Provider)
-                .Select(g => new ProviderUsageSummary
+            var rows = await AggregateAsync(e => e.RecordedAt >= from && e.RecordedAt <= to,
+                [nameof(KoboldLairUsageRecord.Provider)], ct);
+            return rows
+                .Select(r => new ProviderUsageSummary
                 {
-                    Provider = g.Key,
-                    TotalRequests = g.Count(),
-                    TotalTokens = g.Sum(r => r.TotalTokens),
-                    TotalCostUsd = g.Sum(r => r.EstimatedCostUsd)
+                    Provider = r.GetValue<string>(nameof(KoboldLairUsageRecord.Provider)) ?? "",
+                    TotalRequests = RequestsOf(r),
+                    TotalTokens = TokensOf(r),
+                    TotalCostUsd = CostOf(r)
                 })
                 .OrderByDescending(s => s.TotalCostUsd)
                 .ToList();
@@ -93,20 +114,17 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// </summary>
         public async Task<ProjectUsageSummary?> GetUsageByProjectAsync(string projectId, DateTime from, DateTime to, CancellationToken ct = default)
         {
-            var records = await _repository.ReadAsync(
-                filter: e => e.ProjectId == projectId && e.RecordedAt >= from && e.RecordedAt <= to,
-                orderBy: null, limit: null, offset: null, ct: ct);
-
-            var recordList = records.ToList();
-            if (recordList.Count == 0)
+            var rows = await AggregateAsync(e => e.ProjectId == projectId && e.RecordedAt >= from && e.RecordedAt <= to, [], ct);
+            var row = rows.FirstOrDefault();
+            if (row == null || RequestsOf(row) == 0)
                 return null;
 
             return new ProjectUsageSummary
             {
                 ProjectId = projectId,
-                TotalRequests = recordList.Count,
-                TotalTokens = recordList.Sum(r => r.TotalTokens),
-                TotalCostUsd = recordList.Sum(r => r.EstimatedCostUsd)
+                TotalRequests = RequestsOf(row),
+                TotalTokens = TokensOf(row),
+                TotalCostUsd = CostOf(row)
             };
         }
 
@@ -115,23 +133,21 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// </summary>
         public async Task<double> GetTotalSpendAsync(DateTime from, DateTime to, string? provider = null, CancellationToken ct = default)
         {
-            var records = await _repository.ReadAsync(
-                filter: e => e.RecordedAt >= from && e.RecordedAt <= to
-                    && (provider == null || e.Provider == provider),
-                orderBy: null, limit: null, offset: null, ct: ct);
-
-            return records.Sum(r => r.EstimatedCostUsd);
+            var rows = provider == null
+                ? await AggregateAsync(e => e.RecordedAt >= from && e.RecordedAt <= to, [], ct)
+                : await AggregateAsync(e => e.RecordedAt >= from && e.RecordedAt <= to && e.Provider == provider, [], ct);
+            return rows.Sum(CostOf);
         }
 
         /// <summary>Each project's spend, all time, as the project budget counts it (TASK-163). Records with no project are left out.</summary>
         public async Task<Dictionary<string, double>> GetSpendByProjectAsync(CancellationToken ct = default)
         {
-            var records = await _repository.ReadAsync(
-                filter: e => e.ProjectId != null,
-                orderBy: null, limit: null, offset: null, ct: ct);
-            return records.Where(r => !string.IsNullOrEmpty(r.ProjectId))
-                .GroupBy(r => r.ProjectId!)
-                .ToDictionary(g => g.Key, g => g.Sum(r => r.EstimatedCostUsd));
+            var rows = await AggregateAsync(e => e.ProjectId != null && e.ProjectId != "",
+                [nameof(KoboldLairUsageRecord.ProjectId)], ct);
+            return rows
+                .Select(r => (Project: r.GetValue<string>(nameof(KoboldLairUsageRecord.ProjectId)), Cost: CostOf(r)))
+                .Where(r => !string.IsNullOrEmpty(r.Project))
+                .ToDictionary(r => r.Project!, r => r.Cost);
         }
 
         /// <summary>A project's usage records, all time, for its stats (TASK-158).</summary>
@@ -146,14 +162,8 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         /// <summary>
         /// Gets total spend for a specific project (all time).
         /// </summary>
-        public async Task<double> GetProjectSpendAsync(string projectId, CancellationToken ct = default)
-        {
-            var records = await _repository.ReadAsync(
-                filter: e => e.ProjectId == projectId,
-                orderBy: null, limit: null, offset: null, ct: ct);
-
-            return records.Sum(r => r.EstimatedCostUsd);
-        }
+        public async Task<double> GetProjectSpendAsync(string projectId, CancellationToken ct = default) =>
+            (await AggregateAsync(e => e.ProjectId == projectId, [], ct)).Sum(CostOf);
 
         #region IUsageRepository Implementation
 
