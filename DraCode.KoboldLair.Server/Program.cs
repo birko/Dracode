@@ -531,6 +531,10 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     // A task parked on a decision raises an answerable card; its answer or timeout retires it (TASK-020, TASK-160)
     factory.OnDecisionRequired = (projectName, decision) => DecisionNotifications.Required(notificationService, projectName, decision);
     factory.OnDecisionResolved = (projectName, decision) => DecisionNotifications.Resolved(notificationService, projectName, decision);
+    // The question chain (TASK-201): no level answers yet, so every question still reaches the person; the levels are
+    // registered here as FEATURE-078's tasks add them
+    factory.Chain = new DraCode.KoboldLair.Services.QuestionChain(
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.QuestionChain>());
 
     // Wire escalation notifications to Dragon client
     factory.OnEscalation = (projectName, alert, resolution) =>

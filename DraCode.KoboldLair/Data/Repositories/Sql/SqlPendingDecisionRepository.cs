@@ -41,6 +41,18 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         public async Task InitializeAsync()
         {
             await _repository.CreateSchemaAsync();
+            // CreateSchemaAsync never alters an existing table: add the columns it lacks (PathJson, TASK-201)
+            try
+            {
+                var connector = _repository.Connector
+                    ?? throw new InvalidOperationException("no SQLite connector after CreateSchemaAsync");
+                foreach (var drift in connector.EnsureColumns(typeof(PendingDecisionEntity)))
+                    _logger?.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, drift.Declared);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Could not add missing pending_decisions columns");
+            }
             _logger?.LogInformation("SQLite pending-decision repository initialized");
         }
 
@@ -63,6 +75,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 Resolution = decision.Resolution,
                 ResolutionKind = decision.ResolutionKind is { } k ? (int)k : null,
                 ResolvedAt = decision.ResolvedAt,
+                PathJson = decision.Path.Count == 0 ? null : JsonSerializer.Serialize(decision.Path.Select(l => (int)l)),
                 CreatedAt = now,
                 UpdatedAt = now
             });
@@ -178,6 +191,21 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             _ => value
         };
 
+        private List<QuestionLevel> ReadPath(PendingDecisionEntity e)
+        {
+            if (string.IsNullOrEmpty(e.PathJson))
+                return new List<QuestionLevel>();
+            try
+            {
+                return (JsonSerializer.Deserialize<int[]>(e.PathJson) ?? Array.Empty<int>()).Select(l => (QuestionLevel)l).ToList();
+            }
+            catch (JsonException ex)
+            {
+                _logger?.LogWarning(ex, "Unreadable chain path on pending decision {Id}", e.DecisionId);
+                return new List<QuestionLevel>();
+            }
+        }
+
         private PendingDecision ToModel(PendingDecisionEntity e)
         {
             EscalationAlert? escalation = null;
@@ -200,7 +228,8 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 Timeout = e.TimeoutSeconds is { } s ? TimeSpan.FromSeconds(s) : null,
                 Resolution = e.Resolution,
                 ResolutionKind = e.ResolutionKind is { } k ? (PendingDecisionResolution)k : null,
-                ResolvedAt = e.ResolvedAt is { } r ? DateTime.SpecifyKind(r, DateTimeKind.Utc) : null
+                ResolvedAt = e.ResolvedAt is { } r ? DateTime.SpecifyKind(r, DateTimeKind.Utc) : null,
+                Path = ReadPath(e)
             };
         }
     }

@@ -248,4 +248,83 @@ public class WyvernQuestionsTests : IAsyncLifetime
         new DraCode.KoboldLair.Agents.WyrmAgent(_model, options).Tools.Select(t => t.Name).Should().NotContain("ask_human");
         new DraCode.KoboldLair.Agents.WyrmPreAnalysisAgent(_model, options).Tools.Select(t => t.Name).Should().NotContain("ask_human");
     }
+
+    // --- through the question chain (TASK-201) -------------------------------------------------------------
+
+    /// <summary>Dragon's level as a test sees it: it answers when told to, and records the answers it hears back.</summary>
+    private sealed class DragonLevel(string? answer = null) : IQuestionLevel
+    {
+        public QuestionLevel Level => QuestionLevel.Dragon;
+        public readonly List<string> Heard = new();
+        public int Asked;
+
+        public Task<LevelAnswer?> TryAnswerAsync(ChainQuestion question, CancellationToken cancellationToken)
+        {
+            Asked++;
+            return Task.FromResult(answer is null ? null : new LevelAnswer(answer, "the specification says so"));
+        }
+
+        public Task OnAnsweredAsync(ChainQuestion question, string answer, QuestionLevel answeredBy, CancellationToken cancellationToken)
+        {
+            Heard.Add(answer);
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task The_analyzers_question_climbs_past_Dragon_to_the_person_and_keeps_its_path_across_a_restart()
+    {
+        var (projects, drakes, _) = await ServerAsync();
+        var dragon = new DragonLevel();
+        drakes.Chain = new QuestionChain().Register(dragon);
+        var id = NewProject(projects);
+        _model.Replies.Enqueue(Questions);
+
+        await projects.AnalyzeProjectAsync(id);
+
+        dragon.Asked.Should().Be(1, "Dragon's level gets the overseer's question first");
+        var (_, _, decisions) = await ServerAsync();
+        var open = (await decisions.GetUnresolvedForProjectAsync(id)).Single();
+        open.Path.Should().Equal(QuestionLevel.Dragon, QuestionLevel.Person);
+        _cards.Should().ContainSingle(c => c.Id == open.Id);
+    }
+
+    [Fact]
+    public async Task The_persons_answer_goes_back_down_to_the_levels_the_question_passed()
+    {
+        var (projects, drakes, decisions) = await ServerAsync();
+        var dragon = new DragonLevel();
+        drakes.Chain = new QuestionChain().Register(dragon);
+        var id = NewProject(projects);
+        _model.Replies.Enqueue(Questions);
+        await projects.AnalyzeProjectAsync(id);
+        var question = (await decisions.GetUnresolvedForProjectAsync(id)).Single();
+
+        await drakes.ResolvePendingDecisionAsync(id, question.Id, "files");
+
+        dragon.Heard.Should().Equal("files");
+    }
+
+    [Fact]
+    public async Task A_question_a_level_answers_never_reaches_the_person_and_the_analysis_re_runs_with_that_answer()
+    {
+        var (projects, drakes, decisions) = await ServerAsync();
+        drakes.Chain = new QuestionChain().Register(new DragonLevel("sqlite"));
+        var id = NewProject(projects);
+        _model.Replies.Enqueue(Questions);
+
+        await projects.AnalyzeProjectAsync(id);
+
+        _cards.Should().BeEmpty("no question reached the person");
+        (await decisions.GetUnresolvedForProjectAsync(id)).Should().BeEmpty();
+        (await projects.AnalysisWaitsOnPersonAsync(id)).Should().BeFalse();
+        var answered = (await decisions.GetProjectLevelAsync(id, DateTime.MinValue)).Single();
+        answered.Resolution.Should().Be("sqlite");
+        answered.Path.Should().Equal(QuestionLevel.Dragon);
+
+        _model.Replies.Enqueue(Tasks);
+        await projects.AnalyzeProjectAsync(id);
+        _model.Requests.Last().Should().Contain("A: sqlite");
+        Project(id).Status.Should().Be(ProjectStatus.Analyzed);
+    }
 }

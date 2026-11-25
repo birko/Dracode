@@ -42,6 +42,9 @@ namespace DraCode.KoboldLair.Data.Entities
 
         public DateTime? ResolvedAt { get; set; }
 
+        /// <summary>The chain path as a JSON array of <see cref="Models.Tasks.QuestionLevel"/> numbers; null off the chain.</summary>
+        public string? PathJson { get; set; }
+
         public override AbstractModel CopyTo(AbstractModel? clone = null)
         {
             var target = clone as PendingDecisionEntity ?? new PendingDecisionEntity();
@@ -59,6 +62,7 @@ namespace DraCode.KoboldLair.Data.Entities
             target.Resolution = Resolution;
             target.ResolutionKind = ResolutionKind;
             target.ResolvedAt = ResolvedAt;
+            target.PathJson = PathJson;
             return target;
         }
 

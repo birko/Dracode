@@ -63,6 +63,12 @@ namespace DraCode.KoboldLair.Factories
         /// <summary>How much Kobolds may ask a person (TASK-023 provides one); null allows every question, no cap.</summary>
         public IAskHumanPolicy? AskHumanPolicy { get; set; }
 
+        /// <summary>
+        /// The question chain the pipeline's questions climb before they reach a person (TASK-201, FEATURE-078 D18, D24).
+        /// With no level registered, every question reaches the person, as before the chain.
+        /// </summary>
+        public QuestionChain Chain { get; set; } = new();
+
         /// <summary>Raised when a task parks on a decision a person must answer. Parameters: projectName, decision.</summary>
         public Action<string, PendingDecision>? OnDecisionRequired { get; set; }
 
@@ -405,16 +411,32 @@ namespace DraCode.KoboldLair.Factories
             var asked = new List<PendingDecision>();
             foreach (var question in questions)
             {
+                // The overseer asks: the question climbs from Dragon's level, and only one no level answers reaches the person
+                var outcome = await Chain.AskAsync(new ChainQuestion(projectId, null, QuestionLevel.Overseer, question));
                 var decision = new PendingDecision
                 {
                     ProjectId = projectId,
                     TaskId = "",
                     Disposition = EscalationDisposition.HumanDecisionRequired,
                     Source = PendingDecisionSource.AskHuman,
-                    Question = question.ToJson()
+                    Question = question.ToJson(),
+                    Path = outcome.Path.ToList()
                 };
+                if (!outcome.ReachesPerson)
+                {
+                    // Answered on the way: stored answered, so the analysis re-runs with it and no card goes to the person
+                    decision.Resolution = outcome.Answer!.Answer;
+                    decision.ResolutionKind = PendingDecisionResolution.Answered;
+                    decision.ResolvedAt = DateTime.UtcNow;
+                }
                 await _pendingDecisions!.CreateAsync(decision);
                 asked.Add(decision);
+                if (!outcome.ReachesPerson)
+                {
+                    await Chain.DeliverAnswerAsync(new ChainQuestion(projectId, null, QuestionLevel.Overseer, question),
+                        outcome.Path, decision.Resolution!, outcome.AnsweredBy);
+                    continue;
+                }
                 try
                 {
                     OnDecisionRequired?.Invoke(projectName, decision);
@@ -434,6 +456,21 @@ namespace DraCode.KoboldLair.Factories
         /// <see cref="Drake.ResolvePendingDecisionAsync"/> does.
         /// </summary>
         public async Task<DecisionAnswerResult> ResolvePendingDecisionAsync(string projectId, string decisionId, string answer)
+        {
+            var result = await ResolveAnswerAsync(projectId, decisionId, answer);
+            if (result == DecisionAnswerResult.Resolved && _pendingDecisions != null
+                && await _pendingDecisions.GetByIdAsync(decisionId) is { Path.Count: > 0 } decision
+                && AskHumanQuestion.TryParse(decision) is { } question)
+            {
+                // The person's answer goes back down the path the question climbed (TASK-201, D24)
+                var askedBy = decision.TaskId.Length == 0 ? QuestionLevel.Overseer : QuestionLevel.Worker;
+                await Chain.DeliverAnswerAsync(new ChainQuestion(projectId, decision.TaskId.Length == 0 ? null : decision.TaskId, askedBy, question),
+                    decision.Path, decision.Resolution ?? answer, QuestionLevel.Person);
+            }
+            return result;
+        }
+
+        private async Task<DecisionAnswerResult> ResolveAnswerAsync(string projectId, string decisionId, string answer)
         {
             foreach (var drake in GetDrakesByProject(projectId))
             {

@@ -73,6 +73,13 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     restart changes nothing). An answer goes through `DrakeFactory`'s store fallback (no Drake holds the task-less
     decision); the next analysis gets the answers in its prompt and may not ask again. One round per analysis, counted
     from `AnalyzedAt`, so a changed specification asks afresh
+  - **Question chain** (TASK-201, FEATURE-078 D18, D24, D27): `QuestionChain` (`DrakeFactory.Chain`) takes a question
+    up the levels above its asker (`QuestionLevel`: Worker, Supervisor (Drake), Overseer (Wyvern), Dragon, Person;
+    stored numbers). Only up, each level once; the first `IQuestionLevel` that answers stops it, and a question no
+    level answers reaches the person as a decision whose `Path` (`PathJson` column) records the levels it climbed.
+    `DrakeFactory.ResolvePendingDecisionAsync` sends the answer back down that path (`OnAnsweredAsync`). No level is
+    registered yet, so every question still reaches the person; the analyzer's questions go through it (from the
+    Overseer), and an answer given on the way is stored answered with no card. Every project, no switch
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
