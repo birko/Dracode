@@ -165,7 +165,10 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     parks the task on an `Approval` decision after committing its work: an answer starting "Approve" marks it Done (any
     remark kept on the decision), anything else rejects it with that text as the unmet criterion. A review card never
     times out, and the feature is not offered for merging while a task waits. Orphan recovery runs the same check.
-  - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block
+  - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block.
+    Each Drake gets its project's Wyvern when `DrakeFactory` creates it (`WyvernForProject`, set by `ProjectService`,
+    which never changes the project's status; a new Wyvern reloads `analysis.json`), and loads `wyrm-recommendation.json`
+    then (TASK-225: before, nothing called `SetWyvern`, and every reader of the Wyvern through Drake saw none)
 - **Kobold Planner**: Creates structured implementation plans → enables resumability
   - **Module API signatures**: Receives extracted export statements from existing workspace files for cross-module awareness
   - **Plan revision**: `RevisePlanAsync` revises plans after escalation, preserving completed steps and generating new remaining steps

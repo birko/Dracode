@@ -75,6 +75,9 @@ namespace DraCode.KoboldLair.Services
             _logger = logger;
             _gitService = gitService;
             _drakeFactory = drakeFactory;
+            // Each Drake gets its project's Wyvern (TASK-225)
+            if (drakeFactory != null && drakeFactory.WyvernForProject == null)
+                drakeFactory.WyvernForProject = WyvernForProject;
             _projectsPath = config.ProjectsPath ?? "./projects";
         }
 
@@ -225,6 +228,49 @@ namespace DraCode.KoboldLair.Services
         /// Assigns a Wyvern to a project for specification analysis.
         /// Uses project-specific provider/model settings for both Wyvern and Wyrm if configured.
         /// </summary>
+        /// <summary>
+        /// The project's own Wyvern for its Drakes (TASK-225): the one registered, or a new one with the project's provider
+        /// settings, which loads the saved analysis itself. Unlike <see cref="AssignWyvernAsync"/>, it never changes the
+        /// project's status. Null when the project is unknown or the Wyvern cannot be created (logged).
+        /// </summary>
+        public Wyvern? WyvernForProject(string projectId)
+        {
+            var project = _repository.GetById(projectId);
+            if (project == null)
+                return null;
+            try
+            {
+                return GetOwnWyvern(project) ?? CreateWyvernFor(project);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not get the Wyvern of project {ProjectName} for its Drakes", project.Name);
+                return null;
+            }
+        }
+
+        /// <summary>A new Wyvern for the project, with its project-specific provider and model settings.</summary>
+        private Wyvern CreateWyvernFor(Project project)
+        {
+            string? workspaceScanPath = null;
+            if (project.Metadata.TryGetValue("IsExistingProject", out var isExisting) && isExisting == "true" &&
+                project.Metadata.TryGetValue("SourcePath", out var srcPath) && Directory.Exists(srcPath))
+            {
+                workspaceScanPath = srcPath;
+            }
+
+            return _wyvernFactory.CreateWyvern(
+                project.Name,
+                project.Paths.Specification,
+                project.Paths.Output,
+                _repository.GetProjectProvider(project.Id, "wyvern"),
+                _repository.GetProjectModel(project.Id, "wyvern"),
+                _repository.GetProjectProvider(project.Id, "wyrm"),
+                _repository.GetProjectModel(project.Id, "wyrm"),
+                projectId: project.Id,
+                workspaceScanPath: workspaceScanPath);
+        }
+
         public async Task<Wyvern> AssignWyvernAsync(string projectId)
         {
             var project = _repository.GetById(projectId);
