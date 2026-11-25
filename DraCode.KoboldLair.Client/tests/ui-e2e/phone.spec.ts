@@ -137,6 +137,25 @@ test.describe('on a phone', () => {
     await expect(page.locator('#route-outlet kobold-settings-view .desktop-only')).toContainText('on a computer');
     await expect(page.locator('#route-outlet kobold-settings-view b-tabs')).toHaveCount(0);
   });
+
+  // TASK-199: Birko's focus ring is a line and a glow. Drawn with `inset var(--b-focus-ring)` only the line was inside
+  // the tab and the glow spilled onto its neighbours; --b-focus-ring-inset (Birko TASK-986) puts both inside.
+  test('a tab focused from the keyboard draws its whole focus ring inside itself', async ({ page }) => {
+    await serve(page);
+    await page.goto('/#/');
+    await expect(tabBar(page)).toBeVisible();
+
+    for (const id of ['projects', 'dragon']) {
+      await tabLink(page, id).focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(tabLink(page, id)).toBeFocused();
+      const shadows = await tabLink(page, id).evaluate((el) =>
+        getComputedStyle(el).boxShadow.split(/,(?![^(]*\))/).map((s) => s.trim()));
+      expect(shadows.length, `${id}: ${shadows.join(' | ')}`).toBeGreaterThan(1);
+      for (const shadow of shadows) expect(shadow, id).toContain('inset');
+    }
+  });
 });
 
 test.describe('on a tablet', () => {
