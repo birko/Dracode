@@ -91,7 +91,10 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     (`QuotedAnswerLevel`, shared with Dragon's level). **Dragon answers** at its level (TASK-206, `DragonLevel`) only from
     the specification's text and the project's answered decisions, with Dragon's model (`dragon-answer`); a question
     neither settles reaches the person with "The specification does not cover this, so your answer defines it." added
-    to its context (`IQuestionLevel.NoteForPerson`, `ChainOutcome.PersonNote`)
+    to its context (`IQuestionLevel.NoteForPerson`, `ChainOutcome.PersonNote`). The person's answer to such a question
+    comes back down to Dragon's level, which writes it into the specification (TASK-207,
+    `SpecificationService.AppendDefinitionAsync`: "- question — answer" under "## Definitions", saved as a new version;
+    no re-analysis is triggered, running Kobolds see the version change)
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts

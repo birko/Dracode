@@ -191,5 +191,45 @@ namespace DraCode.KoboldLair.Services
             }
             return spec;
         }
+
+        /// <summary>The heading definitions are kept under in the specification (TASK-207).</summary>
+        public const string DefinitionsHeading = "## Definitions";
+
+        /// <summary>
+        /// Writes what the person defined into the specification (TASK-207, FEATURE-078 D20): one line, "- question — answer",
+        /// at the end of the "## Definitions" section, which is added at the end when the specification has none. Saved
+        /// through <see cref="SaveContentAsync"/>, so the version is bumped as for any change. Nothing happens for a project
+        /// with no specification.
+        /// </summary>
+        public async Task AppendDefinitionAsync(string name, string question, string answer)
+        {
+            var spec = await LoadByNameAsync(name);
+            if (spec == null)
+                return;
+
+            var line = $"- {OneLine(question)} — {OneLine(answer)}";
+            var lines = spec.Content.Replace("\r\n", "\n").Split('\n').ToList();
+            var heading = lines.FindIndex(l => l.Trim() == DefinitionsHeading);
+            if (heading < 0)
+            {
+                while (lines.Count > 0 && lines[^1].Trim().Length == 0)
+                    lines.RemoveAt(lines.Count - 1);
+                lines.AddRange(new[] { "", DefinitionsHeading, "", line, "" });
+            }
+            else
+            {
+                // The section ends at the next heading of the same or a higher level, or at the end
+                var end = lines.FindIndex(heading + 1, l => l.StartsWith("# ") || l.StartsWith("## "));
+                var insertAt = end < 0 ? lines.Count : end;
+                while (insertAt > heading + 1 && lines[insertAt - 1].Trim().Length == 0)
+                    insertAt--;
+                lines.Insert(insertAt, line);
+                if (end >= 0 && lines[insertAt + 1].Trim().Length > 0)
+                    lines.Insert(insertAt + 1, "");
+            }
+            await SaveContentAsync(name, string.Join("\n", lines));
+        }
+
+        private static string OneLine(string text) => System.Text.RegularExpressions.Regex.Replace(text.Trim(), @"\s+", " ");
     }
 }
