@@ -548,6 +548,24 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
                 sp.GetRequiredService<ILoggerFactory>().CreateLogger("SupervisorLevel"), projectId);
         },
         sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.SupervisorLevel>()));
+    // Dragon answers from the specification and the project's answered decisions, and otherwise asks the person to
+    // define it (TASK-206), with Dragon's own model
+    var dragonProjects = sp.GetRequiredService<IProjectRepository>();
+    factory.Chain.Register(new DraCode.KoboldLair.Services.DragonLevel(
+        projectId =>
+        {
+            var specPath = dragonProjects.GetById(projectId)?.Paths.Specification;
+            return !string.IsNullOrEmpty(specPath) && File.Exists(specPath) ? File.ReadAllText(specPath) : null;
+        },
+        sp.GetService<SqlPendingDecisionRepository>(),
+        projectId =>
+        {
+            var (type, config, _) = supervisorProviders.GetProviderSettingsForAgent("dragon");
+            return DraCode.KoboldLair.Agents.KoboldLairAgentFactory.CreateLlmProvider(type, config, "dragon-answer",
+                sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>(),
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger("DragonLevel"), projectId);
+        },
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.DragonLevel>()));
 
     // Wire escalation notifications to Dragon client
     factory.OnEscalation = (projectName, alert, resolution) =>

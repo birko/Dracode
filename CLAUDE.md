@@ -86,8 +86,12 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     `SupervisorLevel`): only from `Drake.SupervisorSourcesAsync` (the task's title plus its full description and the
     constraints read from the project's `analysis.json` / `wyrm-recommendation.json`, its saved plan, and earlier answers
     for it and the tasks it depends on). A repeated question is answered from the record without a model; otherwise a
-    tool-less `SupervisorAnswerAgent` (the Kobold planner's model, tracked as `drake-supervisor`) must quote the settling
+    tool-less `QuotedAnswerAgent` (the Kobold planner's model, tracked as `drake-supervisor`) must quote the settling
     line, and its answer is dropped unless the quote is in the sources and the answer is acceptable for the question
+    (`QuotedAnswerLevel`, shared with Dragon's level). **Dragon answers** at its level (TASK-206, `DragonLevel`) only from
+    the specification's text and the project's answered decisions, with Dragon's model (`dragon-answer`); a question
+    neither settles reaches the person with "The specification does not cover this, so your answer defines it." added
+    to its context (`IQuestionLevel.NoteForPerson`, `ChainOutcome.PersonNote`)
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts

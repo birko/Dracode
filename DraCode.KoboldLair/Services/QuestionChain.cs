@@ -14,7 +14,10 @@ namespace DraCode.KoboldLair.Services
     /// Where a question ended: the level that answered it and the levels it passed, in order. A question no agent
     /// answered ends at <see cref="QuestionLevel.Person"/> with no answer yet: it becomes a decision for the person.
     /// </summary>
-    public sealed record ChainOutcome(QuestionLevel AnsweredBy, LevelAnswer? Answer, IReadOnlyList<QuestionLevel> Path)
+    /// <param name="PersonNote">For a question that reaches the person: what the levels it passed tell them (e.g. Dragon:
+    /// the specification does not cover it, so the answer defines it); null when none had anything to say.</param>
+    public sealed record ChainOutcome(QuestionLevel AnsweredBy, LevelAnswer? Answer, IReadOnlyList<QuestionLevel> Path,
+        string? PersonNote = null)
     {
         public bool ReachesPerson => AnsweredBy == QuestionLevel.Person;
     }
@@ -28,6 +31,12 @@ namespace DraCode.KoboldLair.Services
         QuestionLevel Level { get; }
 
         Task<LevelAnswer?> TryAnswerAsync(ChainQuestion question, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// What this level, having passed the question on, tells the person it reaches (TASK-206: Dragon asks them to define
+        /// it); null for nothing.
+        /// </summary>
+        string? NoteForPerson(ChainQuestion question) => null;
 
         /// <summary>The answer coming back down a path this level passed the question along (D24).</summary>
         Task OnAnsweredAsync(ChainQuestion question, string answer, QuestionLevel answeredBy, CancellationToken cancellationToken) =>
@@ -67,6 +76,7 @@ namespace DraCode.KoboldLair.Services
         public async Task<ChainOutcome> AskAsync(ChainQuestion question, CancellationToken cancellationToken = default)
         {
             var path = new List<QuestionLevel>();
+            var notes = new List<string>();
             for (var level = question.AskedBy + 1; level < QuestionLevel.Person; level++)
             {
                 path.Add(level);
@@ -94,10 +104,12 @@ namespace DraCode.KoboldLair.Services
                         level, question.ProjectId, answer.Reason);
                     return new ChainOutcome(level, answer, path);
                 }
+                if (answerer.NoteForPerson(question) is { Length: > 0 } note)
+                    notes.Add(note);
             }
 
             path.Add(QuestionLevel.Person);
-            return new ChainOutcome(QuestionLevel.Person, null, path);
+            return new ChainOutcome(QuestionLevel.Person, null, path, notes.Count == 0 ? null : string.Join(" ", notes));
         }
 
         /// <summary>
