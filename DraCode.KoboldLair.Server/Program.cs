@@ -565,7 +565,13 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
                 sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>(),
                 sp.GetRequiredService<ILoggerFactory>().CreateLogger("DragonLevel"), projectId);
         },
-        sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.DragonLevel>()));
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.DragonLevel>(),
+        // What the person defines goes into the specification as a new version (TASK-207); no re-analysis is triggered
+        recordDefinition: async (projectId, question, answer) =>
+        {
+            if (dragonProjects.GetById(projectId) is { } project)
+                await sp.GetRequiredService<SpecificationService>().AppendDefinitionAsync(project.Name, question, answer);
+        }));
 
     // Wire escalation notifications to Dragon client
     factory.OnEscalation = (projectName, alert, resolution) =>

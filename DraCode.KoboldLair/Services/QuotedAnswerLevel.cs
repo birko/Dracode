@@ -72,6 +72,10 @@ namespace DraCode.KoboldLair.Services
         /// <summary>What the person a passed question reaches is told; none unless a level says so (Dragon, TASK-206).</summary>
         public virtual string? NoteForPerson(ChainQuestion question) => null;
 
+        /// <summary>The answer coming back down the path; nothing by default (Dragon records definitions, TASK-207).</summary>
+        public virtual Task OnAnsweredAsync(ChainQuestion question, string answer, QuestionLevel answeredBy,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+
         /// <summary>How an answer names where it came from, e.g. "the task's sources".</summary>
         protected abstract string SourceLabel { get; }
 

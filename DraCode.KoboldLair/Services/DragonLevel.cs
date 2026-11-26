@@ -18,16 +18,22 @@ namespace DraCode.KoboldLair.Services
 
         private readonly Func<string, string?> _specificationFor;
         private readonly SqlPendingDecisionRepository? _decisions;
+        private readonly Func<string, string, string, Task>? _recordDefinition;
 
         /// <param name="specificationFor">The project's specification text, or null when it has none.</param>
         /// <param name="decisions">The decision store, for the decisions already answered in the project.</param>
         /// <param name="providerFor">The model Dragon answers with for a project; null leaves only earlier answers.</param>
+        /// <param name="recordDefinition">
+        /// Writes what the person defined into the project's specification: (projectId, question, answer) (TASK-207). Null
+        /// records nothing.
+        /// </param>
         public DragonLevel(Func<string, string?> specificationFor, SqlPendingDecisionRepository? decisions,
-            Func<string, ILlmProvider?> providerFor, ILogger? logger = null)
+            Func<string, ILlmProvider?> providerFor, ILogger? logger = null, Func<string, string, string, Task>? recordDefinition = null)
             : base(providerFor, logger)
         {
             _specificationFor = specificationFor;
             _decisions = decisions;
+            _recordDefinition = recordDefinition;
         }
 
         public override QuestionLevel Level => QuestionLevel.Dragon;
@@ -57,5 +63,19 @@ namespace DraCode.KoboldLair.Services
         }
 
         public override string? NoteForPerson(ChainQuestion question) => DefineNote;
+
+        /// <summary>
+        /// The person's answer to a question Dragon passed on defines what the specification lacked (TASK-207, D20): it is
+        /// written into the specification, so the next such question is answered from it.
+        /// </summary>
+        public override async Task OnAnsweredAsync(ChainQuestion question, string answer, QuestionLevel answeredBy,
+            CancellationToken cancellationToken)
+        {
+            if (answeredBy != QuestionLevel.Person || _recordDefinition == null || string.IsNullOrWhiteSpace(answer))
+                return;
+            await _recordDefinition(question.ProjectId, question.Question.Question, answer);
+            Logger?.LogInformation("The person's answer to \"{Question}\" was written into project {ProjectId}'s specification",
+                question.Question.Question, question.ProjectId);
+        }
     }
 }
