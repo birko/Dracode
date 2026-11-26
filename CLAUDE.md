@@ -92,7 +92,9 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     for it and the tasks it depends on). A repeated question is answered from the record without a model; otherwise a
     tool-less `QuotedAnswerAgent` (the Kobold planner's model, tracked as `drake-supervisor`) must quote the settling
     line, and its answer is dropped unless the quote is in the sources and the answer is acceptable for the question
-    (`QuotedAnswerLevel`, shared with Dragon's level). **Dragon answers** at its level (TASK-206, `DragonLevel`) only from
+    (`QuotedAnswerLevel`, shared with Wyvern's and Dragon's levels). **Wyvern answers** at the Overseer level (TASK-205,
+    `OverseerLevel`) from the project's `specification.md`, its `analysis.md` and the project's answered decisions, with
+    Wyvern's model (`wyvern-answer`). **Dragon answers** at its level (TASK-206, `DragonLevel`) only from
     the specification's text and the project's answered decisions, with Dragon's model (`dragon-answer`); a question
     neither settles reaches the person with "The specification does not cover this, so your answer defines it." added
     to its context (`IQuestionLevel.NoteForPerson`, `ChainOutcome.PersonNote`). The person's answer to such a question
