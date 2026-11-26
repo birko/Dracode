@@ -2,7 +2,9 @@ using Birko.AI;
 using Birko.AI.Agents;
 using Birko.AI.Providers;
 using Birko.AI.Tools;
+using DraCode.KoboldLair.Agents.Tools;
 using DraCode.KoboldLair.Models.Agents;
+using DraCode.KoboldLair.Models.Tasks;
 
 namespace DraCode.KoboldLair.Agents
 {
@@ -20,11 +22,50 @@ namespace DraCode.KoboldLair.Agents
       /// </summary>
       /// <param name="provider">LLM provider to use</param>
       /// <param name="options">Agent options</param>
+      /// <param name="decisions">The project's decisions, read by the <c>project_decisions</c> tool; null leaves it out.</param>
       public WyvernAgent(
           ILlmProvider provider,
-          AgentOptions? options = null)
+          AgentOptions? options = null,
+          Func<Task<IReadOnlyList<PendingDecision>>>? decisions = null)
           : base(provider, options)
       {
+         _decisions = decisions;
+         RebuildTools();
+      }
+
+      private Func<Task<IReadOnlyList<PendingDecision>>>? _decisions;
+
+      /// <summary>Gives the overseer the project's decisions (the <c>project_decisions</c> tool) after it was created.</summary>
+      public void UseDecisions(Func<Task<IReadOnlyList<PendingDecision>>>? decisions)
+      {
+         _decisions = decisions;
+         RebuildTools();
+      }
+
+      /// <summary>How many turns the overseer may take to look things up before it answers (TASK-204).</summary>
+      public const int OverseerTurns = 8;
+
+      /// <summary>
+      /// The overseer's tools (TASK-204, FEATURE-078 D25): read-only access to the project folder it works in (the
+      /// specification, its analysis, the task lists, the workspace) and to the project's decisions. No write, edit,
+      /// command or ask tools.
+      /// </summary>
+      protected override List<Tool> CreateTools()
+      {
+         var tools = new List<Tool> { new ListFilesTool(), new ReadFileTool(), new SearchCodeTool() };
+         if (_decisions != null)
+            tools.Add(new ProjectDecisionsTool(_decisions));
+         return tools;
+      }
+
+      /// <summary>
+      /// Consults the overseer outside an analysis (TASK-204): it may look things up over several turns, then replies in
+      /// text. Returns that final reply.
+      /// </summary>
+      public async Task<string> ConsultAsync(string request, CancellationToken cancellationToken = default)
+      {
+         var messages = await RunAsync(request, maxIterations: OverseerTurns, cancellationToken);
+         return ExtractTextFromContent(messages.LastOrDefault(m => m.Role == "assistant")?.Content).Trim();
       }
 
       /// <summary>
@@ -188,9 +229,15 @@ you run again with the answers. Otherwise leave ""questions"" out and return the
   ""estimatedComplexity"": ""low|medium|high""
 }}
 
-Response must be pure JSON — starts with {{, ends with }}, no other text.{questionsRule}";
+Response must be pure JSON — starts with {{, ends with }}, no other text.{questionsRule}
 
-         var messages = await RunAsync(prompt, maxIterations: 1);
+## LOOKING THINGS UP (optional):
+You work in the project folder, read only: list_files, read_file and search_code reach the specification, an earlier
+analysis, the task lists and the workspace{(_decisions != null ? "; project_decisions lists what was already decided" : "")}. Use them only when
+the specification above leaves something you need open. Your last message is the JSON.";
+
+         // Several turns: the overseer may look things up with its read-only tools first (TASK-204); its last reply is the JSON
+         var messages = await RunAsync(prompt, maxIterations: OverseerTurns);
 
          // Return the last assistant message (should be JSON)
          var lastMessage = messages.LastOrDefault(m => m.Role == "assistant");

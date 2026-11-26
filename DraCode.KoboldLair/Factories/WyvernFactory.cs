@@ -67,6 +67,9 @@ namespace DraCode.KoboldLair.Factories
         /// <summary>Tests only: the analyzer's model for every Wyvern this factory creates, instead of a configured provider.</summary>
         internal Func<Birko.AI.Providers.ILlmProvider>? AnalyzerProviderOverride { get; set; }
 
+        /// <summary>A project's decisions, for its overseer's <c>project_decisions</c> tool (TASK-204); null leaves the tool out.</summary>
+        public Func<string, Task<IReadOnlyList<Models.Tasks.PendingDecision>>>? ProjectDecisions { get; set; }
+
         public Wyvern CreateWyvern(
             string projectName,
             string specificationPath,
@@ -123,10 +126,14 @@ namespace DraCode.KoboldLair.Factories
                     }
                 }
 
+                // The overseer reads the whole project folder, not only the workspace (TASK-204)
+                wyvernOptions.WorkingDirectory = outputPath;
                 var analyzerAgent = AnalyzerProviderOverride is { } scripted
                     ? new WyvernAgent(scripted(), wyvernOptions)
                     : (WyvernAgent)KoboldLairAgentFactory.Create(effectiveWyvernProvider, _koboldLairConfig, wyvernOptions, wyvernConfig, "wyvern",
                         _rateLimiter, _costTracker, _loggerFactory?.CreateLogger<TrackedLlmProvider>(), projectId);
+                if (projectId != null && ProjectDecisions is { } decisionsFor)
+                    analyzerAgent.UseDecisions(() => decisionsFor(projectId));
 
                 var logger = _loggerFactory?.CreateLogger<Wyvern>();
 
