@@ -2704,6 +2704,12 @@ namespace DraCode.KoboldLair.Orchestrators
             return true;
         }
 
+        /// <summary>The question as the person sees it: with the note the levels it passed left (TASK-206) after its context.</summary>
+        internal static AskHumanQuestion WithNote(AskHumanQuestion question, string? note) =>
+            string.IsNullOrWhiteSpace(note)
+                ? question
+                : question with { Context = string.IsNullOrWhiteSpace(question.Context) ? note : $"{question.Context} {note}" };
+
         /// <summary>Whether this Drake's tracker holds the task — a project has one Drake per task area (TASK-169).</summary>
         public bool HoldsTask(string taskId) => _taskTracker.GetTaskById(taskId) != null;
 
@@ -2911,7 +2917,7 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 Disposition = EscalationDisposition.HumanDecisionRequired,
                 Source = PendingDecisionSource.AskHuman,
-                Question = question.ToJson(),
+                Question = WithNote(question, outcome.PersonNote).ToJson(),
                 Path = outcome.Path.ToList()
             };
 

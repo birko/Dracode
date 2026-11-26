@@ -433,7 +433,7 @@ namespace DraCode.KoboldLair.Factories
                     TaskId = "",
                     Disposition = EscalationDisposition.HumanDecisionRequired,
                     Source = PendingDecisionSource.AskHuman,
-                    Question = question.ToJson(),
+                    Question = Drake.WithNote(question, outcome.PersonNote).ToJson(),
                     Path = outcome.Path.ToList()
                 };
                 if (!outcome.ReachesPerson)

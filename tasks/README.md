@@ -1,20 +1,20 @@
 # Tasks — DraCode
 
-_Generated 2026-11-25 17:34. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-26 00:19. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
 | planned      | 10                 | 34                 | —                   |
-| todo         | —                  | —                  | 82                  |
+| todo         | —                  | —                  | 81                  |
 | in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 7                  | 133                 |
+| done         | 1                  | 7                  | 134                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 49× P2 · 24× P3.
+`todo` by priority: 9× P1 · 48× P2 · 24× P3.
 
 ## In progress now
 
@@ -22,7 +22,7 @@ _None_
 
 ## Tree
 
-> Parents out of step (9): STORY-025 in-progress, every child closed → `/tasks close STORY-025`, or keep it open; STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-042 in-progress, every child closed → `/tasks close STORY-042`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open; STORY-051 planned, 4 of 10 children started → `/tasks pick` of one of its open tasks.
+> Parents out of step (9): STORY-025 in-progress, every child closed → `/tasks close STORY-025`, or keep it open; STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-042 in-progress, every child closed → `/tasks close STORY-042`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open; STORY-051 planned, 5 of 10 children started → `/tasks pick` of one of its open tasks.
 
 - **EPIC-001 Token storage & auth providers** — planned (0/2 tasks done)
   - (epic level) — 0/2 done
@@ -260,15 +260,15 @@ _None_
     - [x] [TASK-196](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-196-retry-in-completed-project-never-runs.md) A retried task of a Completed project is never run
   - STORY-043 Reuse & dead code — planned (1/1 done)
     - [x] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation
-- **EPIC-020 Project lifecycle in KoboldLair** — planned (4/25 tasks done)
-  - STORY-051 Questions climb the agent hierarchy — planned (4/10 done)
+- **EPIC-020 Project lifecycle in KoboldLair** — planned (5/25 tasks done)
+  - STORY-051 Questions climb the agent hierarchy — planned (5/10 done)
     - [x] [TASK-201](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-201-a-question-climbs-the-agent-hierarchy-one-way-and.md) A question climbs the agent hierarchy one way, and its answer returns down the same path · FEATURE-078
     - [x] [TASK-202](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-202-a-kobold-s-ask-human-goes-through-the-chain.md) A Kobold's ask_human goes through the chain · FEATURE-078
     - [x] [TASK-203](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-203-drake-answers-a-kobold-s-question-from-what-its-le.md) Drake answers a Kobold's question from what its level owns, or passes it up · FEATURE-078
     - [ ] [TASK-204](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-204-wyvern-becomes-the-project-s-overseer-several-turn.md) Wyvern becomes the project's overseer: several turns, read-only tools · FEATURE-078
     - [ ] [TASK-205](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-205-wyvern-answers-a-question-from-the-specification-i.md) Wyvern answers a question from the specification, its analysis and the decisions, or passes it up ⏳ waits on TASK-204 · FEATURE-078
-    - [ ] [TASK-206](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-206-dragon-answers-only-from-recorded-decisions-and-th.md) Dragon answers only from recorded decisions and the specification, otherwise asks the person to define it · FEATURE-078
-    - [ ] [TASK-207](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-207-what-the-person-defines-is-written-into-the-specif.md) What the person defines is written into the specification as a new version ⏳ waits on TASK-206 · FEATURE-078
+    - [x] [TASK-206](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-206-dragon-answers-only-from-recorded-decisions-and-th.md) Dragon answers only from recorded decisions and the specification, otherwise asks the person to define it · FEATURE-078
+    - [ ] [TASK-207](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-207-what-the-person-defines-is-written-into-the-specif.md) What the person defines is written into the specification as a new version · FEATURE-078
     - [ ] [TASK-208](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-208-an-answer-an-agent-gives-is-recorded-as-a-decision.md) An answer an agent gives is recorded as a decision the person can see and overturn · FEATURE-078
     - [ ] [TASK-209](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-209-questions-reach-the-person-in-rounds-of-at-most-fi.md) Questions reach the person in rounds of at most five, each with a recommended answer · FEATURE-078
     - [x] [TASK-170](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-170-ask-human-for-wyvern.md) ask_human for the analyzer agent (Wyvern) — needs a project-level wait · FEATURE-078
