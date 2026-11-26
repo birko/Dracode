@@ -109,6 +109,14 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             return (int)await _repository.CountAsync(e => e.TaskId == taskId && e.Source == sourceInt);
         }
 
+        /// <summary>Every decision of the project, open and resolved, oldest first: what its overseer reads (TASK-204).</summary>
+        public async Task<List<PendingDecision>> GetForProjectAsync(string projectId)
+        {
+            var entities = await _repository.ReadAsync(
+                filter: e => e.ProjectId == projectId, orderBy: null, limit: null, offset: null);
+            return entities.Select(ToModel).OrderBy(d => d.CreatedAt).ToList();
+        }
+
         /// <summary>The project's decisions answered with words (not timed out), oldest first: what Dragon answers from (TASK-206).</summary>
         public async Task<List<PendingDecision>> GetAnsweredForProjectAsync(string projectId)
         {

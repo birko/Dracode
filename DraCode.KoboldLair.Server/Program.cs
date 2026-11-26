@@ -497,9 +497,13 @@ builder.Services.AddSingleton<WyvernFactory>(sp =>
     var projectRepository = sp.GetRequiredService<IProjectRepository>();
     var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     var gitService = sp.GetRequiredService<GitService>();
-    return new WyvernFactory(providerConfigService, projectRepository, config, gitService: gitService,
+    var wyverns = new WyvernFactory(providerConfigService, projectRepository, config, gitService: gitService,
         loggerFactory: sp.GetRequiredService<ILoggerFactory>(), taskRepository: sp.GetService<ITaskRepository>(),
         rateLimiter: sp.GetService<ProviderRateLimiter>(), costTracker: sp.GetService<CostTrackingService>());
+    // The overseer reads the project's decisions (TASK-204), when the decisions live in the database
+    if (sp.GetService<SqlPendingDecisionRepository>() is { } decisionStore)
+        wyverns.ProjectDecisions = async projectId => await decisionStore.GetForProjectAsync(projectId);
+    return wyverns;
 });
 
 // Register factories as singletons

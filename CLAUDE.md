@@ -66,6 +66,10 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
   - **Rich task descriptions**: Task descriptions must include acceptance criteria, target files, and public API signatures
   - **Task granularity guidelines**: Avoids shared dump files, splits large integration tasks
   - **WyvernProcessingService** (60s): Monitors WyrmAssigned projects, runs detailed analysis, transitions to Analyzed
+  - **Overseer** (TASK-204, FEATURE-078 D25): `WyvernAgent` works from the project folder with read-only tools only
+    (`list_files`, `read_file`, `search_code`, and `project_decisions` when `WyvernFactory.ProjectDecisions` is set), and
+    its analysis may take up to `OverseerTurns` (8) turns before its JSON. `ConsultAsync` asks it something outside an
+    analysis
   - **Questions** (TASK-170, FEATURE-078 D26): an analysis that may ask (a decision store exists and `IAskHumanPolicy`
     allows it) can return up to three `questions` (the `ask_human` shape) and no tasks. `DrakeFactory.AskProjectQuestionsAsync`
     stores them as decisions on the whole project (empty `TaskId`, `AskHuman`, no timeout) and raises their cards; the
