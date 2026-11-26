@@ -10,7 +10,7 @@ assignee: agent
 created: 2026-11-25
 # depends-on: task or story ids this task waits for — see the tasks skill's slicing.md § Where the edges live
 depends-on: [Birko.Framework/TASK-988]
-blocks: []
+blocks: [TASK-227, TASK-228, TASK-229]
 # findings: ids this task remediates — from a review/audit/harvest/drill pass, or from ordinary
 # field use with no pass behind it at all. Prefixes: see /tasks intake
 findings: []
@@ -19,7 +19,7 @@ github-issue: null
 jira-key: null
 ---
 
-# Stores work on any database: SQLite for tests, PostgreSQL for production
+# Stores work on any database (1/4): one database setting, every repository built from Birko's store factory
 
 ## Context
 
@@ -42,21 +42,30 @@ has to work whichever database is configured.
 
 ## Acceptance criteria
 
-- [ ] One database setting picks the provider and connection (SQLite file, or a PostgreSQL connection string); every
-      store is built from it, with no store built against SQLite directly
-- [ ] No store is registered as `null!`: each is registered for every supported database, and the JSON backend is gone
-- [ ] The test suite runs on SQLite, and live tests prove every store opens and round-trips on PostgreSQL when
-      `BIRKO_PG_HOST` is set (skipped otherwise)
-- [ ] CLAUDE.md says how to configure each database, and keeps the SQLite-only rules marked as SQLite's
+Split on 2026-11-26 (the owner): this task is the first of four slices; TASK-227, TASK-228 and TASK-229 are the rest.
+
+- [ ] One database setting (`KoboldLair:Data:Provider` and `KoboldLair:Data:ConnectionString`) builds one Birko
+      `IStoreFactory` (TASK-990's unified factory); SQLite, with today's file under `ProjectsPath`, when none is given
+- [ ] Every `Sql*Repository` (projects, tasks, users, plans, pending decisions, Dragon history, usage, budgets, layouts,
+      provider config) gets its store from that factory; none builds a SQLite store or settings itself
+- [ ] What only an SQL database has is used behind a capability check: column repair (`EnsureColumns`) only on SQL
+      backends, aggregation through `IAsyncAggregatableStore`; on SQLite nothing changes (WAL, `SqliteJournalModeTests`)
+- [ ] The full suite passes on SQLite as today
 
 ## Out of scope
 
+- Dropping the JSON backend and the `null!` stores (TASK-227)
+- The OAuth stores, the service-key registry and the event store (TASK-228)
+- PostgreSQL and MongoDB live tests and the human test (TASK-229)
 - Moving file-based working state into the database (the rest of EPIC-016)
 
 ## Decisions (grill, 2026-11-25, owner)
 
 - **JSON backend → dropped.** A database is required; the 14 test hosts on `JsonFile` move to a temporary SQLite file.
 - **Existing data → no migration.** SQLite is only for testing; production starts fresh on PostgreSQL.
+- **Factory → Birko's unified `IStoreFactory` (TASK-990), not the SQL-only one (TASK-988)** (owner, 2026-11-26): SQL-only
+  features sit behind capability checks; the old SQLite event-table migration stays SQLite-only; event sourcing on
+  NoSQL backends is requested from Birko (TASK-228 waits on it).
 - **Store creation → a provider-neutral store factory in Birko** (one interface, the provider picked from configuration);
   DraCode's stores depend only on it. Filed as Birko TASK-988 (2026-11-25, not started; its own open questions: where it lives, connection string or `SqlSettings`, the four per-provider factories); this task waits on it.
 - **Schema → Birko's `CreateSchemaAsync` and `EnsureColumns`,** already provider-neutral (in the shared SQL connector),
