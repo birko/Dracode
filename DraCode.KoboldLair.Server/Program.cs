@@ -555,6 +555,18 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
     // Dragon answers from the specification and the project's answered decisions, and otherwise asks the person to
     // define it (TASK-206), with Dragon's own model
     var dragonProjects = sp.GetRequiredService<IProjectRepository>();
+    // Wyvern answers from the specification, its analysis and the project's decisions (TASK-205), with Wyvern's model
+    factory.Chain.Register(new DraCode.KoboldLair.Services.OverseerLevel(
+        projectId => dragonProjects.GetById(projectId)?.Paths.Output,
+        sp.GetService<SqlPendingDecisionRepository>(),
+        projectId =>
+        {
+            var (type, config, _) = supervisorProviders.GetProviderSettingsForAgent("wyvern");
+            return DraCode.KoboldLair.Agents.KoboldLairAgentFactory.CreateLlmProvider(type, config, "wyvern-answer",
+                sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>(),
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger("OverseerLevel"), projectId);
+        },
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.OverseerLevel>()));
     factory.Chain.Register(new DraCode.KoboldLair.Services.DragonLevel(
         projectId =>
         {
