@@ -1,7 +1,7 @@
 ---
 id: STORY-051
 parent: EPIC-020
-status: planned
+status: done
 created: 2026-11-25
 theme: questions-climb-the-hierarchy
 ---

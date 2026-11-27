@@ -1,17 +1,17 @@
 # Tasks — DraCode
 
-_Generated 2026-11-27 14:44. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-27 15:13. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
 | Status       | Epics              | Stories            | Tasks               |
 |--------------|--------------------|--------------------|---------------------|
-| planned      | 10                 | 34                 | —                   |
+| planned      | 10                 | 33                 | —                   |
 | todo         | —                  | —                  | 78                  |
 | in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 7                  | 141                 |
+| done         | 1                  | 8                  | 141                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
 `todo` by priority: 9× P1 · 44× P2 · 25× P3.
@@ -22,7 +22,7 @@ _None_
 
 ## Tree
 
-> Parents out of step (8): STORY-025 in-progress, every child closed → `/tasks close STORY-025`, or keep it open; STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open; STORY-051 planned, every child closed → `/tasks close STORY-051`, or keep it open.
+> Parents out of step (8): EPIC-020 planned, 1 of 4 children started → `/tasks pick` of one of its open tasks; STORY-025 in-progress, every child closed → `/tasks close STORY-025`, or keep it open; STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open.
 
 - **EPIC-001 Token storage & auth providers** — planned (0/2 tasks done)
   - (epic level) — 0/2 done
@@ -265,7 +265,7 @@ _None_
   - STORY-043 Reuse & dead code — planned (1/1 done)
     - [x] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation
 - **EPIC-020 Project lifecycle in KoboldLair** — planned (10/25 tasks done)
-  - STORY-051 Questions climb the agent hierarchy — planned (10/10 done)
+  - STORY-051 Questions climb the agent hierarchy — done (10/10 done)
     - [x] [TASK-201](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-201-a-question-climbs-the-agent-hierarchy-one-way-and.md) A question climbs the agent hierarchy one way, and its answer returns down the same path · FEATURE-078
     - [x] [TASK-202](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-202-a-kobold-s-ask-human-goes-through-the-chain.md) A Kobold's ask_human goes through the chain · FEATURE-078
     - [x] [TASK-203](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-203-drake-answers-a-kobold-s-question-from-what-its-le.md) Drake answers a Kobold's question from what its level owns, or passes it up · FEATURE-078
