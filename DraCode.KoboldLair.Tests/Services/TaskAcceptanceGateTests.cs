@@ -22,8 +22,8 @@ namespace DraCode.KoboldLair.Tests.Services;
 
 /// <summary>
 /// Drake holds a finished task to its acceptance check before Done is written (TASK-025, FEATURE-031 D1–D5): a broken
-/// promise reopens the task with the unmet criteria (D3) up to <c>MaxAcceptanceReopens</c>, then fails it with a fix
-/// task; what no machine can judge parks the task on a person's Approve / Reject (D4); with the switch off nothing
+/// promise reopens the task with the unmet criteria (D3) up to <c>MaxAcceptanceReopens</c>, then escalates it to a
+/// person (TASK-222), whose "Handle it automatically" fails it with a fix task; what no machine can judge parks the task on a person's Approve / Reject (D4); with the switch off nothing
 /// changes (D5).
 /// </summary>
 public class TaskAcceptanceGateTests : IAsyncLifetime
@@ -129,21 +129,102 @@ public class TaskAcceptanceGateTests : IAsyncLifetime
         tracker.GetAllTasks().Should().ContainSingle("a reopen below the cap files no fix task");
     }
 
-    [Fact]
-    public async Task At_the_cap_the_task_fails_permanently_and_a_fix_task_names_the_unmet_criterion()
+    /// <summary>A task that already went back to its worker twice: two reopen notes and the cap reached.</summary>
+    private static TaskRecord ReopenedTwice(TaskTracker tracker)
+    {
+        var task = Working(tracker, AuthTask +
+            "\n\nAcceptance check failed (attempt 1): Export refresh is not declared." +
+            "\n\nAcceptance check failed (attempt 2): [intent] missing: refresh() is a stub");
+        task.AcceptanceAttempts = 2;
+        return task;
+    }
+
+    private async Task<(Drake drake, TaskTracker tracker, TaskRecord task, PendingDecision card)> Escalated()
     {
         var (drake, tracker) = NewDrake(maxReopens: 2);
-        var task = Working(tracker, AuthTask);
-        task.AcceptanceAttempts = 2;
+        var task = ReopenedTwice(tracker);
         MissingRefresh();
-
         await drake.SyncTaskFromKoboldAsync(Finished(task));
+        var card = (await _decisions.GetUnresolvedForTaskAsync(task.Id))!;
+        return (drake, tracker, task, card);
+    }
+
+    [Fact]
+    public async Task The_third_failure_escalates_to_a_person_with_the_findings_of_every_attempt_instead_of_reopening()
+    {
+        var (_, tracker, task, card) = await Escalated();
+
+        task.Status.Should().Be(TaskStatus.AwaitingHumanDecision);
+        task.AcceptanceAttempts.Should().Be(2, "it is not reopened again on its own");
+        tracker.GetAllTasks().Should().ContainSingle("no fix task until the person says so");
+        card.Should().NotBeNull();
+        card.Source.Should().Be(PendingDecisionSource.Approval);
+        card.Timeout.Should().BeNull("an escalated task waits for its person");
+        PendingDecisionNotification.QuestionText(card).Should().Contain("failed its checks 3 times")
+            .And.Contain("- attempt 1: Export refresh is not declared").And.Contain("- attempt 2: [intent] missing: refresh() is a stub")
+            .And.Contain("refresh", "this time's finding");
+        PendingDecisionNotification.ResponseSchemaFor(card).Should().Contain("Approve")
+            .And.Contain(PendingDecisionNotification.HandleAutomatically);
+        _raised.Should().ContainSingle(d => d.Id == card.Id);
+    }
+
+    [Fact]
+    public async Task Handle_it_automatically_fails_the_escalated_task_for_good_and_files_a_fix_task_naming_the_findings()
+    {
+        var (drake, tracker, task, card) = await Escalated();
+
+        (await drake.ResolvePendingDecisionAsync(card.Id, PendingDecisionNotification.HandleAutomatically))
+            .Should().Be(DecisionAnswerResult.Resolved);
 
         task.Status.Should().Be(TaskStatus.Failed);
         ErrorClassifier.IsPermanent(task.ErrorMessage).Should().BeTrue("failure recovery must not rerun it unchanged");
         var fix = tracker.GetAllTasks().Should().ContainSingle(t => t.Id != task.Id).Subject;
         fix.Task.Should().Contain("refresh");
         fix.Priority.Should().Be(TaskPriority.Critical, "a missing export breaks whoever imports it");
+    }
+
+    [Fact]
+    public async Task A_persons_note_on_the_escalated_task_gives_it_one_more_attempt_and_its_next_failure_escalates_again()
+    {
+        var (drake, _, task, card) = await Escalated();
+
+        await drake.ResolvePendingDecisionAsync(card.Id, "refresh must call the token endpoint, see auth.md");
+
+        task.Status.Should().Be(TaskStatus.Unassigned, "a person may send it back beyond the cap");
+        task.AcceptanceAttempts.Should().Be(3);
+        task.Task.Should().Contain("refresh must call the token endpoint");
+
+        MissingRefresh();
+        await drake.SyncTaskFromKoboldAsync(Finished(task));
+
+        task.Status.Should().Be(TaskStatus.AwaitingHumanDecision, "past the cap every failure goes to the person");
+        PendingDecisionNotification.QuestionText((await _decisions.GetUnresolvedForTaskAsync(task.Id))!)
+            .Should().Contain("failed its checks 4 times");
+    }
+
+    [Fact]
+    public async Task Approve_on_the_escalated_task_marks_it_done()
+    {
+        var (drake, _, task, card) = await Escalated();
+
+        await drake.ResolvePendingDecisionAsync(card.Id, "Approve, the export lands in the next task");
+
+        task.Status.Should().Be(TaskStatus.Done);
+    }
+
+    [Fact]
+    public async Task Without_a_decision_store_the_third_failure_fails_the_task_and_files_a_fix_task_as_before()
+    {
+        var tracker = new TaskTracker();
+        var drake = new Drake(_kobolds, tracker, Path.Combine(_dir, "backend-tasks.md"), "ollama", projectId: ProjectId,
+            acceptance: new VerificationConfiguration { TaskAcceptanceEnabled = true, MaxAcceptanceReopens = 2 });
+        var task = ReopenedTwice(tracker);
+        MissingRefresh();
+
+        await drake.SyncTaskFromKoboldAsync(Finished(task));
+
+        task.Status.Should().Be(TaskStatus.Failed);
+        tracker.GetAllTasks().Should().Contain(t => t.Id != task.Id && t.Task.Contains("refresh"));
     }
 
     [Fact]

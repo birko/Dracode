@@ -103,6 +103,9 @@ namespace DraCode.KoboldLair.Models.Tasks
             if (decision.Source == PendingDecisionSource.Escalation)
                 return JsonSerializer.Serialize(
                     new ResponseSchemaShape("choice", new[] { HandleAutomatically, ResumeWithInstructions }, true), JsonOptions);
+            if (AcceptanceReview.IsEscalation(decision))
+                return JsonSerializer.Serialize(
+                    new ResponseSchemaShape("choice", new[] { AcceptanceReview.Approve, HandleAutomatically }, true), JsonOptions);
             if (decision.Source == PendingDecisionSource.Approval)
                 return JsonSerializer.Serialize(
                     new ResponseSchemaShape("choice", new[] { AcceptanceReview.Approve, AcceptanceReview.Reject }, true), JsonOptions);

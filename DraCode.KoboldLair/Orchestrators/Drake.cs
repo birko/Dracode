@@ -3400,7 +3400,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 _ = _sharedPlanningContext.UnregisterAgentAsync(kobold.Id.ToString(), false, "acceptance check did not pass");
             if (result.Unmet.Count > 0)
             {
-                await ReopenOrFailAsync(task, result.Unmet, kobold);
+                await ReopenOrEscalateAsync(task, result.Unmet, kobold, worktreePath);
                 return false;
             }
 
@@ -3475,15 +3475,17 @@ namespace DraCode.KoboldLair.Orchestrators
         /// <summary>
         /// A failed check reopens the task with the unmet criteria (FEATURE-031 D3): its plan is revised through the
         /// WrongApproach route, keeping finished steps, and it returns to the queue. At <c>MaxAcceptanceReopens</c> it
-        /// fails for good and a fix task names what is unmet.
+        /// escalates to a person instead (TASK-222, FEATURE-078 D9, D29); a person's note (<paramref name="byPerson"/>)
+        /// always reopens it, past the limit too.
         /// </summary>
-        private async Task ReopenOrFailAsync(TaskRecord task, IReadOnlyList<string> unmet, Kobold? kobold)
+        private async Task ReopenOrEscalateAsync(TaskRecord task, IReadOnlyList<string> unmet, Kobold? kobold,
+            string? worktreePath = null, bool byPerson = false)
         {
             var summary = string.Join(" ", unmet);
             var max = _acceptance?.MaxAcceptanceReopens ?? new Models.Configuration.VerificationConfiguration().MaxAcceptanceReopens;
-            if (task.AcceptanceAttempts >= max)
+            if (task.AcceptanceAttempts >= max && !byPerson)
             {
-                await FailAcceptanceAsync(task, $"{ErrorClassifier.AcceptanceFailurePrefix} after {max} reopen(s): {summary}", unmet);
+                await EscalateAcceptanceAsync(task, unmet, kobold, worktreePath, max);
                 return;
             }
 
@@ -3514,6 +3516,55 @@ namespace DraCode.KoboldLair.Orchestrators
             PublishStatusChange(task, previous, $"Acceptance check failed (attempt {task.AcceptanceAttempts}): {summary}");
             _logger?.LogWarning("Task {TaskId} reopened by the acceptance check (attempt {Attempt}/{Max}): {Summary}",
                 task.Id[..Math.Min(8, task.Id.Length)], task.AcceptanceAttempts, max, summary);
+        }
+
+        /// <summary>
+        /// A task whose checks failed past the reopen limit goes to a person (TASK-222, FEATURE-078 D9, D29): its work is
+        /// committed and it waits on a card listing every attempt's findings, never timing out. Approve marks it Done, a
+        /// note sends it back once more, "Handle it automatically" fails it with a fix task. Without a decision store, or
+        /// when the card cannot be raised, it fails with the fix task as before.
+        /// </summary>
+        private async Task EscalateAcceptanceAsync(TaskRecord task, IReadOnlyList<string> unmet, Kobold? kobold,
+            string? worktreePath, int max)
+        {
+            var summary = string.Join(" ", unmet);
+            var failure = $"{ErrorClassifier.AcceptanceFailurePrefix} after {max} reopen(s): {summary}";
+            if (_pendingDecisions == null)
+            {
+                await FailAcceptanceAsync(task, failure, unmet);
+                return;
+            }
+
+            if (kobold != null)
+            {
+                await CommitTaskCompletionAsync(kobold, task, worktreePath);
+                if (task.Status == TaskStatus.Failed)
+                    return; // the commit failed and said so
+            }
+
+            var decision = new PendingDecision
+            {
+                Disposition = EscalationDisposition.HumanDecisionRequired,
+                Source = PendingDecisionSource.Approval,
+                Question = AcceptanceReview.EscalationQuestion(task, unmet),
+                // Marks the card as an escalation and keeps what a fix task would name
+                Escalation = new EscalationAlert
+                {
+                    ProjectId = _projectId ?? task.ProjectId ?? "",
+                    TaskId = task.Id,
+                    AgentType = task.AssignedAgent,
+                    WorkerId = kobold?.Id.ToString() ?? "",
+                    Type = EscalationType.WrongApproach,
+                    Summary = summary
+                }
+            };
+            if (!await ParkTaskAsync(task, decision, cancelRun: false))
+            {
+                await FailAcceptanceAsync(task, failure, unmet);
+                return;
+            }
+            _logger?.LogWarning("Task {TaskId} failed its checks {Count} times; escalated to a person: {Summary}",
+                task.Id[..Math.Min(8, task.Id.Length)], task.AcceptanceAttempts + 1, summary);
         }
 
         /// <summary>Fails the task for good; with <paramref name="unmet"/>, files one fix task naming it.</summary>
@@ -3555,10 +3606,19 @@ namespace DraCode.KoboldLair.Orchestrators
                 return;
 
             var answer = decision.Resolution ?? "";
+            if (AcceptanceReview.IsEscalation(decision) && answer == PendingDecisionNotification.HandleAutomatically)
+            {
+                var max = _acceptance?.MaxAcceptanceReopens ?? new Models.Configuration.VerificationConfiguration().MaxAcceptanceReopens;
+                var summary = decision.Escalation!.Summary;
+                await FailAcceptanceAsync(task, $"{ErrorClassifier.AcceptanceFailurePrefix} after {max} reopen(s): {summary}", [summary]);
+                return;
+            }
             if (!AcceptanceReview.IsApproval(answer))
             {
-                // Still parked here, so the WrongApproach route revises the task's saved plan
-                await ReopenOrFailAsync(task, [$"A person rejected the finished work: {AcceptanceReview.Note(answer)}"], null);
+                // Still parked here, so the WrongApproach route revises the task's saved plan. A person may send it
+                // back past the reopen limit
+                await ReopenOrEscalateAsync(task, [$"A person rejected the finished work: {AcceptanceReview.Note(answer)}"], null,
+                    byPerson: true);
                 return;
             }
 

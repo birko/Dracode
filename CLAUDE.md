@@ -191,7 +191,12 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     a finished task's Done reaches the WAL, `TaskAcceptanceService` holds it to what its own description promises —
     each target file exists and is not empty, each name in its `Exports:` clause is declared in those files. A broken
     promise reopens the task (`AcceptanceAttempts`, plan revised through the WrongApproach route, finished steps kept)
-    up to `MaxAcceptanceReopens` (2); then it fails with a permanent error and a fix task names what is unmet. What no
+    up to `MaxAcceptanceReopens` (2); the next failure escalates to a person (TASK-222, FEATURE-078 D9, D29): the work
+    is committed and the task waits on an `Approval` card carrying an escalation (`AcceptanceReview.IsEscalation`), which
+    lists each attempt's findings and never times out. "Approve" marks it Done, a note sends it back once more (a
+    person's rejection always reopens, past the limit too, and its next failure escalates again), and "Handle it
+    automatically" fails it with a permanent error and a fix task naming what is unmet (also what happens with no
+    decision store). What no
     machine can judge (the "Must implement:" items, a clause that will not parse, a name found only in another file)
     parks the task on an `Approval` decision after committing its work: an answer starting "Approve" marks it Done (any
     remark kept on the decision), anything else rejects it with that text as the unmet criterion. A review card never
