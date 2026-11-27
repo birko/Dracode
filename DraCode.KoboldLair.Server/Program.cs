@@ -544,6 +544,19 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
             if (dragonProjects.GetById(projectId) is { } project)
                 await sp.GetRequiredService<SpecificationService>().AppendDefinitionAsync(project.Name, question, answer);
         }));
+    // The checkers a finished task passes before Done, cheapest first (TASK-217); they run inside the acceptance check
+    // (KoboldLair:Verification:TaskAcceptanceEnabled). The intent checker (TASK-218) runs with the Kobold model
+    factory.TaskChecks = new DraCode.KoboldLair.Services.Checks.TaskCheckRunner([
+        new DraCode.KoboldLair.Services.Checks.IntentChecker(
+            projectId =>
+            {
+                var (type, config, _) = supervisorProviders.GetProviderSettingsForAgent("kobold");
+                return DraCode.KoboldLair.Agents.KoboldLairAgentFactory.CreateLlmProvider(type, config, "intent-check",
+                    sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>(),
+                    sp.GetRequiredService<ILoggerFactory>().CreateLogger("IntentChecker"), projectId);
+            },
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.Checks.IntentChecker>())
+    ]);
 
     // Wire escalation notifications to Dragon client
     factory.OnEscalation = (projectName, alert, resolution) =>

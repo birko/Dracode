@@ -164,6 +164,24 @@ public class TaskCheckerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async System.Threading.Tasks.Task A_checker_is_given_what_was_answered_for_the_task_as_part_of_what_was_asked()
+    {
+        var checker = new StubChecker("intent", 1);
+        var (drake, _, task) = Finishing(checker);
+        await _decisions.CreateAsync(new PendingDecision
+        {
+            ProjectId = ProjectId, TaskId = task.Id, Source = PendingDecisionSource.AskHuman,
+            Question = new AskHumanQuestion("Which greeting?", ["Hello", "Ahoj"], false, null).ToJson(),
+            Resolution = "Ahoj", ResolutionKind = PendingDecisionResolution.Answered, ResolvedAt = DateTime.UtcNow
+        });
+        KeepsItsPromises();
+
+        await drake.SyncTaskFromKoboldAsync(Finished(task));
+
+        checker.Asked.Should().ContainSingle().Which.Answers.Should().Equal("Which greeting? → Ahoj");
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task Every_checker_passing_lets_the_task_through_to_Done()
     {
         var log = new List<string>();
