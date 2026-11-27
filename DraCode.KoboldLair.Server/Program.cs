@@ -545,17 +545,20 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
                 await sp.GetRequiredService<SpecificationService>().AppendDefinitionAsync(project.Name, question, answer);
         }));
     // The checkers a finished task passes before Done, cheapest first (TASK-217); they run inside the acceptance check
-    // (KoboldLair:Verification:TaskAcceptanceEnabled). The intent checker (TASK-218) runs with the Kobold model
+    // (KoboldLair:Verification:TaskAcceptanceEnabled). Each checker agent runs with the Kobold model, tracked under its
+    // own name: intent (TASK-218), then correctness (TASK-221)
+    Func<string, Birko.AI.Providers.ILlmProvider?> checkModel(string trackedAs) => projectId =>
+    {
+        var (type, config, _) = supervisorProviders.GetProviderSettingsForAgent("kobold");
+        return DraCode.KoboldLair.Agents.KoboldLairAgentFactory.CreateLlmProvider(type, config, trackedAs,
+            sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>(),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger(trackedAs), projectId);
+    };
     factory.TaskChecks = new DraCode.KoboldLair.Services.Checks.TaskCheckRunner([
-        new DraCode.KoboldLair.Services.Checks.IntentChecker(
-            projectId =>
-            {
-                var (type, config, _) = supervisorProviders.GetProviderSettingsForAgent("kobold");
-                return DraCode.KoboldLair.Agents.KoboldLairAgentFactory.CreateLlmProvider(type, config, "intent-check",
-                    sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>(),
-                    sp.GetRequiredService<ILoggerFactory>().CreateLogger("IntentChecker"), projectId);
-            },
-            sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.Checks.IntentChecker>())
+        new DraCode.KoboldLair.Services.Checks.IntentChecker(checkModel("intent-check"),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.Checks.IntentChecker>()),
+        new DraCode.KoboldLair.Services.Checks.CorrectnessChecker(checkModel("correctness-check"),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.Checks.CorrectnessChecker>())
     ]);
 
     // Wire escalation notifications to Dragon client
