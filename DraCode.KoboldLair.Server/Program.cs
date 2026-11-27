@@ -546,7 +546,7 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
         }));
     // The checkers a finished task passes before Done, cheapest first (TASK-217); they run inside the acceptance check
     // (KoboldLair:Verification:TaskAcceptanceEnabled). Each checker agent runs with the Kobold model, tracked under its
-    // own name: intent (TASK-218), then correctness (TASK-221)
+    // own name: intent (TASK-218), correctness (TASK-221), then comments (TASK-220)
     Func<string, Birko.AI.Providers.ILlmProvider?> checkModel(string trackedAs) => projectId =>
     {
         var (type, config, _) = supervisorProviders.GetProviderSettingsForAgent("kobold");
@@ -558,7 +558,9 @@ builder.Services.AddSingleton<DrakeFactory>(sp =>
         new DraCode.KoboldLair.Services.Checks.IntentChecker(checkModel("intent-check"),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.Checks.IntentChecker>()),
         new DraCode.KoboldLair.Services.Checks.CorrectnessChecker(checkModel("correctness-check"),
-            sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.Checks.CorrectnessChecker>())
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.Checks.CorrectnessChecker>()),
+        new DraCode.KoboldLair.Services.Checks.CommentChecker(checkModel("comment-check"),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<DraCode.KoboldLair.Services.Checks.CommentChecker>())
     ]);
 
     // Wire escalation notifications to Dragon client

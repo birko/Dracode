@@ -76,7 +76,8 @@ namespace DraCode.KoboldLair.Services.Checks
 2. ""wrong"": code that carries a requirement but does not do what it says. Quote the requirement, name the file and line, and say how it diverges.
 3. ""extra"": behaviour no requirement asked for. Name the file and line and what it does. Supporting code a requirement needs (imports, helpers, tests of the asked behaviour) is not extra.
 4. Judge the requirement against the code, never against what the task claims or a plan says was done.
-5. A requirement you cannot judge from these files (runtime behaviour, another task's file) is not a finding.";
+5. A requirement you cannot judge from these files (runtime behaviour, another task's file) is not a finding.
+6. Comments are not behaviour: a comment that is wrong or unneeded is not a finding here (another check judges comments).";
 
         protected override Task<string> GatherAsync(Checks.TaskCheckInput input, CancellationToken cancellationToken) =>
             Task.FromResult(material);

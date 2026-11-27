@@ -1,4 +1,3 @@
-using System.Text;
 using Birko.AI.Providers;
 using DraCode.KoboldLair.Agents;
 using Microsoft.Extensions.Logging;
@@ -41,19 +40,8 @@ namespace DraCode.KoboldLair.Services.Checks
         }
 
         /// <summary>What the check reads beyond the description: the diff of the task's edits, then the touched files.</summary>
-        public static async Task<string> MaterialAsync(TaskCheckInput input, CancellationToken cancellationToken = default)
-        {
-            var text = new StringBuilder();
-            text.AppendLine("### What the task changed in files that existed before (git diff)");
-            var diff = await TaskMaterial.DiffAsync(input.WorkspacePath, cancellationToken);
-            if (diff == null)
-                text.AppendLine("(no diff: the task's files are new, or the workspace is not under git; read the files below)");
-            else
-                text.AppendLine("```diff").AppendLine(diff).AppendLine("```");
-
-            await TaskMaterial.AppendFilesAsync(text, input, cancellationToken);
-            return text.ToString();
-        }
+        public static Task<string> MaterialAsync(TaskCheckInput input, CancellationToken cancellationToken = default) =>
+            TaskMaterial.ChangeAsync(input, cancellationToken);
     }
 
     /// <summary>The agent behind <see cref="CorrectnessChecker"/>: reviews one finished task's change for likely bugs.</summary>
