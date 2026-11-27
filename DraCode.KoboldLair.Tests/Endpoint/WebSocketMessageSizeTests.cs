@@ -27,7 +27,6 @@ public class WebSocketMessageSizeTests
         var config = new Dictionary<string, string?>
         {
             ["Authentication:Jwt:Enabled"] = "false",
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = Path.Combine(Path.GetTempPath(), "kl-ws-size-tests", Guid.NewGuid().ToString("N")),
             // A provider so a Dragon session can create its agents; nothing here calls it.
             ["KoboldLair:DefaultProvider"] = "test-ollama",

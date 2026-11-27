@@ -51,7 +51,6 @@ public class StatsEndpointsTests : IDisposable
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["KoboldLair:Data:DefaultBackend"] = "SqLite",
             ["KoboldLair:ProjectsPath"] = _projectsPath,
             ["KoboldLair:CostTracking:Budget:ProjectBudgetUsd"] = projectBudget.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["KoboldLair:CostTracking:Budget:MonthlyBudgetUsd"] = monthlyBudget.ToString(System.Globalization.CultureInfo.InvariantCulture),

@@ -31,7 +31,7 @@ public class LayoutEndpointsTests : IDisposable
         try { if (Directory.Exists(_projectsPath)) Directory.Delete(_projectsPath, recursive: true); } catch { }
     }
 
-    private WebApplicationFactory<Program> CreateFactory(string backend = "SqLite") =>
+    private WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
@@ -41,7 +41,6 @@ public class LayoutEndpointsTests : IDisposable
                 ["Authentication:Jwt:Secret"] = Secret,
                 ["Authentication:Jwt:Issuer"] = "KoboldLair",
                 ["Authentication:Jwt:Audience"] = "KoboldLair",
-                ["KoboldLair:Data:DefaultBackend"] = backend,
                 ["KoboldLair:ProjectsPath"] = _projectsPath,
             }));
             builder.ConfigureTestServices(services => services.RemoveAll<IHostedService>());
@@ -188,17 +187,5 @@ public class LayoutEndpointsTests : IDisposable
         var noScope = Token(factory, "alice", "execute_agents");
         (await client.SendAsync(Authed(HttpMethod.Get, "/api/v1/layouts/current", noScope))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await client.SendAsync(Authed(HttpMethod.Put, "/api/v1/layouts/Reviewing", noScope, Layout()))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
-    public async Task A_server_without_SQLite_says_layouts_cannot_be_saved()
-    {
-        using var factory = CreateFactory(backend: "JsonFile");
-        var client = factory.CreateClient();
-        var alice = Token(factory, "alice");
-        var current = await client.SendAsync(Authed(HttpMethod.Get, "/api/v1/layouts/current", alice));
-        current.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await Json(current)).GetProperty("layout").ValueKind.Should().Be(JsonValueKind.Null);
-        (await client.SendAsync(Authed(HttpMethod.Put, "/api/v1/layouts/Reviewing", alice, Layout()))).StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 }

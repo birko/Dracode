@@ -43,7 +43,6 @@ public class RunsListTests : IDisposable
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = _projectsPath,
         };
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>

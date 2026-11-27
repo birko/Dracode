@@ -37,7 +37,6 @@ public class ServiceAccountTests
             ["Authentication:Jwt:Audience"] = "KoboldLair",
             ["Authentication:OAuth:Enabled"] = "true",
             ["Authentication:OAuth:AllowDynamicRegistration"] = "true",
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = projectsPath,
         };
 

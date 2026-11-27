@@ -127,7 +127,6 @@ public class GitHubFederationEndpointTests
             ["Authentication:GitHub:RedirectUri"] = "https://localhost/auth/github/callback",
             ["Authentication:GitHub:PostLoginRedirectUri"] = RedirectBase,
             ["Authentication:GitHub:AllowedGitHubIds:0"] = AllowedId.ToString(),
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = projectsPath,
         };
 

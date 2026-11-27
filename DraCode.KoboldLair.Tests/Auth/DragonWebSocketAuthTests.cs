@@ -43,7 +43,6 @@ public class DragonWebSocketAuthTests
             // Legacy static-token validator config — present to prove it no longer gates Dragon.
             ["Authentication:Enabled"] = "true",
             ["Authentication:Tokens:0"] = "legacy-static-token",
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = projectsPath,
         };
         if (bindUrls is not null)

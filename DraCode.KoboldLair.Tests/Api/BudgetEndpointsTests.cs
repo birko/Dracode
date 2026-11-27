@@ -42,7 +42,6 @@ public class BudgetEndpointsTests : IDisposable
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["KoboldLair:Data:DefaultBackend"] = "SqLite",
             ["KoboldLair:ProjectsPath"] = _projectsPath,
             ["KoboldLair:CostTracking:Budget:DailyBudgetUsd"] = daily.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["KoboldLair:CostTracking:Budget:MonthlyBudgetUsd"] = monthly.ToString(System.Globalization.CultureInfo.InvariantCulture),

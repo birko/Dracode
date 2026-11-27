@@ -37,7 +37,6 @@ public class DatabasePathTests : IDisposable
             builder.UseEnvironment("Testing");
             builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["KoboldLair:Data:DefaultBackend"] = "SqLite",
                 ["KoboldLair:ProjectsPath"] = _projectsPath, // as production sets it: no KoboldLair:Data:ProjectsPath
             }));
             builder.ConfigureTestServices(services => services.RemoveAll<IHostedService>());

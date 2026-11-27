@@ -72,7 +72,6 @@ public class JwtMiddlewareTests
             ["Authentication:Jwt:Audience"] = "KoboldLair",
             ["Authentication:Daemon:LoopbackBypass"] = loopbackBypass ? "true" : "false",
             // JSON-file backend avoids SQLite migration + SQL repos for a light test host.
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = projectsPath,
         };
         if (bindUrls is not null)

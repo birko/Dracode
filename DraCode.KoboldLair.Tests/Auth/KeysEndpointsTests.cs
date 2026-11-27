@@ -47,7 +47,6 @@ public class KeysEndpointsTests : IDisposable
             ["Authentication:Jwt:Audience"] = "KoboldLair",
             ["Authentication:OAuth:Enabled"] = oauth ? "true" : "false",
             ["Authentication:OAuth:AllowDynamicRegistration"] = "true",
-            ["KoboldLair:Data:DefaultBackend"] = "SqLite",
             ["KoboldLair:ProjectsPath"] = _dir,
             // Absolute path: each test gets its own database (and so its own keys)
             ["KoboldLair:Data:SqLitePath"] = Path.Combine(_dir, "koboldlair.db"),

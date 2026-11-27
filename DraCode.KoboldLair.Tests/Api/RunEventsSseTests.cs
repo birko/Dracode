@@ -49,7 +49,6 @@ public class RunEventsSseTests
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = Path.Combine(Path.GetTempPath(), "kl-sse-tests", Guid.NewGuid().ToString("N")),
         };
 

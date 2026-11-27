@@ -49,7 +49,6 @@ public class DragonDecisionSocketTests : IDisposable
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["KoboldLair:Data:DefaultBackend"] = "SqLite",
             ["KoboldLair:ProjectsPath"] = _projectsPath,
             // A provider so a Dragon session can create its agents; nothing reachable answers it.
             ["KoboldLair:DefaultProvider"] = "test-ollama",
