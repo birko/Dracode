@@ -111,7 +111,14 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     the next run, `RevisedAt`), and the Kobold hears that a person overturned the agent's answer; on the project,
     `ProjectService.ReanalyzeAfterOverturnAsync` re-runs the analysis only while every task is Unassigned, else it is
     recorded and the reply says how many tasks had started. An unreviewed agent answer is not passed to dependent tasks
-    as a person's words
+    as a person's words. **Recommended answers and rounds** (TASK-209, D22): every question carries a recommended answer the question
+    accepts and a one-line reason (`AskHumanQuestion.Recommended`/`RecommendationReason`; `ask_human`'s required
+    `recommended`/`recommended_because`, Wyvern's `recommended`/`recommendedBecause`; `AskHumanTool.Problem` refuses one
+    without); an agent's answer offered for review recommends Keep for its quote. The card carries `recommended` and
+    `recommendedBecause` (`PendingDecisionNotification.Recommendation`); the web dock shows it with Accept even on a
+    closed card, at most five cards at once (`ROUND_SIZE`) with "N more waiting", and "Accept all recommended" for the
+    round. `DecisionDesk.AcceptRecommendedAsync` (Warden's `accept_recommended`) answers one or every open decision with
+    its recommendation; escalations, approvals and questions asked before this carry none
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts

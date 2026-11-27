@@ -486,7 +486,8 @@ namespace DraCode.KoboldLair.Services
                     if (analysis.Questions.Count > 0)
                     {
                         var asked = await _drakeFactory!.AskProjectQuestionsAsync(project.Id, analysis.Questions.Select(q =>
-                            new AskHumanQuestion(q.Question, q.Options.ToArray(), q.AllowFreeText ?? q.Options.Count == 0, q.Context)));
+                            new AskHumanQuestion(q.Question, q.Options.ToArray(), q.AllowFreeText ?? q.Options.Count == 0, q.Context,
+                                q.Recommended, q.RecommendedBecause)));
                         if (asked.Count > 0)
                         {
                             _logger.LogInformation("❓ Analysis of {ProjectName} asks {Count} question(s); it waits for the answers",

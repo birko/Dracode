@@ -53,7 +53,11 @@ namespace DraCode.KoboldLair.Models.Tasks
             if (AskHumanQuestion.TryParse(decision) is not { } asked)
                 return null;
             var options = new[] { Keep }.Concat(asked.Options).ToArray();
-            return new AskHumanQuestion(asked.Question, options, asked.AllowFreeText || asked.Options.Length == 0, Context(decision));
+            var why = string.IsNullOrWhiteSpace(decision.AnswerReason)
+                ? $"{LevelName(decision.AnsweredBy ?? QuestionLevel.Person)} settled it from its sources"
+                : $"{LevelName(decision.AnsweredBy ?? QuestionLevel.Person)} quoted: {decision.AnswerReason}";
+            return new AskHumanQuestion(asked.Question, options, asked.AllowFreeText || asked.Options.Length == 0, Context(decision),
+                Keep, why);
         }
 
         /// <summary>What the card tells the person: who answered, what, why, and what overturning it does.</summary>

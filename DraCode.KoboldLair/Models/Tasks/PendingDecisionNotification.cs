@@ -22,6 +22,10 @@ namespace DraCode.KoboldLair.Models.Tasks
         public const string ResponseSchema = "responseSchema";
         public const string ResolutionKind = "resolutionKind";
         public const string Context = "context";
+        /// <summary>The answer the asker recommends and why (TASK-209); empty when there is none.</summary>
+        public const string Recommended = "recommended";
+        public const string RecommendedBecause = "recommendedBecause";
+
         /// <summary>On an agent's answer offered for review (TASK-208): the level that answered.</summary>
         public const string AnsweredBy = "answeredBy";
 
@@ -45,7 +49,9 @@ namespace DraCode.KoboldLair.Models.Tasks
                 [Context] = AskHumanQuestion.TryParse(decision)?.Context ?? "",
                 [EscalationType] = decision.Escalation?.Type.ToString() ?? "",
                 [TimeoutAt] = decision.TimeoutAt?.ToString("O") ?? "",
-                [ResponseSchema] = ResponseSchemaFor(decision)
+                [ResponseSchema] = ResponseSchemaFor(decision),
+                [Recommended] = "",
+                [RecommendedBecause] = ""
             };
             // An agent's answer is offered for review: the card says who answered and offers Keep first (TASK-208)
             if (decision.AwaitsReview && AgentAnswerReview.Question(decision) is { } review)
@@ -55,7 +61,25 @@ namespace DraCode.KoboldLair.Models.Tasks
                     new ResponseSchemaShape("choice", review.Options, review.AllowFreeText), JsonOptions);
                 metadata[AnsweredBy] = decision.AnsweredBy!.Value.ToString();
             }
+            if (Recommendation(decision) is { } recommendation)
+            {
+                metadata[Recommended] = recommendation.Answer;
+                metadata[RecommendedBecause] = recommendation.Because;
+            }
             return metadata;
+        }
+
+        /// <summary>
+        /// The answer the person is recommended and why (TASK-209, FEATURE-078 D22): an asked question's own
+        /// recommendation, or Keep on an agent's answer offered for review; null when there is none (an escalation, an
+        /// approval, a question asked before recommendations).
+        /// </summary>
+        public static (string Answer, string Because)? Recommendation(PendingDecision decision)
+        {
+            var asked = decision.AwaitsReview ? AgentAnswerReview.Question(decision) : AskHumanQuestion.TryParse(decision);
+            return asked is { Recommended: { Length: > 0 } answer }
+                ? (answer, asked.RecommendationReason ?? "")
+                : null;
         }
 
         public static Dictionary<string, string> ToResolvedMetadata(PendingDecision decision) => new()

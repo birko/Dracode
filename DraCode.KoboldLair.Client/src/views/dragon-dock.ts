@@ -13,6 +13,8 @@
  * Decision cards (TASK-160, FEATURE-026 D14/D15) sit above the chat, with their count in the header: the open decisions
  * of this project. A new card never widens the dock; clicking it does (focus enters the dock) and opens it, offering
  * the decision's options and, when allowed, free text. The card is pending until the server's answer comes back.
+ * A card with a recommended answer shows it with an Accept button even closed; at most five cards show at once (a
+ * round), with how many more wait and "Accept all recommended" for the round (TASK-209, FEATURE-078 D22).
  */
 
 import { define, escapeHtml } from 'birko-web-core';
@@ -22,6 +24,9 @@ import { dragonConnection, type DecisionCard, type DockState } from '../services
 import { DRAGON_PIN_EVENT, DRAGON_SHORTCUT, isDragonPinned, setDragonPinned } from '../services/dock-layout.js';
 
 const SOURCE_LABEL: Record<string, string> = { Escalation: 'Escalation', AskHuman: 'Question', Approval: 'Review' };
+
+/** The cards shown at once (TASK-209, FEATURE-078 D22): a round; answering one brings in the next waiting. */
+export const ROUND_SIZE = 5;
 
 const PLACEHOLDER: Record<DockState['phase'], string> = {
   idle: 'Dragon is starting…',
@@ -114,6 +119,17 @@ export class DragonDock extends KoboldComponent {
       }
       .free textarea:focus-visible { outline: none; box-shadow: var(--b-focus-ring); }
       .note { margin: var(--b-space-xs, 0.25rem) 0 0; font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted); }
+      .round {
+        display: flex; flex-wrap: wrap; align-items: center; gap: var(--b-space-xs, 0.25rem);
+        padding: var(--b-space-xs, 0.25rem) var(--b-space-md, 0.75rem); font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-muted);
+      }
+      .round .waiting { flex: 1 1 auto; }
+      .recommend {
+        display: flex; flex-wrap: wrap; align-items: center; gap: var(--b-space-xs, 0.25rem);
+        margin-top: var(--b-space-xs, 0.25rem); font-size: var(--b-text-xs, 0.75rem); color: var(--b-text-secondary);
+      }
+      .recommend .why { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+      .recommend b { color: var(--b-text); }
       .note.error { color: var(--b-color-danger-text, var(--b-color-danger)); }
       .status {
         min-height: 1.25rem; padding: 0 var(--b-space-md, 0.75rem) var(--b-space-xs, 0.25rem);
@@ -227,24 +243,36 @@ export class DragonDock extends KoboldComponent {
     const section = this.$('.decisions');
     const badge = this.$('.decision-count');
     if (!section || !badge) return;
-    const cards = this.cards();
-    const key = JSON.stringify([cards, this._openCard]);
+    const all = this.cards();
+    const cards = all.slice(0, ROUND_SIZE);
+    const key = JSON.stringify([cards, all.length, this._openCard]);
     if (key === this._drawn) return;
     this._drawn = key;
-    badge.textContent = cards.length === 1 ? '1 decision' : `${cards.length} decisions`;
-    badge.toggleAttribute('hidden', cards.length === 0);
+    badge.textContent = all.length === 1 ? '1 decision' : `${all.length} decisions`;
+    badge.toggleAttribute('hidden', all.length === 0);
     // Focus inside a card survives the redraw: back to the same box, else the card's head; an answered card's focus goes
     // to the chat input. Left on nothing, focus would leave the dock and narrow it (TASK-152).
     const active = this.shadowRoot?.activeElement as HTMLElement | null;
     const focusedCard = active && section.contains(active) ? active.closest<HTMLElement>('article.decision')?.dataset.decisionId : undefined;
     const inBox = !!active?.dataset?.draft;
-    section.innerHTML = cards.map((d) => this.cardHtml(d)).join('');
+    section.innerHTML = this.roundHtml(cards, all.length) + cards.map((d) => this.cardHtml(d)).join('');
     if (focusedCard === undefined) return;
     const article = this.$(`article[data-decision-id="${CSS.escape(focusedCard)}"]`);
     const box = inBox ? article?.querySelector<HTMLTextAreaElement>('textarea:not([disabled])') : null;
     if (box) box.focus();
     else if (article) article.querySelector<HTMLElement>('.decision-head')?.focus();
     else this.chat()?.focusInput();
+  }
+
+  /** Above a round: how many wait behind it, and agreeing with every recommendation in it at once (TASK-209). */
+  private roundHtml(round: DecisionCard[], total: number): string {
+    const recommended = round.filter((d) => d.recommended && !d.pending);
+    const waiting = total - round.length;
+    if (waiting <= 0 && recommended.length < 2) return '';
+    return `<div class="round">
+      <span class="waiting">${waiting > 0 ? `${waiting} more waiting` : ''}</span>
+      ${recommended.length >= 2 ? `<b-button size="sm" variant="primary" data-accept-all>Accept all recommended (${recommended.length})</b-button>` : ''}
+    </div>`;
   }
 
   private cardHtml(d: DecisionCard): string {
@@ -261,20 +289,35 @@ export class DragonDock extends KoboldComponent {
         <b-button size="sm" variant="primary" data-send ${d.pending ? 'loading' : ''}>Send</b-button></div>` : ''}
       ${d.pending ? `<p class="note">Sending your answer… it is taken once Dragon finishes what it is writing.</p>` : ''}
       ${d.error ? `<p class="note error" role="alert">${escapeHtml(d.error)}</p>` : ''}`;
+    // The recommendation shows on the closed card too, so agreeing is one click (TASK-209)
+    const recommend = !d.recommended ? '' : `<div class="recommend">
+        <span class="why">Recommended: <b>${escapeHtml(d.recommended)}</b>${d.recommendedBecause ? ` — ${escapeHtml(d.recommendedBecause)}` : ''}</span>
+        <b-button size="sm" variant="primary" data-accept ${d.pending ? 'disabled' : ''}>Accept</b-button>
+      </div>`;
+    const kind = d.answeredBy ? 'Agent answered' : SOURCE_LABEL[d.source] ?? 'Decision';
     return `<article class="decision${open ? ' open' : ''}" data-decision-id="${id}">
       <button class="decision-head" type="button" aria-expanded="${open}">
-        <span class="kind">${escapeHtml(SOURCE_LABEL[d.source] ?? 'Decision')}</span>${due}
+        <span class="kind">${escapeHtml(kind)}</span>${due}
         <span class="question">${escapeHtml(d.question)}</span>
-      </button>${body}
+      </button>${recommend}${body}
     </article>`;
   }
 
   private onDecisionClick(e: Event): void {
     const path = e.composedPath();
+    const hit = (selector: string) => path.find((n): n is HTMLElement => n instanceof HTMLElement && n.matches(selector));
+    if (hit('b-button[data-accept-all]')) {
+      for (const d of this.cards().slice(0, ROUND_SIZE)) if (d.recommended) this.answer(d.id, d.recommended);
+      return;
+    }
     const card = path.find((n): n is HTMLElement => n instanceof HTMLElement && n.matches('article.decision'));
     if (!card) return;
     const id = card.dataset.decisionId!;
-    const hit = (selector: string) => path.find((n): n is HTMLElement => n instanceof HTMLElement && n.matches(selector));
+    if (hit('b-button[data-accept]')) {
+      const d = this.cards().find((c) => c.id === id);
+      if (d?.recommended) this.answer(id, d.recommended);
+      return;
+    }
     const option = hit('b-button[data-answer]');
     if (option) return void this.answer(id, option.dataset.answer!);
     if (hit('b-button[data-send]')) return void this.answer(id, this._drafts.get(id) ?? '');

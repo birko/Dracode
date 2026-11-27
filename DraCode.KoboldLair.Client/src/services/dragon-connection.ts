@@ -69,6 +69,11 @@ export interface DecisionCard {
   options: string[];
   allowFreeText: boolean;
   timeoutAt: string | null;
+  /** The answer the asker recommends, and why (TASK-209); empty when there is none. */
+  recommended: string;
+  recommendedBecause: string;
+  /** The agent level that answered, on an agent's answer offered to keep or overturn (TASK-208); empty otherwise. */
+  answeredBy: string;
   /** An answer was sent and its result has not come back. */
   pending: boolean;
   /** Why the last answer was not taken (an answer not among the options). */
@@ -382,6 +387,9 @@ export class DragonConnection {
       options,
       allowFreeText: schema.allowFreeText !== false || options.length === 0,
       timeoutAt: str(meta.timeoutAt) || null,
+      recommended: str(meta.recommended),
+      recommendedBecause: str(meta.recommendedBecause),
+      answeredBy: str(meta.answeredBy),
       pending: false,
       error: null,
     };

@@ -160,7 +160,7 @@ The output JSON schema is supplied in your user message. Respond with PURE JSON 
       public async Task<string> AnalyzeSpecificationAsync(string specificationContent, bool mayAsk = false)
       {
          var questionsField = mayAsk
-            ? @"  ""questions"": [{ ""question"": ""What the specification leaves open"", ""options"": [""a choice"", ""another""], ""allowFreeText"": true, ""context"": ""why the task breakdown depends on it"" }],
+            ? @"  ""questions"": [{ ""question"": ""What the specification leaves open"", ""options"": [""a choice"", ""another""], ""allowFreeText"": true, ""context"": ""why the task breakdown depends on it"", ""recommended"": ""a choice"", ""recommendedBecause"": ""one line: why you would choose it"" }],
 "
             : "";
          var questionsRule = mayAsk
@@ -168,7 +168,8 @@ The output JSON schema is supplied in your user message. Respond with PURE JSON 
 
 ## QUESTIONS (optional):
 Only when the specification leaves open a choice that changes the task breakdown, and you cannot settle it from the
-specification: put at most {WyvernAnalysis.MaxQuestions} questions in ""questions"" and return ""areas"" empty. A person answers them and
+specification: put at most {WyvernAnalysis.MaxQuestions} questions in ""questions"" and return ""areas"" empty. Give each the answer you
+recommend (one of its options) and why in one line, so the person can agree in one action. A person answers them and
 you run again with the answers. Otherwise leave ""questions"" out and return the tasks; never ask what you can decide."
             : "";
          var prompt = $@"Analyze this specification and return your task breakdown as JSON.
