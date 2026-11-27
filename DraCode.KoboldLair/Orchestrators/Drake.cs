@@ -2887,6 +2887,12 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         public QuestionChain QuestionChain { get; set; } = new();
 
+        /// <summary>
+        /// The checkers a finished task goes through after the acceptance check's own checks (TASK-217, FEATURE-078 D8,
+        /// D30); the factory hands each Drake its own. With none registered, a task is judged as before.
+        /// </summary>
+        public Services.Checks.TaskCheckRunner TaskChecks { get; set; } = new();
+
         public async Task<AskHumanOutcome> AskHumanAsync(TaskRecord task, AskHumanQuestion question)
         {
             if (_pendingDecisions == null)
@@ -3377,6 +3383,10 @@ namespace DraCode.KoboldLair.Orchestrators
                 result = new AcceptanceResult([], [$"The acceptance check could not run: {ex.Message}"], []);
             }
 
+            // Then the checkers, cheapest first (TASK-217, D8, D30), unless the task's own promises already failed it
+            if (result.Unmet.Count == 0 && TaskChecks.Checkers.Count > 0 && !string.IsNullOrEmpty(workspace))
+                result = await WithCheckersAsync(task, workspace, result);
+
             if (result.Passed)
             {
                 _logger?.LogInformation("Acceptance check passed for task {TaskId} ({Count} checks)",
@@ -3396,6 +3406,31 @@ namespace DraCode.KoboldLair.Orchestrators
 
             await ParkForReviewAsync(task, kobold, worktreePath, result);
             return false;
+        }
+
+        /// <summary>
+        /// Runs the checkers on a task its own checks did not fail: their findings become unmet promises (the task is
+        /// reopened with them), and a checker that could not run goes to a person, never counting as a pass.
+        /// </summary>
+        private async Task<AcceptanceResult> WithCheckersAsync(TaskRecord task, string workspace, AcceptanceResult own)
+        {
+            Services.Checks.TaskCheckReport report;
+            try
+            {
+                report = await TaskChecks.RunAsync(new Services.Checks.TaskCheckInput(task, workspace, _projectId ?? task.ProjectId ?? ""));
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "The checkers could not run for task {TaskId}", task.Id[..Math.Min(8, task.Id.Length)]);
+                return own with { NeedsHuman = [.. own.NeedsHuman, $"The checks could not run: {ex.Message}"] };
+            }
+
+            _logger?.LogInformation("Checkers on task {TaskId}: ran {Ran}; {Findings} finding(s), {Failed} could not run",
+                task.Id[..Math.Min(8, task.Id.Length)], string.Join(", ", report.Ran), report.Findings.Count, report.CouldNotRun.Count);
+            return new AcceptanceResult(
+                report.Findings.Select(f => f.ToString()).ToList(),
+                [.. own.NeedsHuman, .. report.CouldNotRun],
+                [.. own.Checked, .. report.Ran.Where(name => report.Findings.All(f => f.Checker != name)).Select(name => $"The {name} check passed")]);
         }
 
         /// <summary>

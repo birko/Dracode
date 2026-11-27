@@ -70,6 +70,12 @@ namespace DraCode.KoboldLair.Factories
         public QuestionChain Chain { get; set; } = new();
 
         /// <summary>
+        /// The checkers every finished task goes through before Done (TASK-217, FEATURE-078 D8, D30), handed to each Drake.
+        /// Empty: a task is judged by the acceptance check's own checks only, as before.
+        /// </summary>
+        public Services.Checks.TaskCheckRunner TaskChecks { get; set; } = new();
+
+        /// <summary>
         /// The project's Wyvern for each Drake this factory creates (TASK-225); <see cref="ProjectService"/> sets it. Null
         /// leaves Drakes without one, as tests that build a factory alone do.
         /// </summary>
@@ -296,7 +302,8 @@ namespace DraCode.KoboldLair.Factories
                 _koboldLairConfig.Verification
             )
             {
-                QuestionChain = Chain
+                QuestionChain = Chain,
+                TaskChecks = TaskChecks
             };
 
             // The project's Wyvern, with its saved analysis and Wyrm's recommendation (TASK-225): Kobolds' constraints and

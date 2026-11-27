@@ -1,6 +1,6 @@
 ---
 id: FEATURE-078
-generated: 2026-11-27 14:30
+generated: 2026-11-27 16:00
 ---
 
 # Project lifecycle discipline inside the KoboldLair pipeline — Status
@@ -21,7 +21,7 @@ generated: 2026-11-27 14:30
 
 ## Build progress
 
-10 / 25 tasks done.
+11 / 25 tasks done.
 
 - TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — done
 - TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — done
@@ -40,7 +40,7 @@ generated: 2026-11-27 14:30
 - TASK-214 Dragon's interview records a decision ledger per feature — todo
 - TASK-215 Wyrm records the project's conventions, vocabulary and hard-to-reverse choices — todo
 - TASK-216 Merging a feature updates the project changelog — todo
-- TASK-217 The acceptance check runs checker agents on every task, cheapest first — todo
+- TASK-217 The acceptance check runs checker agents on every task, cheapest first — done
 - TASK-218 A checker confirms a task built what was asked — todo
 - TASK-219 A checker confirms a task follows the project's conventions — todo
 - TASK-220 A checker finds stale or redundant comments — todo
