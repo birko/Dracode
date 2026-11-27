@@ -24,7 +24,6 @@ public class JwtSecretStartupTests
             ["Authentication:Jwt:Enabled"] = "true",
             // An explicit empty value also overrides a secret from the developer's appsettings.local.json.
             ["Authentication:Jwt:Secret"] = secret,
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = projectsPath,
         };
 

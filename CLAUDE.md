@@ -111,7 +111,7 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     - `TaskInfeasible` / `NeedsSplit` / `MissingDependency` → Wyvern.RefineTaskAsync (LLM-driven task refinement)
     - `WrongAgentType` → task reset for reassignment with different agent
   - **Parked tasks** (TASK-019, FEATURE-027): `Drake.ParkTaskAsync` moves a task to `AwaitingHumanDecision` on a
-    `PendingDecision` stored in the `pending_decisions` table (SQLite backend only; elsewhere parking is refused and the
+    `PendingDecision` stored in the `pending_decisions` table (a host built without the store refuses parking and the
     caller keeps the automatic path). The stored decision is the source of truth: Drake reconciles its tasks to it on
     every reload. A parked task is skipped by the work picker, its Kobold cannot overwrite it, and the monitors leave it
     alone; its area keeps a Drake. A decision's timeout is optional: `DrakeMonitoringService` expires overdue ones
@@ -420,7 +420,7 @@ Dragon supports multiple concurrent sessions per WebSocket connection with autom
 - **Session Timeout**: 10 minutes of inactivity before cleanup
 - **Message History**: Up to 100 messages stored per session for replay
 - **Conversation Persistence**: History saved per project folder (`Paths.Output`) in the `dragon_history` table
-  (`SqlHistoryRepository`), or `dragon-history.json` without it; the user's messages and, since TASK-151, Dragon's
+  (`SqlHistoryRepository`); the user's messages and, since TASK-151, Dragon's
   replies (`DragonRequest.OnResponse`, recorded before the reply is sent)
 - **Project Switch** (`select_project { projectId }`, TASK-151): the web dock sends it for the project the person opened.
   The server waits for the session's running request, then makes that project's saved conversation the session history
@@ -491,7 +491,10 @@ Every repository gets its store from one Birko `IStoreFactory` (TASK-990's unifi
 `SqLitePath` under `ProjectsPath` as before). Repositories hold a `StoreRepository<T>` (`Data/DataStores.cs`); what only SQL
 has runs behind a check: column repair only where there is a SQL connector, aggregation through `IAsyncAggregatableStore`
 (else in memory). Each `Sql*Repository` keeps a `dbPath` constructor for SQLite. Still on SQLite directly until TASK-228:
-the OAuth stores, the service-key registry and the event store; the JSON backend goes in TASK-227.
+the OAuth stores, the service-key registry and the event store. There is no JSON backend (TASK-227): every store is
+registered on the database, and a configuration still setting `KoboldLair:Data:DefaultBackend` to anything but `SqLite`
+refuses to start (`DataStorageConfig.EnsureSupported`, checked on start and by `StoreFactoryFor`) with a message naming
+`KoboldLair:Data:Provider`. Test hosts run on a temporary SQLite file under their own `ProjectsPath`.
 
 ### SQLite Database Runs in WAL (TASK-177)
 
@@ -742,7 +745,7 @@ Each person's own, across all their projects, keyed by their subject (`view_own`
 
 - **Server:** `GET`/`PUT /api/v1/layouts/current`, `GET /api/v1/layouts`, `PUT`/`DELETE /api/v1/layouts/{name}`, in
   `user_layouts` (`SqlLayoutRepository`). The layout is the client's JSON object, at most 16 KB; up to 50 named per
-  person. 409 without SQLite.
+  person.
 - **Client store:** `stores/layout-store.ts` reads the current layout once per page and saves changes after 400 ms.
   Its shape is Birko's `LayoutState` plus `openTab` and `dragonPinned`; the Dragon pin lives there (localStorage is the
   fallback).

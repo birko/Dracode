@@ -48,7 +48,6 @@ public class NeedsYouEndpointsTests : IDisposable
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["KoboldLair:Data:DefaultBackend"] = "SqLite",
             ["KoboldLair:ProjectsPath"] = _projectsPath,
         };
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>

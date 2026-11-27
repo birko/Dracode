@@ -152,17 +152,16 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 builder.Services.Configure<OAuthServerConfiguration>(
     builder.Configuration.GetSection("Authentication:OAuth"));
 // OAuth stores — singletons, ONE shared instance each (the device-code flow creates a record in one
-// request and reads/mutates it across later requests). SQLite-backed when KoboldLair:Data selects the
-// SqLite backend (TASK-031), else in-memory. The four scalar models persist directly via
+// request and reads/mutates it across later requests). On the server's SQLite file (TASK-031; onto the store
+// factory in TASK-228). The four scalar models persist directly via
 // AsyncSQLiteStore<T>; OAuthClient uses an entity+JSON-column mapper for its List<string> properties.
 var oauthDataConfig = builder.Configuration.GetSection("KoboldLair:Data").Get<DataStorageConfig>()
     ?? new DataStorageConfig();
 oauthDataConfig.ProjectsPath =
     builder.Configuration.GetSection("KoboldLair").Get<KoboldLairConfiguration>()?.ProjectsPath
     ?? oauthDataConfig.ProjectsPath;
-var oauthUseSqlite = oauthDataConfig.DefaultBackend == StorageBackend.SqLite;
-var oauthDbPath = oauthUseSqlite ? RepositoryFactory.ResolveSqLitePath(oauthDataConfig) : null;
-builder.Services.AddOAuthServerStores(oauthUseSqlite, oauthDbPath);
+var oauthDbPath = RepositoryFactory.ResolveSqLitePath(oauthDataConfig);
+builder.Services.AddOAuthServerStores(useSqlite: true, oauthDbPath);
 // Every OAuth client's name, for a new key's uniqueness check (TASK-194): read from the same database as the stores
 builder.Services.AddSingleton(sp => new OAuthClientNames(sp.GetRequiredService<IOAuthClientStore>(), oauthDbPath));
 // Who created each service-account key (TASK-162): the OAuth client store cannot be listed. The server's database on the
@@ -170,8 +169,7 @@ builder.Services.AddSingleton(sp => new OAuthClientNames(sp.GetRequiredService<I
 builder.Services.AddSingleton(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    return new ServiceKeyRegistry(dataConfig.DefaultBackend == StorageBackend.SqLite
-        ? RepositoryFactory.ResolveSqLitePath(dataConfig) : null);
+    return new ServiceKeyRegistry(RepositoryFactory.ResolveSqLitePath(dataConfig));
 });
 builder.Services.AddSingleton<OAuthServer>(sp =>
 {
@@ -294,35 +292,29 @@ builder.Services.AddSingleton(sp =>
     return new ProviderRateLimiter(config.RateLimiting, logger);
 });
 
-// Register SQL usage repository (null when not using SQLite)
+// Usage records (cost tracking), on the configured database
 builder.Services.AddSingleton<SqlUsageRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
-    {
-        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlUsageRepository>();
-        var repo = new SqlUsageRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
-        repo.InitializeAsync().GetAwaiter().GetResult();
-        return repo;
-    }
-    return null!;
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlUsageRepository>();
+    var repo = new SqlUsageRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
+    repo.InitializeAsync().GetAwaiter().GetResult();
+    return repo;
 });
 
-// Budgets an admin set in Settings (TASK-163): stored on SQLite (null otherwise), written over appsettings' at startup
+// Budgets an admin set in Settings (TASK-163): stored in the database, written over appsettings' at startup
 builder.Services.AddSingleton<SqlBudgetRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    if (dataConfig.DefaultBackend != StorageBackend.SqLite) return null!;
     var repo = new SqlBudgetRepository(RepositoryFactory.StoreFactoryFor(dataConfig),
         sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlBudgetRepository>());
     repo.InitializeAsync().GetAwaiter().GetResult();
     return repo;
 });
-// Each person's workspace layouts (TASK-058): stored on SQLite, none otherwise (the endpoints then save nothing)
+// Each person's workspace layouts (TASK-058), in the database
 builder.Services.AddSingleton<SqlLayoutRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    if (dataConfig.DefaultBackend != StorageBackend.SqLite) return null!;
     var repo = new SqlLayoutRepository(RepositoryFactory.StoreFactoryFor(dataConfig),
         sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlLayoutRepository>());
     repo.InitializeAsync().GetAwaiter().GetResult();
@@ -348,41 +340,30 @@ builder.Services.AddSingleton<GitService>();
 builder.Services.AddSingleton<ProjectStatsService>(); // a project's numbers for the Stats tab (TASK-158)
 
 // Register project management components
-// Configure data storage (SQLite or JSON based on config)
+// The database every store uses (TASK-200); a configuration naming the removed JSON backend refuses to start (TASK-227)
 builder.Services.Configure<DataStorageConfig>(
     builder.Configuration.GetSection("KoboldLair:Data"));
 // The database lives under KoboldLair:ProjectsPath for every store, however early it is built (TASK-163). The factories
 // below used to set it only as they ran, so a store built before them opened ./projects/ instead.
 builder.Services.AddOptions<DataStorageConfig>()
     .PostConfigure<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>((data, kobold) =>
-        data.ProjectsPath = kobold.Value.ProjectsPath ?? "./projects");
+        data.ProjectsPath = kobold.Value.ProjectsPath ?? "./projects")
+    .Validate(data => { data.EnsureSupported(); return true; })
+    .ValidateOnStart();
 
-builder.Services.AddSingleton<ProjectRepository>(sp =>
-{
-    var logger = sp.GetRequiredService<ILogger<ProjectRepository>>();
-    var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
-    return new ProjectRepository(config.ProjectsPath ?? "./projects", logger);
-});
-
-// Register IProjectRepository - uses SQLite when configured, falls back to JSON ProjectRepository
+// Projects, on the configured database
 builder.Services.AddSingleton<IProjectRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     var koboldConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     dataConfig.ProjectsPath = koboldConfig.ProjectsPath ?? "./projects";
 
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
-    {
-        var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-        var repo = RepositoryFactory.CreateProjectRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
-        return repo;
-    }
-
-    // Default: use existing JSON-based ProjectRepository
-    return sp.GetRequiredService<ProjectRepository>();
+    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+    var repo = RepositoryFactory.CreateProjectRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
+    return repo;
 });
 
-// Register IUserRepository - uses SQLite when configured, null otherwise (TASK-034 / FEATURE-019).
+// Users (TASK-034 / FEATURE-019), on the configured database.
 // Keyed by the stable `sub`; populated lazily when a caller first creates a project.
 builder.Services.AddSingleton<IUserRepository>(sp =>
 {
@@ -390,60 +371,41 @@ builder.Services.AddSingleton<IUserRepository>(sp =>
     var koboldConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     dataConfig.ProjectsPath = koboldConfig.ProjectsPath ?? "./projects";
 
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
-    {
-        var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-        var repo = RepositoryFactory.CreateUserRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
-        return repo;
-    }
-
-    return null!; // No user persistence without SQLite; ownership still keyed on `sub`
+    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+    var repo = RepositoryFactory.CreateUserRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
+    return repo;
 });
 
-// Register ITaskRepository - uses SQLite when configured, null otherwise (TaskTracker uses JSON fallback)
+// Tasks, on the configured database (Drake's TaskTracker writes its copy here; TASK-153)
 builder.Services.AddSingleton<ITaskRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     var koboldConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value;
     dataConfig.ProjectsPath = koboldConfig.ProjectsPath ?? "./projects";
 
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
-    {
-        var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-        var repo = RepositoryFactory.CreateTaskRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
-        return repo;
-    }
-
-    return null!; // TaskTracker falls back to JSON file persistence
+    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+    var repo = RepositoryFactory.CreateTaskRepositoryAsync(dataConfig, loggerFactory).GetAwaiter().GetResult();
+    return repo;
 });
 
-// Register SQL plan repository (null when not using SQLite)
+// Kobold plans, on the configured database
 builder.Services.AddSingleton<SqlPlanRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
-    {
-        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlPlanRepository>();
-        var repo = new SqlPlanRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
-        repo.InitializeAsync().GetAwaiter().GetResult();
-        return repo;
-    }
-    return null!;
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlPlanRepository>();
+    var repo = new SqlPlanRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
+    repo.InitializeAsync().GetAwaiter().GetResult();
+    return repo;
 });
 
-// Register the pending-decision store parked tasks wait on (TASK-019; null when not using SQLite, which leaves
-// parking unavailable and escalations on the automatic path)
+// The pending-decision store parked tasks wait on (TASK-019), in the database
 builder.Services.AddSingleton<SqlPendingDecisionRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
-    {
-        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlPendingDecisionRepository>();
-        var repo = new SqlPendingDecisionRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
-        repo.InitializeAsync().GetAwaiter().GetResult();
-        return repo;
-    }
-    return null!;
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlPendingDecisionRepository>();
+    var repo = new SqlPendingDecisionRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
+    repo.InitializeAsync().GetAwaiter().GetResult();
+    return repo;
 });
 
 // Specification event store: Birko.Data.EventSourcing.SQL on the KoboldLair SQLite database (TASK-127). The
@@ -452,9 +414,7 @@ builder.Services.AddSingleton<IAsyncEventStore>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     dataConfig.ProjectsPath = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value.ProjectsPath ?? "./projects";
-    return dataConfig.DefaultBackend == StorageBackend.SqLite
-        ? LegacyDomainEventMigration.CreateStore(RepositoryFactory.ResolveSqLitePath(dataConfig))
-        : null!;
+    return LegacyDomainEventMigration.CreateStore(RepositoryFactory.ResolveSqLitePath(dataConfig));
 });
 
 // Register SpecificationEventService for recording specification change events
@@ -695,18 +655,14 @@ builder.Services.AddSingleton<WyrmService>(sp =>
         sp.GetService<ProviderRateLimiter>(), sp.GetService<CostTrackingService>());
 });
 
-// Register SQL history repository (null when not using SQLite)
+// Dragon conversation history, on the configured database
 builder.Services.AddSingleton<SqlHistoryRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
-    {
-        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlHistoryRepository>();
-        var repo = new SqlHistoryRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
-        repo.InitializeAsync().GetAwaiter().GetResult();
-        return repo;
-    }
-    return null!;
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlHistoryRepository>();
+    var repo = new SqlHistoryRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
+    repo.InitializeAsync().GetAwaiter().GetResult();
+    return repo;
 });
 
 // Register Dragon request queue before DragonService
@@ -936,7 +892,7 @@ var app = builder.Build();
 // Stored budgets in force from the start, for the stats and get_metrics too, not only from the first LLM call (TASK-163)
 app.Services.GetRequiredService<BudgetSettingsService>();
 
-// Auto-migrate JSON → SQLite on first startup when SQLite backend is enabled
+// Move a pre-database projects.json into the database once, on the first startup that finds it
 using (var scope = app.Services.CreateScope())
 {
     var dataConfig = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
@@ -944,59 +900,44 @@ using (var scope = app.Services.CreateScope())
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     dataConfig.ProjectsPath = koboldConfig.ProjectsPath ?? "./projects";
 
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    var dbPath = Path.IsPathRooted(dataConfig.SqLitePath)
+        ? dataConfig.SqLitePath
+        : Path.Combine(dataConfig.ProjectsPath, dataConfig.SqLitePath);
+
+    var projectsJsonPath = Path.Combine(dataConfig.ProjectsPath, "projects.json");
+    var migrationMarker = dbPath + ".migrated";
+
+    // Only migrate if projects.json exists and we haven't migrated yet
+    if (File.Exists(projectsJsonPath) && !File.Exists(migrationMarker))
     {
-        var dbPath = Path.IsPathRooted(dataConfig.SqLitePath)
-            ? dataConfig.SqLitePath
-            : Path.Combine(dataConfig.ProjectsPath, dataConfig.SqLitePath);
-
-        var projectsJsonPath = Path.Combine(dataConfig.ProjectsPath, "projects.json");
-        var migrationMarker = dbPath + ".migrated";
-
-        // Only migrate if projects.json exists and we haven't migrated yet
-        if (File.Exists(projectsJsonPath) && !File.Exists(migrationMarker))
+        logger.LogInformation("Migrating projects.json into the database...");
+        try
         {
-            logger.LogInformation("SQLite backend enabled — migrating existing JSON data...");
-            try
+            var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+            var migration = await JsonToSqlMigration.CreateAsync(dataConfig, loggerFactory);
+            var result = await migration.MigrateAsync();
+
+            logger.LogInformation(
+                "Migration complete: {Projects} projects, {Tasks} tasks migrated. Errors: {Errors}",
+                result.ProjectsMigrated, result.TasksMigrated, result.Errors.Count);
+
+            foreach (var error in result.Errors)
             {
-                var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-                var migration = await JsonToSqlMigration.CreateAsync(dataConfig, loggerFactory);
-                var result = await migration.MigrateAsync();
-
-                logger.LogInformation(
-                    "Migration complete: {Projects} projects, {Tasks} tasks migrated. Errors: {Errors}",
-                    result.ProjectsMigrated, result.TasksMigrated, result.Errors.Count);
-
-                foreach (var error in result.Errors)
-                {
-                    logger.LogWarning("Migration error: {Error}", error);
-                }
-
-                // Write marker so we don't re-migrate on every restart
-                await File.WriteAllTextAsync(migrationMarker,
-                    $"Migrated at {DateTime.UtcNow:O} — {result.ProjectsMigrated} projects, {result.TasksMigrated} tasks");
+                logger.LogWarning("Migration error: {Error}", error);
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "JSON → SQLite migration failed. Falling back to JSON storage.");
-            }
+
+            // Write marker so we don't re-migrate on every restart
+            await File.WriteAllTextAsync(migrationMarker,
+                $"Migrated at {DateTime.UtcNow:O} — {result.ProjectsMigrated} projects, {result.TasksMigrated} tasks");
         }
-        else if (File.Exists(migrationMarker))
+        catch (Exception ex)
         {
-            logger.LogDebug("SQLite migration already completed, skipping");
+            logger.LogError(ex, "Moving projects.json into the database failed; its projects are not loaded");
         }
     }
-}
-
-// Initialize circuit breaker persistence (uses same SQLite database)
-{
-    var dataConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite)
+    else if (File.Exists(migrationMarker))
     {
-        var cbLogger = app.Services.GetRequiredService<ILogger<Program>>();
-        // Note: Circuit breaker persistence is now handled via ICircuitBreakerStore in constructor
-        // For now using in-memory circuit breaker state
-        cbLogger.LogInformation("Circuit breaker using in-memory state persistence");
+        logger.LogDebug("projects.json was already moved into the database, skipping");
     }
 }
 
@@ -1060,7 +1001,7 @@ using (var scope = app.Services.CreateScope())
 {
     var dataConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     dataConfig.ProjectsPath = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value.ProjectsPath ?? "./projects";
-    if (dataConfig.DefaultBackend == StorageBackend.SqLite && app.Services.GetService<IAsyncEventStore>() is { } eventStore)
+    if (app.Services.GetService<IAsyncEventStore>() is { } eventStore)
     {
         await LegacyDomainEventMigration.MigrateAsync(
             RepositoryFactory.ResolveSqLitePath(dataConfig), eventStore,

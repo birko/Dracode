@@ -34,7 +34,6 @@ public class GracefulShutdownTests : IDisposable
     {
         var config = new Dictionary<string, string?>
         {
-            ["KoboldLair:Data:DefaultBackend"] = "SqLite",
             ["KoboldLair:ProjectsPath"] = _projectsPath,
         };
         if (timeoutSeconds != null)

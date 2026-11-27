@@ -43,7 +43,6 @@ public sealed class WebSocketQueryTokenKestrelTests(WebSocketQueryTokenKestrelTe
                 ["Authentication:Jwt:Issuer"] = "KoboldLair",
                 ["Authentication:Jwt:Audience"] = "KoboldLair",
                 ["Authentication:Daemon:LoopbackBypass"] = "false",
-                ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
                 ["KoboldLair:ProjectsPath"] = projectsPath,
                 // A free loopback port, so the run never collides with another server on the default 5000.
                 ["urls"] = "http://127.0.0.1:0",

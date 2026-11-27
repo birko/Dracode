@@ -23,7 +23,7 @@ namespace DraCode.KoboldLair.Tests.Api;
 /// Coverage for the /api/v1 resource surface (TASK-043): projects, specification, features, tasks and
 /// plans. Verifies per-verb behavior, owner-scoping (a caller never sees/reads another's project → 404,
 /// admin <c>?scope=all</c> sees all), and that the handlers wrap the real services end-to-end. Runs on the
-/// SQLite backend with a throwaway temp DB so the task/plan repositories (null under JsonFile) are wired.
+/// A throwaway temp SQLite database, so each test starts with empty task and plan stores.
 /// Mirrors <see cref="RunsEndpointsTests"/>'s WebApplicationFactory harness.
 /// </summary>
 public class ResourceEndpointsTests : IDisposable
@@ -51,7 +51,6 @@ public class ResourceEndpointsTests : IDisposable
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["KoboldLair:Data:DefaultBackend"] = "SqLite",
             ["KoboldLair:ProjectsPath"] = _projectsPath,
         };
 

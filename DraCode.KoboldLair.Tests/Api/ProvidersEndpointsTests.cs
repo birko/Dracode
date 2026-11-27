@@ -36,7 +36,6 @@ public class ProvidersEndpointsTests
             ["Authentication:Jwt:Secret"] = Secret,
             ["Authentication:Jwt:Issuer"] = "KoboldLair",
             ["Authentication:Jwt:Audience"] = "KoboldLair",
-            ["KoboldLair:Data:DefaultBackend"] = "JsonFile",
             ["KoboldLair:ProjectsPath"] = Path.Combine(Path.GetTempPath(), $"kl-prov-{id}"),
             // Absolute path → ResolveSqLitePath returns it verbatim (isolated provider-config DB per test).
             ["KoboldLair:Data:SqLitePath"] = Path.Combine(Path.GetTempPath(), $"kl-prov-{id}.db"),
