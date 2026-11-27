@@ -44,6 +44,12 @@ namespace DraCode.KoboldLair.Data.Entities
 
         /// <summary>The chain path as a JSON array of <see cref="Models.Tasks.QuestionLevel"/> numbers; null off the chain.</summary>
         public string? PathJson { get; set; }
+        /// <summary>The agent level that answered (a <see cref="Models.Tasks.QuestionLevel"/> number); null for a person (TASK-208).</summary>
+        public int? AnsweredBy { get; set; }
+        public string? AnswerReason { get; set; }
+        public string? AgentAnswer { get; set; }
+        public DateTime? ReviewedAt { get; set; }
+        public DateTime? RevisedAt { get; set; }
 
         public override AbstractModel CopyTo(AbstractModel? clone = null)
         {
@@ -63,6 +69,11 @@ namespace DraCode.KoboldLair.Data.Entities
             target.ResolutionKind = ResolutionKind;
             target.ResolvedAt = ResolvedAt;
             target.PathJson = PathJson;
+            target.AnsweredBy = AnsweredBy;
+            target.AnswerReason = AnswerReason;
+            target.AgentAnswer = AgentAnswer;
+            target.ReviewedAt = ReviewedAt;
+            target.RevisedAt = RevisedAt;
             return target;
         }
 

@@ -78,6 +78,9 @@ namespace DraCode.KoboldLair.Services
             // Each Drake gets its project's Wyvern (TASK-225)
             if (drakeFactory != null && drakeFactory.WyvernForProject == null)
                 drakeFactory.WyvernForProject = WyvernForProject;
+            // An overturned answer to the analyzer's question re-runs the analysis while nothing has started (TASK-208)
+            if (drakeFactory != null && drakeFactory.ReanalyzeAfterOverturn == null)
+                drakeFactory.ReanalyzeAfterOverturn = ReanalyzeAfterOverturnAsync;
             _projectsPath = config.ProjectsPath ?? "./projects";
         }
 
@@ -803,6 +806,62 @@ namespace DraCode.KoboldLair.Services
             foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
                 File.SetAttributes(file, FileAttributes.Normal);
             Directory.Delete(folder, recursive: true);
+        }
+
+        /// <summary>
+        /// The person overturned an agent's answer to one of the analyzer's questions (TASK-208, FEATURE-078 D21). While
+        /// no task has started (every task still Unassigned), the analysis runs again: the project's Drakes stop, its task
+        /// files, task rows and analysis go, and it returns to Wyvern's queue with no analysis time, so the next analysis
+        /// reads every answered question of the project (the person's answer in place of the agent's) and asks none.
+        /// Returns null when it did so; otherwise the number of tasks already started, and nothing is changed.
+        /// </summary>
+        public async Task<int?> ReanalyzeAfterOverturnAsync(string projectId)
+        {
+            var project = _repository.GetById(projectId);
+            if (project == null)
+                return 0;
+
+            var tasks = new List<TaskRecord>();
+            if (_taskRepository != null)
+                tasks.AddRange(await _taskRepository.GetByProjectAsync(projectId));
+            foreach (var filePath in project.Paths.TaskFiles.Values)
+            {
+                var tracker = new TaskTracker();
+                tracker.LoadFromFile(filePath);
+                tasks.AddRange(tracker.GetAllTasks().Where(t => tasks.All(known => known.Id != t.Id)));
+            }
+            var started = tasks.Count(t => t.Status != Models.Tasks.TaskStatus.Unassigned);
+            if (started > 0)
+            {
+                _logger.LogInformation("Overturned answer on {ProjectName} recorded: {Started} task(s) already started, no re-analysis",
+                    project.Name, started);
+                return started;
+            }
+
+            ReleaseAgents(project);
+            project.Tracking.WyvernId = null;
+            foreach (var filePath in project.Paths.TaskFiles.Values)
+            {
+                foreach (var path in new[] { filePath, Path.ChangeExtension(filePath, ".json") })
+                {
+                    try { if (File.Exists(path)) File.Delete(path); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Could not delete task file {Path}", path); }
+                }
+            }
+            if (_taskRepository != null)
+                foreach (var task in tasks)
+                    await _taskRepository.DeleteTaskAsync(task.Id);
+
+            project.Paths.TaskFiles.Clear();
+            project.Tracking.PendingAreas.Clear();
+            project.Tracking.ErrorMessage = null;
+            project.Timestamps.AnalyzedAt = null;
+            project.Timestamps.UpdatedAt = DateTime.UtcNow;
+            project.Status = ProjectStatus.WyrmAssigned;
+            _repository.Update(project);
+            _logger.LogInformation("🔄 {ProjectName}: a person overturned an answer to the analyzer's question; analyzing again",
+                project.Name);
+            return null;
         }
 
         /// <summary>

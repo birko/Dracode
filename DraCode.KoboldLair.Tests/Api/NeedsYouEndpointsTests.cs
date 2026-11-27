@@ -140,6 +140,32 @@ public class NeedsYouEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task An_answer_an_agent_gave_is_listed_until_the_owner_keeps_or_overturns_it()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = Token(factory, GitHubOwner);
+        var shop = await CreateProject(client, token, "Shop");
+        var decisions = factory.Services.GetRequiredService<SqlPendingDecisionRepository>();
+        var decision = new PendingDecision
+        {
+            ProjectId = shop, TaskId = "t-1", Source = PendingDecisionSource.AskHuman,
+            Question = new AskHumanQuestion("Which database?", ["SQLite", "Postgres"], false, null).ToJson(),
+            Resolution = "SQLite", ResolutionKind = PendingDecisionResolution.Answered, ResolvedAt = DateTime.UtcNow,
+            AnsweredBy = QuestionLevel.Supervisor, AnswerReason = "the plan says SQLite", AgentAnswer = "SQLite"
+        };
+        await decisions.CreateAsync(decision);
+
+        var item = (await List(client, token)).Should().ContainSingle().Subject;
+        Str(item, "kind").Should().Be("agent_answer");
+        Str(item, "id").Should().Be(decision.Id);
+        Str(item, "title").Should().Be("Drake (the task's supervisor) answered: Which database? → SQLite");
+
+        await decisions.ReviewAsync(decision.Id, null, DateTime.UtcNow);
+        (await List(client, token)).Should().BeEmpty("a kept answer no longer waits on the owner");
+    }
+
+    [Fact]
     public async Task Another_owners_items_are_not_listed_their_project_reads_as_404_and_an_admin_sees_all()
     {
         using var factory = CreateFactory();

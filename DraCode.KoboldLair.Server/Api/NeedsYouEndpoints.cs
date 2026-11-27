@@ -21,6 +21,8 @@ public static class NeedsYouEndpoints
     public const string FailedTask = "failed_task";
     public const string BlockedTask = "blocked_task";
     public const string MergeReady = "merge_ready";
+    /// <summary>An answer an agent gave instead of the person, until they keep or overturn it (TASK-208).</summary>
+    public const string AgentAnswer = "agent_answer";
 
     public sealed record Item(string Id, string Kind, string ProjectId, string ProjectName, string Title, DateTime CreatedAt);
 
@@ -47,6 +49,11 @@ public static class NeedsYouEndpoints
                     {
                         foreach (var d in await decisions.GetUnresolvedForProjectAsync(project.Id))
                             items.Add(new Item(d.Id, Decision, project.Id, project.Name, PendingDecisionNotification.QuestionText(d), d.CreatedAt));
+                        // An agent answered instead of the person: shown until they keep or overturn it (TASK-208)
+                        foreach (var d in await decisions.GetAwaitingReviewForProjectAsync(project.Id))
+                            items.Add(new Item(d.Id, AgentAnswer, project.Id, project.Name,
+                                $"{AgentAnswerReview.LevelName(d.AnsweredBy!.Value)} answered: {PendingDecisionNotification.QuestionText(d)} → {d.Resolution}",
+                                d.ResolvedAt ?? d.CreatedAt));
                     }
                     if (tasks != null)
                     {

@@ -94,8 +94,11 @@ const NEEDS_LABEL: Record<string, string> = {
   failed_task: 'Failed',
   blocked_task: 'Blocked',
   merge_ready: 'Ready to merge',
+  agent_answer: 'Agent answered',
 };
-const NEEDS_VARIANT: Record<string, string> = { decision: 'warning', failed_task: 'danger', blocked_task: 'warning', merge_ready: 'success' };
+const NEEDS_VARIANT: Record<string, string> = {
+  decision: 'warning', failed_task: 'danger', blocked_task: 'warning', merge_ready: 'success', agent_answer: 'info',
+};
 
 function since(iso: string): string {
   const t = Date.parse(iso);

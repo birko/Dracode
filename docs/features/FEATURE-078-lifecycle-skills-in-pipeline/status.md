@@ -1,6 +1,6 @@
 ---
 id: FEATURE-078
-generated: 2026-11-25 13:05
+generated: 2026-11-27 11:30
 ---
 
 # Project lifecycle discipline inside the KoboldLair pipeline — Status
@@ -13,15 +13,15 @@ generated: 2026-11-25 13:05
 
 | State | Count |
 |-------|-------|
-| ✅ approved | 25 |
-| ✏️ changed | 1 |
+| ✅ approved | 24 |
+| ✏️ changed | 2 |
 | ⏸️ deferred | 3 |
 | ❌ removed | 2 |
 | 💭 proposed (undecided) | 0 |
 
 ## Build progress
 
-8 / 25 tasks done.
+9 / 25 tasks done.
 
 - TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — done
 - TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — done
@@ -31,7 +31,7 @@ generated: 2026-11-25 13:05
 - TASK-205 Wyvern answers a question from the specification, its analysis and the decisions, or passes it up — done
 - TASK-206 Dragon answers only from recorded decisions and the specification, otherwise asks the person to define it — done
 - TASK-207 What the person defines is written into the specification as a new version — done
-- TASK-208 An answer an agent gives is recorded as a decision the person can see and overturn — todo
+- TASK-208 An answer an agent gives is recorded as a decision the person can see and overturn — done
 - TASK-209 Questions reach the person in rounds of at most five, each with a recommended answer — todo
 - TASK-210 Task states use the lifecycle vocabulary — todo
 - TASK-211 The lifecycle layer is switched on per project — todo
