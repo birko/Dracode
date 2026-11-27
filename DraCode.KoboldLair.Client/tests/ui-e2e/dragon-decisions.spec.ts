@@ -13,7 +13,10 @@ const badge = (page: Page) => dock(page).locator('.decision-count');
 const dockWidth = (page: Page) => workspace(page).locator('aside.dock').evaluate((el) => Math.round(el.getBoundingClientRect().width));
 const bellCount = (page: Page) => page.locator('kobold-lair-shell kobold-notification-bell .count');
 
-interface Decision { id: string; project: string; question: string; source: string; schema: object; context?: string; timeoutAt?: string }
+interface Decision {
+  id: string; project: string; question: string; source: string; schema: object; context?: string; timeoutAt?: string;
+  recommended?: string; because?: string; answeredBy?: string;
+}
 
 const ESCALATION: Decision = {
   id: 'd-1', project: 'Shop', source: 'Escalation', question: 'The build keeps failing on the payment module. How should the agent go on?',
@@ -31,7 +34,8 @@ function notification(d: Decision, type = 'decision_required'): string {
     type: 'project_notification', notificationType: type, sessionId: 's-1', projectName: d.project, message: d.question,
     metadata: type === 'decision_required'
       ? { requiresResponse: 'true', decisionId: d.id, taskId: 't-1', source: d.source, disposition: 'HumanDecisionRequired',
-          question: d.question, context: d.context ?? '', escalationType: '', timeoutAt: d.timeoutAt ?? '', responseSchema: JSON.stringify(d.schema) }
+          question: d.question, context: d.context ?? '', escalationType: '', timeoutAt: d.timeoutAt ?? '', responseSchema: JSON.stringify(d.schema),
+          recommended: d.recommended ?? '', recommendedBecause: d.because ?? '', ...(d.answeredBy ? { answeredBy: d.answeredBy } : {}) }
       : { decisionId: d.id, taskId: 't-1', resolutionKind: 'Answered' },
     timestamp: '2026-11-22T10:00:00Z',
   });
@@ -195,4 +199,63 @@ test('a card shows its text as text', async ({ page }) => {
   await expect(card(page, 'd-2').locator('b-button[data-answer]')).toHaveText('<b>yes</b>');
   await expect(card(page, 'd-2').locator('img')).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
+});
+
+// TASK-209 (FEATURE-078 D22): a recommended answer, agreeing in one action, and rounds of at most five.
+const RECOMMENDED: Decision = {
+  id: 'd-3', project: 'Shop', source: 'AskHuman', question: 'Which database?',
+  schema: { kind: 'choice', options: ['SQLite', 'Postgres'], allowFreeText: false }, recommended: 'SQLite', because: 'one file to back up',
+};
+
+test('a card shows its recommended answer while closed, and Accept answers with it in one click', async ({ page }) => {
+  const dragon = new FakeDragon();
+  dragon.open = [RECOMMENDED, QUESTION];
+  await open(page, dragon);
+
+  await expect(card(page, 'd-3').locator('.recommend')).toContainText('Recommended: SQLite — one file to back up');
+  await expect(card(page, 'd-2').locator('.recommend')).toHaveCount(0); // a question with no recommendation shows none
+  await card(page, 'd-3').locator('b-button[data-accept]').click();
+
+  await expect.poll(() => dragon.answers).toEqual([{ decisionId: 'd-3', answer: 'SQLite' }]);
+  await expect(card(page, 'd-3').locator('b-button[data-accept]')).toHaveAttribute('disabled', ''); // pending until the result
+});
+
+test('at most five cards show as a round with how many more wait, and Accept all answers the round', async ({ page }) => {
+  const dragon = new FakeDragon();
+  dragon.open = Array.from({ length: 7 }, (_, i): Decision => ({
+    id: `r-${i}`, project: 'Shop', source: 'AskHuman', question: `Question ${i}?`,
+    schema: { kind: 'choice', options: ['yes', 'no'], allowFreeText: false },
+    ...(i === 1 ? {} : { recommended: i % 2 ? 'no' : 'yes', because: 'the specification says so' }),
+  }));
+  await open(page, dragon);
+
+  await expect(cards(page)).toHaveCount(5);
+  await expect(badge(page)).toHaveText('7 decisions');
+  await expect(dock(page).locator('.round .waiting')).toHaveText('2 more waiting');
+  await dock(page).locator('b-button[data-accept-all]').click();
+
+  // The round's four recommendations, oldest first; r-1 has none and r-5, r-6 wait for the next round
+  await expect.poll(() => dragon.answers).toEqual([
+    { decisionId: 'r-0', answer: 'yes' }, { decisionId: 'r-2', answer: 'yes' },
+    { decisionId: 'r-3', answer: 'no' }, { decisionId: 'r-4', answer: 'yes' },
+  ]);
+
+  dragon.result('r-0', 'Resolved', 'Answered "Question 0?".');
+  dragon.push(notification(dragon.open[0], 'decision_resolved'));
+  await expect(card(page, 'r-5')).toBeVisible(); // answering one brings in the next waiting
+  await expect(dock(page).locator('.round .waiting')).toHaveText('1 more waiting');
+});
+
+test("an agent's answer offered for review is labelled as one and recommends keeping it", async ({ page }) => {
+  const dragon = new FakeDragon();
+  dragon.open = [{
+    id: 'd-4', project: 'Shop', source: 'AskHuman', question: 'What is the banner colour?', answeredBy: 'Overseer',
+    schema: { kind: 'choice', options: ["Keep the agent's answer"], allowFreeText: true },
+    recommended: "Keep the agent's answer", because: "Wyvern (the project's overseer) quoted: The banner is teal.",
+  }];
+  await open(page, dragon);
+
+  await expect(card(page, 'd-4')).toContainText('Agent answered');
+  await card(page, 'd-4').locator('b-button[data-accept]').click();
+  await expect.poll(() => dragon.answers).toEqual([{ decisionId: 'd-4', answer: "Keep the agent's answer" }]);
 });

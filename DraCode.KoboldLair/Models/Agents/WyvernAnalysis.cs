@@ -49,5 +49,9 @@ namespace DraCode.KoboldLair.Models.Agents
         public List<string> Options { get; set; } = new();
         public bool? AllowFreeText { get; set; }
         public string? Context { get; set; }
+        /// <summary>The answer Wyvern recommends (TASK-209), one the question accepts.</summary>
+        public string? Recommended { get; set; }
+        /// <summary>Why, in one line.</summary>
+        public string? RecommendedBecause { get; set; }
     }
 }

@@ -60,6 +60,8 @@ Parameters:
 - options (optional): the choices you offer
 - allow_free_text (optional): whether an answer other than an option is accepted (default: true without options, false with them)
 - context (optional): why you are asking — what you found and what each answer would change
+- recommended (required): the answer you recommend — one of the options, or your own words where free text is allowed
+- recommended_because (required): why, in one line
 
 Returns: the answer when an agent above you gave it, or whether the question was sent to a person (and the task paused) or refused.";
 
@@ -71,9 +73,11 @@ Returns: the answer when an agent above you gave it, or whether the question was
                 question = new { type = "string", description = "The question, answerable on its own" },
                 options = new { type = "array", items = new { type = "string" }, description = "The choices offered" },
                 allow_free_text = new { type = "boolean", description = "Accept an answer other than an option" },
-                context = new { type = "string", description = "Why you are asking" }
+                context = new { type = "string", description = "Why you are asking" },
+                recommended = new { type = "string", description = "The answer you recommend: an option, or free text where allowed" },
+                recommended_because = new { type = "string", description = "Why you recommend it, in one line" }
             },
-            required = new[] { "question" }
+            required = new[] { "question", "recommended", "recommended_because" }
         };
 
         public override async Task<string> ExecuteAsync(string workingDirectory, Dictionary<string, object> arguments,
@@ -83,11 +87,14 @@ Returns: the answer when an agent above you gave it, or whether the question was
             var options = ReadStrings(arguments, "options").Select(o => o.Trim()).Where(o => o.Length > 0).ToArray();
             var allowFreeText = ReadBool(arguments, "allow_free_text") ?? options.Length == 0;
             var context = ReadString(arguments, "context")?.Trim();
+            var recommended = ReadString(arguments, "recommended")?.Trim();
+            var because = ReadString(arguments, "recommended_because")?.Trim();
 
-            if (Problem(text, options, allowFreeText, context) is { } problem)
+            if (Problem(text, options, allowFreeText, context, recommended, because, out recommended) is { } problem)
                 return $"Error: {problem}";
 
-            var question = new AskHumanQuestion(text!, options, allowFreeText, string.IsNullOrEmpty(context) ? null : context);
+            var question = new AskHumanQuestion(text!, options, allowFreeText, string.IsNullOrEmpty(context) ? null : context,
+                recommended, because);
             _plan.AddLogEntry(OneLine($"ask_human: \"{text}\"" + (options.Length > 0 ? $" [{string.Join(" | ", options)}]" : "")
                 + (question.Context != null ? $" — {question.Context}" : "")));
 
@@ -125,6 +132,32 @@ Returns: the answer when an agent above you gave it, or whether the question was
         /// What is wrong with a question a person would be asked, or null when it can be asked: the checks every asker
         /// shares, the Kobold's tool and the analyzer's questions (TASK-170) alike. Options are expected trimmed.
         /// </summary>
+        /// <remarks>
+        /// Every question carries a recommended answer the question accepts and a one-line reason (TASK-209, D22);
+        /// <paramref name="stored"/> is the recommendation in the form an answer is stored (an option's full text).
+        /// </remarks>
+        public static string? Problem(string? text, string[] options, bool allowFreeText, string? context,
+            string? recommended, string? because, out string? stored)
+        {
+            stored = recommended;
+            if (Problem(text, options, allowFreeText, context) is { } problem)
+                return problem;
+            if (string.IsNullOrWhiteSpace(recommended))
+                return "recommended is required: the answer you would choose, so the person can agree in one action.";
+            if (string.IsNullOrWhiteSpace(because))
+                return "recommended_because is required: one line saying why.";
+            if (because.Length > MaxReasonLength)
+                return $"keep recommended_because under {MaxReasonLength} characters.";
+            var question = new AskHumanQuestion(text!, options, allowFreeText, context);
+            if (!question.Accepts(recommended, out var form) || question.Match(recommended).Ambiguous)
+                return $"recommended must be one of the options ({question.NumberedOptions()}).";
+            stored = form;
+            return null;
+        }
+
+        /// <summary>The longest one-line reason for a recommendation.</summary>
+        public const int MaxReasonLength = 300;
+
         public static string? Problem(string? text, string[] options, bool allowFreeText, string? context)
         {
             if (string.IsNullOrEmpty(text))

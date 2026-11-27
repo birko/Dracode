@@ -78,6 +78,30 @@ namespace DraCode.KoboldLair.Services
             });
         }
 
+        /// <summary>
+        /// Agrees with the recommendation of one open decision, or of every open one with a recommendation in
+        /// <paramref name="visible"/> when <paramref name="decisionId"/> is null (TASK-209, D22): each is answered with
+        /// its recommended answer, as if typed. A decision with no recommendation is left for the person.
+        /// </summary>
+        public async Task<List<Reply>> AcceptRecommendedAsync(IReadOnlyList<ProjectRef> visible, string? decisionId = null)
+        {
+            var replies = new List<Reply>();
+            foreach (var (_, decision) in await OpenAsync(visible))
+            {
+                if (decisionId != null && decision.Id != decisionId)
+                    continue;
+                if (PendingDecisionNotification.Recommendation(decision) is { } recommendation)
+                    replies.Add(await AnswerAsync(visible, decision.Id, recommendation.Answer));
+                else if (decisionId != null)
+                    replies.Add(new Reply(decision.Id, DecisionAnswerResult.InvalidAnswer,
+                        "This decision has no recommended answer; answer it yourself."));
+            }
+            if (decisionId != null && replies.Count == 0)
+                replies.Add(new Reply(decisionId, DecisionAnswerResult.NotFound,
+                    $"There is no open decision {decisionId} in your projects; nothing changed."));
+            return replies;
+        }
+
         private async Task<Reply> ReviewAsync(PendingDecision decision, string answer)
         {
             var review = await _review!(decision.ProjectId, decision.Id, answer);

@@ -21,8 +21,19 @@ public class AskHumanToolTests
         ask: (q, _) => { _asked.Add(q); return Task.FromResult(outcome); },
         stopAfterTurn: () => _stops++);
 
-    private static Dictionary<string, object> Args(string json) =>
-        JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)!.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+    /// <summary>The tool's arguments; a question with no recommendation gets one (its first option), as every asker must give (TASK-209).</summary>
+    private static Dictionary<string, object> Args(string json)
+    {
+        var args = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)!.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+        if (!args.ContainsKey("recommended"))
+        {
+            var first = args.TryGetValue("options", out var o) && o is JsonElement { ValueKind: JsonValueKind.Array } arr && arr.GetArrayLength() > 0
+                ? arr[0].GetString()! : "my own guess";
+            args["recommended"] = first;
+            args["recommended_because"] = "the safest default";
+        }
+        return args;
+    }
 
     [Fact]
     public async Task A_question_reaches_Drake_parks_the_task_and_is_logged()
@@ -185,7 +196,7 @@ public class AskHumanToolTests
     public async Task An_oversized_question_is_an_error(string field)
     {
         var tool = Tool(new AskHumanOutcome(true, "dec-1", null));
-        var args = new Dictionary<string, object> { ["question"] = "Pick one" };
+        var args = new Dictionary<string, object> { ["question"] = "Pick one", ["recommended"] = "x", ["recommended_because"] = "y" };
         if (field == "question") args["question"] = new string('q', 1001);
         if (field == "context") args["context"] = new string('c', 2001);
         if (field == "options") args["options"] = Enumerable.Range(0, 11).Select(i => $"o{i}").ToArray();

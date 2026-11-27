@@ -22,10 +22,10 @@ namespace DraCode.KoboldLair.Tests.Services;
 public class WyvernQuestionsTests : IAsyncLifetime
 {
     private const string Questions =
-        "{\"projectName\":\"p\",\"questions\":[{\"question\":\"Which storage should the app use?\",\"options\":[\"sqlite\",\"files\"]}],\"areas\":[]}";
+        "{\"projectName\":\"p\",\"questions\":[{\"question\":\"Which storage should the app use?\",\"options\":[\"sqlite\",\"files\"],\"recommended\":\"sqlite\",\"recommendedBecause\":\"one file to back up\"}],\"areas\":[]}";
 
     private const string Tasks =
-        "{\"projectName\":\"p\",\"questions\":[{\"question\":\"Asked again?\",\"options\":[\"yes\",\"no\"]}]," +
+        "{\"projectName\":\"p\",\"questions\":[{\"question\":\"Asked again?\",\"options\":[\"yes\",\"no\"],\"recommended\":\"no\",\"recommendedBecause\":\"already answered\"}]," +
         "\"structure\":{\"architectureNotes\":\"one script\"}," + // a planned structure, so no second call asks for one
         "\"areas\":[{\"name\":\"cli\",\"tasks\":[{\"id\":\"cli-1\",\"name\":\"greet\",\"description\":\"Write greet.py\",\"agentType\":\"python\"}]}]}";
 
@@ -202,7 +202,7 @@ public class WyvernQuestionsTests : IAsyncLifetime
         var id = NewProject(projects);
         _model.Replies.Enqueue("{\"projectName\":\"p\",\"areas\":[],\"questions\":[" +
             "{\"question\":\"Closed with no options?\",\"options\":[],\"allowFreeText\":false}," +
-            "{\"question\":\"Q1?\"},{\"question\":\"Q2?\"},{\"question\":\"Q3?\"},{\"question\":\"Q4?\"}]}");
+            "{\"question\":\"Q1?\",\"recommended\":\"a\",\"recommendedBecause\":\"b\"},{\"question\":\"Q2?\",\"recommended\":\"a\",\"recommendedBecause\":\"b\"},{\"question\":\"Q3?\",\"recommended\":\"a\",\"recommendedBecause\":\"b\"},{\"question\":\"Q4?\",\"recommended\":\"a\",\"recommendedBecause\":\"b\"}]}");
 
         await projects.AnalyzeProjectAsync(id);
 

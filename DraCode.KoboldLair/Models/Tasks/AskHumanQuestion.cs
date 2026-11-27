@@ -10,7 +10,13 @@ namespace DraCode.KoboldLair.Models.Tasks
     /// <param name="Options">The choices offered; empty for an open question.</param>
     /// <param name="AllowFreeText">Whether an answer other than an option is accepted.</param>
     /// <param name="Context">Why the agent is asking.</param>
-    public sealed record AskHumanQuestion(string Question, string[] Options, bool AllowFreeText, string? Context)
+    /// <param name="Recommended">
+    /// The answer the asker recommends (TASK-209, FEATURE-078 D22), one the question accepts, so agreeing is one action.
+    /// Null on a question asked before recommendations existed.
+    /// </param>
+    /// <param name="RecommendationReason">Why, in one line.</param>
+    public sealed record AskHumanQuestion(string Question, string[] Options, bool AllowFreeText, string? Context,
+        string? Recommended = null, string? RecommendationReason = null)
     {
         private static readonly JsonSerializerOptions JsonOptions = new()
         {

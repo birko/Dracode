@@ -276,7 +276,7 @@ public class KoboldRunHooksTests : IDisposable
         Content = new List<ContentBlock>
         {
             new() { Type = "tool_use", Id = "ask-1", Name = "ask_human",
-                Input = new Dictionary<string, object> { ["question"] = "Which database?" } },
+                Input = new Dictionary<string, object> { ["question"] = "Which database?", ["recommended"] = "SQLite", ["recommended_because"] = "simplest" } },
             new() { Type = "tool_use", Id = "touch-1", Name = "touch",
                 Input = new Dictionary<string, object> { ["path"] = "after-ask.txt" } }
         }
@@ -401,7 +401,8 @@ public class KoboldRunHooksTests : IDisposable
         Content = new List<ContentBlock>
         {
             new() { Type = "tool_use", Id = id, Name = "ask_human",
-                Input = new Dictionary<string, object> { ["question"] = question, ["options"] = options } }
+                Input = new Dictionary<string, object> { ["question"] = question, ["options"] = options,
+                    ["recommended"] = options.Length > 0 ? options[0] : "my guess", ["recommended_because"] = "simplest" } }
         }
     };
 
@@ -523,7 +524,8 @@ public class KoboldRunHooksTests : IDisposable
         Content = new List<ContentBlock>
         {
             new() { Type = "tool_use", Id = id, Name = "ask_human",
-                Input = new Dictionary<string, object> { ["question"] = "Which database?", ["options"] = new[] { "sqlite", "postgres" } } },
+                Input = new Dictionary<string, object> { ["question"] = "Which database?", ["options"] = new[] { "sqlite", "postgres" },
+                    ["recommended"] = "sqlite", ["recommended_because"] = "simplest" } },
             new() { Type = "tool_use", Id = $"done-{id}", Name = "update_plan_step",
                 Input = new Dictionary<string, object> { ["step_index"] = step, ["status"] = "completed" } }
         }

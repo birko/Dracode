@@ -813,12 +813,17 @@ Respond with ONLY valid JSON (no markdown, no explanations):
                 var options = (q.Options ?? new List<string>()).Select(o => o.Trim()).Where(o => o.Length > 0).ToList();
                 var allowFreeText = q.AllowFreeText ?? options.Count == 0;
                 var text = q.Question?.Trim();
-                if (AskHumanTool.Problem(text, options.ToArray(), allowFreeText, q.Context?.Trim()) is { } problem)
+                if (AskHumanTool.Problem(text, options.ToArray(), allowFreeText, q.Context?.Trim(), q.Recommended?.Trim(),
+                        q.RecommendedBecause?.Trim(), out var recommended) is { } problem)
                 {
                     _logger?.LogWarning("Wyvern question dropped ({Problem}): {Question}", problem, text);
                     continue;
                 }
-                askable.Add(new WyvernQuestion { Question = text!, Options = options, AllowFreeText = allowFreeText, Context = q.Context?.Trim() });
+                askable.Add(new WyvernQuestion
+                {
+                    Question = text!, Options = options, AllowFreeText = allowFreeText, Context = q.Context?.Trim(),
+                    Recommended = recommended, RecommendedBecause = q.RecommendedBecause?.Trim()
+                });
                 if (askable.Count == WyvernAnalysis.MaxQuestions)
                     break;
             }
