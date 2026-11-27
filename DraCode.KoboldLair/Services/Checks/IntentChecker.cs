@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Birko.AI.Providers;
 using DraCode.KoboldLair.Agents;
@@ -15,8 +14,8 @@ namespace DraCode.KoboldLair.Services.Checks
     /// </summary>
     public sealed class IntentChecker : ITaskChecker
     {
-        /// <summary>The most of one file it reads, and of all files together.</summary>
-        public const int MaxFileChars = 12_000, MaxTotalChars = 48_000;
+        /// <summary>The most of one file it reads, and of all files together (<see cref="TaskMaterial"/>).</summary>
+        public const int MaxFileChars = TaskMaterial.MaxFileChars, MaxTotalChars = TaskMaterial.MaxTotalChars;
 
         private readonly Func<string, ILlmProvider?> _providerFor;
         private readonly ILogger? _logger;
@@ -55,92 +54,8 @@ namespace DraCode.KoboldLair.Services.Checks
             else
                 text.AppendLine("(none)");
 
-            var files = TaskAcceptanceService.TargetPaths(input.Task.Task ?? "")
-                .Concat(input.PlannedFiles ?? [])
-                .Concat(await ChangedFilesAsync(input.WorkspacePath, cancellationToken))
-                .Select(f => f.Replace('\\', '/'))
-                // A path leaving the workspace is never read; checked before "./" is dropped, which would hide a "../"
-                .Where(f => !f.Split('/').Contains("..") && !Path.IsPathRooted(f))
-                .Select(f => f.StartsWith("./", StringComparison.Ordinal) ? f[2..] : f)
-                .Where(f => f.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            text.AppendLine().AppendLine("### Files the task touched");
-            var total = 0;
-            foreach (var file in files)
-            {
-                var full = Path.Combine(input.WorkspacePath, file);
-                if (!File.Exists(full))
-                {
-                    text.AppendLine($"#### {file}").AppendLine("(does not exist)");
-                    continue;
-                }
-                var content = await File.ReadAllTextAsync(full, cancellationToken);
-                if (content.Contains('\0'))
-                    continue; // a binary file says nothing a reader can judge
-                if (total >= MaxTotalChars)
-                {
-                    text.AppendLine($"#### {file}").AppendLine("(not read: the material is at its limit)");
-                    continue;
-                }
-                var room = Math.Min(MaxFileChars, MaxTotalChars - total);
-                var shown = content.Length > room ? content[..room] + "\n… (cut here)" : content;
-                total += Math.Min(content.Length, room);
-                text.AppendLine($"#### {file}").AppendLine("```").AppendLine(shown).AppendLine("```");
-            }
-            if (files.Count == 0)
-                text.AppendLine("(no file could be identified)");
+            await TaskMaterial.AppendFilesAsync(text, input, cancellationToken);
             return text.ToString();
-        }
-
-        /// <summary>What git shows changed or new under the workspace (uncommitted: the task's own work); none outside git.</summary>
-        private static async Task<IReadOnlyList<string>> ChangedFilesAsync(string workspace, CancellationToken cancellationToken)
-        {
-            if (!Directory.Exists(workspace))
-                return [];
-            try
-            {
-                using var git = Process.Start(new ProcessStartInfo("git", "status --porcelain --untracked-files=all --no-renames -- .")
-                {
-                    WorkingDirectory = workspace, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false
-                });
-                if (git == null)
-                    return [];
-                var output = await git.StandardOutput.ReadToEndAsync(cancellationToken);
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeout.CancelAfter(TimeSpan.FromSeconds(10));
-                await git.WaitForExitAsync(timeout.Token);
-                if (git.ExitCode != 0)
-                    return [];
-                // Paths are relative to the repository root; keep those under the workspace, relative to it
-                var root = await RootAsync(workspace, cancellationToken);
-                var prefix = root == null ? "" : Path.GetRelativePath(root, workspace).Replace('\\', '/');
-                prefix = prefix == "." ? "" : prefix.TrimEnd('/') + "/";
-                return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                    .Where(line => line.Length > 3 && line[0] != 'D' && line[1] != 'D')
-                    .Select(line => line[3..].Trim().Trim('"'))
-                    .Where(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                    .Select(path => path[prefix.Length..])
-                    .ToList();
-            }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                return [];
-            }
-        }
-
-        private static async Task<string?> RootAsync(string workspace, CancellationToken cancellationToken)
-        {
-            using var git = Process.Start(new ProcessStartInfo("git", "rev-parse --show-toplevel")
-            {
-                WorkingDirectory = workspace, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false
-            });
-            if (git == null)
-                return null;
-            var root = (await git.StandardOutput.ReadToEndAsync(cancellationToken)).Trim();
-            await git.WaitForExitAsync(cancellationToken);
-            return git.ExitCode == 0 && root.Length > 0 ? Path.GetFullPath(root) : null;
         }
     }
 

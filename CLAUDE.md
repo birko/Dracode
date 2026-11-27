@@ -211,7 +211,11 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     (TASK-218, `IntentChecker`, cost 10, the Kobold model tracked as `intent-check`): did the task build what its
     description asked — `missing`, `wrong` or `extra`, each quoting the requirement — read from the description, the
     answers given for the task (`TaskCheckInput.Answers`) and the files it touched (its target paths, its plan's files,
-    what `git status` shows changed in the workspace; never outside it, capped at 12k chars a file and 48k in all)
+    what `git status` shows changed in the workspace; never outside it, capped at 12k chars a file and 48k in all;
+    `TaskMaterial`, shared by the checkers), then the **correctness checker** (TASK-221, `CorrectnessChecker`, cost 20,
+    `correctness-check`): likely bugs in the change, each with file and line, the input or state and what goes wrong,
+    read from git's diff of the task's edits (`TaskMaterial.DiffAsync`, 24k chars) and the touched files; style,
+    performance, missing tests and missing features are not its findings
   - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block.
     Each Drake gets its project's Wyvern when `DrakeFactory` creates it (`WyvernForProject`, set by `ProjectService`,
     which never changes the project's status; a new Wyvern reloads `analysis.json`), and loads `wyrm-recommendation.json`
