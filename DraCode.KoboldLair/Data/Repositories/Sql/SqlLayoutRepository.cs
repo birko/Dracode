@@ -10,14 +10,21 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlLayoutRepository
     {
-        private readonly AsyncSqLiteModelRepository<UserLayoutEntity> _repository = new();
+        private readonly StoreRepository<UserLayoutEntity> _repository;
         private readonly SemaphoreSlim _lock = new(1, 1);
         private readonly ILogger? _logger;
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlLayoutRepository(string dbPath, ILogger? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
         {
+        }
+
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlLayoutRepository(Birko.Data.Stores.IStoreFactory factory, ILogger? logger = null)
+        {
+            _repository = new StoreRepository<UserLayoutEntity>(factory);
             _logger = logger;
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
         }
 
         public async Task InitializeAsync()

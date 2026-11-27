@@ -10,13 +10,20 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlBudgetRepository
     {
-        private readonly AsyncSqLiteModelRepository<BudgetSettingsEntity> _repository = new();
+        private readonly StoreRepository<BudgetSettingsEntity> _repository;
         private readonly ILogger? _logger;
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlBudgetRepository(string dbPath, ILogger? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
         {
+        }
+
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlBudgetRepository(Birko.Data.Stores.IStoreFactory factory, ILogger? logger = null)
+        {
+            _repository = new StoreRepository<BudgetSettingsEntity>(factory);
             _logger = logger;
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
         }
 
         public async Task InitializeAsync()

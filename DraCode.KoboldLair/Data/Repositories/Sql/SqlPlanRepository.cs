@@ -14,7 +14,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlPlanRepository
     {
-        private readonly AsyncSqLiteModelRepository<PlanEntity> _repository;
+        private readonly StoreRepository<PlanEntity> _repository;
         private readonly ILogger<SqlPlanRepository>? _logger;
 
         private static readonly JsonSerializerOptions JsonOptions = new()
@@ -24,12 +24,17 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             WriteIndented = false
         };
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlPlanRepository(string dbPath, ILogger<SqlPlanRepository>? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
         {
-            _logger = logger;
-            _repository = new AsyncSqLiteModelRepository<PlanEntity>();
+        }
 
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlPlanRepository(Birko.Data.Stores.IStoreFactory factory, ILogger<SqlPlanRepository>? logger = null)
+        {
+            _repository = new StoreRepository<PlanEntity>(factory);
+            _logger = logger;
         }
 
         public async Task InitializeAsync()

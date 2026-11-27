@@ -45,3 +45,10 @@ Event sourcing on NoSQL backends (MongoDB at least) does not exist in Birko; fil
 ## Implementation plan
 
 _Populated by `/tasks plan TASK-228` — leave empty until then._
+
+## Notes
+
+- 2026-11-27: the owner confirmed that existing event history (`__Events`, the real `koboldlair.db` included) can be
+  thrown away, so this task needs no migration step. Birko TASK-995 (decided in Birko commit 47f99a87): one generic
+  event store over any `IStoreFactory`, called as `factory.GetEventStore(o => o.AddSql())`, with the overrides
+  registered once at startup. SQL factories still answer `SqlEventStore` on the same `__Events` table.

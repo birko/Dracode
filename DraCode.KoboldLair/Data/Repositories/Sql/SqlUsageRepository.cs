@@ -16,9 +16,9 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlUsageRepository : IUsageRepository
     {
-        private readonly AsyncSqLiteModelRepository<KoboldLairUsageRecord> _repository;
-        /// <summary>The repository's own store, for <c>AggregateAsync</c>: the repository does not expose it (TASK-123).</summary>
-        private readonly AsyncSQLiteStore<KoboldLairUsageRecord> _store;
+        private readonly StoreRepository<KoboldLairUsageRecord> _repository;
+        /// <summary>The repository's store, for <c>AggregateAsync</c> where it can aggregate (TASK-123, TASK-200).</summary>
+        private readonly IAsyncBulkStore<KoboldLairUsageRecord> _store;
         private readonly ILogger _logger;
 
         private const string Requests = "requests", Tokens = "tokens", Cost = "cost";
@@ -31,18 +31,32 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             new(AggregateFunction.Sum, nameof(KoboldLairUsageRecord.EstimatedCostUsd), Cost)
         ];
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlUsageRepository(string dbPath, ILogger logger)
+            : this(DataStores.SqLite(dbPath), logger)
         {
+        }
+
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlUsageRepository(Birko.Data.Stores.IStoreFactory factory, ILogger logger)
+        {
+            _repository = new StoreRepository<KoboldLairUsageRecord>(factory);
             _logger = logger;
-            _store = new AsyncSQLiteStore<KoboldLairUsageRecord>();
-            _repository = new AsyncSqLiteModelRepository<KoboldLairUsageRecord>(_store);
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
+            _store = _repository.BulkStoreOf;
         }
 
         /// <summary>Totals computed in the database (SQL <c>GROUP BY</c>), not over every record read into memory (TASK-123).</summary>
-        private Task<IReadOnlyList<AggregateResult>> AggregateAsync(Expression<Func<KoboldLairUsageRecord, bool>> filter,
-            IReadOnlyList<string> groupBy, CancellationToken ct) =>
-            _store.AggregateAsync(new AggregateQuery<KoboldLairUsageRecord> { Filter = filter, GroupByFields = groupBy, Aggregates = Totals }, ct);
+        private async Task<IReadOnlyList<AggregateResult>> AggregateAsync(Expression<Func<KoboldLairUsageRecord, bool>> filter,
+            IReadOnlyList<string> groupBy, CancellationToken ct)
+        {
+            var query = new AggregateQuery<KoboldLairUsageRecord> { Filter = filter, GroupByFields = groupBy, Aggregates = Totals };
+            if (_store is IAsyncAggregatableStore<KoboldLairUsageRecord> aggregatable)
+                return await aggregatable.AggregateAsync(query, ct);
+            // A backend whose store cannot aggregate: the same totals over the matching records, in memory
+            var records = await _repository.ReadAsync(filter: filter, orderBy: null, limit: null, offset: null, ct: ct);
+            return await AggregateHelper.LinqAggregateAsync(records,
+                new AggregateQuery<KoboldLairUsageRecord> { GroupByFields = groupBy, Aggregates = Totals }, ct);
+        }
 
         private static int RequestsOf(AggregateResult row) => (int)row.GetValue<long>(Requests);
         private static int TokensOf(AggregateResult row) => (int)row.GetValue<long>(Tokens);
@@ -64,8 +78,8 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         {
             try
             {
-                var connector = _repository.Connector
-                    ?? throw new InvalidOperationException("SqlUsageRepository has no SQLite connector after CreateSchemaAsync");
+                if (_repository.Connector is not { } connector)
+                    return; // a non-SQL backend has no fixed columns to repair (TASK-200)
                 foreach (var drift in connector.EnsureColumns(typeof(KoboldLairUsageRecord)))
                     _logger.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, drift.Declared);
             }

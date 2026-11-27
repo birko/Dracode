@@ -241,9 +241,8 @@ static string? ResolveProviderMasterKey(IConfiguration cfg) =>
 builder.Services.AddSingleton<SqlProviderConfigRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
     var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlProviderConfigRepository>();
-    var repo = new SqlProviderConfigRepository(dbPath, logger);
+    var repo = new SqlProviderConfigRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
     repo.InitializeAsync().GetAwaiter().GetResult();
     return repo;
 });
@@ -301,9 +300,8 @@ builder.Services.AddSingleton<SqlUsageRepository>(sp =>
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend == StorageBackend.SqLite)
     {
-        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlUsageRepository>();
-        var repo = new SqlUsageRepository(dbPath, logger);
+        var repo = new SqlUsageRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
         repo.InitializeAsync().GetAwaiter().GetResult();
         return repo;
     }
@@ -315,7 +313,7 @@ builder.Services.AddSingleton<SqlBudgetRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend != StorageBackend.SqLite) return null!;
-    var repo = new SqlBudgetRepository(RepositoryFactory.ResolveSqLitePath(dataConfig),
+    var repo = new SqlBudgetRepository(RepositoryFactory.StoreFactoryFor(dataConfig),
         sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlBudgetRepository>());
     repo.InitializeAsync().GetAwaiter().GetResult();
     return repo;
@@ -325,7 +323,7 @@ builder.Services.AddSingleton<SqlLayoutRepository>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend != StorageBackend.SqLite) return null!;
-    var repo = new SqlLayoutRepository(RepositoryFactory.ResolveSqLitePath(dataConfig),
+    var repo = new SqlLayoutRepository(RepositoryFactory.StoreFactoryFor(dataConfig),
         sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlLayoutRepository>());
     repo.InitializeAsync().GetAwaiter().GetResult();
     return repo;
@@ -425,9 +423,8 @@ builder.Services.AddSingleton<SqlPlanRepository>(sp =>
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend == StorageBackend.SqLite)
     {
-        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlPlanRepository>();
-        var repo = new SqlPlanRepository(dbPath, logger);
+        var repo = new SqlPlanRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
         repo.InitializeAsync().GetAwaiter().GetResult();
         return repo;
     }
@@ -441,9 +438,8 @@ builder.Services.AddSingleton<SqlPendingDecisionRepository>(sp =>
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend == StorageBackend.SqLite)
     {
-        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlPendingDecisionRepository>();
-        var repo = new SqlPendingDecisionRepository(dbPath, logger);
+        var repo = new SqlPendingDecisionRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
         repo.InitializeAsync().GetAwaiter().GetResult();
         return repo;
     }
@@ -705,9 +701,8 @@ builder.Services.AddSingleton<SqlHistoryRepository>(sp =>
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     if (dataConfig.DefaultBackend == StorageBackend.SqLite)
     {
-        var dbPath = RepositoryFactory.ResolveSqLitePath(dataConfig);
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SqlHistoryRepository>();
-        var repo = new SqlHistoryRepository(dbPath, logger);
+        var repo = new SqlHistoryRepository(RepositoryFactory.StoreFactoryFor(dataConfig), logger);
         repo.InitializeAsync().GetAwaiter().GetResult();
         return repo;
     }

@@ -33,6 +33,18 @@ namespace DraCode.KoboldLair.Data
         /// <summary>
         /// SQLite database file path. Relative to projects directory.
         /// </summary>
+        /// <summary>
+        /// The database every store uses (TASK-200): <c>SqLite</c> (the default), <c>PostgreSQL</c> or <c>MongoDB</c>, read
+        /// from <c>KoboldLair:Data:Provider</c>.
+        /// </summary>
+        public string? Provider { get; set; }
+
+        /// <summary>
+        /// Its connection string (<c>KoboldLair:Data:ConnectionString</c>): an Npgsql string, <c>mongodb://host:port/db</c>,
+        /// or a SQLite file; for SQLite without one, <see cref="SqLitePath"/> under <see cref="ProjectsPath"/>.
+        /// </summary>
+        public string? ConnectionString { get; set; }
+
         public string SqLitePath { get; set; } = "koboldlair.db";
 
         /// <summary>
@@ -82,9 +94,8 @@ namespace DraCode.KoboldLair.Data
         private static async Task<SqlProjectRepository> CreateSqlProjectRepositoryAsync(
             DataStorageConfig config, ILoggerFactory? loggerFactory)
         {
-            var dbPath = ResolveSqLitePath(config);
             var logger = loggerFactory?.CreateLogger<SqlProjectRepository>();
-            var repo = new SqlProjectRepository(dbPath, logger);
+            var repo = new SqlProjectRepository(StoreFactoryFor(config), logger);
             await repo.InitializeAsync();
             return repo;
         }
@@ -108,9 +119,8 @@ namespace DraCode.KoboldLair.Data
         private static async Task<SqlUserRepository> CreateSqlUserRepositoryAsync(
             DataStorageConfig config, ILoggerFactory? loggerFactory)
         {
-            var dbPath = ResolveSqLitePath(config);
             var logger = loggerFactory?.CreateLogger<SqlUserRepository>();
-            var repo = new SqlUserRepository(dbPath, logger);
+            var repo = new SqlUserRepository(StoreFactoryFor(config), logger);
             await repo.InitializeAsync();
             return repo;
         }
@@ -118,11 +128,30 @@ namespace DraCode.KoboldLair.Data
         private static async Task<SqlTaskRepository> CreateSqlTaskRepositoryAsync(
             DataStorageConfig config, ILoggerFactory? loggerFactory)
         {
-            var dbPath = ResolveSqLitePath(config);
             var logger = loggerFactory?.CreateLogger<SqlTaskRepository>();
-            var repo = new SqlTaskRepository(dbPath, logger);
+            var repo = new SqlTaskRepository(StoreFactoryFor(config), logger);
             await repo.InitializeAsync();
             return repo;
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Birko.Data.Stores.IStoreFactory> Factories =
+            new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The store factory for the configured database (TASK-200), one per database for the process: every store on it
+        /// shares it (a MongoDB factory holds its client). SQLite on <see cref="ResolveSqLitePath"/> when nothing names
+        /// another connection.
+        /// </summary>
+        public static Birko.Data.Stores.IStoreFactory StoreFactoryFor(DataStorageConfig config)
+        {
+            var backend = string.IsNullOrWhiteSpace(config.Provider) ? DataStores.DefaultBackend : config.Provider.Trim();
+            var connection = !string.IsNullOrWhiteSpace(config.ConnectionString)
+                ? config.ConnectionString
+                : backend.Equals(DataStores.DefaultBackend, StringComparison.OrdinalIgnoreCase)
+                    ? Path.GetFullPath(ResolveSqLitePath(config))
+                    : throw new InvalidOperationException(
+                        $"KoboldLair:Data:ConnectionString is required for the {backend} database.");
+            return Factories.GetOrAdd($"{backend.ToLowerInvariant()}|{connection}", _ => DataStores.Create(backend, connection));
         }
 
         public static string ResolveSqLitePath(DataStorageConfig config)

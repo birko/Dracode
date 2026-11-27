@@ -13,15 +13,20 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlTaskRepository : ITaskRepository
     {
-        private readonly AsyncSqLiteModelRepository<TaskEntity> _repository;
+        private readonly StoreRepository<TaskEntity> _repository;
         private readonly ILogger<SqlTaskRepository>? _logger;
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlTaskRepository(string dbPath, ILogger<SqlTaskRepository>? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
         {
-            _logger = logger;
-            _repository = new AsyncSqLiteModelRepository<TaskEntity>();
+        }
 
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlTaskRepository(Birko.Data.Stores.IStoreFactory factory, ILogger<SqlTaskRepository>? logger = null)
+        {
+            _repository = new StoreRepository<TaskEntity>(factory);
+            _logger = logger;
         }
 
         public async Task InitializeAsync()
@@ -40,8 +45,8 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         {
             try
             {
-                var connector = _repository.Connector
-                    ?? throw new InvalidOperationException("SqlTaskRepository has no SQLite connector after CreateSchemaAsync");
+                if (_repository.Connector is not { } connector)
+                    return; // a non-SQL backend has no fixed columns to repair (TASK-200)
                 foreach (var drift in connector.EnsureColumns(typeof(TaskEntity)))
                     _logger?.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, drift.Declared);
             }

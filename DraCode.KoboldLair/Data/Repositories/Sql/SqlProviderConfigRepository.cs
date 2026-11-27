@@ -5,27 +5,31 @@ using Microsoft.Extensions.Logging;
 namespace DraCode.KoboldLair.Data.Repositories.Sql
 {
     /// <summary>
-    /// SQLite-backed store for LLM provider configuration (TASK-073): providers, their switchable models,
-    /// and agent→provider/model assignments. Mirrors <see cref="SqlPlanRepository"/> (one wrapped
-    /// <see cref="AsyncSqLiteModelRepository{T}"/> per entity, all pointed at the shared DB file). API keys
+    /// Store for LLM provider configuration (TASK-073): providers, their switchable models, and agent→provider/model
+    /// assignments, one repository per entity on the configured backend (TASK-200). API keys
     /// are persisted only as ciphertext — encryption/decryption is the caller's concern
     /// (<c>ProviderConfigurationService</c> via <c>ProviderKeyCipher</c>); this layer never sees plaintext.
     /// </summary>
     public class SqlProviderConfigRepository
     {
-        private readonly AsyncSqLiteModelRepository<ProviderConfigEntity> _providers = new();
-        private readonly AsyncSqLiteModelRepository<ProviderModelEntity> _models = new();
-        private readonly AsyncSqLiteModelRepository<AgentProviderSettingEntity> _settings = new();
+        private readonly StoreRepository<ProviderConfigEntity> _providers;
+        private readonly StoreRepository<ProviderModelEntity> _models;
+        private readonly StoreRepository<AgentProviderSettingEntity> _settings;
         private readonly ILogger<SqlProviderConfigRepository>? _logger;
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlProviderConfigRepository(string dbPath, ILogger<SqlProviderConfigRepository>? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
+        {
+        }
+
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlProviderConfigRepository(Birko.Data.Stores.IStoreFactory factory, ILogger<SqlProviderConfigRepository>? logger = null)
         {
             _logger = logger;
-
-            var settings = SqliteDatabaseSettings.For(dbPath);
-            _providers.SetSettings(settings);
-            _models.SetSettings(settings);
-            _settings.SetSettings(settings);
+            _providers = new StoreRepository<ProviderConfigEntity>(factory);
+            _models = new StoreRepository<ProviderModelEntity>(factory);
+            _settings = new StoreRepository<AgentProviderSettingEntity>(factory);
         }
 
         public async Task InitializeAsync()
@@ -33,7 +37,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             await _providers.CreateSchemaAsync();
             await _models.CreateSchemaAsync();
             await _settings.CreateSchemaAsync();
-            _logger?.LogInformation("SQLite provider-config repository initialized");
+            _logger?.LogInformation("Provider-config repository initialized");
         }
 
         // ---- providers ---------------------------------------------------------------------------

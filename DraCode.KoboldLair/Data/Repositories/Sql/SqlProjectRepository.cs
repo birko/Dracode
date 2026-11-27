@@ -13,7 +13,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlProjectRepository : IProjectRepository
     {
-        private readonly AsyncSqLiteModelRepository<ProjectEntity> _repository;
+        private readonly StoreRepository<ProjectEntity> _repository;
         private readonly ILogger<SqlProjectRepository>? _logger;
 
         // In-memory cache for fast reads (synced with DB on writes)
@@ -21,13 +21,18 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         private List<Project> _cache = new();
         private bool _cacheLoaded = false;
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlProjectRepository(string dbPath, ILogger<SqlProjectRepository>? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
         {
-            _logger = logger;
-            _repository = new AsyncSqLiteModelRepository<ProjectEntity>();
+        }
 
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
-            _logger?.LogInformation("SQLite project repository initialized at: {Path}", dbPath);
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlProjectRepository(Birko.Data.Stores.IStoreFactory factory, ILogger<SqlProjectRepository>? logger = null)
+        {
+            _repository = new StoreRepository<ProjectEntity>(factory);
+            _logger = logger;
+            _logger?.LogInformation("Project repository on {Backend}", factory.Backend);
         }
 
         /// <summary>

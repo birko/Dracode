@@ -13,7 +13,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlHistoryRepository
     {
-        private readonly AsyncSqLiteModelRepository<DragonHistoryEntity> _repository;
+        private readonly StoreRepository<DragonHistoryEntity> _repository;
         private readonly ILogger<SqlHistoryRepository>? _logger;
         private readonly SemaphoreSlim _writeLock = new(1, 1);
 
@@ -24,12 +24,17 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             WriteIndented = false
         };
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlHistoryRepository(string dbPath, ILogger<SqlHistoryRepository>? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
         {
-            _logger = logger;
-            _repository = new AsyncSqLiteModelRepository<DragonHistoryEntity>();
+        }
 
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlHistoryRepository(Birko.Data.Stores.IStoreFactory factory, ILogger<SqlHistoryRepository>? logger = null)
+        {
+            _repository = new StoreRepository<DragonHistoryEntity>(factory);
+            _logger = logger;
         }
 
         public async Task InitializeAsync()
