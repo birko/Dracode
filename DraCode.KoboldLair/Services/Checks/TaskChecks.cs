@@ -18,7 +18,10 @@ namespace DraCode.KoboldLair.Services.Checks
     }
 
     /// <summary>What a checker is given: the finished task, the folder its work is in, and its project.</summary>
-    public sealed record TaskCheckInput(TaskRecord Task, string WorkspacePath, string ProjectId);
+    /// <param name="PlannedFiles">The files the task's plan meant to create or change (TASK-218); empty without a plan.</param>
+    /// <param name="Answers">What was answered for the task, one "question → answer" line each: part of what was asked.</param>
+    public sealed record TaskCheckInput(TaskRecord Task, string WorkspacePath, string ProjectId,
+        IReadOnlyList<string>? PlannedFiles = null, IReadOnlyList<string>? Answers = null);
 
     /// <summary>
     /// A check every finished task goes through before Done (TASK-217, FEATURE-078 D8, D10, D30): a purpose-built agent,

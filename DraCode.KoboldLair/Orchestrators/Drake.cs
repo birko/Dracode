@@ -3417,7 +3417,15 @@ namespace DraCode.KoboldLair.Orchestrators
             Services.Checks.TaskCheckReport report;
             try
             {
-                report = await TaskChecks.RunAsync(new Services.Checks.TaskCheckInput(task, workspace, _projectId ?? task.ProjectId ?? ""));
+                var projectId = _projectId ?? task.ProjectId ?? "";
+                var plan = _planService == null || projectId.Length == 0 ? null : await _planService.LoadPlanAsync(projectId, task.Id);
+                var planned = plan?.Steps.SelectMany(s => s.FilesToCreate.Concat(s.FilesToModify)).Distinct().ToList() ?? [];
+                var answers = _pendingDecisions == null ? [] : (await _pendingDecisions.GetResolvedForTaskAsync(task.Id))
+                    .Where(d => d.ResolutionKind == PendingDecisionResolution.Answered && !string.IsNullOrWhiteSpace(d.Resolution)
+                        && d.Source == PendingDecisionSource.AskHuman)
+                    .Select(d => $"{PendingDecisionNotification.QuestionText(d)} → {d.Resolution}")
+                    .ToList();
+                report = await TaskChecks.RunAsync(new Services.Checks.TaskCheckInput(task, workspace, projectId, planned, answers));
             }
             catch (Exception ex)
             {

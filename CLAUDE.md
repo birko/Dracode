@@ -202,7 +202,11 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     (`TaskFinding`: checker, kind, text, evidence) and reopen the task like an unmet promise (same `AcceptanceAttempts`
     and cap); a checker that throws goes to the review card as "could not run", never a pass. A checker is usually a
     `CheckerAgent`: a tool-less agent supplying its role, process, rules and the material it reads, answering
-    `{ "findings": [...] }` (a reply without that list throws). None is registered yet, so tasks are judged as before
+    `{ "findings": [...] }` (a reply without that list throws). Registered in `Program.cs`: the **intent checker**
+    (TASK-218, `IntentChecker`, cost 10, the Kobold model tracked as `intent-check`): did the task build what its
+    description asked — `missing`, `wrong` or `extra`, each quoting the requirement — read from the description, the
+    answers given for the task (`TaskCheckInput.Answers`) and the files it touched (its target paths, its plan's files,
+    what `git status` shows changed in the workspace; never outside it, capped at 12k chars a file and 48k in all)
   - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block.
     Each Drake gets its project's Wyvern when `DrakeFactory` creates it (`WyvernForProject`, set by `ProjectService`,
     which never changes the project's status; a new Wyvern reloads `analysis.json`), and loads `wyrm-recommendation.json`

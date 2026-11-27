@@ -61,17 +61,8 @@ namespace DraCode.KoboldLair.Services
             if (firstNote >= 0)
                 description = description[..firstNote];
             var clauses = Clauses(description);
-
-            // Target files: every path the description names outside its Exports clause
             var exportsClause = clauses.FirstOrDefault(c => IsExports(c.Label));
-            var pathText = exportsClause == null ? description : description.Remove(exportsClause.Start, exportsClause.Length);
-            var targets = PathToken().Matches(pathText)
-                .Select(m => Normalize(m.Groups[1].Value))
-                .Where(p => !FrameworkName().IsMatch(p))
-                // A path leaving the workspace is not the task's output to judge, and is never read
-                .Where(p => !p.Split('/').Contains(".."))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var targets = TargetPaths(description, clauses);
 
             var presentTargets = new List<string>();
             foreach (var target in targets)
@@ -172,6 +163,31 @@ namespace DraCode.KoboldLair.Services
         private sealed record Clause(string Label, string Text, int Start, int Length);
 
         /// <summary>Each labelled clause, running to the next label or the end.</summary>
+        /// <summary>
+        /// The files a task's description names as its targets: every path outside its Exports clause, relative, never
+        /// leaving the workspace (TASK-025; read by the intent checker too, TASK-218).
+        /// </summary>
+        public static IReadOnlyList<string> TargetPaths(string description)
+        {
+            var firstNote = description.IndexOf(ReopenNotePrefix, StringComparison.Ordinal);
+            if (firstNote >= 0)
+                description = description[..firstNote];
+            return TargetPaths(description, Clauses(description));
+        }
+
+        private static List<string> TargetPaths(string description, List<Clause> clauses)
+        {
+            var exportsClause = clauses.FirstOrDefault(c => IsExports(c.Label));
+            var pathText = exportsClause == null ? description : description.Remove(exportsClause.Start, exportsClause.Length);
+            return PathToken().Matches(pathText)
+                .Select(m => Normalize(m.Groups[1].Value))
+                .Where(p => !FrameworkName().IsMatch(p))
+                // A path leaving the workspace is not the task's output to judge, and is never read
+                .Where(p => !p.Split('/').Contains(".."))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         private static List<Clause> Clauses(string description)
         {
             var labels = ClauseLabel().Matches(description);
