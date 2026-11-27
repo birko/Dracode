@@ -332,6 +332,9 @@ namespace DraCode.KoboldLair.Orchestrators
                 return null;
             }
 
+            // An answer the person overturned while no Drake held the task: its plan is revised before the run (TASK-208)
+            await ReviseOverturnedPlansAsync(task);
+
             // Read before a Kobold exists: an unreadable answer holds the task, like the limit above
             var humanAnswers = await LoadHumanAnswersAsync(task.Id);
             if (humanAnswers == null)
@@ -2929,7 +2932,12 @@ namespace DraCode.KoboldLair.Orchestrators
                 decision.Resolution = outcome.Answer!.Answer;
                 decision.ResolutionKind = PendingDecisionResolution.Answered;
                 decision.ResolvedAt = DateTime.UtcNow;
+                // Recorded as the agent's, with its reason, and offered to the person to keep or overturn (TASK-208, D21)
+                decision.AnsweredBy = outcome.AnsweredBy;
+                decision.AnswerReason = outcome.Answer.Reason;
+                decision.AgentAnswer = outcome.Answer.Answer;
                 await _pendingDecisions.CreateAsync(decision);
+                RaiseDecisionCallback(_onDecisionRequired, decision);
                 await QuestionChain.DeliverAnswerAsync(chainQuestion, outcome.Path, decision.Resolution, outcome.AnsweredBy);
                 _logger?.LogInformation("ask_human for task {TaskId} answered by the {Level} level: {Reason}",
                     task.Id, outcome.AnsweredBy, outcome.Answer.Reason);
@@ -2969,6 +2977,76 @@ namespace DraCode.KoboldLair.Orchestrators
                     $"⚠ Kobold {koboldId} reached iteration limit - work incomplete ({plan.CompletedStepsCount}/{plan.Steps.Count} steps done)\n{details}");
             }
             return null;
+        }
+
+        /// <summary>
+        /// The person overturned an agent's answer to one of this Drake's tasks (TASK-208, FEATURE-078 D21): the task's
+        /// plan is revised through the WrongApproach route with their answer, finished steps kept. A task a Kobold is
+        /// running keeps running on its revised plan; any other task (Done included) reopens to the queue, and its Kobold
+        /// hears the person's answer as overriding the agent's. A parked task stays parked. False when this Drake does not
+        /// hold the task.
+        /// </summary>
+        public async Task<bool> ApplyOverturnAsync(PendingDecision decision)
+        {
+            var task = _taskTracker.GetTaskById(decision.TaskId);
+            if (task == null)
+                return false;
+
+            var running = _runCancellations.ContainsKey(task.Id);
+            if (!running && !IsTaskParked(task.Id) && task.Status != TaskStatus.Unassigned)
+            {
+                var previous = task.Status;
+                await UpdateTaskWithWalAsync(task, TaskStatus.Unassigned, task.AssignedAgent);
+                await SaveTasksToFileAsync();
+                PublishStatusChange(task, previous, $"A person overturned an agent's answer: {decision.Resolution}");
+            }
+            await RevisePlanForOverturnAsync(task, decision);
+            _logger?.LogInformation("Task {TaskId} reopened: a person overturned the {Level} level's answer to decision {DecisionId}",
+                task.Id[..Math.Min(8, task.Id.Length)], decision.AnsweredBy, decision.Id[..8]);
+            return true;
+        }
+
+        /// <summary>Revises the task's plan for each overturned answer not yet revised for (TASK-208).</summary>
+        private async Task ReviseOverturnedPlansAsync(TaskRecord task)
+        {
+            if (_pendingDecisions == null)
+                return;
+            try
+            {
+                foreach (var decision in await _pendingDecisions.GetOverturnedUnrevisedForTaskAsync(task.Id))
+                    await RevisePlanForOverturnAsync(task, decision);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Could not revise the plan of task {TaskId} for an overturned answer", task.Id);
+            }
+        }
+
+        private async Task RevisePlanForOverturnAsync(TaskRecord task, PendingDecision decision)
+        {
+            var question = PendingDecisionNotification.QuestionText(decision);
+            var alert = new EscalationAlert
+            {
+                ProjectId = _projectId ?? task.ProjectId ?? "",
+                TaskId = task.Id,
+                AgentType = task.AssignedAgent,
+                WorkerId = GetKoboldForTask(task.Id)?.Id.ToString() ?? "",
+                Type = EscalationType.WrongApproach,
+                Summary = $"A person overturned the answer to \"{question}\": it was \"{decision.AgentAnswer}\" " +
+                          $"({AgentAnswerReview.LevelName(decision.AnsweredBy ?? QuestionLevel.Person)}), it is now " +
+                          $"\"{decision.Resolution}\". Revise the remaining steps to follow the person's answer, and add " +
+                          "steps to redo finished work that relied on the old one."
+            };
+            try
+            {
+                await HandleEscalationAsync(alert, EscalationDisposition.AutoResolve);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Could not revise the plan of task {TaskId} for an overturned answer",
+                    task.Id[..Math.Min(8, task.Id.Length)]);
+            }
+            await _pendingDecisions!.MarkRevisedAsync(decision.Id, DateTime.UtcNow);
         }
 
         internal void CancelRun(string taskId)

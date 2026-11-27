@@ -438,10 +438,14 @@ namespace DraCode.KoboldLair.Factories
                 };
                 if (!outcome.ReachesPerson)
                 {
-                    // Answered on the way: stored answered, so the analysis re-runs with it and no card goes to the person
+                    // Answered on the way: stored answered, so the analysis re-runs with it; the person gets it for
+                    // information, to keep or overturn (TASK-208, D21)
                     decision.Resolution = outcome.Answer!.Answer;
                     decision.ResolutionKind = PendingDecisionResolution.Answered;
                     decision.ResolvedAt = DateTime.UtcNow;
+                    decision.AnsweredBy = outcome.AnsweredBy;
+                    decision.AnswerReason = outcome.Answer.Reason;
+                    decision.AgentAnswer = outcome.Answer.Answer;
                 }
                 await _pendingDecisions!.CreateAsync(decision);
                 asked.Add(decision);
@@ -449,7 +453,6 @@ namespace DraCode.KoboldLair.Factories
                 {
                     await Chain.DeliverAnswerAsync(new ChainQuestion(projectId, null, QuestionLevel.Overseer, question),
                         outcome.Path, decision.Resolution!, outcome.AnsweredBy);
-                    continue;
                 }
                 try
                 {
@@ -469,6 +472,111 @@ namespace DraCode.KoboldLair.Factories
         /// route for "Handle it automatically" and unparks the task. Returns what became of the answer, as
         /// <see cref="Drake.ResolvePendingDecisionAsync"/> does.
         /// </summary>
+        /// <summary>
+        /// Re-runs a project's analysis after the person overturned an answer to one of its questions (TASK-208): returns
+        /// null when the analysis was restarted (no task had started), else how many tasks had started (nothing redone).
+        /// Set by <c>ProjectService</c>; unset, the overturn is only recorded.
+        /// </summary>
+        public Func<string, Task<int?>>? ReanalyzeAfterOverturn { get; set; }
+
+        /// <summary>
+        /// The person keeps or overturns an answer an agent gave instead of them (TASK-208, FEATURE-078 D21): "Keep the
+        /// agent's answer" (or the agent's own answer) keeps it; any other answer its question accepts overturns it. An
+        /// overturn on a task reopens the task with its plan revised (<see cref="Drake.ApplyOverturnAsync"/>; with no
+        /// Drake holding it, the task is reopened in its file and its Drake revises the plan before the next run). An
+        /// overturn on the project re-runs the analysis when no task has started, else is recorded for every later run.
+        /// Either way the person's answer goes back down the path the question climbed, and the card is retired.
+        /// </summary>
+        public async Task<AgentAnswerReviewResult> ReviewAgentAnswerAsync(string projectId, string decisionId, string answer)
+        {
+            if (_pendingDecisions == null)
+                return AgentAnswerReviewResult.NotFound;
+            var decision = await _pendingDecisions.GetByIdAsync(decisionId);
+            if (decision == null || decision.ProjectId != projectId)
+                return AgentAnswerReviewResult.NotFound;
+            if (!decision.AwaitsReview)
+                return AgentAnswerReviewResult.AlreadyResolved;
+            if (!AgentAnswerReview.Read(decision, answer, out var keep, out var overturnWith))
+                return AgentAnswerReviewResult.InvalidAnswer;
+
+            var at = DateTime.UtcNow;
+            if (!await _pendingDecisions.ReviewAsync(decisionId, keep ? null : overturnWith, at))
+                return AgentAnswerReviewResult.AlreadyResolved;
+            decision = await _pendingDecisions.GetByIdAsync(decisionId) ?? decision;
+            RaiseResolved(projectId, decision);
+            if (keep)
+                return new AgentAnswerReviewResult(DecisionAnswerResult.Resolved, AgentAnswerReviewOutcome.Kept);
+
+            if (AskHumanQuestion.TryParse(decision) is { } question)
+            {
+                var task = decision.TaskId.Length == 0 ? null : decision.TaskId;
+                await Chain.DeliverAnswerAsync(new ChainQuestion(projectId, task, task == null ? QuestionLevel.Overseer : QuestionLevel.Worker, question),
+                    decision.Path, overturnWith, QuestionLevel.Person);
+            }
+
+            if (decision.TaskId.Length == 0)
+            {
+                var started = ReanalyzeAfterOverturn == null ? 0 : await ReanalyzeAfterOverturn(projectId);
+                return started == null
+                    ? new AgentAnswerReviewResult(DecisionAnswerResult.Resolved, AgentAnswerReviewOutcome.Reanalyzing)
+                    : new AgentAnswerReviewResult(DecisionAnswerResult.Resolved, AgentAnswerReviewOutcome.Recorded, started.Value);
+            }
+
+            foreach (var drake in GetDrakesByProject(projectId))
+            {
+                if (await drake.ApplyOverturnAsync(decision))
+                {
+                    ReopenFinishedProject(projectId);
+                    return new AgentAnswerReviewResult(DecisionAnswerResult.Resolved, AgentAnswerReviewOutcome.TaskReopened);
+                }
+            }
+            await ReopenTaskWithoutDrakeAsync(projectId, decision.TaskId);
+            ReopenFinishedProject(projectId);
+            return new AgentAnswerReviewResult(DecisionAnswerResult.Resolved, AgentAnswerReviewOutcome.TaskReopened);
+        }
+
+        /// <summary>
+        /// Reopens a task no Drake holds, in its file and the store (as a retry does); its Drake revises the plan when it
+        /// next summons a Kobold for it (TASK-208).
+        /// </summary>
+        private async Task ReopenTaskWithoutDrakeAsync(string projectId, string taskId)
+        {
+            var project = _projectRepository?.GetById(projectId);
+            foreach (var filePath in project?.Paths.TaskFiles.Values ?? Enumerable.Empty<string>())
+            {
+                var tracker = new TaskTracker();
+                tracker.LoadFromFile(filePath);
+                var task = tracker.GetTaskById(taskId);
+                if (task == null)
+                    continue;
+                if (task.Status is TaskStatus.Unassigned or TaskStatus.AwaitingHumanDecision)
+                    return;
+                tracker.Repository = _taskRepository;
+                tracker.ProjectId = projectId;
+                tracker.AreaName = ExtractAreaName(filePath);
+                tracker.UpdateTask(task, TaskStatus.Unassigned);
+                tracker.ClearError(task);
+                await tracker.SaveToFileAsync(filePath);
+                break;
+            }
+            if (_taskRepository != null && await _taskRepository.GetByIdAsync(taskId) is { } row
+                && row.Status is not (TaskStatus.Unassigned or TaskStatus.AwaitingHumanDecision))
+                await _taskRepository.SetStatusAsync(taskId, TaskStatus.Unassigned);
+        }
+
+        private void RaiseResolved(string projectId, PendingDecision decision)
+        {
+            try
+            {
+                var projectName = _projectRepository?.GetById(projectId)?.Name ?? projectId;
+                OnDecisionResolved?.Invoke(projectName, decision);
+            }
+            catch (Exception ex)
+            {
+                _loggerFactory?.CreateLogger<DrakeFactory>().LogWarning(ex, "Decision notification failed for {DecisionId}", decision.Id);
+            }
+        }
+
         public async Task<DecisionAnswerResult> ResolvePendingDecisionAsync(string projectId, string decisionId, string answer)
         {
             var result = await ResolveAnswerAsync(projectId, decisionId, answer);

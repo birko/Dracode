@@ -47,7 +47,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         public async Task InitializeAsync()
         {
             await _repository.CreateSchemaAsync();
-            // CreateSchemaAsync never alters an existing table: add the columns it lacks (PathJson, TASK-201)
+            // CreateSchemaAsync never alters an existing table: add the columns it lacks (PathJson, TASK-201; review, TASK-208)
             try
             {
                 if (_repository.Connector is not { } connector)
@@ -82,6 +82,11 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 ResolutionKind = decision.ResolutionKind is { } k ? (int)k : null,
                 ResolvedAt = decision.ResolvedAt,
                 PathJson = decision.Path.Count == 0 ? null : JsonSerializer.Serialize(decision.Path.Select(l => (int)l)),
+                AnsweredBy = decision.AnsweredBy is { } by ? (int)by : null,
+                AnswerReason = decision.AnswerReason,
+                AgentAnswer = decision.AgentAnswer,
+                ReviewedAt = decision.ReviewedAt,
+                RevisedAt = decision.RevisedAt,
                 CreatedAt = now,
                 UpdatedAt = now
             });
@@ -150,6 +155,80 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 filter: e => e.ProjectId == projectId && e.TaskId == "" && e.CreatedAt >= since,
                 orderBy: null, limit: null, offset: null);
             return entities.Select(ToModel).OrderBy(d => d.CreatedAt).ToList();
+        }
+
+        /// <summary>
+        /// The project's answers an agent gave that the person has not yet kept or overturned (TASK-208), oldest first.
+        /// </summary>
+        public async Task<List<PendingDecision>> GetAwaitingReviewForProjectAsync(string projectId)
+        {
+            var answered = (int)PendingDecisionResolution.Answered;
+            var person = (int)QuestionLevel.Person;
+            var entities = await _repository.ReadAsync(
+                filter: e => e.ProjectId == projectId && e.ResolutionKind == answered && e.AnsweredBy != null
+                    && e.AnsweredBy != person && e.ReviewedAt == null,
+                orderBy: null, limit: null, offset: null);
+            return entities.Select(ToModel).OrderBy(d => d.CreatedAt).ToList();
+        }
+
+        /// <summary>
+        /// The person keeps (<paramref name="overturnedWith"/> null) or overturns an agent's answer, once (TASK-208). An
+        /// overturn stores their answer as the resolution, keeps the agent's in <c>AgentAnswer</c>, and dates the
+        /// resolution now, so the task hears it last. False when the decision is unknown or not awaiting review.
+        /// </summary>
+        public async Task<bool> ReviewAsync(string decisionId, string? overturnedWith, DateTime at)
+        {
+            await _resolveLock.WaitAsync();
+            try
+            {
+                var entity = await _repository.ReadAsync(e => e.DecisionId == decisionId, CancellationToken.None);
+                if (entity is null || !ToModel(entity).AwaitsReview)
+                    return false;
+
+                entity.ReviewedAt = AsUtc(at);
+                entity.AgentAnswer ??= entity.Resolution;
+                if (overturnedWith != null)
+                {
+                    entity.Resolution = overturnedWith;
+                    entity.ResolvedAt = AsUtc(at);
+                }
+                entity.UpdatedAt = DateTime.UtcNow;
+                await _repository.UpdateAsync(entity);
+                return true;
+            }
+            finally
+            {
+                _resolveLock.Release();
+            }
+        }
+
+        /// <summary>The task's overturned answers whose plan revision has not run yet, oldest first (TASK-208).</summary>
+        public async Task<List<PendingDecision>> GetOverturnedUnrevisedForTaskAsync(string taskId)
+        {
+            var entities = await _repository.ReadAsync(
+                filter: e => e.TaskId == taskId && e.ReviewedAt != null && e.AgentAnswer != null && e.RevisedAt == null,
+                orderBy: null, limit: null, offset: null);
+            return entities.Select(ToModel).Where(d => d.IsOverturned).OrderBy(d => d.ResolvedAt).ToList();
+        }
+
+        /// <summary>Records that the plan revision after an overturn ran. False when the decision is unknown.</summary>
+        public async Task<bool> MarkRevisedAsync(string decisionId, DateTime at)
+        {
+            await _resolveLock.WaitAsync();
+            try
+            {
+                var entity = await _repository.ReadAsync(e => e.DecisionId == decisionId, CancellationToken.None);
+                if (entity is null)
+                    return false;
+                entity.RevisedAt = AsUtc(at);
+                entity.UpdatedAt = DateTime.UtcNow;
+                await _repository.UpdateAsync(entity);
+                return true;
+            }
+            finally
+            {
+                _resolveLock.Release();
+            }
         }
 
         public async Task<List<PendingDecision>> GetExpiredAsync(DateTime now)
@@ -253,7 +332,12 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
                 Resolution = e.Resolution,
                 ResolutionKind = e.ResolutionKind is { } k ? (PendingDecisionResolution)k : null,
                 ResolvedAt = e.ResolvedAt is { } r ? DateTime.SpecifyKind(r, DateTimeKind.Utc) : null,
-                Path = ReadPath(e)
+                Path = ReadPath(e),
+                AnsweredBy = e.AnsweredBy is { } by ? (QuestionLevel)by : null,
+                AnswerReason = e.AnswerReason,
+                AgentAnswer = e.AgentAnswer,
+                ReviewedAt = e.ReviewedAt is { } rv ? DateTime.SpecifyKind(rv, DateTimeKind.Utc) : null,
+                RevisedAt = e.RevisedAt is { } rs ? DateTime.SpecifyKind(rs, DateTimeKind.Utc) : null
             };
         }
     }

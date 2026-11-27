@@ -39,6 +39,31 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// went through the chain (an escalation, an approval, or one stored before the chain).
         /// </summary>
         public List<QuestionLevel> Path { get; set; } = new();
+
+        /// <summary>
+        /// The agent level that answered instead of the person (TASK-208, FEATURE-078 D21): Supervisor (Drake), Overseer
+        /// (Wyvern) or Dragon. Null for a decision a person answered or that is still open.
+        /// </summary>
+        public QuestionLevel? AnsweredBy { get; set; }
+
+        /// <summary>Why the agent answered as it did: the line it quoted from its sources.</summary>
+        public string? AnswerReason { get; set; }
+
+        /// <summary>The agent's own answer, kept when the person overturns it (<see cref="Resolution"/> is then theirs).</summary>
+        public string? AgentAnswer { get; set; }
+
+        /// <summary>When the person kept or overturned the agent's answer; until then it is offered to them.</summary>
+        public DateTime? ReviewedAt { get; set; }
+
+        /// <summary>When the task's plan was revised after an overturn; null until then (the task's Drake does it).</summary>
+        public DateTime? RevisedAt { get; set; }
+
+        /// <summary>An agent answered and the person has not yet kept or overturned it: offered as a card and in Needs you.</summary>
+        public bool AwaitsReview => AnsweredBy is { } level && level != QuestionLevel.Person
+            && ResolutionKind == PendingDecisionResolution.Answered && ReviewedAt is null;
+
+        /// <summary>The person replaced the agent's answer with their own.</summary>
+        public bool IsOverturned => AgentAnswer is not null && ReviewedAt is not null && Resolution != AgentAnswer;
     }
 
     // Stored as numbers on the pending decision, so the values are pinned. Never renumber.

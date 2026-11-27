@@ -109,7 +109,7 @@ public class AskHumanChainTests : IAsyncLifetime
         outcome.Answer.Should().Be("SQLite");
         outcome.AnsweredBy.Should().Be(QuestionLevel.Overseer);
         task.Status.Should().Be(TaskStatus.Working, "no person is waited on");
-        _cards.Should().BeEmpty();
+        _cards.Should().ContainSingle(c => c.AwaitsReview, "the person gets the agent's answer for information only (TASK-208)");
         (await _decisions.GetUnresolvedForTaskAsync(task.Id)).Should().BeNull();
         var recorded = await _decisions.GetByIdAsync(outcome.DecisionId!);
         recorded!.Resolution.Should().Be("SQLite");

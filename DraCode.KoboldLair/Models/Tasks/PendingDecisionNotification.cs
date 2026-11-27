@@ -22,6 +22,8 @@ namespace DraCode.KoboldLair.Models.Tasks
         public const string ResponseSchema = "responseSchema";
         public const string ResolutionKind = "resolutionKind";
         public const string Context = "context";
+        /// <summary>On an agent's answer offered for review (TASK-208): the level that answered.</summary>
+        public const string AnsweredBy = "answeredBy";
 
         /// <summary>The answer that hands an escalation back to its automatic route, as a timeout would.</summary>
         public const string HandleAutomatically = "Handle it automatically";
@@ -30,19 +32,31 @@ namespace DraCode.KoboldLair.Models.Tasks
 
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-        public static Dictionary<string, string> ToMetadata(PendingDecision decision) => new()
+        public static Dictionary<string, string> ToMetadata(PendingDecision decision)
         {
-            [RequiresResponse] = "true",
-            [DecisionId] = decision.Id,
-            [TaskId] = decision.TaskId,
-            [Source] = decision.Source.ToString(),
-            [Disposition] = decision.Disposition.ToString(),
-            [Question] = QuestionText(decision),
-            [Context] = AskHumanQuestion.TryParse(decision)?.Context ?? "",
-            [EscalationType] = decision.Escalation?.Type.ToString() ?? "",
-            [TimeoutAt] = decision.TimeoutAt?.ToString("O") ?? "",
-            [ResponseSchema] = ResponseSchemaFor(decision)
-        };
+            var metadata = new Dictionary<string, string>
+            {
+                [RequiresResponse] = "true",
+                [DecisionId] = decision.Id,
+                [TaskId] = decision.TaskId,
+                [Source] = decision.Source.ToString(),
+                [Disposition] = decision.Disposition.ToString(),
+                [Question] = QuestionText(decision),
+                [Context] = AskHumanQuestion.TryParse(decision)?.Context ?? "",
+                [EscalationType] = decision.Escalation?.Type.ToString() ?? "",
+                [TimeoutAt] = decision.TimeoutAt?.ToString("O") ?? "",
+                [ResponseSchema] = ResponseSchemaFor(decision)
+            };
+            // An agent's answer is offered for review: the card says who answered and offers Keep first (TASK-208)
+            if (decision.AwaitsReview && AgentAnswerReview.Question(decision) is { } review)
+            {
+                metadata[Context] = review.Context ?? "";
+                metadata[ResponseSchema] = JsonSerializer.Serialize(
+                    new ResponseSchemaShape("choice", review.Options, review.AllowFreeText), JsonOptions);
+                metadata[AnsweredBy] = decision.AnsweredBy!.Value.ToString();
+            }
+            return metadata;
+        }
 
         public static Dictionary<string, string> ToResolvedMetadata(PendingDecision decision) => new()
         {

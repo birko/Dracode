@@ -1,14 +1,14 @@
 /**
  * What waits on the user (TASK-147, FEATURE-026 D10), for the homepage's "Needs you" list and the header's pill:
  * `GET /api/v1/needs-you` (`scope=all`, which only an admin's token widens) — open decisions, failed and blocked tasks,
- * feature branches ready to merge. Like the bell's store it polls while something listens and the page is visible,
+ * feature branches ready to merge, and answers an agent gave for the user to keep or overturn (TASK-208). Like the bell's store it polls while something listens and the page is visible,
  * and once more on return; an answered decision card asks for a refresh at once.
  */
 
 import { createRestClient } from '../services/http.js';
 import { authStore, getToken } from '../auth-store.js';
 
-export type NeedsYouKind = 'decision' | 'failed_task' | 'blocked_task' | 'merge_ready';
+export type NeedsYouKind = 'decision' | 'failed_task' | 'blocked_task' | 'merge_ready' | 'agent_answer';
 
 export interface NeedsYouItem {
   id: string;

@@ -694,7 +694,8 @@ builder.Services.AddSingleton<DragonService>(sp =>
     var costTracker = sp.GetService<CostTrackingService>();
     var rateLimiter = sp.GetService<ProviderRateLimiter>();
     // The person's side of pending decisions: answered over /dragon and by Warden's tool (TASK-024)
-    var decisionDesk = new DecisionDesk(sp.GetService<SqlPendingDecisionRepository>(), drakeFactory.ResolvePendingDecisionAsync);
+    var decisionDesk = new DecisionDesk(sp.GetService<SqlPendingDecisionRepository>(), drakeFactory.ResolvePendingDecisionAsync,
+        drakeFactory.ReviewAgentAnswerAsync);
     return new DragonService(logger, providerConfigService, projectService, projectRepository, gitService, config, koboldFactory, drakeFactory, planService, maxConcurrent, notificationService, historyRepository, specEventService, userRepository, costTracker, rateLimiter, decisionDesk);
 });
 

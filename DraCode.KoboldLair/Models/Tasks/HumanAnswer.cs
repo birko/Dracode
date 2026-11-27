@@ -15,7 +15,9 @@ namespace DraCode.KoboldLair.Models.Tasks
         string? Answer,
         bool TimedOut,
         string? AutomaticOutcome,
-        string? FromTask = null)
+        string? FromTask = null,
+        QuestionLevel? AnsweredBy = null,
+        string? AgentAnswer = null)
     {
         public string Tag => TagFor(DecisionId);
 
@@ -33,8 +35,13 @@ namespace DraCode.KoboldLair.Models.Tasks
                 timedOut ? null : decision.Resolution,
                 timedOut,
                 decision.Escalation?.Resolution,
-                fromTask);
+                fromTask,
+                decision.AnsweredBy,
+                decision.IsOverturned ? decision.AgentAnswer : null);
         }
+
+        /// <summary>An agent's answer the person has not overturned (TASK-208): words an agent wrote, not a person.</summary>
+        private bool IsAgentsAnswer => AnsweredBy is { } level && level != QuestionLevel.Person && AgentAnswer is null;
 
         /// <summary>
         /// Whether a resolved decision carries words a person wrote, and so is passed on to the tasks that depend on the
@@ -44,6 +51,9 @@ namespace DraCode.KoboldLair.Models.Tasks
         public static bool CarriesPersonsWords(PendingDecision decision)
         {
             if (decision.ResolutionKind != PendingDecisionResolution.Answered || string.IsNullOrWhiteSpace(decision.Resolution))
+                return false;
+            // An agent's answer is not a person's words, until the person overturns it (TASK-208)
+            if (decision.AnsweredBy is { } level && level != QuestionLevel.Person && !decision.IsOverturned)
                 return false;
             return decision.Source switch
             {
@@ -68,7 +78,13 @@ namespace DraCode.KoboldLair.Models.Tasks
                     return TimedOut
                         ? $"Nobody answered your ask_human question \"{Question}\" — no answer, timed out. " +
                           "Decide yourself, record the assumption with reflect, and continue."
-                        : $"A person answered your ask_human question \"{Question}\". Their answer: {Answer}";
+                        : AgentAnswer != null
+                            ? $"A person overturned the answer {AgentAnswerReview.LevelName(AnsweredBy!.Value)} gave to your " +
+                              $"ask_human question \"{Question}\" (\"{AgentAnswer}\"). Their answer: {Answer}. Work from theirs, " +
+                              "and check what you already did against it."
+                            : IsAgentsAnswer
+                                ? $"{AgentAnswerReview.LevelName(AnsweredBy!.Value)} answered your ask_human question \"{Question}\": {Answer}"
+                                : $"A person answered your ask_human question \"{Question}\". Their answer: {Answer}";
 
                 case PendingDecisionSource.Escalation when EscalationType != null:
                     var escalation = string.IsNullOrWhiteSpace(EscalationSummary)

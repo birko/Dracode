@@ -315,7 +315,7 @@ public class WyvernQuestionsTests : IAsyncLifetime
 
         await projects.AnalyzeProjectAsync(id);
 
-        _cards.Should().BeEmpty("no question reached the person");
+        _cards.Should().OnlyContain(c => c.AwaitsReview, "no question reached the person; only the agent's answer is shown for information (TASK-208)");
         (await decisions.GetUnresolvedForProjectAsync(id)).Should().BeEmpty();
         (await projects.AnalysisWaitsOnPersonAsync(id)).Should().BeFalse();
         var answered = (await decisions.GetProjectLevelAsync(id, DateTime.MinValue)).Single();

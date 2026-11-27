@@ -100,7 +100,18 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     to its context (`IQuestionLevel.NoteForPerson`, `ChainOutcome.PersonNote`). The person's answer to such a question
     comes back down to Dragon's level, which writes it into the specification (TASK-207,
     `SpecificationService.AppendDefinitionAsync`: "- question — answer" under "## Definitions", saved as a new version;
-    no re-analysis is triggered, running Kobolds see the version change)
+    no re-analysis is triggered, running Kobolds see the version change). **Agent answers are the person's to review**
+    (TASK-208, D21): a decision an agent answered stores `AnsweredBy`, `AnswerReason` (its quote) and `AgentAnswer`, and
+    is offered as a `decision_required` card (`AwaitsReview`; metadata `answeredBy`, "Keep the agent's answer" first,
+    then the question's options) on every connect and in Needs you (`agent_answer`) until the person keeps or overturns
+    it with `answer_decision` (`DecisionDesk` → `DrakeFactory.ReviewAgentAnswerAsync`). It never holds the task. An
+    overturn stores the person's answer as the resolution (the agent's kept) and sends it down the path; on a task, the
+    task reopens (a running one keeps running) and its plan is revised through the WrongApproach route
+    (`Drake.ApplyOverturnAsync`; with no Drake holding it, the task is reopened in its file and its Drake revises before
+    the next run, `RevisedAt`), and the Kobold hears that a person overturned the agent's answer; on the project,
+    `ProjectService.ReanalyzeAfterOverturnAsync` re-runs the analysis only while every task is Unassigned, else it is
+    recorded and the reply says how many tasks had started. An unreviewed agent answer is not passed to dependent tasks
+    as a person's words
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
