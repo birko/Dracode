@@ -1,6 +1,6 @@
 ---
 id: FEATURE-078
-generated: 2026-11-27 22:00
+generated: 2026-11-27 23:30
 ---
 
 # Project lifecycle discipline inside the KoboldLair pipeline — Status
@@ -21,7 +21,7 @@ generated: 2026-11-27 22:00
 
 ## Build progress
 
-14 / 25 tasks done.
+15 / 25 tasks done.
 
 - TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — done
 - TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — done
@@ -43,7 +43,7 @@ generated: 2026-11-27 22:00
 - TASK-217 The acceptance check runs checker agents on every task, cheapest first — done
 - TASK-218 A checker confirms a task built what was asked — done
 - TASK-219 A checker confirms a task follows the project's conventions — todo
-- TASK-220 A checker finds stale or redundant comments — todo
+- TASK-220 A checker finds stale or redundant comments — done
 - TASK-221 A checker looks for correctness problems — done
 - TASK-222 Checker findings go back to the worker, twice at most, then escalate — done
 - TASK-223 Repeated failures and monitor alerts become tracked fix tasks, worked by impact — todo

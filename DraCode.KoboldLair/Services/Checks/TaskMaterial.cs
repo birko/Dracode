@@ -61,6 +61,24 @@ namespace DraCode.KoboldLair.Services.Checks
         }
 
         /// <summary>
+        /// The task's change as a checker of code reads it (TASK-221, TASK-220): git's diff of its edits, then the files
+        /// it touched in full.
+        /// </summary>
+        public static async Task<string> ChangeAsync(TaskCheckInput input, CancellationToken cancellationToken = default)
+        {
+            var text = new StringBuilder();
+            text.AppendLine("### What the task changed in files that existed before (git diff)");
+            var diff = await DiffAsync(input.WorkspacePath, cancellationToken);
+            if (diff == null)
+                text.AppendLine("(no diff: the task's files are new, or the workspace is not under git; read the files below)");
+            else
+                text.AppendLine("```diff").AppendLine(diff).AppendLine("```");
+
+            await AppendFilesAsync(text, input, cancellationToken);
+            return text.ToString();
+        }
+
+        /// <summary>
         /// Git's diff of the workspace's uncommitted changes to files it already tracked (the task's edits), capped; null
         /// outside git or when there are none (new files show in full among the touched files).
         /// </summary>

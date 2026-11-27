@@ -130,7 +130,8 @@ public class IntentCheckerTests : IDisposable
 
         findings.Select(f => (f.Checker, f.Kind)).Should().Equal(("intent", "missing"), ("intent", "wrong"), ("intent", "extra"));
         findings[0].Evidence.Should().Contain("prints three dishes with their prices in EUR");
-        model.SystemPrompt.Should().Contain("the intent checker").And.Contain("\"missing\"").And.Contain("\"extra\"").And.Contain("\"wrong\"");
+        model.SystemPrompt.Should().Contain("the intent checker").And.Contain("\"missing\"").And.Contain("\"extra\"").And.Contain("\"wrong\"")
+            .And.Contain("Comments are not behaviour", "the comment checker judges comments (TASK-220)");
         model.Message.Should().Contain(Task).And.Contain("print('Soup 3')");
     }
 
