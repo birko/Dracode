@@ -31,6 +31,42 @@ namespace DraCode.KoboldLair.Models.Tasks
             return text.Trim();
         }
 
+        /// <summary>
+        /// Whether a review card is an escalation (TASK-222, FEATURE-078 D9, D29): a task whose checks failed past the
+        /// reopen limit. It carries the findings on its escalation and also offers "Handle it automatically".
+        /// </summary>
+        public static bool IsEscalation(PendingDecision decision) =>
+            decision.Source == PendingDecisionSource.Approval && decision.Escalation != null;
+
+        /// <summary>
+        /// The escalation card's question: the task, the findings of each earlier attempt (its reopen notes) and of this
+        /// one, and the three answers.
+        /// </summary>
+        public static string EscalationQuestion(TaskRecord task, IReadOnlyList<string> findings)
+        {
+            var text = new StringBuilder();
+            var notes = task.Task.Split(TaskAcceptanceService.ReopenNotePrefix);
+            var title = notes[0].Split('\n')[0];
+            text.Append($"The task \"{(title.Length > 160 ? title[..160] + "…" : title)}\" failed its checks ");
+            text.Append($"{task.AcceptanceAttempts + 1} times and is no longer sent back on its own.");
+            if (notes.Length > 1)
+            {
+                text.Append("\nEarlier attempts:");
+                foreach (var note in notes.Skip(1).Select(n => n.Trim()))
+                {
+                    // A note reads " 1): findings" after the split; shown as "attempt 1: findings"
+                    var close = note.IndexOf("):", StringComparison.Ordinal);
+                    text.Append($"\n- attempt {(close > 0 ? note[..close] + ":" + note[(close + 2)..] : note)}");
+                }
+            }
+            text.Append("\nThis time:");
+            foreach (var finding in findings)
+                text.Append($"\n- {finding}");
+            text.Append($"\nAnswer {Approve} to accept it as it is, write a note to send it back once more with it, or " +
+                $"\"{PendingDecisionNotification.HandleAutomatically}\" to fail it and file a fix task.");
+            return text.ToString();
+        }
+
         /// <summary>The card's question: the task, what was checked, and what a person must judge.</summary>
         public static string Question(TaskRecord task, AcceptanceResult result)
         {

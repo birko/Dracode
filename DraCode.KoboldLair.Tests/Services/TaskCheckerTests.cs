@@ -164,6 +164,27 @@ public class TaskCheckerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async System.Threading.Tasks.Task A_task_failing_a_check_a_third_time_escalates_to_a_person_with_its_findings()
+    {
+        var checker = new StubChecker("intent", 1,
+            new TaskFinding("intent", "missing", "greet() ignores the empty name", "\"handles an empty name\""));
+        var (drake, _, task) = Finishing(checker);
+        KeepsItsPromises();
+
+        for (var run = 1; run <= 3; run++)
+        {
+            if (run > 1)
+                task.Status = TaskStatus.Working;
+            await drake.SyncTaskFromKoboldAsync(Finished(task));
+        }
+
+        task.Status.Should().Be(TaskStatus.AwaitingHumanDecision);
+        task.AcceptanceAttempts.Should().Be(2);
+        PendingDecisionNotification.QuestionText((await _decisions.GetUnresolvedForTaskAsync(task.Id))!)
+            .Should().Contain("failed its checks 3 times").And.Contain("[intent] missing: greet() ignores the empty name");
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task A_checker_is_given_what_was_answered_for_the_task_as_part_of_what_was_asked()
     {
         var checker = new StubChecker("intent", 1);
