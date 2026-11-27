@@ -12,17 +12,22 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlUserRepository : IUserRepository
     {
-        private readonly AsyncSqLiteModelRepository<UserEntity> _repository;
+        private readonly StoreRepository<UserEntity> _repository;
         private readonly ILogger<SqlUserRepository>? _logger;
         private readonly SemaphoreSlim _writeLock = new(1, 1);
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlUserRepository(string dbPath, ILogger<SqlUserRepository>? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
         {
-            _logger = logger;
-            _repository = new AsyncSqLiteModelRepository<UserEntity>();
+        }
 
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
-            _logger?.LogInformation("SQLite user repository initialized at: {Path}", dbPath);
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlUserRepository(Birko.Data.Stores.IStoreFactory factory, ILogger<SqlUserRepository>? logger = null)
+        {
+            _repository = new StoreRepository<UserEntity>(factory);
+            _logger = logger;
+            _logger?.LogInformation("User repository on {Backend}", factory.Backend);
         }
 
         /// <summary>Ensures the database schema is created. Must be called once at startup.</summary>

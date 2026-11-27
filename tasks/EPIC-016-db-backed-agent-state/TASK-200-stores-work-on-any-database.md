@@ -3,7 +3,7 @@ id: TASK-200
 parent: EPIC-016
 feature: null
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 priority: P2
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
 assignee: agent
@@ -14,7 +14,7 @@ blocks: [TASK-227, TASK-228, TASK-229]
 # findings: ids this task remediates — from a review/audit/harvest/drill pass, or from ordinary
 # field use with no pass behind it at all. Prefixes: see /tasks intake
 findings: []
-pr: null
+pr: 82
 github-issue: null
 jira-key: null
 ---
@@ -44,13 +44,13 @@ has to work whichever database is configured.
 
 Split on 2026-11-26 (the owner): this task is the first of four slices; TASK-227, TASK-228 and TASK-229 are the rest.
 
-- [ ] One database setting (`KoboldLair:Data:Provider` and `KoboldLair:Data:ConnectionString`) builds one Birko
+- [x] One database setting (`KoboldLair:Data:Provider` and `KoboldLair:Data:ConnectionString`) builds one Birko
       `IStoreFactory` (TASK-990's unified factory); SQLite, with today's file under `ProjectsPath`, when none is given
-- [ ] Every `Sql*Repository` (projects, tasks, users, plans, pending decisions, Dragon history, usage, budgets, layouts,
+- [x] Every `Sql*Repository` (projects, tasks, users, plans, pending decisions, Dragon history, usage, budgets, layouts,
       provider config) gets its store from that factory; none builds a SQLite store or settings itself
-- [ ] What only an SQL database has is used behind a capability check: column repair (`EnsureColumns`) only on SQL
+- [x] What only an SQL database has is used behind a capability check: column repair (`EnsureColumns`) only on SQL
       backends, aggregation through `IAsyncAggregatableStore`; on SQLite nothing changes (WAL, `SqliteJournalModeTests`)
-- [ ] The full suite passes on SQLite as today
+- [x] The full suite passes on SQLite as today
 
 ## Out of scope
 
@@ -87,4 +87,25 @@ Split on 2026-11-26 (the owner): this task is the first of four slices; TASK-227
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-200` — once Birko's provider-neutral store factory is filed and its shape is known._
+Planned at pick (2026-11-26), on Birko TASK-990's unified `IStoreFactory`:
+
+1. `DraCode.Birko` imports Birko.Data.SQL.PostgreSQL and Birko.Data.MongoDB (their drivers come with them).
+2. `DataStores` (`Data/DataStores.cs`) builds a factory from a backend name and a connection string (SqLite, PostgreSQL,
+   MongoDB, InMemory); `StoreRepository<T>` is Birko's `AsyncStoreRepository<T>` plus schema creation through the factory
+   (`ISchemaStoreFactory`), the SQL connector (null off SQL) and the store.
+3. Every `Sql*Repository` holds `StoreRepository<T>`s from a factory constructor, keeping a `dbPath` one for SQLite;
+   column repair returns when there is no connector; the usage totals aggregate through `IAsyncAggregatableStore` and fall
+   back to Birko's `AggregateHelper` in memory; the decision store's resolve lock is keyed by backend and settings id.
+4. `DataStorageConfig.Provider` / `ConnectionString`; `RepositoryFactory.StoreFactoryFor` caches one factory per
+   database; the server builds every repository from it.
+
+## Notes
+
+- Tests: `StoreFactoryTests` (3) — the SQLite default and one factory per database; a missing connection string and an
+  unknown backend refused; repositories on the in-memory backend (no schema, no SQL connector) still initialize, read and
+  write, and the usage totals come out. Red only as compile failures (new API). Full .NET suite 702 passed; the WAL tests
+  pass through the factory. No client change.
+- The in-memory fallback for aggregation is not exercised (Birko's in-memory store aggregates itself).
+- **Live check** (throwaway server on the existing `projects193` database): 12 projects listed, the stats, a layout saved
+  and read back, a project's cost by provider; no errors; the log says "Project repository on SqLite".
+- Still on SQLite directly: the OAuth stores, `ServiceKeyRegistry`, `OAuthClientNames` and the event store (TASK-228).

@@ -482,6 +482,17 @@ provider-config.json                  # Provider configuration
 user-settings.json                    # User runtime settings (agent providers)
 ```
 
+### Which database (TASK-200)
+
+Every repository gets its store from one Birko `IStoreFactory` (TASK-990's unified factory), built by
+`RepositoryFactory.StoreFactoryFor(DataStorageConfig)` — one per database for the process — from
+`KoboldLair:Data:Provider` (`SqLite`, the default; `PostgreSQL`; `MongoDB`; `InMemory` for tests) and
+`KoboldLair:Data:ConnectionString` (an Npgsql string, `mongodb://host:port/db`, or a SQLite file; for SQLite without one,
+`SqLitePath` under `ProjectsPath` as before). Repositories hold a `StoreRepository<T>` (`Data/DataStores.cs`); what only SQL
+has runs behind a check: column repair only where there is a SQL connector, aggregation through `IAsyncAggregatableStore`
+(else in memory). Each `Sql*Repository` keeps a `dbPath` constructor for SQLite. Still on SQLite directly until TASK-228:
+the OAuth stores, the service-key registry and the event store; the JSON backend goes in TASK-227.
+
 ### SQLite Database Runs in WAL (TASK-177)
 
 Every store opens `{KoboldLair:ProjectsPath}/{Data:SqLitePath}`: `DataStorageConfig.ProjectsPath` is set from

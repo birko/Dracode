@@ -14,7 +14,7 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
     /// </summary>
     public class SqlPendingDecisionRepository
     {
-        private readonly AsyncSqLiteModelRepository<PendingDecisionEntity> _repository;
+        private readonly StoreRepository<PendingDecisionEntity> _repository;
         private readonly ILogger<SqlPendingDecisionRepository>? _logger;
         private readonly SemaphoreSlim _resolveLock;
 
@@ -29,13 +29,19 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             WriteIndented = false
         };
 
+        /// <summary>On the SQLite file at <paramref name="dbPath"/> (tests, and the default database).</summary>
         public SqlPendingDecisionRepository(string dbPath, ILogger<SqlPendingDecisionRepository>? logger = null)
+            : this(DataStores.SqLite(dbPath), logger)
         {
-            _logger = logger;
-            _repository = new AsyncSqLiteModelRepository<PendingDecisionEntity>();
+        }
 
-            _repository.SetSettings(SqliteDatabaseSettings.For(dbPath));
-            _resolveLock = ResolveLocks.GetOrAdd(Path.GetFullPath(dbPath), _ => new SemaphoreSlim(1, 1));
+        /// <summary>On the configured backend (TASK-200).</summary>
+        public SqlPendingDecisionRepository(Birko.Data.Stores.IStoreFactory factory, ILogger<SqlPendingDecisionRepository>? logger = null)
+        {
+            _repository = new StoreRepository<PendingDecisionEntity>(factory);
+            _logger = logger;
+            // One database, one lock: the backend and its settings name it (one SQLite file, one PostgreSQL database)
+            _resolveLock = ResolveLocks.GetOrAdd($"{factory.Backend}:{factory.Settings.GetId()}", _ => new SemaphoreSlim(1, 1));
         }
 
         public async Task InitializeAsync()
@@ -44,8 +50,8 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
             // CreateSchemaAsync never alters an existing table: add the columns it lacks (PathJson, TASK-201)
             try
             {
-                var connector = _repository.Connector
-                    ?? throw new InvalidOperationException("no SQLite connector after CreateSchemaAsync");
+                if (_repository.Connector is not { } connector)
+                    return; // a non-SQL backend has no fixed columns to repair (TASK-200)
                 foreach (var drift in connector.EnsureColumns(typeof(PendingDecisionEntity)))
                     _logger?.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, drift.Declared);
             }
