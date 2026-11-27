@@ -196,6 +196,13 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     parks the task on an `Approval` decision after committing its work: an answer starting "Approve" marks it Done (any
     remark kept on the decision), anything else rejects it with that text as the unmet criterion. A review card never
     times out, and the feature is not offered for merging while a task waits. Orphan recovery runs the same check.
+    **Checkers** (TASK-217, FEATURE-078 D8, D10, D30): after its own checks, and only when those found no broken
+    promise, the check runs `Drake.TaskChecks` (`DrakeFactory.TaskChecks`, a `TaskCheckRunner` over `ITaskChecker`s)
+    on every task, cheapest `Cost` first, stopping at the first checker with findings. Findings share one shape
+    (`TaskFinding`: checker, kind, text, evidence) and reopen the task like an unmet promise (same `AcceptanceAttempts`
+    and cap); a checker that throws goes to the review card as "could not run", never a pass. A checker is usually a
+    `CheckerAgent`: a tool-less agent supplying its role, process, rules and the material it reads, answering
+    `{ "findings": [...] }` (a reply without that list throws). None is registered yet, so tasks are judged as before
   - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block.
     Each Drake gets its project's Wyvern when `DrakeFactory` creates it (`WyvernForProject`, set by `ProjectService`,
     which never changes the project's status; a new Wyvern reloads `analysis.json`), and loads `wyrm-recommendation.json`
