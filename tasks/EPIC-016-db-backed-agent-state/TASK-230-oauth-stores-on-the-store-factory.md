@@ -52,3 +52,12 @@ _Populated by `/tasks plan TASK-230` — leave empty until then._
   the client store answers predicates and gains `GetByNameAsync` (`OAuthClientNames` can ask it);
   `services.AddOAuthServerStores(IStoreFactory)` registers all five. `Birko.Security.OAuth.Server.SqLite` will be deleted,
   but only after DraCode switches: Birko says when the factory stores land; switch then and tell `birko-framework-44`.
+- 2026-11-28: Birko TASK-1013 landed in the Framework working tree (commits 7a13a8d9, cd98017e; local, not pushed when
+  told). `services.AddOAuthServerStores(IStoreFactory)` in the core package (namespace
+  `Birko.Security.OAuth.Server.Extensions`; no new import in DraCode.Birko), refusing JSON/XML at registration; the
+  stores by hand are `Birko.Security.OAuth.Server.Stores.Factory.Factory*Store`. `IOAuthClientStore.GetByNameAsync` on
+  every implementation, so `oauth_clients` need not be read directly. Same tables and columns as the SQLite package (an
+  existing database reads and writes as is). One-winner claims live on every backend. Known gap Birko TASK-1023: tables
+  the factory stores create fresh have no index on ClientId / token hash yet. When DraCode no longer references
+  `Birko.Security.OAuth.Server.SqLite` (code, tests, the DraCode.Birko.csproj import), tell `birko-framework-44`; then
+  the package is deleted.

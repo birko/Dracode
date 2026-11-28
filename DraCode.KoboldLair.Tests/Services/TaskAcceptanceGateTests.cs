@@ -184,6 +184,27 @@ public class TaskAcceptanceGateTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_acceptance_fix_is_a_fix_task_for_the_failed_one_and_finishing_it_reruns_that_task()
+    {
+        var (drake, tracker, task, card) = await Escalated();
+        var dependent = tracker.AddTask("[api-2] Use the auth service (depends on: api-1)");
+        await drake.ResolvePendingDecisionAsync(card.Id, PendingDecisionNotification.HandleAutomatically);
+        var fix = tracker.GetAllTasks().Single(t => t.FixesTaskId != null);
+
+        fix.FixesTaskId.Should().Be(task.Id);
+        fix.FixKind.Should().Be("acceptance");
+        fix.Task.Should().NotContain("[api-1]", "a finished fix must never read as the failed task (TASK-231)");
+        tracker.UpdateTask(fix, TaskStatus.Done, "typescript");
+
+        var ready = drake.GetUnassignedTasks().Select(r => r.Task.Id).ToList();
+
+        ready.Should().NotContain(dependent.Id, "api-1 is not done: it runs again first");
+        task.Status.Should().Be(TaskStatus.Unassigned);
+        task.AcceptanceAttempts.Should().Be(0, "it starts its checks afresh");
+        ready.Should().Contain(task.Id);
+    }
+
+    [Fact]
     public async Task A_persons_note_on_the_escalated_task_gives_it_one_more_attempt_and_its_next_failure_escalates_again()
     {
         var (drake, _, task, card) = await Escalated();

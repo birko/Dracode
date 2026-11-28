@@ -133,6 +133,34 @@ public class FixTaskTests : IAsyncLifetime
         (await drake.FileFixTaskAsync(failed, "failure", "failed again")).Should().NotBeNull();
     }
 
+    [Fact]
+    public void A_tag_quoted_inside_another_tasks_text_does_not_meet_a_dependency()
+    {
+        var (drake, tracker) = NewDrake();
+        Failed(tracker, "[api-1] Build the store");
+        var quoting = tracker.AddTask("[doc-1] Write notes. Original task: [api-1] Build the store; see [intent] notes");
+        tracker.UpdateTask(quoting, TaskStatus.Done, "python");
+        var dependent = tracker.AddTask("[api-2] Use the store (depends on: api-1)");
+        var other = tracker.AddTask("[ui-1] Show the notes (depends on: intent)");
+
+        var ready = drake.GetUnassignedTasks().Select(r => r.Task.Id).ToList();
+
+        ready.Should().NotContain(dependent.Id, "only a task whose own tag is [api-1] is api-1 (TASK-231)");
+        dependent.Status.Should().Be(TaskStatus.BlockedByFailure);
+        ready.Should().NotContain(other.Id, "no task is named [intent]");
+    }
+
+    [Fact]
+    public void A_task_whose_own_tag_is_done_meets_the_dependency()
+    {
+        var (drake, tracker) = NewDrake();
+        var store = tracker.AddTask("  [API-1] Build the store");
+        tracker.UpdateTask(store, TaskStatus.Done, "python");
+        var dependent = tracker.AddTask("[api-2] Use the store (depends on: api-1)");
+
+        drake.GetUnassignedTasks().Select(r => r.Task.Id).Should().Contain(dependent.Id);
+    }
+
     [Theory]
     [InlineData("Permanent error: syntax error in menu.py", 0, true)]
     [InlineData("Network timeout talking to the provider", 5, true)]
