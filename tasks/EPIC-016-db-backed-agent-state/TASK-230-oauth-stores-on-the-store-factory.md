@@ -45,3 +45,10 @@ stores on the SQLite file (`AddOAuthServerStores(useSqlite: true, …)`) whateve
 _Populated by `/tasks plan TASK-230` — leave empty until then._
 
 ## Notes
+
+- 2026-11-28: Birko TASK-1013 started, shape decided by the owner (from `birko-framework-44`): one-winner claims become a
+  store capability (`IAsyncConditionalUpdateStore<T>.UpdateIfAsync`, on SQL, MongoDB, RavenDB, Cosmos DB, Elasticsearch
+  and InMemory; JSON/XML refused); `OAuthClient` and `RefreshTokenRecord` persist as one entity each on every backend, so
+  the client store answers predicates and gains `GetByNameAsync` (`OAuthClientNames` can ask it);
+  `services.AddOAuthServerStores(IStoreFactory)` registers all five. `Birko.Security.OAuth.Server.SqLite` will be deleted,
+  but only after DraCode switches: Birko says when the factory stores land; switch then and tell `birko-framework-44`.

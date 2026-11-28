@@ -122,7 +122,9 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
 - **Drake**: Monitors tasks, summons Kobolds → updates task status, manages git worktrees for feature branches
   - **DrakeExecutionService** (30s): Picks up analyzed projects, creates Drakes, summons Kobolds
   - **DrakeMonitoringService** (60s): Monitors stuck Kobolds, handles timeouts
-  - **ReasoningMonitorService** (45s): Detects stuck loops, stalled progress, repeated errors, budget exhaustion → creates escalation alerts
+  - **ReasoningMonitorService** (45s): Detects stuck loops, stalled progress, repeated errors, budget exhaustion → creates escalation alerts.
+    The same kind again on a task that already had one (`RepeatedKind`) also files a fix task (`monitor-stuck-loop`,
+    `monitor-stalled`, `monitor-repeated-blocker`, `monitor-budget`; TASK-223)
   - **Escalation routing** (`HandleEscalationAsync`): Routes Kobold escalations to upstream agents:
     - `WrongApproach` → KoboldPlannerAgent.RevisePlanAsync (preserves completed steps, revises remaining): a live
       Kobold's plan, else the task's saved plan (a parked task, orphan recovery, a run already ended; TASK-173)
@@ -379,6 +381,14 @@ Located in `DraCode.KoboldLair/Services/`:
   - Circuit breaker pattern: 3 failures = 10 minute pause
   - Error classification: transient (network) vs permanent (syntax)
   - Background service runs every 5 minutes
+  - **Fix tasks** (TASK-223, FEATURE-078 D14): when recovery gives up on a task — a permanent error, or its retries used
+    up (`FailureRecoveryJob.GaveUpReason`; not an acceptance failure, which files its own, nor a fix task) — its Drake
+    files one fix task (`Drake.FileFixTaskAsync`, kind `failure`): `TaskRecord.FixesTaskId` / `FixKind` link it, it takes
+    the failed task's priority, and its text never carries the failed task's `[token]` or dependency clause, so it never
+    reads as that task. One per task and kind stands until done (a failed fix still stands). Within a priority, fix tasks
+    are picked first, the one most tasks wait on (directly or through others, in the Drake's area) first. When a fix is
+    Done, the failed task goes back to Unassigned with its retries cleared, and a task blocked only by failed
+    dependencies waits as usual again
 - **Streaming Support**: All 10 providers support real-time token streaming (added 2026-02-06)
   - Enabled by default for Dragon interactive chat
   - Automatic fallback to synchronous mode on streaming failures

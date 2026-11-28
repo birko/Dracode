@@ -61,6 +61,15 @@ namespace DraCode.KoboldLair.Models.Tasks
         /// <see cref="RetryCount"/>, which failure recovery uses for transient errors.
         /// </summary>
         public int AcceptanceAttempts { get; set; } = 0;
+
+        /// <summary>
+        /// On a fix task (TASK-223, FEATURE-078 D14): the id of the task whose failure it fixes. When the fix is Done the
+        /// failed task runs again.
+        /// </summary>
+        public string? FixesTaskId { get; set; }
+
+        /// <summary>On a fix task: what failed — <c>failure</c> (recovery gave up) or <c>monitor-&lt;alert&gt;</c> (a repeated alert).</summary>
+        public string? FixKind { get; set; }
         
         /// <summary>
         /// Timestamp of the last retry attempt

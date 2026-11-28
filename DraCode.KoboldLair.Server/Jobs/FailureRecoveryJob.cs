@@ -147,11 +147,32 @@ namespace DraCode.KoboldLair.Server.Jobs
                     else
                     {
                         skippedCount++;
+                        // Recovery gave up on it: the failure becomes a tracked fix task (TASK-223), once
+                        if (GaveUpReason(task, _maxRetryAttempts) is { } reason)
+                            await drake.FileFixTaskAsync(task, "failure", reason);
                     }
                 }
             }
 
             return (retriedCount, skippedCount);
+        }
+
+        /// <summary>
+        /// Why recovery will never retry this failed task, or null when it may yet (TASK-223, FEATURE-078 D14): a permanent
+        /// error, or its retries used up. An acceptance failure files its own fix task (TASK-025), and a fix task that fails
+        /// gets none, so fixes do not stack.
+        /// </summary>
+        public static string? GaveUpReason(TaskRecord task, int maxRetryAttempts)
+        {
+            if (string.IsNullOrWhiteSpace(task.ErrorMessage) || task.FixesTaskId != null)
+                return null;
+            if (task.ErrorMessage.StartsWith(ErrorClassifier.AcceptanceFailurePrefix, StringComparison.OrdinalIgnoreCase))
+                return null;
+            if (ErrorClassifier.IsPermanent(task.ErrorMessage))
+                return $"it failed with an error that is not retried: {Truncate(task.ErrorMessage, 300)}";
+            if (task.RetryCount >= maxRetryAttempts)
+                return $"it failed {task.RetryCount + 1} times; the last error: {Truncate(task.ErrorMessage, 300)}";
+            return null;
         }
 
         /// <summary>
