@@ -198,7 +198,8 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     lists each attempt's findings and never times out. "Approve" marks it Done, a note sends it back once more (a
     person's rejection always reopens, past the limit too, and its next failure escalates again), and "Handle it
     automatically" fails it with a permanent error and a fix task naming what is unmet (also what happens with no
-    decision store). What no
+    decision store): a fix task of kind `acceptance` (TASK-231, below under Fix tasks; Critical for a missing export,
+    else High), and when it is done the task reruns with its attempts cleared. What no
     machine can judge (the "Must implement:" items, a clause that will not parse, a name found only in another file)
     parks the task on an `Approval` decision after committing its work: an answer starting "Approve" marks it Done (any
     remark kept on the decision), anything else rejects it with that text as the unmet criterion. A review card never
@@ -382,13 +383,17 @@ Located in `DraCode.KoboldLair/Services/`:
   - Error classification: transient (network) vs permanent (syntax)
   - Background service runs every 5 minutes
   - **Fix tasks** (TASK-223, FEATURE-078 D14): when recovery gives up on a task — a permanent error, or its retries used
-    up (`FailureRecoveryJob.GaveUpReason`; not an acceptance failure, which files its own, nor a fix task) — its Drake
+    up (`FailureRecoveryJob.GaveUpReason`; not an acceptance failure, which files its own fix of kind `acceptance`,
+    nor a fix task) — its Drake
     files one fix task (`Drake.FileFixTaskAsync`, kind `failure`): `TaskRecord.FixesTaskId` / `FixKind` link it, it takes
     the failed task's priority, and its text never carries the failed task's `[token]` or dependency clause, so it never
     reads as that task. One per task and kind stands until done (a failed fix still stands). Within a priority, fix tasks
     are picked first, the one most tasks wait on (directly or through others, in the Drake's area) first. When a fix is
-    Done, the failed task goes back to Unassigned with its retries cleared, and a task blocked only by failed
-    dependencies waits as usual again
+    Done, the failed task goes back to Unassigned with its retries and acceptance attempts cleared, and a task blocked
+    only by failed dependencies waits as usual again
+  - **A task's tag** (TASK-231): a dependency `api-1` names the task whose text *starts* with `[api-1]`
+    (`TaskTags.Of` / `TaskTags.Is`, used by every dependency check). A tag quoted later in a task's text — a fix task
+    or reopen note naming another task, an "[intent]" finding — never makes it that task
 - **Streaming Support**: All 10 providers support real-time token streaming (added 2026-02-06)
   - Enabled by default for Dragon interactive chat
   - Automatic fallback to synchronous mode on streaming failures

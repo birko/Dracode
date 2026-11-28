@@ -3304,7 +3304,7 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 foreach (var dep in DependenciesOf(pending.Dequeue()))
                 {
-                    foreach (var match in all.Where(t => t.Task.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase)))
+                    foreach (var match in all.Where(t => TaskTags.Is(t.Task, dep)))
                     {
                         if (!seen.Add(match.Id))
                             continue;
@@ -3574,7 +3574,7 @@ namespace DraCode.KoboldLair.Orchestrators
         /// of that kind for that task already stands: one not Done (a failed fix still stands), or one Done since the task
         /// last changed, which reopens it at the next pick.
         /// </summary>
-        public async Task<TaskRecord?> FileFixTaskAsync(TaskRecord failed, string kind, string what)
+        public async Task<TaskRecord?> FileFixTaskAsync(TaskRecord failed, string kind, string what, TaskPriority? priority = null)
         {
             var standing = _taskTracker.GetAllTasks().Any(t => t.FixesTaskId == failed.Id && t.FixKind == kind &&
                 (t.Status != TaskStatus.Done || t.UpdatedAt >= failed.UpdatedAt));
@@ -3589,7 +3589,7 @@ namespace DraCode.KoboldLair.Orchestrators
             var fix = _taskTracker.AddTask(
                 $"[fix-{shortId}-{Guid.NewGuid().ToString("N")[..6]}] Fix what made {name} fail ({kind}): {what}\n\n" +
                 $"The failed task: {description}",
-                failed.Priority, dependencies: new List<string>());
+                priority ?? failed.Priority, dependencies: new List<string>());
             fix.FixesTaskId = failed.Id;
             fix.FixKind = kind;
             fix.ProjectId = failed.ProjectId ?? _projectId;
@@ -3607,12 +3607,7 @@ namespace DraCode.KoboldLair.Orchestrators
         private static readonly System.Text.RegularExpressions.Regex DependsOnClause = new(@"\(depends on:[^)]*\)",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-        /// <summary>A task's own id as its dependents name it: the <c>cli-1</c> of a description starting "[cli-1]".</summary>
-        private static string? TaskToken(string text)
-        {
-            var match = System.Text.RegularExpressions.Regex.Match(text, @"^\s*\[([^\]]+)\]");
-            return match.Success ? match.Groups[1].Value : null;
-        }
+        private static string? TaskToken(string text) => TaskTags.Of(text);
 
         /// <summary>
         /// Sends each failed task whose fix finished since it failed back to run, with its retries cleared (TASK-223).
@@ -3627,6 +3622,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 if (!all.Any(f => f.FixesTaskId == failed.Id && f.Status == TaskStatus.Done && f.UpdatedAt >= failed.UpdatedAt))
                     continue;
                 failed.RetryCount = 0;
+                failed.AcceptanceAttempts = 0;
                 failed.NextRetryAt = null;
                 failed.LastRetryAttempt = null;
                 _taskTracker.ClearError(failed);
@@ -3669,20 +3665,12 @@ namespace DraCode.KoboldLair.Orchestrators
 
             if (unmet is { Count: > 0 })
             {
-                var marker = $"accept-{task.Id[..Math.Min(8, task.Id.Length)]}";
-                var summary = string.Join(" ", unmet);
-                var duplicate = _taskTracker.GetAllTasks().Any(t =>
-                    t.Task.Contains(marker, StringComparison.Ordinal) && t.Task.Contains(summary, StringComparison.Ordinal));
-                if (!duplicate)
-                {
-                    var priority = unmet.Any(u => u.StartsWith("Export ", StringComparison.Ordinal))
-                        ? TaskPriority.Critical
-                        : TaskPriority.High;
-                    _taskTracker.AddTask(
-                        $"[{marker}-{Guid.NewGuid().ToString("N")[..8]}] Fix what the acceptance check found unmet in task " +
-                        $"{task.Id[..Math.Min(8, task.Id.Length)]}: {summary}\n\nOriginal task: {task.Task}",
-                        priority);
-                }
+                // A fix task like any other (TASK-231): linked to the task, never quoting its [tag], and when Done it
+                // reruns the task with its checks afresh
+                var priority = unmet.Any(u => u.StartsWith("Export ", StringComparison.Ordinal))
+                    ? TaskPriority.Critical
+                    : TaskPriority.High;
+                await FileFixTaskAsync(task, "acceptance", $"the acceptance check found unmet: {string.Join(" ", unmet)}", priority);
             }
 
             await SaveTasksToFileAsync();
@@ -4249,7 +4237,7 @@ namespace DraCode.KoboldLair.Orchestrators
                 {
                     // Check if dependency is done (look for [dep] in done task descriptions)
                     var depMet = doneTasks.Any(doneTask =>
-                        doneTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
+                        TaskTags.Is(doneTask, dep));
 
                     if (depMet)
                     {
@@ -4258,7 +4246,7 @@ namespace DraCode.KoboldLair.Orchestrators
 
                     // Check if dependency has failed
                     var depFailed = failedTasks.Any(failedTask =>
-                        failedTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
+                        TaskTags.Is(failedTask, dep));
 
                     if (depFailed)
                     {
@@ -4549,7 +4537,7 @@ namespace DraCode.KoboldLair.Orchestrators
             {
                 // Find the dependency task by looking for [dep-id] in task description
                 var depTask = allTasks.FirstOrDefault(t =>
-                    t.Task.Contains($"[{depId}]", StringComparison.OrdinalIgnoreCase) &&
+                    TaskTags.Is(t.Task, depId) &&
                     t.Status == TaskStatus.Done);
 
                 if (depTask != null)

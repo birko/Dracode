@@ -571,7 +571,7 @@ namespace DraCode.KoboldLair.Server.Services
                     foreach (var dep in dependencies)
                     {
                         var depMet = doneTasks.Any(doneTask =>
-                            doneTask.Contains($"[{dep}]", StringComparison.OrdinalIgnoreCase));
+                            TaskTags.Is(doneTask, dep));
                         
                         if (!depMet)
                         {
