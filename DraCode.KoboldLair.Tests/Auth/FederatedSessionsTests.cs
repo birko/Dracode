@@ -27,7 +27,9 @@ internal static class FederatedSessionsHarness
         string? dbPath = null, IDateTimeProvider? clock = null, int refreshLifetimeSeconds = 1209600)
     {
         var services = new ServiceCollection();
-        services.AddOAuthServerStores(useSqlite: dbPath != null, dbPath: dbPath);
+        services.AddKoboldLairOAuthStores(dbPath != null
+            ? DraCode.KoboldLair.Data.DataStores.SqLite(dbPath)
+            : DraCode.KoboldLair.Data.DataStores.Create("InMemory", ""));
         var sp = services.BuildServiceProvider();
 
         var tokenOptions = new TokenOptions { Secret = Secret, Issuer = "KoboldLair", Audience = "KoboldLair" };

@@ -73,8 +73,6 @@
   <!-- The OAuth server stores ship with Birko since TASK-518 (DraCode TASK-109): -->
   <Import Project="$(BirkoSrc)\Birko.Models.SQL\Birko.Models.SQL.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Data.InMemory\Birko.Data.InMemory.projitems" Label="Shared" />
-  <Import Project="$(BirkoSrc)\Birko.Security.OAuth.Server.SqLite\Birko.Security.OAuth.Server.SqLite.projitems" Label="Shared" />
-  <Import Project="$(BirkoSrc)\Birko.Security.OAuth.Server.InMemory\Birko.Security.OAuth.Server.InMemory.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Communication.OAuth\Birko.Communication.OAuth.projitems" Label="Shared" />
   <Import Project="$(BirkoSrc)\Birko.Communication.OAuth.Providers\Birko.Communication.OAuth.Providers.projitems" Label="Shared" />
 

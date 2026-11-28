@@ -152,18 +152,15 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 builder.Services.Configure<OAuthServerConfiguration>(
     builder.Configuration.GetSection("Authentication:OAuth"));
 // OAuth stores — singletons, ONE shared instance each (the device-code flow creates a record in one
-// request and reads/mutates it across later requests). On the server's SQLite file (TASK-031; onto the store
-// factory in TASK-228). The four scalar models persist directly via
-// AsyncSQLiteStore<T>; OAuthClient uses an entity+JSON-column mapper for its List<string> properties.
+// request and reads/mutates it across later requests). On the configured database through its store factory (TASK-230,
+// Birko TASK-1013), with the tables the SQLite stores used before (TASK-031).
 var oauthDataConfig = builder.Configuration.GetSection("KoboldLair:Data").Get<DataStorageConfig>()
     ?? new DataStorageConfig();
 oauthDataConfig.ProjectsPath =
     builder.Configuration.GetSection("KoboldLair").Get<KoboldLairConfiguration>()?.ProjectsPath
     ?? oauthDataConfig.ProjectsPath;
-var oauthDbPath = RepositoryFactory.ResolveSqLitePath(oauthDataConfig);
-builder.Services.AddOAuthServerStores(useSqlite: true, oauthDbPath);
-// Every OAuth client's name, for a new key's uniqueness check (TASK-194): read from the same database as the stores
-builder.Services.AddSingleton(sp => new OAuthClientNames(sp.GetRequiredService<IOAuthClientStore>(), oauthDbPath));
+// Also every OAuth client's name, for a new key's uniqueness check (TASK-194), read from the same database
+builder.Services.AddKoboldLairOAuthStores(RepositoryFactory.StoreFactoryFor(oauthDataConfig));
 // Who created each service-account key (TASK-162): the OAuth client store cannot be listed. On the configured database
 // (TASK-228); resolved when first used, so a test host's settings are seen.
 builder.Services.AddSingleton(sp =>

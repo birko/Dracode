@@ -3,7 +3,7 @@ id: TASK-230
 parent: EPIC-016
 feature: null
 # status — one of: todo, in-progress, verify (code done, sign-off pending), done, cancelled
-status: todo
+status: done
 priority: P2
 # assignee — one of: agent (default), unassigned, human, or an installed agent type's name; ai is read as agent, never written
 assignee: agent
@@ -14,7 +14,7 @@ blocks: []
 # findings: ids this task remediates — from a review/audit/harvest/drill pass, or from ordinary
 # field use with no pass behind it at all. Prefixes: see /tasks intake
 findings: []
-pr: null
+pr: 95
 github-issue: null
 jira-key: null
 ---
@@ -32,17 +32,26 @@ stores on the SQLite file (`AddOAuthServerStores(useSqlite: true, …)`) whateve
 
 ## Acceptance criteria
 
-- [ ] The OAuth stores come from the configured database's store factory (Birko TASK-1013's registration)
-- [ ] `OAuthClientNames` asks the client store for a name instead of reading the SQLite table
-- [ ] The key tests (create, token, revoke, name clash) pass on SQLite and InMemory
+- [x] The OAuth stores come from the configured database's store factory (Birko TASK-1013's registration)
+- [x] ~~`OAuthClientNames` asks the client store for a name~~ `OAuthClientNames` reads the clients through the store
+      factory instead of the SQLite table: the store's `GetByNameAsync` is exact, and a key's name is checked in any case
+- [x] The key tests (create, token, revoke, name clash) pass on SQLite and InMemory
 
 ## Human test plan
 
-- [ ] On a throwaway server: create an API key, get a token with it, change a specification, revoke it — as before
+- [x] On a throwaway server: create an API key, get a token with it, change a specification, revoke it — as before
 
 ## Implementation plan
 
-_Populated by `/tasks plan TASK-230` — leave empty until then._
+1. Red: `EveryStoreOnEveryDatabaseTests` writes an OAuth client through one factory, reads it back through another and
+   checks the name in another case through `OAuthClientNames(factory)`, which did not exist (it took the SQLite file).
+2. `Auth/OAuthStores.cs` replaces `SqliteOAuthStores.cs`: `AddKoboldLairOAuthStores(IStoreFactory)` = Birko's
+   `AddOAuthServerStores(factory)`, the `ClaimsJson` column repair on a SQL backend, and `OAuthClientNames`.
+3. `OAuthClientNames(IStoreFactory)` reads every `OAuthClientEntity` through `StoreRepository`, case-insensitive.
+4. Program.cs registers the stores on `RepositoryFactory.StoreFactoryFor` of the configured database; the tests (keys,
+   federated sessions, the OAuth flows) use a SQLite or InMemory factory; DraCode.Birko no longer imports
+   `Birko.Security.OAuth.Server.SqLite` or `.InMemory`.
+5. CLAUDE.md (Which database, its configuration block, the WAL section).
 
 ## Notes
 
@@ -61,3 +70,12 @@ _Populated by `/tasks plan TASK-230` — leave empty until then._
   the factory stores create fresh have no index on ClientId / token hash yet. When DraCode no longer references
   `Birko.Security.OAuth.Server.SqLite` (code, tests, the DraCode.Birko.csproj import), tell `birko-framework-44`; then
   the package is deleted.
+- 2026-11-28: done. Full suite 774 passed; the auth and every-database tests 90/90 with `BIRKO_REQUIRE_LIVE=1` on
+  PostgreSQL and MongoDB. Nothing in DraCode references `Birko.Security.OAuth.Server.SqLite` or `.InMemory`.
+- Human test, two throwaway servers (Testing, scratch folders, own random JWT secrets):
+  - SQLite, on a copy of the database TASK-228's test wrote with Birko's old SQLite stores, its `service_keys` row
+    removed so only `oauth_clients` held the name `tt228`: a key named `TT228` was refused (409), so the old table was
+    read and the name matched in another case. A new key: created, a token, a project and a specification change made
+    with it (version 2), revoked, and the next token refused (400).
+  - PostgreSQL, a fresh database: the same key life, all passed; `oauth_clients`, `oauth_refresh_tokens` and
+    `service_keys` were in PostgreSQL (the client disabled after the revoke) and no SQLite file was made. Database dropped.

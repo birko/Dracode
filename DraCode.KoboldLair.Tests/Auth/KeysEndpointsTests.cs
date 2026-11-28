@@ -62,8 +62,7 @@ public class KeysEndpointsTests : IDisposable
                 // they would share one file across tests and runs; give them this test's database, as the keys have
                 var db = Path.Combine(_dir, "koboldlair.db");
                 Directory.CreateDirectory(_dir);
-                services.AddOAuthServerStores(useSqlite: true, dbPath: db);
-                services.AddSingleton(sp => new OAuthClientNames(sp.GetRequiredService<IOAuthClientStore>(), db));
+                services.AddKoboldLairOAuthStores(DraCode.KoboldLair.Data.DataStores.SqLite(db));
             });
         });
     }

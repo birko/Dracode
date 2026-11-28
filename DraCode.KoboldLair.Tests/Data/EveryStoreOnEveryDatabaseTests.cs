@@ -156,6 +156,8 @@ public class EveryStoreOnEveryDatabaseTests(ITestOutputHelper output) : IDisposa
         await users.UpsertAsync(new User { Sub = "owner-1", DisplayName = "Owner" });
 
         await new ServiceKeyRegistry(write).AddAsync(new ServiceKey("client-1", "owner-1", "ci", now));
+        await new Birko.Security.OAuth.Server.Stores.Factory.FactoryOAuthClientStore(write).CreateAsync(
+            new Birko.Security.OAuth.Server.Models.OAuthClient { ClientId = "client-1", Name = "Deploy-Bot", AllowedScopes = ["view_own"] });
         await new SpecificationEventService(write.EventStore()).RecordSpecificationCreatedAsync("spec-1", "everydb", "# Menu", "everydb");
 
         // ... and read it all back through another, as a restarted server would
@@ -202,6 +204,9 @@ public class EveryStoreOnEveryDatabaseTests(ITestOutputHelper output) : IDisposa
         (await users2.GetBySubAsync("owner-1"))!.DisplayName.Should().Be("Owner", "users");
 
         (await new ServiceKeyRegistry(read).GetAsync("client-1"))!.OwnerId.Should().Be("owner-1", "service keys");
+        (await ((Birko.Security.OAuth.Server.Stores.IOAuthClientStore)new Birko.Security.OAuth.Server.Stores.Factory.FactoryOAuthClientStore(read)).GetByClientIdAsync("client-1"))!
+            .AllowedScopes.Should().Equal(["view_own"], "OAuth clients (TASK-230)");
+        (await new OAuthClientNames(read).ExistsAsync("deploy-bot")).Should().BeTrue("a key name is checked in any case");
         (await new SpecificationEventService(read.EventStore()).GetSpecificationHistoryAsync("spec-1"))
             .Should().ContainSingle("specification history");
         output.WriteLine($"{backend}: every store wrote and read back");
