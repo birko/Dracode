@@ -3567,6 +3567,100 @@ namespace DraCode.KoboldLair.Orchestrators
                 task.Id[..Math.Min(8, task.Id.Length)], task.AcceptanceAttempts + 1, summary);
         }
 
+        /// <summary>
+        /// Files a fix task for <paramref name="failed"/> (TASK-223, FEATURE-078 D14): <paramref name="kind"/> is what failed
+        /// (<c>failure</c> when recovery gave up, <c>monitor-…</c> for a repeated monitor alert), <paramref name="what"/> says
+        /// how. It takes the failed task's priority and is worked before other work of that priority. Returns null when a fix
+        /// of that kind for that task already stands: one not Done (a failed fix still stands), or one Done since the task
+        /// last changed, which reopens it at the next pick.
+        /// </summary>
+        public async Task<TaskRecord?> FileFixTaskAsync(TaskRecord failed, string kind, string what)
+        {
+            var standing = _taskTracker.GetAllTasks().Any(t => t.FixesTaskId == failed.Id && t.FixKind == kind &&
+                (t.Status != TaskStatus.Done || t.UpdatedAt >= failed.UpdatedAt));
+            if (standing)
+                return null;
+
+            var shortId = failed.Id[..Math.Min(8, failed.Id.Length)];
+            var name = TaskToken(failed.Task) is { } token ? $"task {token} ({shortId})" : $"task {shortId}";
+            // The failed task's text without its own [token] and dependency clause, so the fix never reads as that task when
+            // dependencies are matched by "[token]"
+            var description = DependsOnClause.Replace(LeadingToken.Replace(failed.Task, ""), "").Trim();
+            var fix = _taskTracker.AddTask(
+                $"[fix-{shortId}-{Guid.NewGuid().ToString("N")[..6]}] Fix what made {name} fail ({kind}): {what}\n\n" +
+                $"The failed task: {description}",
+                failed.Priority, dependencies: new List<string>());
+            fix.FixesTaskId = failed.Id;
+            fix.FixKind = kind;
+            fix.ProjectId = failed.ProjectId ?? _projectId;
+            await SaveTasksToFileAsync();
+            _logger?.LogWarning("Filed fix task {FixId} for task {TaskId} ({Kind}): {What}",
+                fix.Id[..Math.Min(8, fix.Id.Length)], shortId, kind, what);
+            return fix;
+        }
+
+        /// <summary>A fix task for the task with <paramref name="taskId"/> in this Drake, or null when it holds no such task.</summary>
+        public Task<TaskRecord?> FileFixTaskAsync(string taskId, string kind, string what) =>
+            _taskTracker.GetTaskById(taskId) is { } task ? FileFixTaskAsync(task, kind, what) : Task.FromResult<TaskRecord?>(null);
+
+        private static readonly System.Text.RegularExpressions.Regex LeadingToken = new(@"^\s*\[[^\]]+\]\s*");
+        private static readonly System.Text.RegularExpressions.Regex DependsOnClause = new(@"\(depends on:[^)]*\)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        /// <summary>A task's own id as its dependents name it: the <c>cli-1</c> of a description starting "[cli-1]".</summary>
+        private static string? TaskToken(string text)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(text, @"^\s*\[([^\]]+)\]");
+            return match.Success ? match.Groups[1].Value : null;
+        }
+
+        /// <summary>
+        /// Sends each failed task whose fix finished since it failed back to run, with its retries cleared (TASK-223).
+        /// Returns whether any went back.
+        /// </summary>
+        private bool ReopenFixedTasks()
+        {
+            var all = _taskTracker.GetAllTasks();
+            var reopened = false;
+            foreach (var failed in all.Where(t => t.Status == TaskStatus.Failed))
+            {
+                if (!all.Any(f => f.FixesTaskId == failed.Id && f.Status == TaskStatus.Done && f.UpdatedAt >= failed.UpdatedAt))
+                    continue;
+                failed.RetryCount = 0;
+                failed.NextRetryAt = null;
+                failed.LastRetryAttempt = null;
+                _taskTracker.ClearError(failed);
+                _taskTracker.UpdateTask(failed, TaskStatus.Unassigned);
+                reopened = true;
+                _logger?.LogInformation("Task {TaskId} runs again: its fix task is done", failed.Id[..Math.Min(8, failed.Id.Length)]);
+            }
+            return reopened;
+        }
+
+        /// <summary>
+        /// How many tasks wait on the task <paramref name="fix"/> fixes, directly or through others (TASK-223): a fix task's
+        /// impact. Zero for any other task.
+        /// </summary>
+        private int FixImpact(TaskRecord fix, IReadOnlyList<TaskRecord> all)
+        {
+            if (fix.FixesTaskId is not { } target || all.FirstOrDefault(t => t.Id == target) is not { } failed ||
+                TaskToken(failed.Task) is not { } token)
+                return 0;
+            var waiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var frontier = new Queue<string>([token]);
+            while (frontier.Count > 0)
+            {
+                var current = frontier.Dequeue();
+                foreach (var task in all.Where(t => t.Status != TaskStatus.Done))
+                {
+                    var deps = task.Dependencies.Count > 0 ? task.Dependencies : ParseDependenciesFromDescription(task.Task);
+                    if (!deps.Contains(current, StringComparer.OrdinalIgnoreCase) || TaskToken(task.Task) is not { } own) continue;
+                    if (waiting.Add(own)) frontier.Enqueue(own);
+                }
+            }
+            return waiting.Count;
+        }
+
         /// <summary>Fails the task for good; with <paramref name="unmet"/>, files one fix task naming it.</summary>
         private async Task FailAcceptanceAsync(TaskRecord task, string error, IReadOnlyList<string>? unmet)
         {
@@ -4124,6 +4218,8 @@ namespace DraCode.KoboldLair.Orchestrators
         public List<(TaskRecord Task, string AgentType)> GetUnassignedTasks()
         {
             var result = new List<(TaskRecord, string)>();
+            if (ReopenFixedTasks())
+                SaveTasksToFile();
             var allTasks = _taskTracker.GetAllTasks();
             var doneTasks = allTasks.Where(t => t.Status == TaskStatus.Done).Select(t => t.Task).ToHashSet();
 
@@ -4192,8 +4288,9 @@ namespace DraCode.KoboldLair.Orchestrators
                     continue;
                 }
 
-                // If previously blocked but dependencies are now resolved, unblock it
-                if (task.Status == TaskStatus.BlockedByFailure && dependenciesMet)
+                // Blocked, but no dependency has failed any more (done, or sent back to run, e.g. by a finished fix task,
+                // TASK-223): it waits as an ordinary task again
+                if (task.Status == TaskStatus.BlockedByFailure)
                 {
                     _logger?.LogInformation(
                         "✅ Task {TaskId} unblocked - failed dependencies have been resolved",
@@ -4229,8 +4326,11 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         private List<(TaskRecord Task, string AgentType)> SortTasksByPriority(List<(TaskRecord Task, string AgentType)> tasks)
         {
+            var all = _taskTracker.GetAllTasks();
             return tasks
                 .OrderByDescending(t => t.Task.Priority)  // Critical > High > Normal > Low
+                .ThenByDescending(t => t.Task.FixesTaskId != null)   // fix tasks first within a priority (TASK-223)
+                .ThenByDescending(t => FixImpact(t.Task, all))        // the one most work waits on first
                 .ThenBy(t => GetComplexityScore(t.Task))   // Simple tasks first within same priority
                 .ToList();
         }

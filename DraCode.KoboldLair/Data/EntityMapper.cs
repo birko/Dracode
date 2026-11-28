@@ -192,6 +192,8 @@ namespace DraCode.KoboldLair.Data
                 FeatureId = task.FeatureId,
                 RetryCount = task.RetryCount,
                 AcceptanceAttempts = task.AcceptanceAttempts,
+                FixesTaskId = task.FixesTaskId,
+                FixKind = task.FixKind,
                 LastRetryAttempt = task.LastRetryAttempt,
                 NextRetryAt = task.NextRetryAt,
                 Provider = task.Provider,
@@ -223,6 +225,8 @@ namespace DraCode.KoboldLair.Data
                 FeatureId = entity.FeatureId,
                 RetryCount = entity.RetryCount,
                 AcceptanceAttempts = entity.AcceptanceAttempts,
+                FixesTaskId = entity.FixesTaskId,
+                FixKind = entity.FixKind,
                 LastRetryAttempt = entity.LastRetryAttempt,
                 NextRetryAt = entity.NextRetryAt,
                 Provider = entity.Provider,
@@ -255,6 +259,8 @@ namespace DraCode.KoboldLair.Data
             entity.FeatureId = task.FeatureId;
             entity.RetryCount = task.RetryCount;
             entity.AcceptanceAttempts = task.AcceptanceAttempts;
+            entity.FixesTaskId = task.FixesTaskId;
+            entity.FixKind = task.FixKind;
             entity.LastRetryAttempt = task.LastRetryAttempt;
             entity.NextRetryAt = task.NextRetryAt;
             entity.Provider = task.Provider;

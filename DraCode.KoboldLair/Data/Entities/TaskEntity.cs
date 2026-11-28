@@ -54,6 +54,10 @@ namespace DraCode.KoboldLair.Data.Entities
         public int RetryCount { get; set; } = 0;
         public DateTime? LastRetryAttempt { get; set; }
         public int AcceptanceAttempts { get; set; } = 0;
+        [MaxLengthField(36)]
+        public string? FixesTaskId { get; set; }
+        [MaxLengthField(40)]
+        public string? FixKind { get; set; }
         public DateTime? NextRetryAt { get; set; }
 
         [MaxLengthField(50)]
@@ -86,6 +90,8 @@ namespace DraCode.KoboldLair.Data.Entities
             target.FeatureId = FeatureId;
             target.RetryCount = RetryCount;
             target.AcceptanceAttempts = AcceptanceAttempts;
+            target.FixesTaskId = FixesTaskId;
+            target.FixKind = FixKind;
             target.LastRetryAttempt = LastRetryAttempt;
             target.NextRetryAt = NextRetryAt;
             target.Provider = Provider;

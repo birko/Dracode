@@ -196,6 +196,9 @@ namespace DraCode.KoboldLair.Server.Services
                 return;
             }
 
+            // The same kind of alert again on this task, after its automatic route already ran: a fix task too (TASK-223)
+            var repeated = RepeatedKind(plan, summary);
+
             var alert = new EscalationAlert
             {
                 ProjectId = kobold.ProjectId ?? plan.ProjectId,
@@ -217,16 +220,42 @@ namespace DraCode.KoboldLair.Server.Services
             // Route through Drake (with retry if Drake not yet available)
             if (!string.IsNullOrEmpty(kobold.ProjectId))
             {
-                _ = RouteEscalationWithRetryAsync(kobold.ProjectId, alert);
+                _ = RouteEscalationWithRetryAsync(kobold.ProjectId, alert, repeated);
             }
         }
 
         /// <summary>
         /// Routes an escalation alert to a Drake, retrying if no Drake is currently available.
         /// </summary>
-        private Task RouteEscalationWithRetryAsync(string projectId, EscalationAlert alert, int maxRetries = 3) =>
+        private Task RouteEscalationWithRetryAsync(string projectId, EscalationAlert alert, string? repeatedKind, int maxRetries = 3) =>
             RouteToHoldingDrakeAsync(alert, () => _drakeFactory.GetDrakesByProject(projectId), _logger, maxRetries,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30), repeatedKind);
+
+        /// <summary>
+        /// The fix kind (<c>monitor-stuck-loop</c>, <c>monitor-stalled</c>, <c>monitor-repeated-blocker</c>,
+        /// <c>monitor-budget</c>) when <paramref name="plan"/> already holds a monitor alert of the same kind as
+        /// <paramref name="summary"/>, else null (TASK-223): the first alert of a kind takes its automatic route, a repeat
+        /// is filed as a fix task as well.
+        /// </summary>
+        public static string? RepeatedKind(KoboldImplementationPlan plan, string summary)
+        {
+            if (MonitorKind(summary) is not { } kind)
+                return null;
+            return plan.Escalations.Any(e => e.Source == EscalationSource.ReasoningMonitor && MonitorKind(e.Summary) == kind)
+                ? $"monitor-{kind}"
+                : null;
+        }
+
+        // Each check's summary starts with its own words (CheckStuckLoop, CheckStalledProgress, CheckRepeatedErrors,
+        // CheckBudgetExhaustion)
+        private static string? MonitorKind(string? summary) => summary switch
+        {
+            not null when summary.StartsWith("Stuck loop", StringComparison.Ordinal) => "stuck-loop",
+            not null when summary.StartsWith("No step progress", StringComparison.Ordinal) => "stalled",
+            not null when summary.StartsWith("Same blocker", StringComparison.Ordinal) => "repeated-blocker",
+            not null when summary.StartsWith("Budget concern", StringComparison.Ordinal) => "budget",
+            _ => null
+        };
 
         /// <summary>
         /// Hands a monitor escalation to the Drake whose tracker holds its task (TASK-169). A project has one Drake per
@@ -236,7 +265,7 @@ namespace DraCode.KoboldLair.Server.Services
         /// that handled the escalation, or null.
         /// </summary>
         internal static async Task<Drake?> RouteToHoldingDrakeAsync(EscalationAlert alert, Func<IReadOnlyList<Drake>> drakes,
-            ILogger logger, int maxRetries, TimeSpan retryDelay)
+            ILogger logger, int maxRetries, TimeSpan retryDelay, string? repeatedKind = null)
         {
             if (string.IsNullOrEmpty(alert.TaskId))
             {
@@ -255,6 +284,8 @@ namespace DraCode.KoboldLair.Server.Services
                 {
                     try
                     {
+                        if (repeatedKind != null)
+                            await drake.FileFixTaskAsync(alert.TaskId, repeatedKind, alert.Summary);
                         await drake.HandleEscalationAsync(alert);
                     }
                     catch (Exception ex)

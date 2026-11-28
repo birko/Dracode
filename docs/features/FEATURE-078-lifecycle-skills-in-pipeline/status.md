@@ -1,6 +1,6 @@
 ---
 id: FEATURE-078
-generated: 2026-11-27 23:30
+generated: 2026-11-28 10:50
 ---
 
 # Project lifecycle discipline inside the KoboldLair pipeline — Status
@@ -21,7 +21,7 @@ generated: 2026-11-27 23:30
 
 ## Build progress
 
-15 / 25 tasks done.
+16 / 25 tasks done.
 
 - TASK-170 ask_human for the analyzer agent (Wyvern) — needs a project-level wait — done
 - TASK-201 A question climbs the agent hierarchy one way, and its answer returns down the same path — done
@@ -46,7 +46,7 @@ generated: 2026-11-27 23:30
 - TASK-220 A checker finds stale or redundant comments — done
 - TASK-221 A checker looks for correctness problems — done
 - TASK-222 Checker findings go back to the worker, twice at most, then escalate — done
-- TASK-223 Repeated failures and monitor alerts become tracked fix tasks, worked by impact — todo
+- TASK-223 Repeated failures and monitor alerts become tracked fix tasks, worked by impact — done
 - TASK-224 A scheduled CI check opens an issue when a mirrored lifecycle skill changes — todo
 
 ## What can be tested now

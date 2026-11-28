@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-11-28 09:53. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-28 10:57. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,10 +11,10 @@ _Generated 2026-11-28 09:53. Run `/tasks triage` to refresh. **Do not hand-edit*
 | in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 8                  | 148                 |
+| done         | 1                  | 8                  | 149                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
-`todo` by priority: 9× P1 · 40× P2 · 23× P3.
+`todo` by priority: 9× P1 · 41× P2 · 22× P3.
 
 ## In progress now
 
@@ -22,7 +22,7 @@ _None_
 
 ## Tree
 
-> Parents out of step (9): EPIC-020 planned, 1 of 4 children started → `/tasks pick` of one of its open tasks; STORY-025 in-progress, every child closed → `/tasks close STORY-025`, or keep it open; STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open; STORY-053 planned, 5 of 7 children started → `/tasks pick` of one of its open tasks.
+> Parents out of step (9): EPIC-020 planned, 1 of 4 children started → `/tasks pick` of one of its open tasks; STORY-025 in-progress, every child closed → `/tasks close STORY-025`, or keep it open; STORY-027 in-progress, every child closed → `/tasks close STORY-027`, or keep it open; STORY-032 in-progress, every child closed → `/tasks close STORY-032`, or keep it open; STORY-043 planned, every child closed → `/tasks close STORY-043`, or keep it open; STORY-046 planned, every child closed → `/tasks close STORY-046`, or keep it open; STORY-047 planned, every child closed → `/tasks close STORY-047`, or keep it open; STORY-048 planned, every child closed → `/tasks close STORY-048`, or keep it open; STORY-053 planned, 6 of 7 children started → `/tasks pick` of one of its open tasks.
 
 - **EPIC-001 Token storage & auth providers** — planned (0/2 tasks done)
   - (epic level) — 0/2 done
@@ -236,13 +236,13 @@ _None_
   - STORY-044 Follow Birko framework contract changes — planned (0/1 done)
     - [ ] [TASK-079](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-079-thread-the-cancellation-token-through-tool-bodies.md) Thread the cancellation token through the tool bodies
     - ~~[TASK-080](EPIC-018-adopt-birko-upstreams/STORY-044-follow-birko-contract-changes/TASK-080-rename-domainevententity-aggregateid.md) Rename DomainEventEntity.AggregateId to follow Birko's Guid naming rule~~
-- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (24/25 tasks done)
+- **EPIC-019 KoboldLair review 2026-10** (review-intake) — in-progress (24/26 tasks done)
   - STORY-041 Security & tenancy — done (4/4 done)
     - [x] [TASK-118](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-118-jwt-falls-back-to-a-public-secret.md) With no JWT secret configured, the server signs tokens with a secret published in the source — in every environment
     - [x] [TASK-119](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-119-client-proxy-tls-and-token-leak.md) The client host's WebSocket proxy skips TLS validation, and `/api/config` hands the auth token to any caller
     - [x] [TASK-141](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-141-rest-ownership-drops-non-guid-subjects.md) The /api/v1 ownership rule reads the caller as `ICurrentUser.UserGuid`, so GitHub and service-account callers own nothing
     - [x] [TASK-194](EPIC-019-koboldlair-review-2026-10/STORY-041-security-tenancy/TASK-194-key-name-can-reuse-an-untracked-client-identity.md) A new API key can take the name, and so the identity, of a client registered before key owners were recorded
-  - STORY-042 Correctness & invariants — in-progress (19/20 done)
+  - STORY-042 Correctness & invariants — in-progress (19/21 done)
     - [x] [TASK-120](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-120-reflection-tool-static-state.md) ReflectionTool keeps the current plan, task and Kobold in static fields, so parallel Kobolds overwrite each other
     - [x] [TASK-168](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-168-worktree-removed-with-uncommitted-work.md) A task's worktree is force-removed after its run even when the work was never committed
     - [x] [TASK-121](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-121-shutdown-blocks-the-host-thread.md) Graceful shutdown blocks the host thread with Thread.Sleep inside ApplicationStopping
@@ -256,6 +256,7 @@ _None_
     - [x] [TASK-190](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-190-dock-stays-on-project-after-chat-switch.md) After Dragon switches project from the chat, the web dock still shows the project that was opened · FEATURE-026
     - [x] [TASK-195](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-195-planner-result-shared-across-runs.md) Two planners running at once can take each other's plans
     - [x] [TASK-225](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-225-drake-never-loads-the-analysis-kobolds-get-no-constraints.md) Drake never loads the project's analysis, so Kobolds get no project constraints
+    - [ ] [TASK-231](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-231-acceptance-fix-task-satisfies-the-failed-tasks-dependents.md) A finished acceptance fix task counts as the failed task, so its dependents run on a failed dependency
     - [x] [TASK-181](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-181-dragon-request-queue-dispose-throws.md) DragonRequestQueue.Dispose throws when it stops its workers
     - [x] [TASK-182](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-182-finished-task-escalated-as-stalled.md) A finished task is escalated as "progress stalled" and its plan revised after it is Done
     - [x] [TASK-189](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-189-flaky-auth-spec-config-route.md) An e2e auth test fails about one run in six: its config route is still fetching when the page closes
@@ -265,7 +266,7 @@ _None_
     - [ ] [TASK-226](EPIC-019-koboldlair-review-2026-10/STORY-042-correctness-invariants/TASK-226-specification-history-lost-on-reload.md) A specification's history is lost on every reload: its id is never saved
   - STORY-043 Reuse & dead code — planned (1/1 done)
     - [x] [TASK-123](EPIC-019-koboldlair-review-2026-10/STORY-043-reuse-dead-code/TASK-123-dead-code-and-null-singletons.md) Clean-up from the KoboldLair review: dead code, `null!` singletons, in-memory aggregation
-- **EPIC-020 Project lifecycle in KoboldLair** — planned (15/25 tasks done)
+- **EPIC-020 Project lifecycle in KoboldLair** — planned (16/25 tasks done)
   - STORY-051 Questions climb the agent hierarchy — done (10/10 done)
     - [x] [TASK-201](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-201-a-question-climbs-the-agent-hierarchy-one-way-and.md) A question climbs the agent hierarchy one way, and its answer returns down the same path · FEATURE-078
     - [x] [TASK-202](EPIC-020-project-lifecycle-in-koboldlair/STORY-051-questions-climb-the-hierarchy/TASK-202-a-kobold-s-ask-human-goes-through-the-chain.md) A Kobold's ask_human goes through the chain · FEATURE-078
@@ -285,14 +286,14 @@ _None_
     - [ ] [TASK-214](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-214-dragon-s-interview-records-a-decision-ledger-per-f.md) Dragon's interview records a decision ledger per feature ⏳ waits on TASK-211 · FEATURE-078
     - [ ] [TASK-215](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-215-wyrm-records-the-project-s-conventions-vocabulary.md) Wyrm records the project's conventions, vocabulary and hard-to-reverse choices ⏳ waits on TASK-211 · FEATURE-078
     - [ ] [TASK-216](EPIC-020-project-lifecycle-in-koboldlair/STORY-052-lifecycle-layer-and-records/TASK-216-merging-a-feature-updates-the-project-changelog.md) Merging a feature updates the project changelog ⏳ waits on TASK-211 · FEATURE-078
-  - STORY-053 Verify gate and self-healing — planned (5/7 done)
+  - STORY-053 Verify gate and self-healing — planned (6/7 done)
     - [x] [TASK-217](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-217-the-acceptance-check-runs-checker-agents-on-every.md) The acceptance check runs checker agents on every task, cheapest first · FEATURE-078
     - [x] [TASK-218](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-218-a-checker-confirms-a-task-built-what-was-asked.md) A checker confirms a task built what was asked · FEATURE-078
     - [x] [TASK-222](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-222-checker-findings-go-back-to-the-worker-twice-at-mo.md) Checker findings go back to the worker, twice at most, then escalate · FEATURE-078
     - [ ] [TASK-219](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-219-a-checker-confirms-a-task-follows-the-project-s-co.md) A checker confirms a task follows the project's conventions ⏳ waits on TASK-215 · FEATURE-078
     - [x] [TASK-220](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-220-a-checker-finds-stale-or-redundant-comments.md) A checker finds stale or redundant comments · FEATURE-078
     - [x] [TASK-221](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-221-a-checker-looks-for-correctness-problems.md) A checker looks for correctness problems · FEATURE-078
-    - [ ] [TASK-223](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-223-repeated-failures-and-monitor-alerts-become-tracke.md) Repeated failures and monitor alerts become tracked fix tasks, worked by impact · FEATURE-078
+    - [x] [TASK-223](EPIC-020-project-lifecycle-in-koboldlair/STORY-053-verify-gate-and-self-healing/TASK-223-repeated-failures-and-monitor-alerts-become-tracke.md) Repeated failures and monitor alerts become tracked fix tasks, worked by impact · FEATURE-078
   - STORY-054 Following the lifecycle skills — planned (0/1 done)
     - [ ] [TASK-224](EPIC-020-project-lifecycle-in-koboldlair/STORY-054-following-the-skills/TASK-224-a-scheduled-ci-check-opens-an-issue-when-a-mirrore.md) A scheduled CI check opens an issue when a mirrored lifecycle skill changes · FEATURE-078
 
