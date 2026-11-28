@@ -746,7 +746,11 @@ namespace DraCode.KoboldLair.Server.Services
                 batchTaskTool: _drakeFactory != null ? new BatchTaskTool(_drakeFactory, _projectService) : null,
                 resetProject: async (name, keepHistory) => await _projectService.ResetProjectAsync(name, keepHistory),
                 viewCostReportTool: _costTracker != null ? new ViewCostReportTool(_costTracker, _rateLimiter) : null,
-                pendingDecisionsTool: _decisionDesk != null ? new PendingDecisionsTool(_decisionDesk, () => VisibleProjectRefs(session)) : null);
+                pendingDecisionsTool: _decisionDesk != null ? new PendingDecisionsTool(_decisionDesk, () => VisibleProjectRefs(session)) : null,
+                lifecycleLayerTool: new LifecycleLayerTool(
+                    nameOrId => _projectService.FindProjectByName(nameOrId) ?? _projectService.GetProject(nameOrId),
+                    (id, on) => _projectService.SetLifecycleEnabledAsync(id, on),
+                    () => GetVisibleProjects(session).Select(p => (p.Id, p.Name)).ToList()));
 
             // Create Dragon coordinator with delegation function
             session.Dragon = new DragonAgent(
@@ -1587,7 +1591,9 @@ namespace DraCode.KoboldLair.Server.Services
                         }
                         else
                         {
-                            var project = _projectService.RegisterProject(projectName, latestSpec, session.OwnerSub);
+                            // The person's answer to Sage's lifecycle question, if asked; else on (TASK-211, D5)
+                            var lifecycle = await SpecificationService.ReadLifecycleChoiceAsync(projectFolder) ?? true;
+                            var project = _projectService.RegisterProject(projectName, latestSpec, session.OwnerSub, lifecycle);
                             projectId = project.Id;
                             _logger.LogInformation("Auto-registered project: {Name} ({Id}, Owner: {Owner})", projectName, project.Id, session.OwnerSub);
                         }

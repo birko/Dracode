@@ -93,17 +93,17 @@ test.describe('on a desktop', () => {
   test('moving a tab keeps the new order, for this and every project, after a reload', async ({ page }) => {
     const server = await serve(page);
     await open(page, 'git'); // the keyboard moves the open tab
-    await expect.poll(() => tabNames(page)).toEqual(['Board', 'Spec', 'Runs', 'Git', 'Stats']);
+    await expect.poll(() => tabNames(page)).toEqual(['Board', 'Spec', 'Runs', 'Git', 'Stats', 'Settings']);
     await expect(tabs(page)).toHaveAttribute('reorderable', '');
 
     await tabs(page).locator('[role="tab"]', { hasText: 'Git' }).focus();
     await page.keyboard.press('Control+Shift+ArrowLeft');
     await page.keyboard.press('Control+Shift+ArrowLeft');
-    await expect.poll(() => tabNames(page)).toEqual(['Board', 'Git', 'Spec', 'Runs', 'Stats']);
-    await expect.poll(() => lastCurrent(server)?.tabs?.workspace).toEqual(['board', 'git', 'spec', 'runs', 'stats']);
+    await expect.poll(() => tabNames(page)).toEqual(['Board', 'Git', 'Spec', 'Runs', 'Stats', 'Settings']);
+    await expect.poll(() => lastCurrent(server)?.tabs?.workspace).toEqual(['board', 'git', 'spec', 'runs', 'stats', 'settings']);
 
     await page.reload();
-    await expect.poll(() => tabNames(page)).toEqual(['Board', 'Git', 'Spec', 'Runs', 'Stats']);
+    await expect.poll(() => tabNames(page)).toEqual(['Board', 'Git', 'Spec', 'Runs', 'Stats', 'Settings']);
   });
 
   test('the divider sets Dragon\'s width, kept after a reload', async ({ page }) => {
@@ -224,7 +224,7 @@ test.describe('on a desktop', () => {
 
     await expect(page.locator('b-toast-item[variant="success"]')).toContainText('Layout “Reviewing” saved');
     expect(server.puts.find((p) => p.path === 'Reviewing')?.body).toEqual({
-      tabs: { workspace: ['board', 'git', 'spec', 'runs', 'stats'] },
+      tabs: { workspace: ['board', 'git', 'spec', 'runs', 'stats', 'settings'] }, // a tab the saved order lacks goes last
       splits: { workspace: { master: '1fr', detail: '500px' } },
       openTab: 'git',
       dragonPinned: false,
@@ -245,7 +245,7 @@ test.describe('on a desktop', () => {
     await menu(page).locator('[slot="trigger"]').click();
     await menuItem(page, /^\s*Reviewing/).click();
     await expect(page).toHaveURL(/#\/projects\/p-1\/git$/);
-    await expect.poll(() => tabNames(page)).toEqual(['Git', 'Board', 'Spec', 'Runs', 'Stats']);
+    await expect.poll(() => tabNames(page)).toEqual(['Git', 'Board', 'Spec', 'Runs', 'Stats', 'Settings']);
     await expect(workspace(page).locator('kobold-dragon-dock button.pin')).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(async () => Math.abs((await dockWidth(page)) - 0.6 * (await areaWidth(page)))).toBeLessThan(2); // pinned: wide
     await expect.poll(() => lastCurrent(server)).toEqual({ tabs: reviewing.tabs, splits: reviewing.splits, dragonPinned: true });
@@ -284,7 +284,7 @@ test.describe('on a tablet', () => {
     await expect(divider(page)).toBeHidden();
     await tabs(page).locator('[role="tab"]', { hasText: 'Stats' }).focus();
     await page.keyboard.press('Control+Shift+ArrowLeft');
-    await expect.poll(() => lastCurrent(server)?.tabs?.workspace).toEqual(['board', 'spec', 'runs', 'stats', 'git']);
+    await expect.poll(() => lastCurrent(server)?.tabs?.workspace).toEqual(['board', 'spec', 'runs', 'stats', 'git', 'settings']);
   });
 });
 

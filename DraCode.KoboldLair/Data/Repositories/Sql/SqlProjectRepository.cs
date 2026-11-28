@@ -42,8 +42,28 @@ namespace DraCode.KoboldLair.Data.Repositories.Sql
         public async Task InitializeAsync()
         {
             await _repository.CreateSchemaAsync();
+            EnsureColumns();
             await LoadCacheAsync();
             _logger?.LogInformation("Loaded {Count} project(s) from database", _cache.Count);
+        }
+
+        /// <summary>
+        /// Adds columns an older <c>projects</c> table lacks, such as <see cref="ProjectEntity.LifecycleEnabled"/> (TASK-211):
+        /// <c>CreateSchemaAsync</c> never alters an existing table. Off SQL there are no fixed columns.
+        /// </summary>
+        private void EnsureColumns()
+        {
+            try
+            {
+                if (_repository.Connector is not { } connector)
+                    return;
+                foreach (var drift in connector.EnsureColumns(typeof(ProjectEntity)))
+                    _logger?.LogInformation("Added missing column {Table}.{Column} ({Type})", drift.Table, drift.Column, drift.Declared);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Could not add missing projects columns — project writes may fail");
+            }
         }
 
         private async Task LoadCacheAsync()

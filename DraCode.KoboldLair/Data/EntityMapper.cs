@@ -34,6 +34,7 @@ namespace DraCode.KoboldLair.Data
                 Status = (int)project.Status,
                 ExecutionState = (int)project.ExecutionState,
                 VerificationStatus = (int)project.VerificationStatus,
+                LifecycleEnabled = project.LifecycleEnabled,
                 ProjectCreatedAt = project.Timestamps.CreatedAt,
                 ProjectUpdatedAt = project.Timestamps.UpdatedAt,
                 AnalyzedAt = project.Timestamps.AnalyzedAt,
@@ -67,6 +68,7 @@ namespace DraCode.KoboldLair.Data
                 Status = (ProjectStatus)entity.Status,
                 ExecutionState = (ProjectExecutionState)entity.ExecutionState,
                 VerificationStatus = (VerificationStatus)entity.VerificationStatus,
+                LifecycleEnabled = entity.LifecycleEnabled,
                 Timestamps = new ProjectTimestamps
                 {
                     CreatedAt = entity.ProjectCreatedAt,
@@ -105,6 +107,7 @@ namespace DraCode.KoboldLair.Data
             entity.Status = (int)project.Status;
             entity.ExecutionState = (int)project.ExecutionState;
             entity.VerificationStatus = (int)project.VerificationStatus;
+            entity.LifecycleEnabled = project.LifecycleEnabled;
             entity.ProjectCreatedAt = project.Timestamps.CreatedAt;
             entity.ProjectUpdatedAt = project.Timestamps.UpdatedAt;
             entity.AnalyzedAt = project.Timestamps.AnalyzedAt;

@@ -1,6 +1,6 @@
 /**
  * Project workspace frame (TASK-150, FEATURE-026 D11): a project opens at `#/projects/{id}/{tab}` with its tabs in the
- * centre, in D11's order. A tab is listed once its screen exists: Board (TASK-153), Spec (TASK-150), Runs (TASK-155), Git (TASK-156) and Stats (TASK-158). An unknown or not-owned project (the API
+ * centre, in D11's order. A tab is listed once its screen exists: Board (TASK-153), Spec (TASK-150), Runs (TASK-155), Git (TASK-156), Stats (TASK-158) and Settings (TASK-211). An unknown or not-owned project (the API
  * answers 404 for both) and an unknown tab show the not-found view. Dragon is docked on the right and follows the
  * project (TASK-151). Dragon widens with focus (TASK-152, D13): ~360px, ~60% of the width while focus is inside it (a
  * click, or the shortcut) or while pinned; no timers.
@@ -30,6 +30,7 @@ import './spec-tab.js';
 import './runs-tab.js';
 import './git-tab.js';
 import './stats-tab.js';
+import './settings-tab.js';
 import './dragon-dock.js';
 import type { DragonDock } from './dragon-dock.js';
 import { DRAGON_PIN_EVENT, DRAGON_SHORTCUT, isDragonPinned } from '../services/dock-layout.js';
@@ -46,12 +47,13 @@ export const WORKSPACE_TABS: readonly { id: string; label: string; tag: string }
   { id: 'runs', label: 'Runs', tag: 'kobold-runs-tab' },
   { id: 'git', label: 'Git', tag: 'kobold-git-tab' },
   { id: 'stats', label: 'Stats', tag: 'kobold-stats-tab' },
+  { id: 'settings', label: 'Settings', tag: 'kobold-settings-tab' },
 ];
 
 export const DEFAULT_TAB = WORKSPACE_TABS[0].id;
 
-/** Tabs a phone does not offer (D21: Git stays on a computer). */
-const DESKTOP_ONLY_TABS = new Set(['git']);
+/** Tabs a phone does not offer (D21: Git stays on a computer; TASK-211: Settings changes the project). */
+const DESKTOP_ONLY_TABS = new Set(['git', 'settings']);
 
 /** Dragon at rest until the person sets a width (TASK-152's 360px), and while widened (~60%, D13). */
 const REST_SIZES: SplitSizes = { master: '1fr', detail: '360px' };

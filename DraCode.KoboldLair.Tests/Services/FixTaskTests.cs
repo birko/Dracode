@@ -87,6 +87,19 @@ public class FixTaskTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task With_the_lifecycle_layer_off_failures_and_alerts_file_no_fix_task()
+    {
+        var (drake, tracker) = NewDrake();
+        drake.LifecycleEnabled = () => false;
+        var failed = Failed(tracker, "[api-1] Build the store");
+
+        (await drake.FileFixTaskAsync(failed, "failure", "it failed 6 times")).Should().BeNull("fix tasks for failures are the layer's (TASK-211)");
+        (await drake.FileFixTaskAsync(failed, "monitor-stalled", "No step progress")).Should().BeNull();
+        (await drake.FileFixTaskAsync(failed, "acceptance", "Export x is not declared")).Should()
+            .NotBeNull("the acceptance check filed its fix before FEATURE-078 and still does");
+    }
+
+    [Fact]
     public async Task Fix_tasks_go_first_within_their_priority_the_one_most_work_waits_on_first()
     {
         var (drake, tracker) = NewDrake();

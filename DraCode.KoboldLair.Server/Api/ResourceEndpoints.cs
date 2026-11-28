@@ -73,7 +73,7 @@ public static class ResourceEndpoints
 
                 await projects.CreateProjectFolderAsync(dto.Name);
                 var spec = await specs.SaveContentAsync(dto.Name, dto.SpecificationContent ?? string.Empty);
-                var project = projects.RegisterProject(dto.Name, spec.FilePath, owner);
+                var project = projects.RegisterProject(dto.Name, spec.FilePath, owner, dto.LifecycleEnabled ?? true);
                 return Results.Created($"/api/v1/projects/{project.Id}", ProjectView(project));
             })
             .RequirePermission(KoboldLairPermissionChecker.ManageProjects);
@@ -143,6 +143,20 @@ public static class ResourceEndpoints
                     return Results.BadRequest(new { error = "enabled is required" });
                 await projects.SetAgentEnabledAsync(project.Id, agentType, dto.Enabled.Value);
                 return Results.Ok(new { projectId = project.Id, agentType, enabled = dto.Enabled.Value });
+            })
+            .RequirePermission(KoboldLairPermissionChecker.ManageProjects);
+
+        // PATCH /projects/{id}/lifecycle — switch the project's lifecycle layer on or off (TASK-211, FEATURE-078 D5)
+        api.MapPatch("/projects/{id}/lifecycle", async (string id, SetLifecycleDto dto, ICurrentUser user, ProjectService projects) =>
+            {
+                var project = projects.GetProject(id);
+                if (project is null || !ApiOwnership.CanAccess(user, project.OwnerId))
+                    return Results.NotFound();
+                if (dto.Enabled is null)
+                    return Results.BadRequest(new { error = "enabled is required" });
+                if (!await projects.SetLifecycleEnabledAsync(project.Id, dto.Enabled.Value))
+                    return Results.NotFound();
+                return Results.Ok(new { projectId = project.Id, lifecycleEnabled = dto.Enabled.Value });
             })
             .RequirePermission(KoboldLairPermissionChecker.ManageProjects);
 
@@ -347,6 +361,7 @@ public static class ResourceEndpoints
         ownerId = p.OwnerId,
         status = p.Status.ToString(),
         executionState = p.ExecutionState.ToString(),
+        lifecycleEnabled = p.LifecycleEnabled,
         createdAt = p.Timestamps.CreatedAt
     };
 
@@ -361,6 +376,7 @@ public static class ResourceEndpoints
         ownerId = p.OwnerId,
         status = p.Status.ToString(),
         executionState = p.ExecutionState.ToString(),
+        lifecycleEnabled = p.LifecycleEnabled,
         createdAt = p.Timestamps.CreatedAt,
         tasks = tasks is null ? null : new
         {
@@ -423,7 +439,9 @@ public static class ResourceEndpoints
 
     // ---- Request DTOs ---------------------------------------------------
 
-    public sealed record CreateProjectDto(string Name, string? SpecificationContent);
+    /// <param name="LifecycleEnabled">Whether the project uses the lifecycle layer (TASK-211); on when left out.</param>
+    public sealed record CreateProjectDto(string Name, string? SpecificationContent, bool? LifecycleEnabled = null);
+    public sealed record SetLifecycleDto(bool? Enabled);
     public sealed record UpdateSpecDto(string? Content);
     public sealed record CreateFeatureDto(string Name, string Description, string? Priority);
     public sealed record SetPriorityDto(string Priority);

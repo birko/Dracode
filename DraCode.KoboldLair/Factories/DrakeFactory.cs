@@ -306,6 +306,10 @@ namespace DraCode.KoboldLair.Factories
                 TaskChecks = TaskChecks
             };
 
+            // The project's lifecycle layer switch, read live so turning it on or off reaches a running Drake (TASK-211)
+            if (!string.IsNullOrEmpty(projectId) && _projectRepository is { } projects)
+                drake.LifecycleEnabled = () => projects.GetById(projectId)?.LifecycleEnabled ?? false;
+
             // The project's Wyvern, with its saved analysis and Wyrm's recommendation (TASK-225): Kobolds' constraints and
             // structure, escalation refinement and feature status all read it through the Drake
             if (!string.IsNullOrEmpty(projectId) && WyvernForProject?.Invoke(projectId) is { } wyvern)

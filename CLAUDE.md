@@ -223,6 +223,19 @@ Kobold (Automatic)       ← Executes plans step-by-step (per-project parallel l
     what already lives elsewhere — the code beside them, the task or specification, git history (`redundant`, naming
     where) — never for length, and not a "why" comment, API documentation or a licence header; read from the same change
     material (`TaskMaterial.ChangeAsync`). The intent checker leaves comments to it
+  - **Lifecycle layer switch** (TASK-211, FEATURE-078 D5): `Project.LifecycleEnabled` (a `projects` column, added off to an
+    older table). Off, a project behaves as before FEATURE-078: no checker agents (`TaskChecks` skipped), the last
+    acceptance failure fails with a fix task instead of a person's card, and failures and monitor alerts file no fix task
+    (`Drake.FileFixTaskAsync` returns null except for kind `acceptance`). The acceptance check's own promise checks keep
+    their global setting; the question chain (D27) and bug fixes apply everywhere. Each Drake asks the project live
+    (`Drake.LifecycleEnabled`, set by `DrakeFactory`; unset means on). A project Dragon creates is on or off by the
+    person's answer: Dragon asks before Sage creates the specification, `manage_specification` create refuses without
+    `lifecycle_layer`, and the answer travels in the features sidecar (`lifecycleLayer`,
+    `SpecificationService.ReadLifecycleChoiceAsync`) to `ProjectService.RegisterProject(..., lifecycleEnabled)`. A project
+    made through REST is on unless `lifecycleEnabled: false`; an imported one, and one created before the switch, is off.
+    Switched by Warden's `lifecycle_layer` (status/on/off), `PATCH /api/v1/projects/{id}/lifecycle { enabled }`
+    (`ManageProjects`, owner-scoped; the project views carry `lifecycleEnabled`) and the workspace's Settings tab (not on a
+    phone)
   - **Constraints propagation**: Collects constraints from both Wyrm and Wyvern, displays prominently to Kobolds as "⛔ PROJECT CONSTRAINTS" block.
     Each Drake gets its project's Wyvern when `DrakeFactory` creates it (`WyvernForProject`, set by `ProjectService`,
     which never changes the project's status; a new Wyvern reloads `analysis.json`), and loads `wyrm-recommendation.json`

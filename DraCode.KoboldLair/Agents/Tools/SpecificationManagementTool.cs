@@ -63,6 +63,12 @@ namespace DraCode.KoboldLair.Agents.Tools
                 {
                     type = "string",
                     description = "Markdown content (required for create and update)"
+                },
+                lifecycle_layer = new
+                {
+                    type = "boolean",
+                    description = "create only, required: the person's own answer to whether the new project uses the lifecycle " +
+                                  "layer (checker agents, escalation to a person, fix tasks for repeated failures). Never choose it for them"
                 }
             },
             required = new[] { "action" }
@@ -224,6 +230,12 @@ namespace DraCode.KoboldLair.Agents.Tools
             var name = nameObj.ToString() ?? "";
             var content = contentObj.ToString() ?? "";
 
+            // A new project's lifecycle layer is the person's to choose (TASK-211): no answer, no specification yet
+            if (ReadBool(input, "lifecycle_layer") is null)
+                return "Error: lifecycle_layer is required for create. The user has not answered whether this project uses the " +
+                       "lifecycle layer (finished tasks also checked by agents, a task that keeps failing its checks comes to " +
+                       "them, repeated failures become fix tasks; recommended: yes). Ask them, and create once they answer.";
+
             string fullPath;
             string projectFolder;
 
@@ -275,6 +287,13 @@ namespace DraCode.KoboldLair.Agents.Tools
                 // Write file (outside lock to avoid holding lock during I/O)
                 await File.WriteAllTextAsync(fullPath, content);
 
+                // The person's lifecycle answer travels with the specification until its project is registered (TASK-211)
+                if (ReadBool(input, "lifecycle_layer") is { } lifecycle)
+                {
+                    spec.LifecycleLayer = lifecycle;
+                    await SpecificationService.PersistFeaturesAsync(spec);
+                }
+
                 // Update dictionary under lock
                 lock (_specificationsLock)
                 {
@@ -296,6 +315,16 @@ namespace DraCode.KoboldLair.Agents.Tools
                 return $"Error creating specification: {ex.Message}";
             }
         }
+
+        private static bool? ReadBool(Dictionary<string, object> input, string key) =>
+            input.TryGetValue(key, out var value) ? value switch
+            {
+                bool b => b,
+                System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.True } => true,
+                System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.False } => false,
+                string s when bool.TryParse(s, out var parsed) => parsed,
+                _ => null
+            } : null;
 
         private async Task<string> UpdateSpecificationAsync(Dictionary<string, object> input)
         {

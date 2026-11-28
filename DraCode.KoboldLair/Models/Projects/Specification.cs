@@ -66,6 +66,12 @@ namespace DraCode.KoboldLair.Models.Projects
         public string ContentHash { get; set; } = string.Empty;
 
         /// <summary>
+        /// The person's answer, when Dragon created the specification, to whether its project uses the lifecycle layer
+        /// (TASK-211): read once when the project is registered; null when not asked. Kept in the features sidecar.
+        /// </summary>
+        public bool? LifecycleLayer { get; set; }
+
+        /// <summary>
         /// History of specification versions with metadata
         /// </summary>
         public List<SpecificationVersionHistoryEntry> VersionHistory { get; set; } = new();

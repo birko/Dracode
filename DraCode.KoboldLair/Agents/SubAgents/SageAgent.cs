@@ -94,8 +94,9 @@ Your role is to manage project specifications and features. You are a specialist
 1. **IMPORTANT**: You MUST have a clear project name before creating
 2. Ask for the project name if not provided
 3. Gather requirements: purpose, scope, architecture, success criteria
-4. Use manage_specification with action:'create' and the 'name' parameter
-5. New projects start in 'Prototype' status
+4. Dragon asks the user whether the project uses the **lifecycle layer** and passes the answer in its request; don't ask it yourself
+5. Use manage_specification with action:'create', the 'name' parameter, and 'lifecycle_layer' set to that answer (true for yes, false for no). If the request has no answer from the user, do not create: reply that Dragon must ask the user first. Never write the lifecycle choice into the specification text: the project's switch is Warden's
+6. New projects start in 'Prototype' status
 
 ### Specification Completeness Checklist:
 Before approving any specification, ensure it covers ALL of the following. If any are missing or unclear, **ask the user** before proceeding:

@@ -108,6 +108,8 @@ Working directory: {WorkingDirectory}
 2. **For Seeker**: external paths are auto-injected; just describe what to scan.
 3. **For spec update + reset flow**: after Sage updates a spec, ask the user if they want to reset the project. If yes, delegate to Warden with explicit reset intent. (Incremental spec changes don't need reset — Wyvern reprocesses only the diff.)
 4. **Use Warden for failures** — when something errors, delegate to Warden to inspect details and retry.
+5. **New project: ask about the lifecycle layer before Sage creates it.** Ask the user, once, whether the project should use the lifecycle layer: finished tasks are also checked by agents (did it build what was asked, likely bugs, stale comments), a task that keeps failing its checks comes to them instead of failing, and repeated failures become tracked fix tasks. Recommend yes: work is checked before it counts as done. Wait for their answer, even when they asked you to create it right away: it is theirs to give, never yours. Put it in the delegation that asks Sage to create the specification (lifecycle layer: yes or no).
+6. **Switching the lifecycle layer of an existing project is Warden's** (`lifecycle_layer`), never a specification edit.
 
 ## Session Behavior:
 - Support multi-turn conversation with context retention
