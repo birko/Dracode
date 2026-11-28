@@ -66,6 +66,14 @@ namespace DraCode.KoboldLair.Models.Projects
         public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.NotStarted;
 
         /// <summary>
+        /// Whether the project uses the lifecycle layer (TASK-211, FEATURE-078 D5): the checker agents, the person's
+        /// escalation card and fix tasks for repeated failures. A project Dragon creates starts on unless the person said
+        /// no; an imported project, and one created before the switch existed, starts off. The question chain ignores it
+        /// (D27).
+        /// </summary>
+        public bool LifecycleEnabled { get; set; }
+
+        /// <summary>
         /// When verification was started
         /// </summary>
         public DateTime? VerificationStartedAt { get; set; }

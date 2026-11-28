@@ -36,6 +36,9 @@ namespace DraCode.KoboldLair.Data.Entities
 
         public int VerificationStatus { get; set; } = 0;
 
+        /// <summary>The lifecycle layer switch (TASK-211); an older table gains the column, off for every row.</summary>
+        public bool LifecycleEnabled { get; set; }
+
         // Timestamps - stored as columns for query efficiency
         public DateTime? ProjectCreatedAt { get; set; }
         public DateTime? ProjectUpdatedAt { get; set; }
@@ -73,6 +76,7 @@ namespace DraCode.KoboldLair.Data.Entities
             target.Status = Status;
             target.ExecutionState = ExecutionState;
             target.VerificationStatus = VerificationStatus;
+            target.LifecycleEnabled = LifecycleEnabled;
             target.ProjectCreatedAt = ProjectCreatedAt;
             target.ProjectUpdatedAt = ProjectUpdatedAt;
             target.AnalyzedAt = AnalyzedAt;

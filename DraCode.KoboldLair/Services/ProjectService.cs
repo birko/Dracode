@@ -172,7 +172,8 @@ namespace DraCode.KoboldLair.Services
         /// Registers a new project when Dragon creates a specification.
         /// With consolidated folders, the specification should already be at {projectFolder}/specification.md
         /// </summary>
-        public Project RegisterProject(string projectName, string specificationPath, string ownerId)
+        /// <param name="lifecycleEnabled">The lifecycle layer switch (TASK-211): on for a new project unless the person said no.</param>
+        public Project RegisterProject(string projectName, string specificationPath, string ownerId, bool lifecycleEnabled = true)
         {
             if (string.IsNullOrWhiteSpace(ownerId))
                 throw new ArgumentException("A project owner (sub) is required to create a project (FEATURE-019 D8).", nameof(ownerId));
@@ -209,7 +210,8 @@ namespace DraCode.KoboldLair.Services
                     Specification = specificationPath,
                     Output = projectFolder
                 },
-                Status = ProjectStatus.Prototype
+                Status = ProjectStatus.Prototype,
+                LifecycleEnabled = lifecycleEnabled
             };
 
             // Enable the pipeline agents now, not only at the next startup (InitializeProjectConfigurationsAsync)
@@ -225,6 +227,21 @@ namespace DraCode.KoboldLair.Services
             _logger.LogInformation("✨ Registered new project: {ProjectName} (ID: {ProjectId}, Owner: {OwnerId})", projectName, project.Id, ownerId);
 
             return project;
+        }
+
+        /// <summary>
+        /// Switches the project's lifecycle layer on or off (TASK-211); its Drakes read it at their next check. False when
+        /// no project has <paramref name="projectId"/>.
+        /// </summary>
+        public async Task<bool> SetLifecycleEnabledAsync(string projectId, bool enabled)
+        {
+            var project = _repository.GetById(projectId);
+            if (project == null)
+                return false;
+            project.LifecycleEnabled = enabled;
+            await _repository.UpdateAsync(project);
+            _logger.LogInformation("Lifecycle layer {State} for project {Name} ({Id})", enabled ? "on" : "off", project.Name, project.Id);
+            return true;
         }
 
         /// <summary>

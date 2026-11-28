@@ -2893,6 +2893,15 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         public Services.Checks.TaskCheckRunner TaskChecks { get; set; } = new();
 
+        /// <summary>
+        /// Whether the project's lifecycle layer is on (TASK-211, FEATURE-078 D5), asked each time it matters: the factory
+        /// reads it from the project. Off, a finished task skips the checker agents, its last acceptance failure fails it with
+        /// a fix task instead of a person's card, and failures and monitor alerts file no fix task. Unset, it is on.
+        /// </summary>
+        public Func<bool>? LifecycleEnabled { get; set; }
+
+        private bool LifecycleOn => LifecycleEnabled?.Invoke() ?? true;
+
         public async Task<AskHumanOutcome> AskHumanAsync(TaskRecord task, AskHumanQuestion question)
         {
             if (_pendingDecisions == null)
@@ -3384,7 +3393,7 @@ namespace DraCode.KoboldLair.Orchestrators
             }
 
             // Then the checkers, cheapest first (TASK-217, D8, D30), unless the task's own promises already failed it
-            if (result.Unmet.Count == 0 && TaskChecks.Checkers.Count > 0 && !string.IsNullOrEmpty(workspace))
+            if (result.Unmet.Count == 0 && TaskChecks.Checkers.Count > 0 && !string.IsNullOrEmpty(workspace) && LifecycleOn)
                 result = await WithCheckersAsync(task, workspace, result);
 
             if (result.Passed)
@@ -3529,7 +3538,8 @@ namespace DraCode.KoboldLair.Orchestrators
         {
             var summary = string.Join(" ", unmet);
             var failure = $"{ErrorClassifier.AcceptanceFailurePrefix} after {max} reopen(s): {summary}";
-            if (_pendingDecisions == null)
+            // Without the lifecycle layer the person's escalation card (TASK-222) is not offered: it fails as before
+            if (_pendingDecisions == null || !LifecycleOn)
             {
                 await FailAcceptanceAsync(task, failure, unmet);
                 return;
@@ -3576,6 +3586,9 @@ namespace DraCode.KoboldLair.Orchestrators
         /// </summary>
         public async Task<TaskRecord?> FileFixTaskAsync(TaskRecord failed, string kind, string what, TaskPriority? priority = null)
         {
+            // Fix tasks for failures and alerts are the lifecycle layer's (TASK-211); the acceptance check's own predates it
+            if (kind != "acceptance" && !LifecycleOn)
+                return null;
             var standing = _taskTracker.GetAllTasks().Any(t => t.FixesTaskId == failed.Id && t.FixKind == kind &&
                 (t.Status != TaskStatus.Done || t.UpdatedAt >= failed.UpdatedAt));
             if (standing)

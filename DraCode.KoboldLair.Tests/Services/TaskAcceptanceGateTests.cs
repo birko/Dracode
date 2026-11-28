@@ -248,6 +248,66 @@ public class TaskAcceptanceGateTests : IAsyncLifetime
         tracker.GetAllTasks().Should().Contain(t => t.Id != task.Id && t.Task.Contains("refresh"));
     }
 
+    private sealed class AlwaysFinds : DraCode.KoboldLair.Services.Checks.ITaskChecker
+    {
+        public int Runs;
+        public string Name => "always";
+        public int Cost => 1;
+        public Task<IReadOnlyList<DraCode.KoboldLair.Services.Checks.TaskFinding>> CheckAsync(
+            DraCode.KoboldLair.Services.Checks.TaskCheckInput input, CancellationToken cancellationToken = default)
+        {
+            Runs++;
+            return Task.FromResult<IReadOnlyList<DraCode.KoboldLair.Services.Checks.TaskFinding>>([new("always", "missing", "something")]);
+        }
+    }
+
+    [Fact]
+    public async Task With_the_lifecycle_layer_off_the_checker_agents_do_not_run()
+    {
+        var (drake, tracker) = NewDrake();
+        var checker = new AlwaysFinds();
+        drake.TaskChecks = new DraCode.KoboldLair.Services.Checks.TaskCheckRunner([checker]);
+        drake.LifecycleEnabled = () => false;
+        var task = Working(tracker, AuthTask);
+        Complete();
+
+        await drake.SyncTaskFromKoboldAsync(Finished(task));
+
+        checker.Runs.Should().Be(0, "the checker agents are the lifecycle layer's (TASK-211)");
+        task.Status.Should().Be(TaskStatus.Done, "its own promises are kept, and the acceptance check stays on");
+    }
+
+    [Fact]
+    public async Task With_the_lifecycle_layer_on_the_checker_agents_run()
+    {
+        var (drake, tracker) = NewDrake();
+        var checker = new AlwaysFinds();
+        drake.TaskChecks = new DraCode.KoboldLair.Services.Checks.TaskCheckRunner([checker]);
+        drake.LifecycleEnabled = () => true;
+        var task = Working(tracker, AuthTask);
+        Complete();
+
+        await drake.SyncTaskFromKoboldAsync(Finished(task));
+
+        checker.Runs.Should().Be(1);
+        task.Status.Should().Be(TaskStatus.Unassigned, "its finding reopens it");
+    }
+
+    [Fact]
+    public async Task With_the_lifecycle_layer_off_the_third_failure_fails_with_a_fix_task_instead_of_a_persons_card()
+    {
+        var (drake, tracker) = NewDrake(maxReopens: 2);
+        drake.LifecycleEnabled = () => false;
+        var task = ReopenedTwice(tracker);
+        MissingRefresh();
+
+        await drake.SyncTaskFromKoboldAsync(Finished(task));
+
+        task.Status.Should().Be(TaskStatus.Failed, "as before FEATURE-078: no escalation card (TASK-211)");
+        (await _decisions.GetUnresolvedForTaskAsync(task.Id)).Should().BeNull();
+        tracker.GetAllTasks().Should().Contain(t => t.FixesTaskId == task.Id && t.FixKind == "acceptance");
+    }
+
     [Fact]
     public async Task A_finished_task_that_keeps_its_promises_is_done()
     {

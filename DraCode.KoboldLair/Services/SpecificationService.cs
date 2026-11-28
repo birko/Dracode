@@ -70,12 +70,14 @@ namespace DraCode.KoboldLair.Services
                 return;
 
             var featuresPath = Path.Combine(folder, FeaturesFileName);
-            var featuresData = new
+            var featuresData = new Dictionary<string, object?>
             {
-                specificationVersion = spec.Version,
-                specificationContentHash = spec.ContentHash,
-                features = spec.Features
+                ["specificationVersion"] = spec.Version,
+                ["specificationContentHash"] = spec.ContentHash,
+                ["features"] = spec.Features
             };
+            if (spec.LifecycleLayer is { } lifecycle)
+                featuresData["lifecycleLayer"] = lifecycle; // TASK-211
             var json = JsonSerializer.Serialize(featuresData, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(featuresPath, json);
         }
@@ -110,6 +112,9 @@ namespace DraCode.KoboldLair.Services
                         spec.Version = versionProp.GetInt32();
                     if (doc.RootElement.TryGetProperty("specificationContentHash", out var hashProp))
                         spec.ContentHash = hashProp.GetString() ?? string.Empty;
+                    if (doc.RootElement.TryGetProperty("lifecycleLayer", out var lifecycleProp) &&
+                        lifecycleProp.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                        spec.LifecycleLayer = lifecycleProp.GetBoolean();
                 }
                 else
                 {
@@ -123,6 +128,17 @@ namespace DraCode.KoboldLair.Services
             {
                 // Silently ignore load errors — features remain empty (matches prior tool behavior).
             }
+        }
+
+        /// <summary>
+        /// The person's answer, given to Dragon when the specification in <paramref name="folderPath"/> was created, to
+        /// whether its project uses the lifecycle layer (TASK-211); null when it was not asked or cannot be read.
+        /// </summary>
+        public static async Task<bool?> ReadLifecycleChoiceAsync(string folderPath)
+        {
+            var spec = new Specification();
+            await LoadFeaturesAsync(spec, folderPath);
+            return spec.LifecycleLayer;
         }
 
         private static string? ResolveFolder(Specification spec)

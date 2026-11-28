@@ -47,6 +47,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
         private readonly BatchTaskTool? _batchTaskTool;
         private readonly ViewCostReportTool? _viewCostReportTool;
         private readonly PendingDecisionsTool? _pendingDecisionsTool;
+        private readonly LifecycleLayerTool? _lifecycleLayerTool;
         private readonly Func<string, bool, Task<(bool Success, string Message)>>? _resetProject;
 
         protected override string SystemPrompt => GetWardenSystemPrompt();
@@ -85,7 +86,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             BatchTaskTool? batchTaskTool = null,
             Func<string, bool, Task<(bool Success, string Message)>>? resetProject = null,
             ViewCostReportTool? viewCostReportTool = null,
-            PendingDecisionsTool? pendingDecisionsTool = null)
+            PendingDecisionsTool? pendingDecisionsTool = null,
+            LifecycleLayerTool? lifecycleLayerTool = null)
             : base(provider, options)
         {
             _getProjectConfig = getProjectConfig;
@@ -120,6 +122,7 @@ namespace DraCode.KoboldLair.Agents.SubAgents
             _resetProject = resetProject;
             _viewCostReportTool = viewCostReportTool;
             _pendingDecisionsTool = pendingDecisionsTool;
+            _lifecycleLayerTool = lifecycleLayerTool;
             RebuildTools();
         }
 
@@ -167,6 +170,8 @@ namespace DraCode.KoboldLair.Agents.SubAgents
                 tools.Add(_viewCostReportTool);
             if (_pendingDecisionsTool != null)
                 tools.Add(_pendingDecisionsTool);
+            if (_lifecycleLayerTool != null)
+                tools.Add(_lifecycleLayerTool);
 
             return tools;
         }
@@ -195,6 +200,7 @@ You have ~20 tools spanning agent configuration, project lifecycle, task managem
 - **Execution control**: `pause_project`, `resume_project`, `suspend_project`, `cancel_project`, `reset_project`
 - **Visibility**: `view_workspace`, `view_notifications`
 - **Decisions**: `pending_decisions` (questions and escalations waiting on the user)
+- **Lifecycle layer**: `lifecycle_layer` (show it, or switch it on or off for a project, when the user asks)
 - **Cleanup**: `delete_project` (cancelled projects only)
 - **Verification**: `retry_verification`, `view_verification_report`, `skip_verification`
 - **Costs**: `view_cost_report` (usage, cost, budget and rate-limit status)

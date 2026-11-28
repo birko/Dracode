@@ -96,6 +96,44 @@ public class ResourceEndpointsTests : IDisposable
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    private static async Task<bool> Lifecycle(HttpClient client, string token, string id)
+    {
+        var resp = await client.SendAsync(Authed(HttpMethod.Get, $"/api/v1/projects/{id}", token));
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("lifecycleEnabled").GetBoolean();
+    }
+
+    [Fact]
+    public async Task The_lifecycle_layer_starts_on_or_as_asked_and_its_owner_switches_it()
+    {
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var tokenA = MintToken(factory, UserA, OwnerScopes);
+        var tokenB = MintToken(factory, UserB, OwnerScopes);
+
+        var on = await CreateProject(client, tokenA, "LayerOn");
+        var created = await client.SendAsync(Authed(HttpMethod.Post, "/api/v1/projects", tokenA,
+            new { name = "LayerOff", lifecycleEnabled = false }));
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var createdDoc = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        createdDoc.RootElement.GetProperty("lifecycleEnabled").GetBoolean().Should().BeFalse();
+        var off = createdDoc.RootElement.GetProperty("id").GetString()!;
+
+        (await Lifecycle(client, tokenA, on)).Should().BeTrue("a new project starts with the layer on (TASK-211)");
+        (await Lifecycle(client, tokenA, off)).Should().BeFalse();
+
+        var switched = await client.SendAsync(Authed(HttpMethod.Patch, $"/api/v1/projects/{off}/lifecycle", tokenA, new { enabled = true }));
+        switched.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Lifecycle(client, tokenA, off)).Should().BeTrue();
+
+        (await client.SendAsync(Authed(HttpMethod.Patch, $"/api/v1/projects/{off}/lifecycle", tokenB, new { enabled = false })))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound, "another owner's project");
+        (await client.SendAsync(Authed(HttpMethod.Patch, $"/api/v1/projects/{off}/lifecycle", tokenA, new { })))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest, "enabled is required");
+        (await Lifecycle(client, tokenA, off)).Should().BeTrue();
+    }
+
     [Fact]
     public async Task Create_then_list_round_trips_for_the_owner()
     {
