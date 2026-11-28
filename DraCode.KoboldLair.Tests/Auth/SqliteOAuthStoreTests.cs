@@ -56,7 +56,7 @@ public class SqliteOAuthStoreTests : IAsyncLifetime, IDisposable
     private (OAuthServer server, MutableClock clock, IServiceProvider sp) BuildServer()
     {
         var services = new ServiceCollection();
-        services.AddOAuthServerStores(useSqlite: true, dbPath: _dbPath);
+        services.AddKoboldLairOAuthStores(DraCode.KoboldLair.Data.DataStores.SqLite(_dbPath));
         var sp = services.BuildServiceProvider();
 
         var clock = new MutableClock();
@@ -158,9 +158,8 @@ public class SqliteOAuthStoreTests : IAsyncLifetime, IDisposable
         });
 
         // Fresh store instance pointed at the same db file — proves persistence + JSON round-trip.
-        var dir = Path.GetDirectoryName(_dbPath)!;
-        var freshStore = new Birko.Security.OAuth.Server.SqLite.Stores.SqLiteOAuthClientStore(new PasswordSettings(dir, Path.GetFileName(_dbPath)));
-        await freshStore.InitAsync();
+        IOAuthClientStore freshStore = new Birko.Security.OAuth.Server.Stores.Factory.FactoryOAuthClientStore(
+            DraCode.KoboldLair.Data.DataStores.SqLite(_dbPath));
 
         var loaded = await freshStore.GetByClientIdAsync(registered.ClientId);
 
@@ -187,7 +186,7 @@ public class SqliteOAuthStoreTests : IAsyncLifetime, IDisposable
         }
 
         var services = new ServiceCollection();
-        services.AddOAuthServerStores(useSqlite: true, dbPath: _dbPath);
+        services.AddKoboldLairOAuthStores(DraCode.KoboldLair.Data.DataStores.SqLite(_dbPath));
         var store = services.BuildServiceProvider().GetRequiredService<IRefreshTokenStore>();
         var record = new RefreshTokenRecord
         {

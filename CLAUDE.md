@@ -551,8 +551,14 @@ has runs behind a check: column repair only where there is a SQL connector, aggr
 and the specification event store come from the factory too (TASK-228): `DataStores.EventStore` is Birko's
 `GetEventStore` with the SQL and MongoDB overrides (`__Events` on SQL, `MongoDBEventStore` on MongoDB, Birko's generic one
 on InMemory), and `SpecificationEventService` retries a version another writer took up to `MaxAppendAttempts` (32) times
-with a short random pause. Still on the SQLite file whatever the provider until TASK-230 (waits on Birko TASK-1013): the
-OAuth stores and `OAuthClientNames`. There is no JSON backend (TASK-227): every store is
+with a short random pause. The OAuth stores come from the factory too (TASK-230, Birko TASK-1013):
+`AddKoboldLairOAuthStores(factory)` (`Auth/OAuthStores.cs`) registers Birko's `AddOAuthServerStores(IStoreFactory)`, which
+claims codes and refresh tokens atomically on every backend and keeps the SQLite stores' table and column names (an
+existing database is read as it is), adds the refresh-token `ClaimsJson` column an older SQL table lacks, and
+`OAuthClientNames`, which reads every client through the factory (the store's `GetByNameAsync` is exact; a key's name is
+checked in any case). Nothing references `Birko.Security.OAuth.Server.SqLite` or `.InMemory` any more; a test's
+in-memory OAuth is the InMemory factory. Birko TASK-1023: tables the factory stores create fresh have no index on
+ClientId / token hash yet. There is no JSON backend (TASK-227): every store is
 registered on the database, and a configuration still setting `KoboldLair:Data:DefaultBackend` to anything but `SqLite`
 refuses to start (`DataStorageConfig.EnsureSupported`, checked on start and by `StoreFactoryFor`) with a message naming
 `KoboldLair:Data:Provider`. Test hosts run on a temporary SQLite file under their own `ProjectsPath`.
@@ -570,9 +576,9 @@ refuses to start (`DataStorageConfig.EnsureSupported`, checked on start and by `
 - **PostgreSQL**: create the database first; the tables are created on first start. Specification history is `__Events`.
 - **MongoDB**: the database and its collections are created on first use; specification history uses Birko's MongoDB
   event store.
-- On either, the OAuth stores stay on the SQLite file under `ProjectsPath` until TASK-230.
+- On either, the OAuth stores live in that database too (TASK-230); no SQLite file is made.
 
-`EveryStoreOnEveryDatabaseTests` writes every store through one factory and reads it back through a second (as a restart
+`EveryStoreOnEveryDatabaseTests` writes every store (OAuth clients included) through one factory and reads it back through a second (as a restart
 would), on SQLite and InMemory always and on PostgreSQL / MongoDB under Birko's live-test variables: `BIRKO_PG_HOST`
 (`BIRKO_PG_PORT`, `BIRKO_PG_USER`, `BIRKO_PG_PASSWORD`) and `BIRKO_MONGO_HOST` (`BIRKO_MONGO_PORT`), each on a fresh
 database dropped afterwards; skipped when unset, failed instead under `BIRKO_REQUIRE_LIVE`. The local containers are
@@ -583,7 +589,8 @@ Birko's (`birko-live-pg` on 5432, `birko-live-mongo-standalone` on 27018).
 Every store opens `{KoboldLair:ProjectsPath}/{Data:SqLitePath}`: `DataStorageConfig.ProjectsPath` is set from
 `KoboldLair:ProjectsPath` when the options are built (TASK-163), so a store built early gets the same file.
 
-Every store on `koboldlair.db` (the `Sql*Repository` classes, the event store, the OAuth stores) builds its settings
+Every store on `koboldlair.db` (the `Sql*Repository` classes, the event store, the OAuth stores, all through the store
+factory) builds its settings
 through `SqliteDatabaseSettings.For(dbPath)`, which returns `SqLiteSettings`, so Birko switches the file to WAL on first
 use. Never pass plain `PasswordSettings`: Birko caches one connector per file and the first store decides the journal
 mode for all, and on the rollback journal a pooled handle can read a table another connection created as empty, with no
