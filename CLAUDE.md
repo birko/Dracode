@@ -542,7 +542,28 @@ registered on the database, and a configuration still setting `KoboldLair:Data:D
 refuses to start (`DataStorageConfig.EnsureSupported`, checked on start and by `StoreFactoryFor`) with a message naming
 `KoboldLair:Data:Provider`. Test hosts run on a temporary SQLite file under their own `ProjectsPath`.
 
-### SQLite Database Runs in WAL (TASK-177)
+**Configuring each database** (TASK-229), under `KoboldLair:Data` (or `KoboldLair__Data__Provider` /
+`KoboldLair__Data__ConnectionString` in the environment):
+
+```json
+{ "KoboldLair": { "Data": { "Provider": "SqLite", "SqLitePath": "koboldlair.db" } } }
+{ "KoboldLair": { "Data": { "Provider": "PostgreSQL", "ConnectionString": "Host=db;Port=5432;Username=kobold;Password=…;Database=koboldlair" } } }
+{ "KoboldLair": { "Data": { "Provider": "MongoDB", "ConnectionString": "mongodb://db:27017/koboldlair" } } }
+```
+
+- **SQLite** (the default): one file under `ProjectsPath`; the WAL and backup rules below are SQLite's alone.
+- **PostgreSQL**: create the database first; the tables are created on first start. Specification history is `__Events`.
+- **MongoDB**: the database and its collections are created on first use; specification history uses Birko's MongoDB
+  event store.
+- On either, the OAuth stores stay on the SQLite file under `ProjectsPath` until TASK-230.
+
+`EveryStoreOnEveryDatabaseTests` writes every store through one factory and reads it back through a second (as a restart
+would), on SQLite and InMemory always and on PostgreSQL / MongoDB under Birko's live-test variables: `BIRKO_PG_HOST`
+(`BIRKO_PG_PORT`, `BIRKO_PG_USER`, `BIRKO_PG_PASSWORD`) and `BIRKO_MONGO_HOST` (`BIRKO_MONGO_PORT`), each on a fresh
+database dropped afterwards; skipped when unset, failed instead under `BIRKO_REQUIRE_LIVE`. The local containers are
+Birko's (`birko-live-pg` on 5432, `birko-live-mongo-standalone` on 27018).
+
+### SQLite Database Runs in WAL (TASK-177) — SQLite only
 
 Every store opens `{KoboldLair:ProjectsPath}/{Data:SqLitePath}`: `DataStorageConfig.ProjectsPath` is set from
 `KoboldLair:ProjectsPath` when the options are built (TASK-163), so a store built early gets the same file.
