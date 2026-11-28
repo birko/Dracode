@@ -164,12 +164,12 @@ var oauthDbPath = RepositoryFactory.ResolveSqLitePath(oauthDataConfig);
 builder.Services.AddOAuthServerStores(useSqlite: true, oauthDbPath);
 // Every OAuth client's name, for a new key's uniqueness check (TASK-194): read from the same database as the stores
 builder.Services.AddSingleton(sp => new OAuthClientNames(sp.GetRequiredService<IOAuthClientStore>(), oauthDbPath));
-// Who created each service-account key (TASK-162): the OAuth client store cannot be listed. The server's database on the
-// SQLite backend, else in memory, like the OAuth stores; resolved when first used, so a test host's settings are seen.
+// Who created each service-account key (TASK-162): the OAuth client store cannot be listed. On the configured database
+// (TASK-228); resolved when first used, so a test host's settings are seen.
 builder.Services.AddSingleton(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    return new ServiceKeyRegistry(RepositoryFactory.ResolveSqLitePath(dataConfig));
+    return new ServiceKeyRegistry(RepositoryFactory.StoreFactoryFor(dataConfig));
 });
 builder.Services.AddSingleton<OAuthServer>(sp =>
 {
@@ -408,13 +408,13 @@ builder.Services.AddSingleton<SqlPendingDecisionRepository>(sp =>
     return repo;
 });
 
-// Specification event store: Birko.Data.EventSourcing.SQL on the KoboldLair SQLite database (TASK-127). The
-// events DraCode's own repository wrote to domain_events are moved over at startup (below, after Build).
+// Specification event store on the configured database (TASK-127, TASK-228): Birko's SQL event store (__Events) on a
+// SQL backend, its MongoDB one on MongoDB.
 builder.Services.AddSingleton<IAsyncEventStore>(sp =>
 {
     var dataConfig = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
     dataConfig.ProjectsPath = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value.ProjectsPath ?? "./projects";
-    return LegacyDomainEventMigration.CreateStore(RepositoryFactory.ResolveSqLitePath(dataConfig));
+    return RepositoryFactory.StoreFactoryFor(dataConfig).EventStore();
 });
 
 // Register SpecificationEventService for recording specification change events
@@ -1014,18 +1014,6 @@ using (var scope = app.Services.CreateScope())
         }
     }
     logger?.LogInformation("Stale worktree cleanup complete");
-}
-
-// Move specification events written before TASK-127 (table domain_events) into the Birko event store
-{
-    var dataConfig = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataStorageConfig>>().Value;
-    dataConfig.ProjectsPath = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<KoboldLairConfiguration>>().Value.ProjectsPath ?? "./projects";
-    if (app.Services.GetService<IAsyncEventStore>() is { } eventStore)
-    {
-        await LegacyDomainEventMigration.MigrateAsync(
-            RepositoryFactory.ResolveSqLitePath(dataConfig), eventStore,
-            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("EventStoreMigration"));
-    }
 }
 
 app.MapDefaultEndpoints();

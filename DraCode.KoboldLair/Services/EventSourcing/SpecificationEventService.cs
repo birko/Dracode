@@ -171,11 +171,15 @@ namespace DraCode.KoboldLair.Services.EventSourcing
         /// <summary>
         /// Appends an event at the aggregate's next version. The store rejects a version another writer took between
         /// the read and the append (TASK-127: <see cref="EventStoreConcurrencyException"/>, from its unique index); the
-        /// version is then read again and the append retried, so two changes to one specification both land.
+        /// version is then read again and the append retried after a short random pause, so concurrent changes to one
+        /// specification all land: each round one writer wins, so <see cref="MaxAppendAttempts"/> covers that many writers
+        /// at once (TASK-228: on MongoDB ten writers exhausted five attempts).
         /// </summary>
+        /// <summary>How many times one change is tried before its conflict is reported.</summary>
+        public const int MaxAppendAttempts = 32;
+
         private async Task<long> AppendNextAsync(Guid aggregateId, string eventType, string eventData)
         {
-            const int attempts = 5;
             for (var attempt = 1; ; attempt++)
             {
                 var version = await _eventStore.GetVersionAsync(aggregateId) + 1;
@@ -184,9 +188,10 @@ namespace DraCode.KoboldLair.Services.EventSourcing
                     await _eventStore.AppendAsync(new DomainEvent(aggregateId, version, eventType, eventData));
                     return version;
                 }
-                catch (EventStoreConcurrencyException) when (attempt < attempts)
+                catch (EventStoreConcurrencyException) when (attempt < MaxAppendAttempts)
                 {
                     _logger?.LogDebug("Version {Version} of {AggregateId} was taken by another writer; retrying", version, aggregateId);
+                    await Task.Delay(Random.Shared.Next(1, 10 * Math.Min(attempt, 5)));
                 }
             }
         }

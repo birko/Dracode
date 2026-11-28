@@ -1,6 +1,6 @@
 # Tasks — DraCode
 
-_Generated 2026-11-27 18:50. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
+_Generated 2026-11-28 08:45. Run `/tasks triage` to refresh. **Do not hand-edit** — changes will be overwritten._
 
 ## Counts
 
@@ -11,7 +11,7 @@ _Generated 2026-11-27 18:50. Run `/tasks triage` to refresh. **Do not hand-edit*
 | in-progress  | 7                  | 12                 | 0                   |
 | verify       | —                  | —                  | 0                   |
 | blocked      | —                  | —                  | 20 (20 also counted in their own state) |
-| done         | 1                  | 8                  | 146                 |
+| done         | 1                  | 8                  | 147                 |
 | cancelled    | 0                  | 0                  | 5                   |
 
 `todo` by priority: 9× P1 · 41× P2 · 23× P3.
@@ -183,17 +183,18 @@ _None_
     - [ ] [TASK-027](EPIC-015-self-reasoning-depth/STORY-030-budget-aware-reflection/TASK-027-budget-aware-reflection.md) Surface real token/cost spend into reflect tool & monitor · FEATURE-033
   - STORY-031 Cross-step coherence re-plan check — planned (0/1 done)
     - [ ] [TASK-028](EPIC-015-self-reasoning-depth/STORY-031-cross-step-replan-check/TASK-028-cross-step-coherence-check.md) Lightweight re-plan check when a step is revised/failed · FEATURE-034
-- **EPIC-016 Database-backed agent working state** — in-progress (4/6 tasks done)
+- **EPIC-016 Database-backed agent working state** — in-progress (5/7 tasks done)
   - STORY-032 Migrate remaining file-based working artifacts to the database — in-progress (2/2 done)
     - [x] [TASK-094](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-094-remove-project-configs-json.md) Remove project-configs.json — the database is the only store for per-project agent settings
     - [x] [TASK-096](EPIC-016-db-backed-agent-state/STORY-032-migrate-remaining-artifacts/TASK-096-remove-dead-project-config-client.md) Remove the dead project-config-client.js (calls /api/project-configs routes nothing serves)
   - STORY-033 Persist structured decision & reasoning records — planned (0/0 done)
   - STORY-034 Codify and enforce the deliverable-vs-working-state boundary — planned (0/0 done)
-  - (epic level) — 2/4 done
+  - (epic level) — 3/5 done
     - [x] [TASK-200](EPIC-016-db-backed-agent-state/TASK-200-stores-work-on-any-database.md) Stores work on any database (1/4): one database setting, every repository built from Birko's store factory
     - [x] [TASK-227](EPIC-016-db-backed-agent-state/TASK-227-drop-the-json-backend-and-the-null-stores.md) Stores work on any database (2/4): drop the JSON backend and the `null!` stores
-    - [ ] [TASK-228](EPIC-016-db-backed-agent-state/TASK-228-oauth-service-keys-and-events-on-the-store-factory.md) Stores work on any database (3/4): OAuth stores, service keys and the event store on the store factory
-    - [ ] [TASK-229](EPIC-016-db-backed-agent-state/TASK-229-live-tests-on-postgresql-and-mongodb.md) Stores work on any database (4/4): live tests on PostgreSQL and MongoDB, and the human test ⏳ waits on TASK-228
+    - [x] [TASK-228](EPIC-016-db-backed-agent-state/TASK-228-oauth-service-keys-and-events-on-the-store-factory.md) Stores work on any database (3/4): OAuth stores, service keys and the event store on the store factory
+    - [ ] [TASK-229](EPIC-016-db-backed-agent-state/TASK-229-live-tests-on-postgresql-and-mongodb.md) Stores work on any database (4/4): live tests on PostgreSQL and MongoDB, and the human test
+    - [ ] [TASK-230](EPIC-016-db-backed-agent-state/TASK-230-oauth-stores-on-the-store-factory.md) The OAuth stores and client names on the store factory ⏳ waits on Birko.Framework/TASK-1013
 - **EPIC-017 Generalized agent consensus** — planned (0/0 tasks done)
   - STORY-035 Reusable ConsensusService abstraction — planned (0/0 done)
   - STORY-036 Diverse-panel consensus (heterogeneous agents) — planned (0/0 done)

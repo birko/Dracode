@@ -1,3 +1,7 @@
+using Birko.Data.EventSourcing.Events;
+using Birko.Data.EventSourcing.MongoDB;
+using Birko.Data.EventSourcing.SQL;
+using Birko.Data.EventSourcing.Stores;
 using Birko.Data.InMemory.Stores;
 using Birko.Data.Models;
 using Birko.Data.MongoDB.Stores;
@@ -40,6 +44,13 @@ namespace DraCode.KoboldLair.Data
         /// <summary>The SQL connector behind the factory, or null on a non-SQL backend (where tables have no fixed columns).</summary>
         public static AbstractConnector? SqlConnector(this IStoreFactory factory) =>
             factory is ISqlStoreFactory sql ? sql.GetConnector() : null;
+
+        /// <summary>
+        /// The specification event store on the factory's backend (TASK-228): Birko's SQL event store (<c>__Events</c>) on a
+        /// SQL backend, its native MongoDB one on MongoDB, and its generic one over the factory's stores elsewhere (InMemory).
+        /// </summary>
+        public static IAsyncEventStore EventStore(this IStoreFactory factory) =>
+            factory.GetEventStore(o => o.AddSql().AddMongoDB());
     }
 
     /// <summary>

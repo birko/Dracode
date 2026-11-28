@@ -532,8 +532,12 @@ Every repository gets its store from one Birko `IStoreFactory` (TASK-990's unifi
 `KoboldLair:Data:ConnectionString` (an Npgsql string, `mongodb://host:port/db`, or a SQLite file; for SQLite without one,
 `SqLitePath` under `ProjectsPath` as before). Repositories hold a `StoreRepository<T>` (`Data/DataStores.cs`); what only SQL
 has runs behind a check: column repair only where there is a SQL connector, aggregation through `IAsyncAggregatableStore`
-(else in memory). Each `Sql*Repository` keeps a `dbPath` constructor for SQLite. Still on SQLite directly until TASK-228:
-the OAuth stores, the service-key registry and the event store. There is no JSON backend (TASK-227): every store is
+(else in memory). Each `Sql*Repository` keeps a `dbPath` constructor for SQLite. The service-key registry
+and the specification event store come from the factory too (TASK-228): `DataStores.EventStore` is Birko's
+`GetEventStore` with the SQL and MongoDB overrides (`__Events` on SQL, `MongoDBEventStore` on MongoDB, Birko's generic one
+on InMemory), and `SpecificationEventService` retries a version another writer took up to `MaxAppendAttempts` (32) times
+with a short random pause. Still on the SQLite file whatever the provider until TASK-230 (waits on Birko TASK-1013): the
+OAuth stores and `OAuthClientNames`. There is no JSON backend (TASK-227): every store is
 registered on the database, and a configuration still setting `KoboldLair:Data:DefaultBackend` to anything but `SqLite`
 refuses to start (`DataStorageConfig.EnsureSupported`, checked on start and by `StoreFactoryFor`) with a message naming
 `KoboldLair:Data:Provider`. Test hosts run on a temporary SQLite file under their own `ProjectsPath`.

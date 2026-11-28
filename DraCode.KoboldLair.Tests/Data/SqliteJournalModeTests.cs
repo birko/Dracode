@@ -213,7 +213,7 @@ public class SqliteJournalModeTests : IAsyncLifetime
     public async Task The_event_store_leaves_a_fresh_file_in_WAL()
     {
         var dbPath = NewDbPath("events");
-        var store = LegacyDomainEventMigration.CreateStore(dbPath);
+        var store = DataStores.SqLite(dbPath).EventStore();
         await store.ReadAsync(Guid.NewGuid());
 
         JournalMode(dbPath).Should().Be("wal");
